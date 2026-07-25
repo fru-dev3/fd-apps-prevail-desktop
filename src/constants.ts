@@ -153,8 +153,9 @@ export const MODELS: Record<string, ModelPick[]> = {
     // these run the right model; bump the label when Anthropic ships a new one.
     // Claude Code exposes no machine-readable model list (verified), so this is a
     // curated list by necessity.
-    { id: "opus",            label: "Opus 4.8",  blurb: "flagship · complex tasks", resolved: "claude-opus-4-8" },
-    { id: "claude-opus-4-7", label: "Opus 4.7",  blurb: "previous flagship" },
+    { id: "opus",            label: "Opus 5",    blurb: "flagship · complex tasks", resolved: "claude-opus-5" },
+    { id: "claude-opus-4-8", label: "Opus 4.8",  blurb: "previous flagship" },
+    { id: "claude-opus-4-7", label: "Opus 4.7",  blurb: "legacy flagship" },
     { id: "claude-opus-4-6", label: "Opus 4.6",  blurb: "legacy flagship" },
     { id: "claude-fable-5",  label: "Fable 5",   blurb: "newest · most capable" },
     { id: "sonnet",          label: "Sonnet 5",  blurb: "balanced · efficient", resolved: "claude-sonnet-5" },
@@ -199,6 +200,7 @@ export const MODELS: Record<string, ModelPick[]> = {
     { id: "mistral",  label: "Mistral 7B", blurb: "local · mistral" },
   ],
   openrouter: [
+    { id: "anthropic/claude-opus-5",         label: "Claude Opus 5",     blurb: "flagship · via OpenRouter" },
     { id: "anthropic/claude-opus-4.1",       label: "Claude Opus 4.1",   blurb: "via OpenRouter" },
     { id: "anthropic/claude-sonnet-4.5",     label: "Claude Sonnet 4.5", blurb: "via OpenRouter" },
     { id: "openai/gpt-5.6-sol",              label: "GPT-5.6 Sol",       blurb: "flagship · via OpenRouter" },
