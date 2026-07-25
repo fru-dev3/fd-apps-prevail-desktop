@@ -83,13 +83,13 @@ export function prettyModelId(id: string): string {
   if (!s) return "";
   s = s.replace(/^(claude|anthropic|openai|google|codex|antigravity|ollama|openrouter|x-ai|xai)[-/]/i, "");
   // family-version-major-minor -> "Family major.minor" (e.g. opus-4-8 -> Opus 4.8)
+  const FAM: Record<string, string> = { gpt: "GPT", oss: "OSS" };
+  const famName = (fam: string) => FAM[fam] ?? (fam.charAt(0).toUpperCase() + fam.slice(1));
   const m = s.match(/^([a-z]+)[-_]?(\d+)[-.](\d+)$/i);
-  if (m) {
-    const fam = m[1].toLowerCase();
-    const FAM: Record<string, string> = { gpt: "GPT", oss: "OSS" };
-    const famLabel = FAM[fam] ?? (fam.charAt(0).toUpperCase() + fam.slice(1));
-    return `${famLabel} ${m[2]}.${m[3]}`;
-  }
+  if (m) return `${famName(m[1].toLowerCase())} ${m[2]}.${m[3]}`;
+  // family-version-major -> "Family major" (e.g. opus-5 -> Opus 5, grok-4 -> Grok 4)
+  const m1 = s.match(/^([a-z]+)[-_]?(\d+)$/i);
+  if (m1) return `${famName(m1[1].toLowerCase())} ${m1[2]}`;
   // otherwise title-case the words, upper-casing short acronyms
   return s.split(/[-_\s]+/).map((w) => (/^[a-z]{2,4}$/i.test(w) && !/^\d/.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
 }
@@ -308,8 +308,8 @@ export function migrateModelPrefs() {
     }
     const ALIAS_REMAP: Record<string, string> = {
       // Concrete ids folded into their auto-upgrading aliases (one entry per
-      // model in the picker).
-      "claude-opus-4-8": "opus",
+      // model in the picker). opus -> claude-opus-5 now (4.8 is its own pinned pick).
+      "claude-opus-5": "opus",
       "claude-sonnet-4-6": "sonnet",
       "claude-haiku-4-5": "haiku",
     };
