@@ -469,7 +469,7 @@ const COUNCIL_CLOUD_TOKENS = ["claude", "anthropic", "gpt", "openai", "codex", "
 // codebase, so this is a deliberately rough, clearly-labelled estimate.
 function councilMemberWeight(hay: string, isOss: boolean): number {
   if (isOss) return 1;
-  const flagship = ["opus", "gpt-5", "gpt5", "gemini-2.5-pro", "gemini-pro", "grok-4", "o3", "o1"];
+  const flagship = ["fable", "opus", "astra", "gpt-6", "gpt-5", "gpt5", "gemini-3.1-pro", "gemini-pro", "grok-4", "o3", "o1"];
   if (flagship.some((t) => hay.includes(t))) return 3;
   return 2; // mid cloud (sonnet, haiku, gpt-4o-mini, flash, etc.)
 }
@@ -482,7 +482,7 @@ function councilMemberWeight(hay: string, isOss: boolean): number {
 const COUNCIL_TURN_TOKENS = 6000; // ~prompt + context + answer for one seat
 function councilMemberCostUsd(hay: string, isOss: boolean): number {
   if (isOss) return 0; // on-device, no API spend
-  const flagship = ["opus", "gpt-5", "gpt5", "gemini-2.5-pro", "gemini-pro", "grok-4", "o3", "o1"];
+  const flagship = ["fable", "opus", "astra", "gpt-6", "gpt-5", "gpt5", "gemini-3.1-pro", "gemini-pro", "grok-4", "o3", "o1"];
   const perMillion = flagship.some((t) => hay.includes(t)) ? 18 : 4; // blended $/1M tokens
   return (COUNCIL_TURN_TOKENS / 1_000_000) * perMillion;
 }
