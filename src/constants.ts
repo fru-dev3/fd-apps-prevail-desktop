@@ -154,10 +154,11 @@ export const MODELS: Record<string, ModelPick[]> = {
     // Claude Code exposes no machine-readable model list (verified), so this is a
     // curated list by necessity.
     { id: "opus",            label: "Opus 5",    blurb: "flagship · complex tasks", resolved: "claude-opus-5" },
+    { id: "fable",           label: "Fable 5.1", blurb: "most capable · long-horizon work", resolved: "claude-fable-5-1" },
     { id: "claude-opus-4-8", label: "Opus 4.8",  blurb: "previous flagship" },
     { id: "claude-opus-4-7", label: "Opus 4.7",  blurb: "legacy flagship" },
     { id: "claude-opus-4-6", label: "Opus 4.6",  blurb: "legacy flagship" },
-    { id: "claude-fable-5",  label: "Fable 5",   blurb: "newest · most capable" },
+    { id: "claude-fable-5",  label: "Fable 5",   blurb: "previous frontier" },
     { id: "sonnet",          label: "Sonnet 5",  blurb: "balanced · efficient", resolved: "claude-sonnet-5" },
     { id: "haiku",           label: "Haiku 4.5", blurb: "fast + cheap", resolved: "claude-haiku-4-5" },
   ],
@@ -173,7 +174,9 @@ export const MODELS: Record<string, ModelPick[]> = {
     // them (older codex CLIs / lower plan tiers). gpt-5.5 is kept as a fallback
     // for those accounts.
     { id: "auto",             label: "Auto",              blurb: "route to the best model" },
-    { id: "gpt-5.6-sol",      label: "GPT-5.6 Sol",       blurb: "flagship · fast (default)" },
+    { id: "gpt-5.6-sol",      label: "GPT-5.6 Sol",       blurb: "Codex default · fast" },
+    { id: "gpt-6-astra",      label: "GPT-6 Astra",       blurb: "flagship · most capable" },
+    { id: "gpt-6-astra@high", label: "GPT-6 Astra (high)", blurb: "flagship · max reasoning" },
     { id: "gpt-5.6-sol@medium", label: "GPT-5.6 Sol (medium)", blurb: "flagship · balanced reasoning" },
     { id: "gpt-5.6-sol@high", label: "GPT-5.6 Sol (high)", blurb: "flagship · max reasoning" },
     { id: "gpt-5.6-terra",    label: "GPT-5.6 Terra",     blurb: "balanced · lower cost" },
@@ -184,11 +187,13 @@ export const MODELS: Record<string, ModelPick[]> = {
   ],
   antigravity: [
     { id: "auto",                         label: "Auto",                         blurb: "route to the best model" },
-    { id: "Gemini 3.1 Pro (High)",        label: "Gemini 3.1 Pro (High)",        blurb: "extra reasoning" },
-    { id: "Gemini 3.1 Pro (Low)",         label: "Gemini 3.1 Pro (Low)",         blurb: "flagship · less reasoning" },
-    { id: "Gemini 3.5 Flash (High)",      label: "Gemini 3.5 Flash (High)",      blurb: "fast + reasoning" },
-    { id: "Gemini 3.5 Flash (Medium)",    label: "Gemini 3.5 Flash (Medium)",    blurb: "balanced" },
-    { id: "Gemini 3.5 Flash (Low)",       label: "Gemini 3.5 Flash (Low)",       blurb: "fastest" },
+    { id: "Gemini 3.8 Flash (High)",      label: "Gemini 3.8 Flash (High)",      blurb: "newest · fast + reasoning" },
+    { id: "Gemini 3.8 Flash (Medium)",    label: "Gemini 3.8 Flash (Medium)",    blurb: "balanced" },
+    { id: "Gemini 3.8 Flash (Low)",       label: "Gemini 3.8 Flash (Low)",       blurb: "fastest" },
+    { id: "Gemini 3.7 Flash (High)",      label: "Gemini 3.7 Flash (High)",      blurb: "previous generation" },
+    { id: "Gemini 3.6 Flash (High)",      label: "Gemini 3.6 Flash (High)",      blurb: "older · stable" },
+    { id: "Gemini 3.1 Pro (High)",        label: "Gemini 3.1 Pro (High)",        blurb: "pro tier · extra reasoning" },
+    { id: "Gemini 3.1 Pro (Low)",         label: "Gemini 3.1 Pro (Low)",         blurb: "pro tier · less reasoning" },
     { id: "Claude Sonnet 4.6 (Thinking)", label: "Claude Sonnet 4.6 (Thinking)", blurb: "via Antigravity" },
     { id: "Claude Opus 4.6 (Thinking)",   label: "Claude Opus 4.6 (Thinking)",   blurb: "via Antigravity" },
     { id: "GPT-OSS 120B (Medium)",        label: "GPT-OSS 120B (Medium)",        blurb: "open model" },
@@ -200,27 +205,55 @@ export const MODELS: Record<string, ModelPick[]> = {
     { id: "mistral",  label: "Mistral 7B", blurb: "local · mistral" },
   ],
   openrouter: [
+    // Ids verified live against openrouter.ai/api/v1/models on 2026-09-11.
     { id: "anthropic/claude-opus-5",         label: "Claude Opus 5",     blurb: "flagship · via OpenRouter" },
-    { id: "anthropic/claude-opus-4.1",       label: "Claude Opus 4.1",   blurb: "via OpenRouter" },
-    { id: "anthropic/claude-sonnet-4.5",     label: "Claude Sonnet 4.5", blurb: "via OpenRouter" },
-    { id: "openai/gpt-5.6-sol",              label: "GPT-5.6 Sol",       blurb: "flagship · via OpenRouter" },
+    { id: "anthropic/claude-fable-5.1",      label: "Claude Fable 5.1",  blurb: "most capable · via OpenRouter" },
+    { id: "anthropic/claude-sonnet-5",       label: "Claude Sonnet 5",   blurb: "via OpenRouter" },
+    { id: "openai/gpt-6-astra",              label: "GPT-6 Astra",       blurb: "flagship · via OpenRouter" },
+    { id: "openai/gpt-5.6-sol",              label: "GPT-5.6 Sol",       blurb: "via OpenRouter" },
     { id: "openai/gpt-5.6-terra",            label: "GPT-5.6 Terra",     blurb: "balanced · via OpenRouter" },
     { id: "openai/gpt-5.6-luna",             label: "GPT-5.6 Luna",      blurb: "fast + cheap · via OpenRouter" },
-    { id: "openai/gpt-5.1",                  label: "GPT-5.1",           blurb: "via OpenRouter" },
-    { id: "google/gemini-2.5-pro",           label: "Gemini 2.5 Pro",    blurb: "via OpenRouter" },
-    { id: "x-ai/grok-4",                     label: "Grok 4",            blurb: "via OpenRouter" },
-    { id: "deepseek/deepseek-chat",          label: "DeepSeek",          blurb: "via OpenRouter" },
-    { id: "qwen/qwen-2.5-72b-instruct",      label: "Qwen 2.5 72B",      blurb: "via OpenRouter" },
-    { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B",   blurb: "via OpenRouter" },
+    { id: "google/gemini-3.8-flash",         label: "Gemini 3.8 Flash",  blurb: "via OpenRouter" },
+    { id: "x-ai/grok-4.6",                   label: "Grok 4.6",          blurb: "via OpenRouter" },
+    { id: "moonshotai/kimi-k3",              label: "Kimi K3",           blurb: "via OpenRouter" },
+    { id: "deepseek/deepseek-v4-pro-0813",   label: "DeepSeek V4 Pro",   blurb: "via OpenRouter" },
+    { id: "qwen/qwen3.8-max-0902",           label: "Qwen3.8 Max",       blurb: "via OpenRouter" },
+    { id: "z-ai/glm-5.3",                    label: "GLM 5.3",           blurb: "via OpenRouter" },
+    { id: "meta-llama/llama-4-maverick",     label: "Llama 4 Maverick",  blurb: "via OpenRouter" },
   ],
 };
 
 export const DISCOVERED_MODELS: Record<string, ModelPick[]> = {};
 
+// Model ids that no longer run anywhere: retired by the vendor, or dropped from
+// a CLI's catalog. A saved pick (global or per-domain) pointing at one of these
+// is healed on launch by migrateModelPrefs().
 export const DEAD_MODELS = new Set([
+  // OpenAI / Codex — gpt-5.4 and gpt-5.4-mini retired 2026-08-31.
   "gpt-5-codex", "gpt-5", "gpt-5-high", "gpt-5-mini", "gpt-5.1",
   "gpt-5.5-codex", "gpt-4o", "o3", "o4-mini",
+  "gpt-5.2", "gpt-5.3-codex", "gpt-5.4", "gpt-5.4-mini",
+  // Antigravity — 3.5 Flash left the `agy models` catalog.
+  "Gemini 3.5 Flash (High)", "Gemini 3.5 Flash (Medium)", "Gemini 3.5 Flash (Low)",
 ]);
+
+// Where each dead id goes when a saved pick is healed. Per-provider, because a
+// domain-level pref records only the model id: sending a stale Claude or Gemini
+// pin to a Codex model (the old behaviour) changed the domain's vendor.
+export const DEAD_MODEL_REPLACEMENT: Record<string, string> = {
+  claude: "opus",
+  codex: "gpt-5.6-sol",
+  antigravity: "Gemini 3.8 Flash (High)",
+};
+
+// Best-effort vendor guess for a bare model id, so a healed pick lands on the
+// right provider's default.
+export function vendorOfModelId(id: string): keyof typeof DEAD_MODEL_REPLACEMENT {
+  const l = id.toLowerCase();
+  if (/^gemini|^claude sonnet|^claude opus|^gpt-oss/.test(l)) return "antigravity";
+  if (/claude|opus|sonnet|haiku|fable/.test(l)) return "claude";
+  return "codex";
+}
 
 export const FRAMEWORKS: Framework[] = [
   { id: "none", label: "OFF", blurb: "No framework, model's default response shape", instruction: "" },

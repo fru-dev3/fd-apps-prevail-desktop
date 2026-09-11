@@ -14,7 +14,12 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"               # desktop repo root
-SITE="$(cd "$HERE/../fd-apps-prevail-site" 2>/dev/null && pwd || true)"
+# The site repo was renamed fd-apps-prevail-site -> fd-apps-prevail-web
+# (2026-08-19). Accept either so this keeps working on both checkouts.
+SITE=""
+for _cand in fd-apps-prevail-web fd-apps-prevail-site; do
+  if [ -d "$HERE/../$_cand" ]; then SITE="$(cd "$HERE/../$_cand" && pwd)"; break; fi
+done
 OP_ITEM="o4smftszeclcwy54c6tofu4kny"                    # "Prevail - Apple Notarization"
 REPO="fru-dev3/prevail-desktop"
 ARCH="aarch64"
@@ -22,7 +27,7 @@ ARCH="aarch64"
 step() { printf '\n\033[1;33m== %s ==\033[0m\n' "$1"; }
 die()  { printf '\033[1;31mrelease: %s\033[0m\n' "$1" >&2; exit 1; }
 
-[ -n "${SITE:-}" ] || die "cannot find fd-apps-prevail-site next to the desktop repo"
+[ -n "${SITE:-}" ] || die "cannot find the site repo (fd-apps-prevail-web) next to the desktop repo"
 command -v op >/dev/null || die "1Password CLI (op) not found"
 command -v gh >/dev/null || die "GitHub CLI (gh) not found"
 
@@ -112,6 +117,17 @@ step "Stamp the website version (DMG is served from GitHub Releases, NOT here)"
 # exports useLiveVersion()/useLatestVersion() that the app imports, so we must
 # NOT clobber the whole file (that broke the site build). The DMG is served from
 # GitHub Releases; this constant is just the first-paint fallback.
+# GUARD: only touch the site repo when its tree is clean apart from the two
+# files this step owns. Otherwise we would sweep somebody else's in-progress
+# work into a release commit (or push a half-finished refactor to Netlify).
+# Skipping is safe: the site reads the current version live from the GitHub
+# Releases API (useLiveVersion), so APP_VERSION is only a first-paint fallback.
+SITE_DIRTY="$(cd "$SITE" && git status --porcelain | grep -v -e 'src/version\.ts' -e 'public/llms\.txt' || true)"
+if [ -n "$SITE_DIRTY" ]; then
+  echo "WARN: the site repo has unrelated uncommitted changes — skipping the version stamp and push."
+  echo "      (prevail.sh fetches the latest version live, so the release is unaffected.)"
+  echo "$SITE_DIRTY" | sed 's/^/        /'
+else
 if [ -f "$SITE/src/version.ts" ]; then
   perl -i -pe 's/(export const APP_VERSION = ")[0-9]+\.[0-9]+\.[0-9]+(")/${1}'"$VERSION"'${2}/' "$SITE/src/version.ts"
 else
@@ -136,6 +152,7 @@ fi
   && git commit -q -m "release: Prevail $VERSION (version stamp; DMG on GitHub Releases)" \
   && git push )
 echo "site pushed — Netlify will deploy prevail.sh"
+fi
 
 step "Build the auto-update feed (latest.json)"
 MACOS_DIR="$HERE/src-tauri/target/release/bundle/macos"

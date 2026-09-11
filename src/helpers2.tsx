@@ -1,6 +1,6 @@
 // Components extracted from App.tsx.
 import { invoke } from "./bridge";
-import { DEAD_MODELS, DISCOVERED_MODELS, MODELS, SYCOPHANCY_RE } from "./constants";
+import { DEAD_MODELS, DEAD_MODEL_REPLACEMENT, DISCOVERED_MODELS, MODELS, SYCOPHANCY_RE, vendorOfModelId } from "./constants";
 import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
 import type { ModelPick, PanelistReply, PanelistSlot, SkillEntry } from "./types";
@@ -83,15 +83,24 @@ export function prettyModelId(id: string): string {
   if (!s) return "";
   s = s.replace(/^(claude|anthropic|openai|google|codex|antigravity|ollama|openrouter|x-ai|xai)[-/]/i, "");
   // family-version-major-minor -> "Family major.minor" (e.g. opus-4-8 -> Opus 4.8)
-  const FAM: Record<string, string> = { gpt: "GPT", oss: "OSS" };
+  const FAM: Record<string, string> = { gpt: "GPT", oss: "OSS", glm: "GLM" };
   const famName = (fam: string) => FAM[fam] ?? (fam.charAt(0).toUpperCase() + fam.slice(1));
+  // Only shout words that really are acronyms. The old rule upper-cased ANY
+  // word of four letters or fewer, which rendered "gpt-5.6-sol" as
+  // "GPT 5.6 SOL" once OpenAI started giving models codenames.
+  const ACRONYMS = new Set(["gpt", "oss", "mlx", "ai", "api", "llm", "xai", "glm"]);
+  const word = (w: string) =>
+    ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1);
+  // OpenAI codenames: gpt-6-astra -> "GPT-6 Astra", gpt-5.6-sol -> "GPT-5.6 Sol"
+  const g = s.match(/^gpt-(\d+(?:\.\d+)?)(?:-(.+))?$/i);
+  if (g) return `GPT-${g[1]}${g[2] ? ` ${g[2].split(/[-_]/).map(word).join(" ")}` : ""}`;
   const m = s.match(/^([a-z]+)[-_]?(\d+)[-.](\d+)$/i);
   if (m) return `${famName(m[1].toLowerCase())} ${m[2]}.${m[3]}`;
   // family-version-major -> "Family major" (e.g. opus-5 -> Opus 5, grok-4 -> Grok 4)
   const m1 = s.match(/^([a-z]+)[-_]?(\d+)$/i);
   if (m1) return `${famName(m1[1].toLowerCase())} ${m1[2]}`;
-  // otherwise title-case the words, upper-casing short acronyms
-  return s.split(/[-_\s]+/).map((w) => (/^[a-z]{2,4}$/i.test(w) && !/^\d/.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
+  // otherwise title-case the words, upper-casing real acronyms
+  return s.split(/[-_\s]+/).map(word).join(" ");
 }
 export function modelLabel(cli?: string, id?: string): string {
   if (!id) return "";
@@ -310,12 +319,16 @@ export function migrateModelPrefs() {
       // Concrete ids folded into their auto-upgrading aliases (one entry per
       // model in the picker). opus -> claude-opus-5 now (4.8 is its own pinned pick).
       "claude-opus-5": "opus",
-      "claude-sonnet-4-6": "sonnet",
+      "claude-fable-5-1": "fable",
+      "claude-sonnet-5": "sonnet",
       "claude-haiku-4-5": "haiku",
     };
     for (const k of keys) {
       const v = lsGet(k);
-      if (v && DEAD_MODELS.has(v)) lsSet(k, "gpt-5.5");
+      // A dead pick is replaced with its OWN vendor's current default. Sending
+      // every dead id to a Codex model (the old behaviour) silently moved a
+      // domain pinned to a retired Claude or Gemini model onto OpenAI.
+      if (v && DEAD_MODELS.has(v)) lsSet(k, DEAD_MODEL_REPLACEMENT[vendorOfModelId(v)]);
       else if (v && ALIAS_REMAP[v]) lsSet(k, ALIAS_REMAP[v]);
     }
   } catch {
