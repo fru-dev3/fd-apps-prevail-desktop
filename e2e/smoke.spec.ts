@@ -64,6 +64,45 @@ test("4 · Editor sections switch without crashing (tools, skills, apps)", async
   }
 });
 
+// Remote: the pair card must show the same-Wi-Fi address with no Tailscale on
+// the phone, and one tap must turn on the internet tunnel and move the QR to
+// its https address (the one that makes the phone mic work).
+test("6 · Remote: Wi-Fi address in the pair card; Share over the internet swaps the QR to the tunnel", async ({ page }) => {
+  const off = {
+    running: true, port: 8787, user: "admin", remote: true,
+    remote_url: "http://192.168.1.20:8787", via_tailscale: false,
+    lan_url: "http://192.168.1.20:8787", tailscale_url: "", tunnel_url: "",
+    tunnel_state: "off", tunnel_error: "", cloudflared_installed: true,
+  };
+  const on = { ...off, remote_url: "https://witty-otter-cat.trycloudflare.com", tunnel_url: "https://witty-otter-cat.trycloudflare.com", tunnel_state: "on" };
+  await mockTauri(page, { webui_status: off, webui_secret_get: "hunter2", webui_tunnel_start: on, webui_tunnel_stop: off });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "remote" })));
+  const card = page.getByTestId("remote-pair");
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("remote-primary-url")).toHaveText("http://192.168.1.20:8787");
+  await expect(page.getByTestId("remote-lan")).toContainText("192.168.1.20");
+  await expect(card.getByAltText(/QR code for http:\/\/192\.168\.1\.20:8787/)).toBeVisible();
+  await expect(card.getByText(/Same Wi-Fi as this Mac/)).toBeVisible();
+
+  await card.getByRole("button", { name: "Share over the internet" }).click();
+  // The status poll must agree with what the start command returned.
+  await page.evaluate((s) => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.webui_status = s; }, on);
+  await expect(page.getByTestId("remote-tunnel-url")).toHaveText("https://witty-otter-cat.trycloudflare.com");
+  await expect(page.getByTestId("remote-primary-url")).toHaveText("https://witty-otter-cat.trycloudflare.com");
+  await expect(card.getByAltText(/QR code for https:\/\/witty-otter-cat\.trycloudflare\.com/)).toBeVisible();
+  await expect(card.getByText(/Over the internet/)).toBeVisible();
+  const cmds = await invokedCommands(page);
+  expect(cmds).toContain("webui_tunnel_start");
+  await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-remote-tunnel.png` });
+
+  await card.getByRole("button", { name: "Stop sharing" }).click();
+  await page.evaluate((s) => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.webui_status = s; }, off);
+  await expect(card.getByRole("button", { name: "Share over the internet" })).toBeVisible();
+  await expect(page.getByTestId("remote-primary-url")).toHaveText("http://192.168.1.20:8787");
+});
+
 test("5 · telemetry: section navigation emits allowlisted feature_used events only", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "skills" })));

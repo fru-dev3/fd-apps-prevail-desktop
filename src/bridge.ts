@@ -49,6 +49,22 @@ export async function invoke<T = unknown>(cmd: string, args?: Record<string, unk
   return j.data as T;
 }
 
+// Browser-only: ship a voice recording to the Mac (POST /api/upload-audio,
+// same bearer token as invoke) and get back the staged path that
+// `transcribe_audio` accepts. In the Tauri window the caller passes base64
+// through invoke instead, so this is never reached there.
+export async function uploadAudio(blob: Blob): Promise<string> {
+  const res = await fetch("/api/upload-audio", {
+    method: "POST",
+    headers: { "content-type": blob.type || "audio/webm", authorization: token() },
+    body: blob,
+  });
+  if (res.status === 401) throw new Error("unauthorized, sign in again");
+  const j = (await res.json().catch(() => ({}))) as { path?: string; error?: string };
+  if (!res.ok || j.error || !j.path) throw new Error(j.error || `upload failed (HTTP ${res.status})`);
+  return j.path;
+}
+
 // ── Browser event bus over SSE ────────────────────────────────────────
 let es: EventSource | null = null;
 const handlers = new Map<string, Set<(p: unknown) => void>>();

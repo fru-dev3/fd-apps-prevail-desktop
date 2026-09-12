@@ -74,7 +74,7 @@ Prefer to click? **[Download the `.dmg`](https://github.com/fru-dev3/prevail-des
 - **Starter packs**: ready-made domain sets (Family · High-Income · Freelancer · Creator · Small Business · Student).
 - **Self-learning memory**: raw intent ledger → distilled per-domain `_memory.md`, always reusable.
 - **Council & benchmarks**: multi-model deliberation plus a built-in benchmark viewer.
-- **Gateway (Telegram), MCP** (consume *and* expose), **Providers**, and a **Remote WebUI**: the *same* UI in a browser, loopback-bound + allowlisted, off by default.
+- **Gateway (Telegram), MCP** (consume *and* expose), **Providers**, and a **Remote WebUI**: the *same* UI in a browser, allowlisted and off by default. Loopback only until you turn on "Reachable from other devices", which adds your Wi-Fi and Tailscale addresses, and an optional one-tap Cloudflare tunnel for an https address you can reach from anywhere.
 - **Quality of life**: usage dashboard, in-app auto-update, start-on-boot, tray, export/import config.
 
 ## Screenshots

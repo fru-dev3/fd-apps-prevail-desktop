@@ -66,6 +66,11 @@ const WEBUI_ALLOWED: &[&str] = &[
     // deliberately NOT exposed — a remote browser must never be able to
     // disable the local-only trust guarantee.
     "bunker_status",
+    // Phone voice: transcribe a recording the browser uploaded to
+    // /api/upload-audio (the command only accepts files in that staging dir,
+    // never a path the client picks), and file the transcript as a voice note
+    // in the current domain. Both run on this Mac, never a cloud service.
+    "transcribe_audio", "voice_note_capture",
 ];
 
 #[derive(Default)]
@@ -79,15 +84,54 @@ struct Inner {
     token: String,
     user: String,
     pass: String,
-    // Remote-devices mode: bound to the machine's Tailscale address (or all
-    // interfaces on a plain LAN) instead of loopback, so a phone can reach it.
+    // Remote-devices mode: bound to every interface instead of loopback, so a
+    // phone on the same Wi-Fi (or the tailnet) can reach it with zero setup.
     remote: bool,
-    // The address other devices should use (Tailscale IPv4 when available).
-    advertised_host: String,
+    // The addresses other devices can use, each empty when unavailable: the
+    // primary LAN IPv4 and the Tailscale IPv4.
+    lan_host: String,
+    ts_host: String,
+    // The "Share over the internet" tunnel, shared with the request thread so
+    // its hostname passes the Host check the moment it exists.
+    tunnel: Arc<Mutex<Tunnel>>,
     next_id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<InvokeOut>>>>,
     sse: Arc<Mutex<Vec<Sender<String>>>>,
     stop: Option<Arc<std::net::TcpListener>>, // kept to unblock accept on stop
+}
+
+// A Cloudflare quick tunnel (`cloudflared tunnel --url ...`): a public https
+// address that forwards to the bridge on loopback. No account, no DNS, no
+// router setup, and https is what lets a phone browser use its microphone
+// (getUserMedia needs a secure context; plain http://192.168.x.x cannot).
+// The hostname is random and changes every time the tunnel starts.
+#[derive(Default)]
+struct Tunnel {
+    state: TunnelState,
+    url: String,
+    host: String,
+    error: String,
+    pid: Option<u32>,
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum TunnelState {
+    #[default]
+    Off,
+    Starting,
+    On,
+    Error,
+}
+
+impl TunnelState {
+    fn as_str(self) -> &'static str {
+        match self {
+            TunnelState::Off => "off",
+            TunnelState::Starting => "starting",
+            TunnelState::On => "on",
+            TunnelState::Error => "error",
+        }
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -96,11 +140,22 @@ pub struct WebuiStatus {
     pub port: u16,
     pub user: String,
     pub remote: bool,
-    // URL for another device on the tailnet/LAN; empty when loopback-only.
+    // The address to put in the QR: the tunnel when it is up (works from
+    // anywhere, https), else the LAN address, else Tailscale. Empty when the
+    // bridge is loopback-only and no tunnel is running.
     pub remote_url: String,
-    // True when the advertised address is a Tailscale (100.64/10) address,
-    // i.e. traffic is WireGuard-encrypted end to end.
+    // True when remote_url is a Tailscale (100.64/10) address, i.e. traffic
+    // is WireGuard-encrypted end to end.
     pub via_tailscale: bool,
+    // Every way in, each empty when unavailable.
+    pub lan_url: String,
+    pub tailscale_url: String,
+    pub tunnel_url: String,
+    // "off" | "starting" | "on" | "error", plus the last cloudflared line on error.
+    pub tunnel_state: String,
+    pub tunnel_error: String,
+    // Whether `cloudflared` is installed (brew install cloudflared).
+    pub cloudflared_installed: bool,
 }
 
 // The machine's Tailscale IPv4, if the Tailscale app or CLI is installed and
@@ -198,26 +253,51 @@ struct InvokeReq {
 impl WebuiState {
     pub fn status(&self) -> WebuiStatus {
         let i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let remote_url = if i.running && i.remote && !i.advertised_host.is_empty() {
-            format!("http://{}:{}", i.advertised_host, i.port)
-        } else {
-            String::new()
+        let url_for = |host: &str| if i.running && i.remote && !host.is_empty() { format!("http://{host}:{}", i.port) } else { String::new() };
+        let lan_url = url_for(&i.lan_host);
+        let tailscale_url = url_for(&i.ts_host);
+        let (tunnel_url, tunnel_state, tunnel_error) = {
+            let t = i.tunnel.lock().unwrap_or_else(|e| e.into_inner());
+            let url = if t.state == TunnelState::On { t.url.clone() } else { String::new() };
+            (url, t.state.as_str().to_string(), t.error.clone())
         };
+        let remote_url = [&tunnel_url, &lan_url, &tailscale_url].into_iter().find(|u| !u.is_empty()).cloned().unwrap_or_default();
+        let via_tailscale = !remote_url.is_empty() && remote_url == tailscale_url;
         WebuiStatus {
             running: i.running,
             port: i.port,
             user: i.user.clone(),
             remote: i.remote,
-            via_tailscale: is_tailscale_ip(&i.advertised_host),
             remote_url,
+            via_tailscale,
+            lan_url,
+            tailscale_url,
+            tunnel_url,
+            tunnel_state,
+            tunnel_error,
+            cloudflared_installed: cloudflared_bin().is_some(),
         }
     }
 
     pub fn stop(&self) {
-        let mut i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        i.running = false;
-        i.stop = None; // dropping the listener Arc lets the accept loop error out
+        let tunnel = {
+            let mut i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+            i.running = false;
+            i.stop = None; // dropping the listener Arc lets the accept loop error out
+            i.tunnel.clone()
+        };
+        // Nothing to forward to once the bridge is down.
+        stop_tunnel(&tunnel);
     }
+
+    /// Kill the tunnel process, if any. Called on the stop toggle and on app
+    /// exit: cloudflared is a separate process and would otherwise keep the
+    /// public hostname pointed at a dead port.
+    pub fn stop_tunnel(&self) {
+        let tunnel = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).tunnel.clone() };
+        stop_tunnel(&tunnel);
+    }
+
 
     // Resolve a pending browser invoke with the host window's result.
     fn resolve(&self, id: u64, out: InvokeOut) {
@@ -245,22 +325,18 @@ impl WebuiState {
         // exchanges user/pass for this token; it never leaves the device except
         // to the authenticated client.
         let token = random_token();
-        // Loopback only by default. In remote-devices mode, bind to the
-        // machine's Tailscale address when there is one (reachable from the
-        // user's tailnet, WireGuard-encrypted, never on the public interface);
-        // otherwise all interfaces, for a plain LAN. The Host check in handle()
-        // is widened to match, so the DNS-rebinding defense stays intact.
-        //
-        // Until this mode existed, the docs told phone users to "reach it over
-        // Tailscale", but the bridge was loopback-bound AND rejected any Host
-        // other than localhost, so a phone got 403 forbidden host.
-        let (bind_host, advertised): (String, String) = if remote {
-            match tailscale_ipv4() {
-                Some(ip) => (ip.clone(), ip),
-                None => ("0.0.0.0".to_string(), lan_ipv4().unwrap_or_default()),
-            }
+        // Loopback only by default. In remote-devices mode, bind every
+        // interface so a phone on the same Wi-Fi reaches it with nothing
+        // installed, and a Tailscale peer reaches it too. (Binding only the
+        // Tailscale address, as before, silently left the LAN out: a phone
+        // without Tailscale got connection refused.) What keeps this safe is
+        // not the bind address but the Host check in handle(), the login, and
+        // the random bearer token; the Host check is widened to match, so the
+        // DNS-rebinding defense stays intact.
+        let (bind_host, lan_host, ts_host): (String, String, String) = if remote {
+            ("0.0.0.0".to_string(), lan_ipv4().unwrap_or_default(), tailscale_ipv4().unwrap_or_default())
         } else {
-            ("127.0.0.1".to_string(), String::new())
+            ("127.0.0.1".to_string(), String::new(), String::new())
         };
         let listener = std::net::TcpListener::bind((bind_host.as_str(), port)).map_err(|e| format!("bind {bind_host}:{port}: {e}"))?;
         let server = tiny_http::Server::from_listener(listener.try_clone().map_err(|e| e.to_string())?, None)
@@ -273,14 +349,16 @@ impl WebuiState {
             i.user = user.clone();
             i.pass = pass.clone();
             i.remote = remote;
-            i.advertised_host = advertised.clone();
+            i.lan_host = lan_host.clone();
+            i.ts_host = ts_host.clone();
             i.stop = Some(Arc::new(listener));
         }
         let allow_remote = remote;
-        let advertised_host = advertised;
+        let advertised_hosts = [lan_host, ts_host];
         let next_id = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).next_id.clone() };
         let pending = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).pending.clone() };
         let sse = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).sse.clone() };
+        let tunnel = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).tunnel.clone() };
         // Failed-login throttle (M1): count + window-start, shared across
         // requests. Blocks brute force even if a DNS-rebind gets same-origin.
         let login_fail: Arc<Mutex<(u32, Instant)>> = Arc::new(Mutex::new((0, Instant::now())));
@@ -288,10 +366,146 @@ impl WebuiState {
 
         std::thread::spawn(move || {
             for req in server.incoming_requests() {
-                handle(&app, req, &token, &user, &pass, &next_id, &pending, &sse, &login_fail, bound_port, allow_remote, &advertised_host);
+                let tunnel_host = { tunnel.lock().unwrap_or_else(|e| e.into_inner()).host.clone() };
+                handle(&app, req, &token, &user, &pass, &next_id, &pending, &sse, &login_fail, bound_port, allow_remote, &advertised_hosts, &tunnel_host);
             }
         });
         Ok(())
+    }
+}
+
+/// Start a Cloudflare quick tunnel to the running bridge and wait (up to
+/// ~25 s) for its public https address. Restarts an existing tunnel. A free
+/// function over the shared tunnel record so the Tauri command can run it on
+/// a blocking thread without holding the app state.
+fn start_tunnel_blocking(tunnel: Arc<Mutex<Tunnel>>, (port, running): (u16, bool)) -> Result<(), String> {
+    if !running {
+        return Err("turn on the WebUI first".into());
+    }
+    let bin = cloudflared_bin().ok_or_else(|| "cloudflared is not installed. In Terminal: brew install cloudflared".to_string())?;
+    stop_tunnel(&tunnel);
+
+    let mut child = std::process::Command::new(bin)
+        .args(["tunnel", "--no-autoupdate", "--url"])
+        .arg(format!("http://127.0.0.1:{port}"))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("start cloudflared: {e}"))?;
+    let pid = child.id();
+    {
+        let mut t = tunnel.lock().unwrap_or_else(|e| e.into_inner());
+        *t = Tunnel { state: TunnelState::Starting, pid: Some(pid), ..Default::default() };
+    }
+    crate::children::register_child("webui-tunnel", pid);
+
+    // cloudflared prints its progress (and the assigned hostname) on
+    // stderr. Drain it for the life of the process so the pipe never fills,
+    // and flip the state when the URL shows up or the process dies.
+    let stderr = child.stderr.take();
+    let t2 = tunnel.clone();
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        let mut last_line = String::new();
+        if let Some(err) = stderr {
+            for line in std::io::BufReader::new(err).lines().map_while(Result::ok) {
+                let trimmed = line.trim();
+                if trimmed.is_empty() { continue; }
+                last_line = trimmed.to_string();
+                if let Some(url) = extract_tunnel_url(trimmed) {
+                    let mut t = t2.lock().unwrap_or_else(|e| e.into_inner());
+                    if t.pid == Some(pid) {
+                        t.host = url.trim_start_matches("https://").to_ascii_lowercase();
+                        t.url = url;
+                        t.state = TunnelState::On;
+                        t.error.clear();
+                    }
+                }
+            }
+        }
+        let _ = child.wait();
+        crate::children::unregister_child("webui-tunnel");
+        let mut t = t2.lock().unwrap_or_else(|e| e.into_inner());
+        // A deliberate stop already reset the record; only an unexpected
+        // exit (no internet, Cloudflare refused) is an error.
+        if t.pid == Some(pid) {
+            t.pid = None;
+            t.url.clear();
+            t.host.clear();
+            t.state = TunnelState::Error;
+            t.error = if last_line.is_empty() { "cloudflared exited".into() } else { tidy_cloudflared_line(&last_line) };
+        }
+    });
+
+    // Quick tunnels usually answer within a few seconds; give slow links
+    // room but never hang the settings screen.
+    let deadline = Instant::now() + Duration::from_secs(25);
+    loop {
+        {
+            let t = tunnel.lock().unwrap_or_else(|e| e.into_inner());
+            match t.state {
+                TunnelState::On => return Ok(()),
+                TunnelState::Error => return Err(t.error.clone()),
+                _ => {}
+            }
+        }
+        if Instant::now() > deadline {
+            stop_tunnel(&tunnel);
+            return Err("cloudflared did not hand out an address in time. Check the internet connection and try again.".into());
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+fn cloudflared_bin() -> Option<std::path::PathBuf> {
+    crate::voice::find_bin(&["cloudflared"])
+}
+
+/// The public address in a cloudflared log line, e.g.
+/// `... |  https://witty-otter-cat.trycloudflare.com  |`. Only the
+/// trycloudflare.com host is accepted: that is the one hostname a quick
+/// tunnel can have, so a stray URL in some other log line never becomes an
+/// allowed Host.
+pub(crate) fn extract_tunnel_url(line: &str) -> Option<String> {
+    let start = line.find("https://")?;
+    let rest = &line[start + "https://".len()..];
+    let end = rest.find(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '.')).unwrap_or(rest.len());
+    let host = &rest[..end];
+    if host.ends_with(".trycloudflare.com") && host.len() > ".trycloudflare.com".len() {
+        Some(format!("https://{host}"))
+    } else {
+        None
+    }
+}
+
+/// cloudflared log lines are `2026-09-12T10:00:00Z ERR message key=value`;
+/// keep the message, drop the timestamp and level for the settings screen.
+fn tidy_cloudflared_line(line: &str) -> String {
+    let mut parts = line.splitn(3, ' ');
+    let ts = parts.next().unwrap_or("");
+    let level = parts.next().unwrap_or("");
+    let looks_structured = ts.contains('T') && level.chars().all(|c| c.is_ascii_uppercase()) && !level.is_empty();
+    if looks_structured {
+        parts.next().unwrap_or(line).to_string()
+    } else {
+        line.to_string()
+    }
+}
+
+fn stop_tunnel(tunnel: &Arc<Mutex<Tunnel>>) {
+    let pid = {
+        let mut t = tunnel.lock().unwrap_or_else(|e| e.into_inner());
+        let pid = t.pid.take();
+        *t = Tunnel::default();
+        pid
+    };
+    if let Some(pid) = pid {
+        #[cfg(unix)]
+        unsafe {
+            libc::kill(pid as i32, libc::SIGTERM);
+        }
+        crate::children::unregister_child("webui-tunnel");
     }
 }
 
@@ -323,7 +537,8 @@ fn handle(
     login_fail: &Arc<Mutex<(u32, Instant)>>,
     bound_port: u16,
     allow_remote: bool,
-    advertised_host: &str,
+    advertised_hosts: &[String; 2],
+    tunnel_host: &str,
 ) {
     let method = req.method().clone();
     let url = req.url().to_string();
@@ -332,8 +547,9 @@ fn handle(
     // DNS-rebinding defense (M1): a webpage the user visits can rebind its OWN
     // hostname to this bridge's address and become same-origin. Reject any
     // request whose Host header is not an address we legitimately serve on
-    // (loopback; in remote mode also the advertised address, any Tailscale or
-    // RFC 1918 address, and *.ts.net MagicDNS names), so a rebound attacker
+    // (loopback; in remote mode also the advertised addresses, any Tailscale
+    // or RFC 1918 address, and *.ts.net MagicDNS names; and the exact
+    // trycloudflare.com hostname while a tunnel is up), so a rebound attacker
     // hostname can't drive the API even though the socket is reachable.
     {
         let host = req.headers().iter()
@@ -341,14 +557,10 @@ fn handle(
             .map(|h| h.value.as_str().to_string())
             .unwrap_or_default();
         let hostname = host.split(':').next().unwrap_or("").to_ascii_lowercase();
-        let ok_local = hostname == "127.0.0.1" || hostname == "localhost" || hostname == "[::1]" || hostname == "::1";
-        let ok_remote = allow_remote
-            && (hostname == advertised_host.to_ascii_lowercase()
-                || is_tailscale_ip(&hostname)
-                || is_private_lan_ip(&hostname)
-                || hostname.ends_with(".ts.net"));
-        let ok_host = ok_local || ok_remote;
-        // If a port is present it must match ours (defense in depth).
+        let ok_host = host_allowed(&hostname, allow_remote, advertised_hosts, tunnel_host);
+        // If a port is present it must match ours (defense in depth). The
+        // tunnel arrives without one (https on 443, cloudflared forwards the
+        // original Host), which the None arm accepts.
         let ok_port = match host.rsplit(':').next().and_then(|p| p.parse::<u16>().ok()) {
             Some(p) => p == bound_port,
             None => true,
@@ -431,6 +643,33 @@ fn handle(
         return;
     }
 
+    // ── Voice upload (phone → Mac) ── the raw recording, staged to a temp file
+    // for `transcribe_audio`. Same auth as /api/invoke (checked above). The cap
+    // is enforced twice: on Content-Length before the body is read, and on the
+    // bytes actually received (a client can lie about the header).
+    if path == "/api/upload-audio" && method == tiny_http::Method::Post {
+        let content_type = req.headers().iter()
+            .find(|h| h.field.equiv("Content-Type"))
+            .map(|h| h.value.as_str().to_string())
+            .unwrap_or_default();
+        let ext = match crate::voice::check_upload(req.body_length(), &content_type) {
+            Ok(e) => e,
+            Err((code, msg)) => { let _ = req.respond(json_response(code, &serde_json::json!({ "error": msg }))); return; }
+        };
+        let mut bytes: Vec<u8> = Vec::new();
+        let _ = req.as_reader().take(crate::voice::MAX_UPLOAD_BYTES as u64 + 1).read_to_end(&mut bytes);
+        if bytes.len() > crate::voice::MAX_UPLOAD_BYTES {
+            let _ = req.respond(json_response(413, &serde_json::json!({ "error": "recording is larger than 10 MB" })));
+            return;
+        }
+        let (code, payload) = match crate::voice::store_upload(&bytes, ext) {
+            Ok(p) => (200, serde_json::json!({ "path": p.to_string_lossy() })),
+            Err(e) => (400, serde_json::json!({ "error": e })),
+        };
+        let _ = req.respond(json_response(code, &payload));
+        return;
+    }
+
     // ── Emit (browser → host) ── disabled: a remote client must not be able to
     // fire arbitrary Tauri events into the host. The web app drives everything
     // through allowlisted /api/invoke instead.
@@ -470,6 +709,21 @@ fn handle(
             }
         }
     }
+}
+
+/// The Host-header policy, pure so it can be tested: loopback always; in
+/// remote mode the advertised addresses plus any Tailscale / RFC 1918 address
+/// and *.ts.net names; the tunnel hostname (exact match) whenever one is up,
+/// independent of remote mode, since the tunnel arrives on loopback.
+fn host_allowed(hostname: &str, allow_remote: bool, advertised_hosts: &[String; 2], tunnel_host: &str) -> bool {
+    let ok_local = hostname == "127.0.0.1" || hostname == "localhost" || hostname == "[::1]" || hostname == "::1";
+    let ok_remote = allow_remote
+        && (advertised_hosts.iter().any(|h| !h.is_empty() && hostname == h.to_ascii_lowercase())
+            || is_tailscale_ip(hostname)
+            || is_private_lan_ip(hostname)
+            || hostname.ends_with(".ts.net"));
+    let ok_tunnel = !tunnel_host.is_empty() && hostname == tunnel_host;
+    ok_local || ok_remote || ok_tunnel
 }
 
 fn header(k: &str, v: &str) -> tiny_http::Header {
@@ -517,6 +771,26 @@ pub fn webui_stop(state: tauri::State<'_, WebuiState>) -> Result<WebuiStatus, St
 pub fn webui_status(state: tauri::State<'_, WebuiState>) -> WebuiStatus {
     state.status()
 }
+// Share over the internet: desktop-only (deliberately NOT in WEBUI_ALLOWED; a
+// remote client must never be able to expose this Mac further). Blocks for
+// up to ~25 s waiting on cloudflared, so it runs off the main thread.
+#[tauri::command]
+pub async fn webui_tunnel_start(state: tauri::State<'_, WebuiState>) -> Result<WebuiStatus, String> {
+    let st: &WebuiState = &state;
+    // The state lives for the whole app; the blocking wait only needs the
+    // Arc-shared tunnel record, which start_tunnel clones out of it.
+    let inner_tunnel = { st.inner.lock().unwrap_or_else(|e| e.into_inner()).tunnel.clone() };
+    let port_running = { let i = st.inner.lock().unwrap_or_else(|e| e.into_inner()); (i.port, i.running) };
+    tauri::async_runtime::spawn_blocking(move || start_tunnel_blocking(inner_tunnel, port_running))
+        .await
+        .map_err(|e| format!("tunnel task: {e}"))??;
+    Ok(state.status())
+}
+#[tauri::command]
+pub fn webui_tunnel_stop(state: tauri::State<'_, WebuiState>) -> WebuiStatus {
+    state.stop_tunnel();
+    state.status()
+}
 // Host window → server: deliver the result of a proxied invoke.
 #[tauri::command]
 pub fn webui_resolve(state: tauri::State<'_, WebuiState>, id: u64, ok: bool, #[allow(unused)] data: Option<serde_json::Value>, error: Option<String>) {
@@ -526,4 +800,55 @@ pub fn webui_resolve(state: tauri::State<'_, WebuiState>, id: u64, ok: bool, #[a
 #[tauri::command]
 pub fn webui_event(state: tauri::State<'_, WebuiState>, event: String, payload: serde_json::Value) {
     state.broadcast(&event, &payload);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hosts(lan: &str, ts: &str) -> [String; 2] {
+        [lan.to_string(), ts.to_string()]
+    }
+
+    #[test]
+    fn tunnel_url_is_taken_only_from_a_trycloudflare_line() {
+        let line = "2026-09-12T10:00:00Z INF |  https://witty-otter-cat.trycloudflare.com                                  |";
+        assert_eq!(extract_tunnel_url(line).as_deref(), Some("https://witty-otter-cat.trycloudflare.com"));
+        // Cloudflare's own docs links and any other https URL in the log are not a tunnel.
+        assert_eq!(extract_tunnel_url("INF Requesting new quick Tunnel on trycloudflare.com..."), None);
+        assert_eq!(extract_tunnel_url("INF see https://developers.cloudflare.com/cloudflare-one/ for docs"), None);
+        assert_eq!(extract_tunnel_url("https://evil.example.com/?x=https://a.trycloudflare.com"), None);
+        assert_eq!(extract_tunnel_url("https://.trycloudflare.com"), None);
+        assert_eq!(extract_tunnel_url(""), None);
+    }
+
+    #[test]
+    fn cloudflared_error_lines_lose_their_timestamp_and_level() {
+        assert_eq!(tidy_cloudflared_line("2026-09-12T10:00:00Z ERR failed to request quick Tunnel error=\"dial tcp: no route\""), "failed to request quick Tunnel error=\"dial tcp: no route\"");
+        assert_eq!(tidy_cloudflared_line("plain message"), "plain message");
+    }
+
+    #[test]
+    fn host_check_loopback_lan_tailscale_tunnel() {
+        let h = hosts("192.168.1.20", "100.101.102.103");
+        // Loopback always passes, remote or not.
+        assert!(host_allowed("127.0.0.1", false, &hosts("", ""), ""));
+        assert!(host_allowed("localhost", false, &hosts("", ""), ""));
+        // LAN / Tailscale / MagicDNS only in remote mode.
+        assert!(!host_allowed("192.168.1.20", false, &h, ""));
+        assert!(host_allowed("192.168.1.20", true, &h, ""));
+        assert!(host_allowed("10.0.0.80", true, &h, ""));
+        assert!(host_allowed("100.101.102.103", true, &h, ""));
+        assert!(host_allowed("mini.tail1234.ts.net", true, &h, ""));
+        // A public hostname (DNS rebinding) never passes.
+        assert!(!host_allowed("evil.example.com", true, &h, ""));
+        assert!(!host_allowed("8.8.8.8", true, &h, ""));
+        // The tunnel hostname passes exactly, even with remote mode off, and
+        // only that hostname.
+        assert!(host_allowed("witty-otter-cat.trycloudflare.com", false, &hosts("", ""), "witty-otter-cat.trycloudflare.com"));
+        assert!(!host_allowed("other.trycloudflare.com", false, &hosts("", ""), "witty-otter-cat.trycloudflare.com"));
+        assert!(!host_allowed("witty-otter-cat.trycloudflare.com", false, &hosts("", ""), ""));
+        // An empty advertised host never matches an empty Host header.
+        assert!(!host_allowed("", true, &hosts("", ""), ""));
+    }
 }

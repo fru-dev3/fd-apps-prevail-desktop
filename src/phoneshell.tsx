@@ -4,7 +4,7 @@
 // four destinations (Chat, Domains, Needs you, Settings). The desktop `tab`
 // state stays the source of truth for WHAT the conversation surface shows
 // (chat / council / arena ...); this shell only decides WHICH screen is up.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -27,6 +27,7 @@ import { modelLabel } from "./helpers2";
 import { LS, lsGet } from "./storage";
 import { EDITOR_NAV } from "./navdefs";
 import { DecisionInbox } from "./decisioninbox";
+import { PhoneVoiceBar } from "./phonevoice";
 import type { CliInfo, Domain, DomainTab, LifeReadiness, TabId, ThreadMeta } from "./types";
 
 export type PhoneScreen = "chat" | "domains" | "needs" | "settings";
@@ -155,6 +156,8 @@ export function PhoneShell({
   const [settingsList, setSettingsList] = useState(true);
   const [threadsOpen, setThreadsOpen] = useState(false);
   const [newDomainOpen, setNewDomainOpen] = useState(false);
+  // The voice bar drops its transcript into the composer living inside this.
+  const conversationRef = useRef<HTMLDivElement | null>(null);
 
   // Follow the desktop tab state whenever something else navigates (a deep link
   // event, a domain pick, a council seed): the matching phone screen comes up.
@@ -246,9 +249,13 @@ export function PhoneShell({
             }
           />
           {/* Composer padding tightened for the narrow width; transcript untouched. */}
-          <div className="flex min-h-0 flex-1 flex-col [&_[data-tour=composer]]:px-3 [&_[data-tour=composer]]:pb-3">
+          <div ref={conversationRef} className="flex min-h-0 flex-1 flex-col [&_[data-tour=composer]]:px-3 [&_[data-tour=composer]]:pb-3">
             {conversation}
           </div>
+          {/* Hold-to-talk under the composer: the phone has no keyboard worth
+              typing on, so voice is the primary way in. Chat only; the council
+              surface has its own seeding flow. */}
+          {!councilMode && <PhoneVoiceBar vaultPath={vaultPath} domain={scopeLabel ? null : selectedDomain} composerRoot={conversationRef} />}
         </>
       )}
 
