@@ -2883,23 +2883,28 @@ pub struct ScoreHistoryPoint {
     pub audit_source: Option<String>,
 }
 
-/// `prevail --vault <vault> score-history <domain> --json`
+/// `prevail --vault <vault> score history <domain> --json`
 /// Returns the time series of past context scores for a domain (oldest
 /// first per CLI convention). Tolerates the CLI wrapping the series in a
 /// `{ "history": [...] }` object or returning a bare array.
+///
+/// NOTE: `history` is a SUBCOMMAND of `score` in the engine (index.tsx only
+/// registers the `score` verb). This used to call a non-existent
+/// `score-history` verb, which the engine treated as "no verb" and answered
+/// by launching the TUI, so the score trend never loaded.
 #[tauri::command]
 pub fn engine_score_history(
     vault: String,
     domain: String,
 ) -> Result<Vec<ScoreHistoryPoint>, String> {
-    let value = run_engine_json(&["--vault", &vault, "score-history", &domain])?;
+    let value = run_engine_json(&["--vault", &vault, "score", "history", &domain])?;
 
     let arr = if value.is_array() {
         value
     } else if let Some(h) = value.get("history").cloned() {
         h
     } else {
-        return Err("unexpected shape from `prevail score-history`".to_string());
+        return Err("unexpected shape from `prevail score history`".to_string());
     };
 
     serde_json::from_value::<Vec<ScoreHistoryPoint>>(arr)
