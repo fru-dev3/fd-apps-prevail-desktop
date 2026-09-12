@@ -1039,38 +1039,6 @@ pub fn engine_app_probe(id: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["connectors", "test", &id, "--json"])
 }
 
-/// Composio gateway: register it in the vault's agent .mcp.json + scaffold the
-/// "composio" app. After this the user authorizes once (engine_composio_authorize).
-#[tauri::command]
-pub fn engine_composio_connect() -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "composio", "--json"])
-}
-
-/// Composio status: { configured, authorized }.
-#[tauri::command]
-pub fn engine_composio_status() -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "composio", "--status", "--json"])
-}
-
-/// Drive the one-time Composio OAuth. Long-running: spawns the engine which
-/// spawns `npx mcp-remote`, opening the browser for the user to sign in; returns
-/// when the connection is authorized (or times out). Runs off the UI thread.
-#[tauri::command]
-pub async fn engine_composio_authorize() -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        run_engine_json(&["connectors", "composio", "--auth", "--json"])
-    })
-    .await
-    .map_err(|e| format!("composio auth task failed: {e}"))?
-}
-
-/// Manual fallback: mark Composio authorized after the user confirms they signed
-/// in (mcp-remote has cached the token). Used if auto-detection misses.
-#[tauri::command]
-pub fn engine_composio_confirm() -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "composio", "--confirm", "--json"])
-}
-
 // ── Composio CLI (browser-OAuth setup, an alternative to the MCP key) ──────
 // These shell out to the official `composio` CLI rather than the prevail engine.
 // They are pure SETUP helpers: the agent still uses the Composio MCP under the

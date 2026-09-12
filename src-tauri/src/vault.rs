@@ -481,7 +481,7 @@ pub(crate) fn scan_vault_impl(path: String) -> Result<Vec<Domain>, String> {
     // (name, path, from_container): from_container = a child of data/domains or
     // domains/, which is a domain by location even without a state marker.
     let mut candidates: Vec<(String, PathBuf, bool)> = Vec::new();
-    let mut scan_container = |dir: &PathBuf, candidates: &mut Vec<(String, PathBuf, bool)>, seen: &mut std::collections::HashSet<String>| {
+    let scan_container = |dir: &PathBuf, candidates: &mut Vec<(String, PathBuf, bool)>, seen: &mut std::collections::HashSet<String>| {
         if !dir.is_dir() {
             return;
         }

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, Loader2, Sparkles, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
-import { PREF, getPref } from "./storage";
+import { PREF, cheapModel, getPref } from "./storage";
 import { AppRowLogo } from "./panels3";
 import type { BrandLogo, CatalogApp, ConnectorCatalog, EngineApp } from "./types";
 
@@ -183,7 +183,7 @@ export function ConnectAppFlow({ vaultPath, onDone, onCancel, presetName, preset
     setResult(null);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       const r = await invoke<ConnectResult>("engine_app_connect", { name: name.trim(), goal: goal.trim(), vault: vaultPath, provider, model });
       setResult(r);
     } catch (e) {

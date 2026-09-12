@@ -1,12 +1,12 @@
 // Daemon config builders extracted from App.tsx. Each maps localStorage prefs to
 // the snake_case shape the Rust serde structs expect (distill / taskgen / skillgen).
-import { PREF, getPref } from "./storage";
+import { PREF, cheapModel, getPref } from "./storage";
 
 export function distillCfgFromPrefs(vaultPath: string) {
   return {
     vault: vaultPath,
     provider: getPref(PREF.memoryProvider, "claude"),
-    model: getPref(PREF.distillModel, "claude-haiku-4-5"),
+    model: cheapModel(),
     memory_budget_chars: Number(getPref(PREF.memoryBudgetChars, "4000")) || 4000,
     threshold: Number(getPref(PREF.compressionThreshold, "0.5")) || 0.5,
     target: Number(getPref(PREF.compressionTarget, "0.2")) || 0.2,
@@ -29,7 +29,7 @@ export function intentDaemonCfgFromPrefs(vaultPath: string) {
   return {
     vault: vaultPath,
     provider: getPref(PREF.memoryProvider, "claude"),
-    model: getPref(PREF.distillModel, "claude-haiku-4-5"),
+    model: cheapModel(),
     interval_sec: Number(getPref(PREF.intentDaemonIntervalSec, "1800")) || 1800, // check every 30 min
     min_new_prompts: Number(getPref(PREF.intentDaemonMinNew, "10")) || 10,
     max_age_sec: Number(getPref(PREF.intentDaemonMaxAgeSec, "86400")) || 86400, // daily

@@ -22,7 +22,7 @@ pub mod tier_b_composio;
 // replay), surfaced by ConnectorRunPanel. One engine-owned browser path.
 pub mod tier_d_cli;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::Mutex;
 
 // ─────────────────────────────────────────────────────────────────────
@@ -44,25 +44,6 @@ pub struct TierStatus {
     pub running: usize,
     /// Last error message, if any. Cleared on successful run.
     pub last_error: Option<String>,
-}
-
-/// What a tier emits when it produces a downloaded artifact.
-#[derive(Debug, Clone, Serialize)]
-pub struct IngestedArtifact {
-    /// Final on-disk path after sandboxing.
-    pub path: String,
-    /// "tier_a_mcp" / "tier_b_composio" / "tier_c_browser"
-    pub tier_id: String,
-    /// Free-form subsource: MCP server name, Composio app, portal slug.
-    pub source: String,
-    /// Domain the artifact belongs to.
-    pub domain: String,
-    /// Unix seconds.
-    pub ts: u64,
-    /// SHA-256 of file contents.
-    pub sha256: String,
-    /// Original size in bytes.
-    pub size: u64,
 }
 
 // ─────────────────────────────────────────────────────────────────────

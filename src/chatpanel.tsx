@@ -3054,7 +3054,7 @@ export function ChatPanel({
               }
               for (const err of errors) { console.error("paste image", err); toast.error(`Could not attach the image: ${err}`); }
               if (paths.length || errors.length) return;
-              if (lsGet("prevail.pref.autoConvertLongPaste") !== "1") return;
+              if (lsGet(PREF.autoConvertLongPaste) !== "1") return;
               const txt = e.clipboardData.getData("text/plain");
               if (txt.length < 5000) return;
               e.preventDefault();

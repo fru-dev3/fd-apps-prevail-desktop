@@ -868,7 +868,7 @@ export default function App() {
     }
   }, []);
   function notifyDone(title: string, body: string) {
-    if (lsGet("prevail.pref.desktopNotif") !== "1") return;
+    if (lsGet(PREF.desktopNotif) !== "1") return;
     if (typeof Notification === "undefined") return;
     if (notifyPermissionRef.current === "granted") {
       try { new Notification(title, { body }); } catch {}
@@ -902,7 +902,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, [memoryAlert]);
   function playDoneChime() {
-    if (lsGet("prevail.pref.soundOnDone") !== "1") return;
+    if (lsGet(PREF.soundOnDone) !== "1") return;
     try {
       const AC = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
         || (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -1831,10 +1831,6 @@ export default function App() {
             ariaLabel="Resize domain rail"
             onChange={(dx) => setDomainRailWidth((w) => Math.max(180, Math.min(420, w + dx)))}
           />
-        )}
-        {/* legacy single-render below disabled */}
-        {false && !sidebarCollapsed && (
-        <aside className="flex w-60 shrink-0 flex-col border-r border-border-subtle bg-surface" />
         )}
 
         {/* Threads rail - visible on every tab so the domain's conversation

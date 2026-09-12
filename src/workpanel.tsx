@@ -24,9 +24,6 @@ export function normalizeWorkSection(s: string): WorkSection | null {
   if ((WORK_SECTIONS as string[]).includes(s)) return s as WorkSection;
   return SECTION_ALIASES[s] ?? null;
 }
-export function isWorkSection(s: string): boolean {
-  return normalizeWorkSection(s) !== null;
-}
 
 export function WorkPanel({
   vaultPath,

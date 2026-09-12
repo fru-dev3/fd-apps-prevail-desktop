@@ -73,6 +73,7 @@ pub fn imports_dir(domain: &str) -> Result<PathBuf, String> {
 /// Takes the basename first (so a full connector dir collapses to the app id),
 /// lowercases, and replaces every other char with `-`. Never empty. This mirrors
 /// the CLI's `sanitizeConnectorId` so both processes key the same directory.
+#[cfg(test)]
 pub fn sanitize_connector_id(id: &str) -> String {
     let base = id.rsplit(['/', '\\']).find(|s| !s.is_empty()).unwrap_or("");
     let clean: String = base
@@ -100,6 +101,7 @@ pub fn sanitize_connector_id(id: &str) -> String {
 /// synced vault, or syncing it across the user's Macs bloats the vault and can
 /// corrupt auth. This is deliberately OUTSIDE the app-support tree and OUTSIDE
 /// any vault, and mirrors the CLI's `browserProfilesRoot` in `path-safety.ts`.
+#[cfg(test)]
 pub fn browser_profiles_root() -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|e| format!("$HOME unset: {e}"))?;
     Ok(PathBuf::from(home).join(".prevail").join("browser-profiles"))
@@ -110,6 +112,7 @@ pub fn browser_profiles_root() -> Result<PathBuf, String> {
 /// by the (sanitized) connector id so it resolves to the SAME path as the CLI's
 /// `browserProfileDir(connectorId)`; a profile written by either process is found
 /// by the other.
+#[cfg(test)]
 pub fn browser_profile_dir(connector_id: &str) -> Result<PathBuf, String> {
     let dir = browser_profiles_root()?
         .join(sanitize_connector_id(connector_id))

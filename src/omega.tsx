@@ -8,7 +8,7 @@ import { ArrowRight, Compass, Eye, FileText, History, Lightbulb, Loader2, PenLin
 import { invoke } from "./bridge";
 import { CollapsibleSection } from "./collapsible";
 import { Markdown } from "./Markdown";
-import { PREF, getPref, lsGet, lsSet, setPref } from "./storage";
+import { PREF, cheapModel, getPref, lsGet, lsSet, setPref } from "./storage";
 import { Toggle } from "./ui";
 import { SettingsHeader } from "./sectionutil";
 
@@ -43,7 +43,7 @@ export function startOmegaScheduler(vault: string) {
       if (Date.now() - last < intervalMs) return;
       lsSet(PREF.omegaLastRun, String(Date.now()));
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       await invoke("omega_distill", { vault, provider, model });
       window.dispatchEvent(new Event("prevail:omega-changed"));
     } catch { /* best-effort; e.g. not enough learned across domains yet */ }
@@ -91,7 +91,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
     setNote(null);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       const merged = await invoke<string>("omega_distill", { vault: vaultPath, provider, model });
       setBody(merged);
       setSavedAt(Date.now());

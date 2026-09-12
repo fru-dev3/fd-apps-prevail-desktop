@@ -192,12 +192,23 @@ if [ -f "$HERE/RELEASE_NOTES.md" ]; then
 else
   NOTES_ARGS=(--generate-notes)
 fi
+# Create (or refresh) the release WITHOUT assets, then upload each asset on its
+# own with retries. Uploading several 30+ MB files in one gh call has repeatedly
+# died mid-way with "remote error: tls: bad record MAC", leaving no release at
+# all; one-at-a-time with retries survives the transient.
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-  gh release upload "$TAG" "$DMG" "$STABLE_DMG" ${UPDATE_ASSETS[@]+"${UPDATE_ASSETS[@]}"} --repo "$REPO" --clobber
   gh release edit "$TAG" --repo "$REPO" "${NOTES_ARGS[@]}" >/dev/null
 else
-  gh release create "$TAG" --repo "$REPO" --target main --title "$TAG" "${NOTES_ARGS[@]}" "$DMG" "$STABLE_DMG" ${UPDATE_ASSETS[@]+"${UPDATE_ASSETS[@]}"}
+  gh release create "$TAG" --repo "$REPO" --target main --title "$TAG" "${NOTES_ARGS[@]}"
 fi
+for asset in "$DMG" "$STABLE_DMG" ${UPDATE_ASSETS[@]+"${UPDATE_ASSETS[@]}"}; do
+  ok=0
+  for attempt in 1 2 3 4 5; do
+    if gh release upload "$TAG" "$asset" --repo "$REPO" --clobber; then ok=1; break; fi
+    echo "upload of $(basename "$asset") failed (attempt $attempt), retrying..."; sleep 6
+  done
+  [ "$ok" = 1 ] || die "could not upload $(basename "$asset") after 5 attempts"
+done
 
 step "Done — Prevail $VERSION released"
 echo "  website:  https://prevail.sh/Prevail-mac-arm64.dmg  (saves as Prevail-$VERSION-arm64.dmg)"

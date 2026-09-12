@@ -788,12 +788,19 @@ mod env_scrub_tests {
 
     #[test]
     fn scrubbed_env_omits_a_seeded_secret() {
+        // HOME is process-global: restore it afterwards or later tests that
+        // create dirs under $HOME (browser_profile_dir) fail on /Users/test.
+        let real_home = std::env::var("HOME").ok();
         std::env::set_var("ANTHROPIC_API_KEY", "sk-should-not-leak");
         std::env::set_var("HOME", "/Users/test");
         let pairs = scrubbed_env_pairs();
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        match real_home {
+            Some(h) => std::env::set_var("HOME", h),
+            None => std::env::remove_var("HOME"),
+        }
         assert!(pairs.iter().all(|(k, _)| k != "ANTHROPIC_API_KEY"), "secret leaked into child env");
         assert!(pairs.iter().any(|(k, _)| k == "HOME"), "HOME must be preserved for CLI auth");
-        std::env::remove_var("ANTHROPIC_API_KEY");
     }
 }
 

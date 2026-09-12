@@ -101,7 +101,6 @@ pub(crate) fn build_root(vault: &str) -> PathBuf {
     let b = PathBuf::from(vault).join("build");
     if b.is_dir() { b } else { PathBuf::from(vault) }
 }
-#[allow(dead_code)]
 pub(crate) fn runtime_path(vault: &str, name: &str) -> PathBuf {
     let build_dir = PathBuf::from(vault).join("build");
     // build/ is the SINGLE canonical home for app-support. When it exists, ALWAYS

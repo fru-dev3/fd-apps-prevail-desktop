@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bot, Check, Inbox, Loader2, ListPlus, Play, RotateCcw, Clock, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase, relTime } from "./format";
-import { PREF, getPref } from "./storage";
+import { PREF, cheapModel, getPref } from "./storage";
 import { startProcess, endProcess } from "./processes";
 import type { DecisionItem } from "./types";
 
@@ -84,7 +84,7 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
     startProcess(procId, "loop", `${titleCase(it.domain || "general")} · Executing: ${short}`, it.domain);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       // Mint a single-use approval token bound to this exact action (C1/O16),
       // then execute with it — the backend verifies approval, not UI trust.
       const approval = await invoke<string>("loop_request_approval", { domain: it.domain, action: it.text });

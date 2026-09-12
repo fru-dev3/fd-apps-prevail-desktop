@@ -117,29 +117,16 @@ export const DOMAIN_PALETTE = [
 export const INTEGRATION_LABEL: Record<string, string> = {
   api: "Direct API", oauth: "OAuth", browser: "Browser", mcp: "MCP server", manual: "Manual drop",
 };
-export const AUTONOMY_LABEL: Record<string, string> = {
+export const APP_AUTONOMY_LABEL: Record<string, string> = {
   "read-only": "Read only", draft: "Can draft", act: "Can act",
 };
-export const AUTONOMY_TINT: Record<string, string> = {
+export const APP_AUTONOMY_TINT: Record<string, string> = {
   "read-only": "#2fb87a", draft: "#d8a657", act: "#e06c75",
 };
 export const STATUS_TINT: Record<string, string> = { connected: "#2fb87a", expired: "#d8a657", error: "#e06c75", "not-configured": "#2fb87a" };
 export const PATTERN_LABEL: Record<string, string> = { api: "API", oauth: "OAuth", cli: "CLI", browser: "Web" };
 export const PATTERN_TINT: Record<string, string> = { api: "#2fb87a", oauth: "#C4A35A", cli: "#6b7cff", browser: "#9aa0a6" };
 export const PATTERN_TIER: Record<string, string> = { api: "Tier A · API/MCP", oauth: "Tier B · OAuth gateway", cli: "Tier D · CLI", browser: "Tier C · browser" };
-export const DOMAIN_LABEL: Record<string, string> = {
-  money: "Money & Banking", credit: "Credit & Debt", investing: "Investing & Wealth",
-  taxes: "Taxes & Accounting", insurance: "Insurance", realestate: "Real Estate & Home",
-  health: "Health & Medical", fitness: "Fitness & Wellness", email: "Email",
-  communication: "Communication", productivity: "Productivity", calendar: "Calendar",
-  files: "Files & Storage", security: "Security & Identity", career: "Career & Work",
-  shopping: "Shopping", travel: "Travel", smarthome: "Smart Home", social: "Social",
-  media: "Media & Streaming", learning: "Learning", government: "Government & Civic",
-  utilities: "Utilities", automotive: "Automotive", food: "Food & Dining",
-  family: "Family & Home", giving: "Giving", legal: "Legal & Estate",
-  news: "News & Research", dev: "Developer", tech: "Tech & Devices",
-};
-export const SOURCE_ABBR: Record<string, string> = { claude: "Cl", chatgpt: "GPT", gemini: "Gem" };
 export const LOCAL_CLI_IDS = new Set(["ollama", "lmstudio", "mlx"]);
 
 export const MODELS: Record<string, ModelPick[]> = {

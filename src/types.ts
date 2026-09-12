@@ -575,16 +575,6 @@ export type IngestionAction =
   | { type: "download_all_links"; selector: string; max?: number }
   | { type: "sleep"; seconds: number };
 
-export interface PortalRecipe {
-  id: string;
-  label: string;
-  domain_hint: string;
-  start_url: string;
-  success_url_contains: string | null;
-  notes: string | null;
-  actions?: IngestionAction[];
-}
-
 export interface IngestionAuditEntry {
   type: string;
   tier_id?: string;

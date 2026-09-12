@@ -11,7 +11,7 @@
 // append-only ledger. Stored at <vault>/<domain>/_loops.json and read/written
 // through the existing encryption-aware read_file / write_text_file commands.
 import { invoke } from "./bridge";
-import { PREF, getPref, lsGet, lsSet } from "./storage";
+import { PREF, cheapModel, getPref, lsGet, lsSet } from "./storage";
 import { titleCase } from "./format";
 
 export type LoopType = "open" | "closed";
@@ -23,7 +23,7 @@ export type LoopStatus = "active" | "paused" | "done";
 // every consequential step needs your approval (default); auto = act within
 // guardrails without asking (still records everything).
 export type LoopAutonomy = "suggest" | "tasks" | "ask" | "auto";
-export const AUTONOMY_LABEL: Record<LoopAutonomy, string> = {
+export const LOOP_AUTONOMY_LABEL: Record<LoopAutonomy, string> = {
   suggest: "Suggest only",
   tasks: "Create tasks",
   ask: "Act with approval",
@@ -386,7 +386,7 @@ export function startLoopsScheduler(vault: string) {
       // Stamp BEFORE running so a long pass can't trigger overlapping runs.
       lsSet(PREF.loopsLastRun, String(Date.now()));
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       await invoke("loops_run_once", { vault, provider, model });
       window.dispatchEvent(new Event("prevail:loops-advanced"));
     } catch (e) {
