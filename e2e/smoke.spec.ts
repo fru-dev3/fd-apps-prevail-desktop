@@ -150,7 +150,7 @@ test("5 · telemetry: section navigation emits allowlisted feature_used events o
 test("8 · connected phones are listed and can be disconnected one at a time", async ({ page }) => {
   const two = [
     { id: "d_1", label: "iPhone (Safari)", ip: "192.168.1.44", first_seen_ms: Date.now() - 600000, last_seen_ms: Date.now() - 4000, via: "qr" },
-    { id: "d_2", label: "iPad (Safari)", ip: "192.168.1.45", first_seen_ms: Date.now() - 90000, last_seen_ms: Date.now() - 90000, via: "password" },
+    { id: "d_2", label: "iPad (Safari)", ip: "192.168.1.45", first_seen_ms: Date.now() - 90000, last_seen_ms: Date.now() - 600000, via: "password" },
   ];
   const live = {
     running: true, port: 8787, user: "admin", remote: true,
@@ -167,10 +167,15 @@ test("8 · connected phones are listed and can be disconnected one at a time", a
 
   const list = page.getByTestId("remote-devices");
   await expect(list).toBeVisible({ timeout: 10_000 });
-  await expect(list).toContainText("Connected phones (2)");
+  await expect(list).toContainText("Connected phones (1 of 2 live)");
   await expect(list.locator("[data-device=d_1]")).toContainText("iPhone (Safari)");
   await expect(list.locator("[data-device=d_1]")).toContainText("paired by code");
+  // A live device shows a green pulse; one we have not heard from does not.
+  await expect(list.locator("[data-device=d_1] [data-live='1']")).toBeVisible();
+  await expect(list.locator("[data-device=d_1]")).toContainText("Connected");
   await expect(list.locator("[data-device=d_2]")).toContainText("iPad (Safari)");
+  await expect(list.locator("[data-device=d_2] [data-live='0']")).toBeVisible();
+  await expect(list.locator("[data-device=d_2]")).toContainText("Idle");
 
   await list.locator("[data-device=d_1]").getByRole("button", { name: "Disconnect" }).click();
   await page.evaluate((s) => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.webui_status = s; }, afterRevoke);

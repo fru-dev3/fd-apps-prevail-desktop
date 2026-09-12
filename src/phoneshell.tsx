@@ -4,10 +4,11 @@
 // four destinations (Chat, Domains, Needs you, Settings). The desktop `tab`
 // state stays the source of truth for WHAT the conversation surface shows
 // (chat / council / arena ...); this shell only decides WHICH screen is up.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   History,
   Inbox,
   Layers,
@@ -27,7 +28,6 @@ import { modelLabel } from "./helpers2";
 import { LS, lsGet } from "./storage";
 import { EDITOR_NAV } from "./navdefs";
 import { DecisionInbox } from "./decisioninbox";
-import { PhoneVoiceBar } from "./phonevoice";
 import type { CliInfo, Domain, DomainTab, LifeReadiness, TabId, ThreadMeta } from "./types";
 
 export type PhoneScreen = "chat" | "domains" | "needs" | "settings";
@@ -156,8 +156,8 @@ export function PhoneShell({
   const [settingsList, setSettingsList] = useState(true);
   const [threadsOpen, setThreadsOpen] = useState(false);
   const [newDomainOpen, setNewDomainOpen] = useState(false);
-  // The voice bar drops its transcript into the composer living inside this.
-  const conversationRef = useRef<HTMLDivElement | null>(null);
+  // Collapsed by default: the conversation is why you opened this.
+  const [navOpen, setNavOpen] = useState(false);
 
   // Follow the desktop tab state whenever something else navigates (a deep link
   // event, a domain pick, a council seed): the matching phone screen comes up.
@@ -211,12 +211,17 @@ export function PhoneShell({
           <Header
             title={title}
             back={scopeLabel && onCloseApp ? onCloseApp : undefined}
-            right={
-              <span className={`inline-flex h-8 max-w-[150px] items-center gap-1.5 truncate rounded-full border px-3 text-[12px] font-medium ${councilMode ? "border-accent-border bg-accent-soft text-accent" : "border-border bg-surface text-text-secondary"}`}>
-                {councilMode ? <Scale className="h-3.5 w-3.5" /> : <Layers className="h-3.5 w-3.5" />}
+            /* No model pill here: the composer carries one you can actually
+               tap to change, and two of them on one screen (showing different
+               halves of the same answer, "Opus 5" against "claude") reads as a
+               bug. Council still names itself, since that is a mode, not a
+               model. */
+            right={councilMode ? (
+              <span className="inline-flex h-8 max-w-[150px] items-center gap-1.5 truncate rounded-full border border-accent-border bg-accent-soft px-3 text-[12px] font-medium text-accent">
+                <Scale className="h-3.5 w-3.5" />
                 <span className="truncate">{pill}</span>
               </span>
-            }
+            ) : undefined}
             sub={
               <>
                 <div className="inline-flex rounded-xl bg-surface-warm p-1" role="tablist" aria-label="Conversation mode">
@@ -249,13 +254,9 @@ export function PhoneShell({
             }
           />
           {/* Composer padding tightened for the narrow width; transcript untouched. */}
-          <div ref={conversationRef} className="flex min-h-0 flex-1 flex-col [&_[data-tour=composer]]:px-3 [&_[data-tour=composer]]:pb-3">
+          <div className="flex min-h-0 flex-1 flex-col [&_[data-tour=composer]]:px-3 [&_[data-tour=composer]]:pb-3">
             {conversation}
           </div>
-          {/* Hold-to-talk under the composer: the phone has no keyboard worth
-              typing on, so voice is the primary way in. Chat only; the council
-              surface has its own seeding flow. */}
-          {!councilMode && <PhoneVoiceBar vaultPath={vaultPath} domain={scopeLabel ? null : selectedDomain} composerRoot={conversationRef} />}
         </>
       )}
 
@@ -364,29 +365,50 @@ export function PhoneShell({
       {footer}
 
       {/* ── Bottom tab bar ─────────────────────────────────────────────── */}
+      {/* The tab bar is 58px plus the home indicator, permanently, on a screen
+          that is mostly conversation. Collapsed by default it is a 30px handle
+          naming where you are; the chevron brings the full bar up, and picking
+          a destination puts it away again. */}
       <nav aria-label="Primary" className="shrink-0 border-t border-border-subtle bg-surface pb-[env(safe-area-inset-bottom)]">
-        <ul className="grid grid-cols-4">
-          {PHONE_TABS.map((t) => {
-            const active = screen === t.id;
-            const Icon = t.icon;
-            return (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => goTab(t.id)}
-                  aria-current={active ? "page" : undefined}
-                  className={`relative flex min-h-[58px] w-full flex-col items-center justify-center gap-1 ${active ? "text-accent" : "text-text-muted"}`}
-                >
-                  <Icon className="h-6 w-6" strokeWidth={active ? 2.25 : 1.75} />
-                  <span className="text-[11px] font-semibold leading-none">{t.label}</span>
-                  {t.id === "needs" && decisionsCount > 0 && (
-                    <span className="absolute left-1/2 top-2 ml-2 inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-bold leading-none text-on-accent">{cap9(decisionsCount)}</span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        {navOpen ? (
+          <ul className="grid grid-cols-4">
+            {PHONE_TABS.map((t) => {
+              const active = screen === t.id;
+              const Icon = t.icon;
+              return (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => { goTab(t.id); setNavOpen(false); }}
+                    aria-current={active ? "page" : undefined}
+                    className={`relative flex min-h-[58px] w-full flex-col items-center justify-center gap-1 ${active ? "text-accent" : "text-text-muted"}`}
+                  >
+                    <Icon className="h-6 w-6" strokeWidth={active ? 2.25 : 1.75} />
+                    <span className="text-[11px] font-semibold leading-none">{t.label}</span>
+                    {t.id === "needs" && decisionsCount > 0 && (
+                      <span className="absolute left-1/2 top-2 ml-2 inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-bold leading-none text-on-accent">{cap9(decisionsCount)}</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-expanded={false}
+            aria-label="Show navigation"
+            data-testid="phone-nav-handle"
+            className="flex min-h-[34px] w-full items-center justify-center gap-2 text-text-muted active:bg-surface-warm"
+          >
+            <ChevronUp className="h-4 w-4" />
+            <span className="text-[12px] font-semibold">{PHONE_TABS.find((t) => t.id === screen)?.label ?? "Menu"}</span>
+            {decisionsCount > 0 && (
+              <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-bold leading-none text-on-accent">{cap9(decisionsCount)}</span>
+            )}
+          </button>
+        )}
       </nav>
 
       {threadsOpen && (

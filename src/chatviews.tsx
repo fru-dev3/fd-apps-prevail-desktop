@@ -240,6 +240,19 @@ function StepChecklist({ msg, accent }: { msg: ChatMessage; accent: string }) {
   );
 }
 
+// "none" is a real option id for framework and lens, meaning "do not apply
+// one". A chip that says NONE is worse than no chip.
+function hasPreamble(v?: string | null): boolean {
+  return !!v && v.toLowerCase() !== "none";
+}
+
+// "Sep 12 at 7:35 AM" wraps to three lines in a phone-width metadata row.
+// Same day: just the clock.
+function shortStamp(stamp: string): string {
+  const at = stamp.split(" at ");
+  return at.length > 1 ? at[1] : stamp;
+}
+
 export function ChatBubble({
   msg,
   onCopy,
@@ -261,6 +274,7 @@ export function ChatBubble({
   onMakeLoop?: (text: string) => void;
   onMakeSkill?: (text: string) => void;
 }) {
+  const phone = useIsPhone();
   // Small inline action button used on bubble hover. Stays muted by
   // default so the chat stays calm; lights up on hover.
   const ActionButton = ({
@@ -364,7 +378,9 @@ export function ChatBubble({
       <img src="/logo.png" alt="Prevail" className="h-8 w-8 shrink-0 rounded-lg shadow-sm" />
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-text-secondary">
-          <span className="font-display font-semibold tracking-tight text-text-primary">Assistant</span>
+          {/* The avatar already says this is the assistant; on a phone the word
+              is 70px of a row that has to fit a name, a model and a time. */}
+          {!phone && <span className="font-display font-semibold tracking-tight text-text-primary">Assistant</span>}
           <ProviderMark vendor={vendor} size={14} />
           <span className="font-display font-semibold tracking-tight" style={{ color: accent }}>{vendorName}</span>
           {/* I9: which model + how it was shaped (framework/lens) - so each turn
@@ -373,14 +389,18 @@ export function ChatBubble({
           {msg.role === "assistant" && msg.model && !msg.route && (
             <span className="font-mono text-[10px] lowercase text-text-muted" title={`Model: ${msg.model}`}>{modelLabel(msg.cli, msg.model)}</span>
           )}
-          {msg.role === "assistant" && msg.framework && (
+          {/* "none" is the id of the no-framework and no-lens options, so these
+              were rendering a NONE chip on almost every turn: two badges that
+              only ever said "nothing was applied". Show them when something
+              actually was. Never on a phone, where the row has no room. */}
+          {!phone && msg.role === "assistant" && hasPreamble(msg.framework) && (
             <span className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted" title="Reasoning framework in effect">{msg.framework}</span>
           )}
-          {msg.role === "assistant" && msg.lens && (
+          {!phone && msg.role === "assistant" && hasPreamble(msg.lens) && (
             <span className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted" title="Lens in effect">{msg.lens}</span>
           )}
           {/* BP3: timestamp on the assistant turn. */}
-          {stamp && <span className="font-mono text-[10px] text-text-muted/70">· {stamp}</span>}
+          {stamp && <span className="whitespace-nowrap font-mono text-[10px] text-text-muted/70">· {phone ? shortStamp(stamp) : stamp}</span>}
           {msg.streaming && (
             <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider" style={{ color: accent, background: tint }}>
               {/* Radiating ping (core dot + expanding ring): unambiguous
@@ -389,7 +409,7 @@ export function ChatBubble({
                 <span className="ping-ring absolute inline-flex h-full w-full rounded-full" style={{ background: accent }} />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
               </span>
-              <span className="shimmer-text">{msg.content ? "writing" : <ThinkingWord />}</span>
+              <span className="shimmer-text">{msg.content ? "writing" : (phone ? "thinking" : <ThinkingWord />)}</span>
             </span>
           )}
         </div>

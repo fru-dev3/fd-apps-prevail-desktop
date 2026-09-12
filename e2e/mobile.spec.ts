@@ -38,6 +38,18 @@ async function noHorizontalScroll(page: Page, label: string) {
 
 const tabBar = (page: Page) => page.getByRole("navigation", { name: "Primary" });
 
+// The bottom nav is collapsed by default: the conversation is what you opened
+// the app for, and 58px of permanent chrome on a 640px screen is a lot to pay
+// for navigation you use a few times a session. Open it, then pick.
+async function openNav(page: Page) {
+  const handle = page.getByTestId("phone-nav-handle");
+  if (await handle.count()) await handle.click();
+}
+async function goTab(page: Page, label: string) {
+  await openNav(page);
+  await tabBar(page).getByRole("button", { name: label }).click();
+}
+
 // The shell is pinned to the visible viewport, not the layout viewport. On
 // mobile Safari `height: 100%` resolves against the taller URL-bar-hidden
 // viewport, which is what made the whole app slide under your thumb.
@@ -57,7 +69,12 @@ test("the shell is pinned to the screen: no page scrolling, no rubber band", asy
   expect(Math.abs(css.htmlH - css.innerH)).toBeLessThanOrEqual(1);
 });
 
-test("bottom tab bar: four tabs, Chat active, no desktop rail", async ({ page }) => {
+test("bottom tab bar: collapsed by default, four tabs once opened", async ({ page }) => {
+  // Collapsed state names where you are and offers the way up.
+  const handle = page.getByTestId("phone-nav-handle");
+  await expect(handle).toBeVisible();
+  await expect(handle).toContainText("Chat");
+  await handle.click();
   const nav = tabBar(page);
   await expect(nav).toBeVisible();
   for (const label of ["Chat", "Domains", "Needs you", "Settings"]) {
@@ -78,7 +95,7 @@ test("bottom tab bar: four tabs, Chat active, no desktop rail", async ({ page })
 });
 
 test("Domains lists General + the fixture domains; tapping career opens its chat", async ({ page }) => {
-  await tabBar(page).getByRole("button", { name: "Domains" }).click();
+  await goTab(page, "Domains");
   await expect(page.getByRole("heading", { name: "Domains" })).toBeVisible();
   await expect(page.locator("[data-domain=general]")).toBeVisible();
   await expect(page.locator("[data-domain=career]")).toBeVisible();
@@ -89,7 +106,9 @@ test("Domains lists General + the fixture domains; tapping career opens its chat
   await fitsTheScreen(page, "domains");
 
   await page.locator("[data-domain=career]").click();
-  await expect(tabBar(page).getByRole("button", { name: "Chat" })).toHaveAttribute("aria-current", "page");
+  // The nav puts itself away once you have chosen; its handle is what now
+  // reports where you are.
+  await expect(page.getByTestId("phone-nav-handle")).toContainText("Chat");
   await expect(page.getByRole("heading", { name: "Career" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Chat" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-tour=composer] textarea")).toBeVisible();
@@ -154,7 +173,7 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
   });
   await page.goto("/");
   await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
-  await tabBar(page).getByRole("button", { name: "Domains" }).click();
+  await goTab(page, "Domains");
   await page.locator("[data-domain=career]").click();
   await expect(page.locator("[data-tour=composer] textarea")).toBeVisible();
 
@@ -162,6 +181,10 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
   await expect(mic).toBeVisible();
   const box = await mic.boundingBox();
   expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  // It belongs in the composer row, next to Send, not in a strip of its own.
+  const composer = await page.locator("[data-tour=composer]").boundingBox();
+  expect(box!.y).toBeGreaterThanOrEqual(composer!.y);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(composer!.y + composer!.height + 2);
   await mic.dispatchEvent("pointerdown", { pointerId: 1, clientX: 40, clientY: 700, isPrimary: true });
   const held = page.getByRole("button", { name: "Recording, release to transcribe" });
   await expect(held).toBeVisible();
@@ -195,7 +218,7 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
 });
 
 test("Needs you shows the approval queues", async ({ page }) => {
-  await tabBar(page).getByRole("button", { name: "Needs you" }).click();
+  await goTab(page, "Needs you");
   await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible();
   await expect(page.getByText("PayPal: create_invoice")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("Gmail: send")).toBeVisible();
@@ -205,7 +228,7 @@ test("Needs you shows the approval queues", async ({ page }) => {
 });
 
 test("Settings renders as a list, opens a section, and deep links land on the section", async ({ page }) => {
-  await tabBar(page).getByRole("button", { name: "Settings" }).click();
+  await goTab(page, "Settings");
   await expect(page.locator("h1", { hasText: "Settings" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Privacy" })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/phone-settings.png`, fullPage: false });

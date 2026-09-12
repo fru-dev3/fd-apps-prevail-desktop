@@ -5,7 +5,7 @@
 // phone browser (audio/mp4 on iOS Safari, audio/webm elsewhere); the bytes go
 // to the Mac over the WebUI bridge and transcription runs there, never on a
 // third-party service (see src-tauri/src/voice.rs).
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Mic, NotebookPen, X } from "lucide-react";
 import { invoke, isBrowser, uploadAudio } from "./bridge";
 
@@ -41,7 +41,8 @@ function voiceSupport(): { ok: boolean; hint: string } {
 // controlled React input (in chatpanel.tsx, untouched) picks it up: the
 // prototype setter bypasses React's value tracker, the input event notifies it.
 export function setComposerText(root: HTMLElement | null, text: string): boolean {
-  const ta = root?.querySelector<HTMLTextAreaElement>("[data-tour=composer] textarea");
+  const scope: ParentNode = root ?? document;
+  const ta = scope.querySelector<HTMLTextAreaElement>("[data-tour=composer] textarea");
   if (!ta) return false;
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
   if (setter) setter.call(ta, text); else ta.value = text;
@@ -70,12 +71,10 @@ async function transcribe(blob: Blob): Promise<Transcript> {
   return invoke<Transcript>("transcribe_audio", { base64: await blobToBase64(blob), ext });
 }
 
-export function PhoneVoiceBar({ vaultPath, domain, composerRoot }: {
+export function PhoneVoiceBar({ vaultPath, domain }: {
   vaultPath: string;
   // Current domain ("" or null for General): where "Save as note" files it.
   domain: string | null;
-  // The element that contains the chat composer ([data-tour=composer]).
-  composerRoot: RefObject<HTMLElement | null>;
 }) {
   const [support] = useState(voiceSupport);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -116,13 +115,13 @@ export function PhoneVoiceBar({ vaultPath, domain, composerRoot }: {
       const text = (out?.text ?? "").trim();
       if (!text) { setError("Nothing heard. Hold the mic and speak closer to the phone."); setPhase("error"); return; }
       setTranscript(text);
-      setComposerText(composerRoot.current, text);
+      setComposerText(null, text);
       setPhase("done");
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
       setPhase("error");
     }
-  }, [composerRoot]);
+  }, []);
 
   const start = useCallback(async () => {
     setError(null); setSaved(false); setTranscript("");
@@ -161,7 +160,10 @@ export function PhoneVoiceBar({ vaultPath, domain, composerRoot }: {
   }, []);
 
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (!support.ok || phase === "recording" || phase === "transcribing") return;
+    // A dead button teaches nothing. When the browser will not give us a
+    // microphone (a plain http address is the usual reason), say so on tap.
+    if (!support.ok) { e.preventDefault(); setError(support.hint); setPhase("error"); return; }
+    if (phase === "recording" || phase === "transcribing") return;
     e.preventDefault();
     startRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
     pointerIdRef.current = e.pointerId;
@@ -189,7 +191,7 @@ export function PhoneVoiceBar({ vaultPath, domain, composerRoot }: {
       setSaved(true);
       // The composer keeps the text only while it is the pending message;
       // once filed as a note, clear it so it is not also sent by accident.
-      setComposerText(composerRoot.current, "");
+      setComposerText(null, "");
       window.dispatchEvent(new CustomEvent("prevail:notes-changed"));
       window.setTimeout(() => { setSaved(false); setPhase("idle"); setTranscript(""); }, 1400);
     } catch (e) {
@@ -202,75 +204,74 @@ export function PhoneVoiceBar({ vaultPath, domain, composerRoot }: {
   const recording = phase === "recording";
   const busy = phase === "transcribing";
   const domainLabel = domain ? domain : "General";
+  // The panel exists only while there is something to say.
+  const panel = recording || busy || phase === "done" || phase === "error";
 
+  // A phone has no room for a permanent strip that is idle most of the time.
+  // The mic is ONE round button that lives in the composer row next to Send;
+  // everything it has to say appears in a panel floating above the composer
+  // only while it is saying it, then gets out of the way.
   return (
-    <div data-testid="phone-voice" className="shrink-0 border-t border-border-subtle bg-surface px-3 py-1.5">
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          aria-label={recording ? "Recording, release to transcribe" : "Hold to talk"}
-          aria-pressed={recording}
-          disabled={!support.ok || busy}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={() => stop(true)}
-          onContextMenu={(e) => e.preventDefault()}
-          className={`relative flex h-12 w-12 shrink-0 select-none items-center justify-center rounded-full transition-colors disabled:opacity-40 ${recording ? "bg-accent text-on-accent" : "bg-accent-soft text-accent ring-1 ring-inset ring-accent-border"}`}
-          style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" } as React.CSSProperties}
-        >
-          {recording && <span aria-hidden className="pulse-soft absolute -inset-1.5 rounded-full ring-[3px] ring-accent/60" />}
-          <Mic className="h-5 w-5" />
-        </button>
-
-        <div className="flex min-w-0 flex-1 flex-col leading-tight">
-          {recording ? (
-            <>
-              <span className="font-mono text-[19px] font-semibold tabular-nums text-accent" data-testid="phone-voice-timer">{mmss(seconds)}</span>
-              <span className="text-[12px] text-text-muted">Listening. Release to transcribe, slide away to cancel.</span>
-            </>
-          ) : busy ? (
-            <span className="text-[15px] font-medium text-text-secondary" data-testid="phone-voice-status">Transcribing...</span>
-          ) : phase === "done" ? (
-            <>
-              <span className="text-[15px] font-medium text-text-primary" data-testid="phone-voice-status">{saved ? "Saved to notes" : "In the composer. Fix a word, then Send."}</span>
-              <span className="truncate text-[12px] text-text-muted" data-testid="phone-voice-transcript">{transcript}</span>
-            </>
-          ) : phase === "error" ? (
-            <span className="text-[13px] text-err" data-testid="phone-voice-status">{error}</span>
-          ) : (
-            <>
-              <span className="text-[15px] font-medium text-text-primary">Hold to talk</span>
-              <span className="line-clamp-2 text-[12px] text-text-muted">{support.ok ? "Transcribed on your Mac, nothing leaves it." : support.hint}</span>
-            </>
-          )}
+    <div data-testid="phone-voice" className="relative flex items-center">
+      {panel && (
+        <div className="absolute bottom-full right-0 z-30 mb-2 w-[min(78vw,320px)] rounded-xl border border-border bg-surface px-3 py-2 shadow-xl">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1 leading-tight">
+              {recording ? (
+                <>
+                  <div className="font-mono text-[20px] font-semibold tabular-nums text-accent" data-testid="phone-voice-timer">{mmss(seconds)}</div>
+                  <div className="text-[12px] text-text-muted">Release to transcribe. Slide away to cancel.</div>
+                </>
+              ) : busy ? (
+                <div className="text-[14px] font-medium text-text-secondary" data-testid="phone-voice-status">Transcribing on your Mac...</div>
+              ) : phase === "done" ? (
+                // The transcript is already visible in the composer below, so
+                // repeating it here would only cover the thing being described.
+                <div className="truncate text-[13px] font-medium text-text-primary" data-testid="phone-voice-status">
+                  {saved ? "Saved to notes" : "In the composer. Fix a word, then send."}
+                  <span className="hidden" data-testid="phone-voice-transcript">{transcript}</span>
+                </div>
+              ) : (
+                <div className="line-clamp-2 text-[13px] text-err" data-testid="phone-voice-status">{error}</div>
+              )}
+            </div>
+            {phase === "done" && !saved && (
+              <button type="button" onClick={() => void saveNote()} disabled={saving}
+                aria-label="Save as note"
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[12px] font-semibold text-text-secondary active:bg-surface-warm disabled:opacity-50"
+                title={`Save as a voice note in ${domainLabel}`}>
+                <NotebookPen className="h-4 w-4" /> {saving ? "Saving" : "Note"}
+              </button>
+            )}
+            {phase === "done" && saved && (
+              <span className="inline-flex h-9 shrink-0 items-center gap-1 text-[12px] font-semibold text-ok"><Check className="h-4 w-4" /> Saved</span>
+            )}
+            {(phase === "error" || recording) && (
+              <button type="button" onClick={() => (recording ? stop(true) : dismiss())} aria-label={recording ? "Cancel recording" : "Dismiss"}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-secondary active:bg-surface-warm">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
+      )}
 
-        {recording && (
-          <button type="button" onClick={() => stop(true)} aria-label="Cancel recording" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary active:bg-surface-warm">
-            <X className="h-5 w-5" />
-          </button>
-        )}
-        {phase === "done" && !saved && (
-          <button
-            type="button"
-            onClick={() => void saveNote()}
-            disabled={saving}
-            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 text-[13px] font-semibold text-text-secondary active:bg-surface-warm disabled:opacity-50"
-            title={`Save as a voice note in ${domainLabel}`}
-          >
-            <NotebookPen className="h-4 w-4" /> {saving ? "Saving..." : "Save as note"}
-          </button>
-        )}
-        {phase === "done" && saved && (
-          <span className="inline-flex h-11 shrink-0 items-center gap-1 px-2 text-[13px] font-semibold text-ok"><Check className="h-4 w-4" /> Saved</span>
-        )}
-        {phase === "error" && (
-          <button type="button" onClick={dismiss} aria-label="Dismiss" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary active:bg-surface-warm">
-            <X className="h-5 w-5" />
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        aria-label={recording ? "Recording, release to transcribe" : "Hold to talk"}
+        aria-pressed={recording}
+        disabled={busy}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={() => stop(true)}
+        onContextMenu={(e) => e.preventDefault()}
+        className={`relative flex h-11 w-11 shrink-0 select-none items-center justify-center rounded-full transition-colors disabled:opacity-40 ${recording ? "bg-accent text-on-accent" : "bg-accent-soft text-accent ring-1 ring-inset ring-accent-border"}`}
+        style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" } as React.CSSProperties}
+      >
+        {recording && <span aria-hidden className="pulse-soft absolute -inset-1.5 rounded-full ring-[3px] ring-accent/60" />}
+        <Mic className="h-5 w-5" />
+      </button>
     </div>
   );
 }
