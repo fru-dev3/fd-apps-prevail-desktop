@@ -1,15 +1,16 @@
-# Prevail v0.3.115
+# Prevail v0.3.116
 
-The phone stops behaving like a web page in a costume. It never asks you to pick a vault, and every screen fits the screen.
+The phone shell now actually stays put, and the pairing card is a card instead of a wall of sentences.
 
 ## Fixed
 
-- **The phone asked you to pick a vault.** It should never have. The vault lives on your Mac and the phone is a window onto it, so there is nothing on a phone worth choosing. The browser client now waits for the Mac to name its vault and shows "Connecting to your Mac" while it does. If the Mac genuinely has no vault yet, it says that and offers to retry, instead of opening a folder picker on a device with no folders you would want.
-- **The whole app scrolled under your thumb.** The shell was sized with a percentage height, which on mobile Safari resolves against the taller viewport measured with the address bar hidden. The document was therefore always taller than what you could see. It is pinned to the visible viewport now, the page itself cannot scroll, and the rubber-band bounce at the edges is gone. Scrolling still happens where it should, inside the surface you are reading.
-- **The composer took nearly half a short phone.** Framework, Lens, Modes, Plan and the Council pill are desk work, and the phone already has a Chat and Council switch in its header. The phone composer is now what a conversation needs: attach, model, Send. All of it is unchanged on the desktop, and settings made there still apply.
-- **The greeting was cut off at the top on a small phone,** and could not be scrolled back to, because centred flex content that overflows becomes unreachable at both ends. It now falls back to aligning from the top when it does not fit, and the greeting itself is scaled for a phone. The model name was also printed three times on one screen; it appears once in the header and once in the composer.
+- **The top of the app scrolled away on a phone, and there was a band of dead space at the bottom.** The previous release stopped the body from scrolling but left the document itself scrollable, which iOS Safari happily scrolled instead. So the header with the domain name went off the top, and with it the banner that explains when no model is available. The body is now pinned to the visible viewport, which is the one thing iOS honours without argument, and nothing above it can scroll.
+- **The pairing card was a wall of text.** It repeated the same address twice, ran three instructions together as prose, and gave every sentence the same weight. It is now a header that says whether phone access is on, a large QR with numbered steps beside it, and a table of every way in where the one the QR points at is marked. Each way in shows either its address with a copy button or a plain reason it is unavailable.
+- **The voice bar spent three lines explaining itself** when the microphone was unavailable. It says what to do in one line now.
 
-Verified on a 360 by 640 phone, the smallest in common use: Chat, Domains, Needs you and Settings each fit with nothing cut off and no page scrolling, and there is a test that fails if that stops being true.
+## If the model says "no model"
+
+That is Bunker Mode doing its job. Bunker Mode blocks cloud models, so with no local model installed there is nothing left to run. The banner explaining this was being scrolled off the top of the phone, which is fixed here. Either install a local model or turn Bunker Mode off in Privacy.
 
 ## Notes
 

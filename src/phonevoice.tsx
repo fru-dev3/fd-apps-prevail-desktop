@@ -33,8 +33,8 @@ function voiceSupport(): { ok: boolean; hint: string } {
   // localhost, which is exactly how a phone reaches the bridge over the LAN.
   // The fix is the https address from Settings > Remote > Share over the
   // internet on the Mac; until then the keyboard's own mic still types.
-  if (!secure) return { ok: false, hint: "Voice needs the https address: on your Mac, Settings > Remote > Share over the internet. The keyboard mic still works." };
-  return { ok: false, hint: "This browser has no microphone recorder. Use the keyboard mic instead." };
+  if (!secure) return { ok: false, hint: "Needs the https address. Share it from Phone settings on your Mac." };
+  return { ok: false, hint: "No microphone here. Use the keyboard mic." };
 }
 
 // Put text into the composer's textarea the way a keystroke would, so the
@@ -241,7 +241,7 @@ export function PhoneVoiceBar({ vaultPath, domain, composerRoot }: {
           ) : (
             <>
               <span className="text-[15px] font-medium text-text-primary">Hold to talk</span>
-              <span className="text-[12px] text-text-muted">{support.ok ? "Transcribed on your Mac, nothing leaves it." : support.hint}</span>
+              <span className="line-clamp-2 text-[12px] text-text-muted">{support.ok ? "Transcribed on your Mac, nothing leaves it." : support.hint}</span>
             </>
           )}
         </div>

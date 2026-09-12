@@ -1796,7 +1796,7 @@ export default function App() {
   );
 
   return (
-    <div className={`relative flex ${phone ? "h-[100dvh]" : "h-screen"} flex-col bg-background text-text-primary`}>
+    <div className={`relative flex ${phone ? "h-full" : "h-screen"} flex-col overflow-hidden bg-background text-text-primary`}>
       {/* O1 (Monday feedback): first-run onboarding tour (dismissible, replayable). */}
       <OnboardingTour />
       {/* C4: first-run encrypt-at-rest prompt (default-ON). Only for a fresh,

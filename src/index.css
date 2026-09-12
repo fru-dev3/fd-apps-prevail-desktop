@@ -331,15 +331,26 @@
      happens, inside the per-screen containers that should own it.
      Matches PHONE_MAX_PX in useisphone.ts, which is what swaps in PhoneShell. */
   @media (max-width: 767px) {
+    /* `position: fixed` on the body is the only thing iOS Safari honours
+       without argument: the body becomes exactly the visual viewport, so it
+       cannot be taller than the screen and there is nothing to scroll. Height
+       units alone were not enough. Pinning only the body still left the
+       DOCUMENT scrollable, which scrolled the header off the top and left a
+       band of empty background at the bottom. */
     html {
-      height: 100vh;  /* floor for anything without dvh support */
-      height: 100dvh;
-    }
-    body, #root {
       height: 100%;
+      overflow: hidden;
+    }
+    body {
+      position: fixed;
+      inset: 0;
       overflow: hidden;
       /* No rubber-band bounce past the edges: that reads as a web page. */
       overscroll-behavior: none;
+    }
+    #root {
+      height: 100%;
+      overflow: hidden;
     }
   }
   body {
