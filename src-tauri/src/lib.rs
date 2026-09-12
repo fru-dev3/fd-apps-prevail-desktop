@@ -455,6 +455,8 @@ pub fn run() {
             webui::webui_tunnel_stop,
             webui::webui_pair_code,
             webui::webui_pair_clear,
+            webui::webui_device_revoke,
+            webui::webui_device_revoke_all,
             webui::webui_resolve,
             webui::webui_event,
             distill::distill_start,
