@@ -336,6 +336,34 @@ export function LockScreen({ vault, encrypted, onUnlock }: { vault: string | nul
   );
 }
 
+// The browser client has no vault of its own: the vault lives on the Mac and
+// this is a window onto it. While we ask the Mac which vault it is using, and
+// if that ever fails, the phone gets this instead of the desktop's folder
+// picker, which would be asking someone to choose a directory on a phone.
+export function WebVaultLinking({ resolving, onRetry }: { resolving: boolean; onRetry: () => void }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center">
+      <PrevailLogo size={64} src="/logo-512.png" animated={resolving} />
+      {resolving ? (
+        <>
+          <h1 className="mt-5 font-display text-2xl font-semibold tracking-tight">Connecting to your Mac</h1>
+          <p className="mt-1 text-sm text-text-muted">Loading your domains and agents.</p>
+        </>
+      ) : (
+        <>
+          <h1 className="mt-5 font-display text-2xl font-semibold tracking-tight">Your Mac has no vault yet</h1>
+          <p className="mt-1 max-w-xs text-sm text-text-muted">
+            Finish setting Prevail up on the Mac, then come back. Nothing needs to be set up on this phone.
+          </p>
+          <button onClick={onRetry} className="mt-5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent">
+            Try again
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Shown for the moment it takes a scanned QR code to become a session. It
 // exists so the phone never flashes a password form on its way in.
 export function PairingScreen() {

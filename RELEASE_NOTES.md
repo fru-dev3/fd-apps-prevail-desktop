@@ -1,19 +1,15 @@
-# Prevail v0.3.114
+# Prevail v0.3.115
 
-Getting Prevail onto your phone is now one screen and one scan. No hunting through network settings, and no password to type on a phone keyboard.
-
-## New
-
-- **Phone is its own screen.** It sits in the sidebar under Connections, instead of hiding inside the WebUI server panel where nobody would think to look for it. If phone access is off, the screen is a single button that does the whole setup: it mints a password, switches on reachability, starts the bridge and shows the code. The technical knobs stay in Network.
-- **Scan the code and you are in.** The QR now carries a one-time pairing code, so scanning signs the phone in and drops you straight into the app. Typing a generated password on a touch keyboard was the thing most likely to stop you from ever finishing setup.
+The phone stops behaving like a web page in a costume. It never asks you to pick a vault, and every screen fits the screen.
 
 ## Fixed
 
-- **Clicking an item in the Editor sidebar could land you on General.** The sidebar announced the section with an event the settings panel answers itself, so clicking an item before that panel finished loading meant nothing was listening, and you got the default page. The section is handed in directly now and survives the load. The Work sidebar already worked this way.
+- **The phone asked you to pick a vault.** It should never have. The vault lives on your Mac and the phone is a window onto it, so there is nothing on a phone worth choosing. The browser client now waits for the Mac to name its vault and shows "Connecting to your Mac" while it does. If the Mac genuinely has no vault yet, it says that and offers to retry, instead of opening a folder picker on a device with no folders you would want.
+- **The whole app scrolled under your thumb.** The shell was sized with a percentage height, which on mobile Safari resolves against the taller viewport measured with the address bar hidden. The document was therefore always taller than what you could see. It is pinned to the visible viewport now, the page itself cannot scroll, and the rubber-band bounce at the edges is gone. Scrolling still happens where it should, inside the surface you are reading.
+- **The composer took nearly half a short phone.** Framework, Lens, Modes, Plan and the Council pill are desk work, and the phone already has a Chat and Council switch in its header. The phone composer is now what a conversation needs: attach, model, Send. All of it is unchanged on the desktop, and settings made there still apply.
+- **The greeting was cut off at the top on a small phone,** and could not be scrolled back to, because centred flex content that overflows becomes unreachable at both ends. It now falls back to aligning from the top when it does not fit, and the greeting itself is scaled for a phone. The model name was also printed three times on one screen; it appears once in the header and once in the composer.
 
-## About the pairing code
-
-It is not your password. It is a random value that buys exactly one session and is destroyed the moment it is used, so a photographed QR code is worthless afterwards. It expires in ten minutes, it is cleared when you leave the screen or turn the bridge off, and a wrong guess is refused without invalidating the real code. It travels in the part of the address that browsers never send to a server, so it stays out of request logs and out of the Cloudflare tunnel. A phone that is already signed in cannot mint one for another device. If a code has expired, the phone falls back to the normal sign-in form and tells you where to find a fresh code.
+Verified on a 360 by 640 phone, the smallest in common use: Chat, Domains, Needs you and Settings each fit with nothing cut off and no page scrolling, and there is a test that fails if that stops being true.
 
 ## Notes
 

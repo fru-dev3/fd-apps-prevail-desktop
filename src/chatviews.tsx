@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronRight, ListPlus, NotebookPen, Pin, Repeat, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { FRAMEWORKS, LENSES, MODELS } from "./constants";
+import { useIsPhone } from "./useisphone";
 import { titleCase } from "./format";
 import { splitThinking, vendorAccent } from "./helpers";
 import { buildQuickActions, modelLabel } from "./helpers2";
@@ -590,6 +591,7 @@ export function DomainStatusBar({
   // chip shows that identity instead of demanding a pick.
   googleBound?: string | null;
 }) {
+  const phone = useIsPhone();
   // Hooks must be top-level - initialize state from localStorage once
   // per domain, then keep React state as the source of truth so toggles
   // re-render reliably.
@@ -715,6 +717,12 @@ export function DomainStatusBar({
   // The composer's "Council" pill is the action button - this strip is
   // for persistent per-domain settings only. Silence unused-var warnings.
   void council; void setCouncil;
+  // Phone: none of this belongs on a 360px-wide composer. Framework, Lens and
+  // Modes are set-once reasoning settings, and every row they add is a row
+  // stolen from the conversation, which is the only reason you opened the app
+  // on a phone. They stay on the desktop, where you actually configure things,
+  // and the values set there still apply here.
+  if (phone) return null;
   // Returns the pills as a fragment so they participate in the parent
   // composer toolbar's flex-wrap layout (no wrapper div). Framework
   // and Lens are global (always shown). Web / Save / Serendipity /
