@@ -1,13 +1,20 @@
-# Prevail v0.3.113
+# Prevail v0.3.114
 
-Talk to Prevail from your phone instead of typing, and reach your Mac from the same Wi-Fi or from anywhere with nothing installed on the phone.
+Getting Prevail onto your phone is now one screen and one scan. No hunting through network settings, and no password to type on a phone keyboard.
 
 ## New
 
-- **Hold to talk on the phone.** The phone chat has a mic under the composer. Hold it, talk, release: the recording goes to your Mac, is transcribed there, and the text lands in the composer for you to fix a word and tap Send. "Save as note" files it into the current domain instead (journal line plus a voice note in Notes). Slide away or tap X to cancel; a quick tap explains the gesture. Transcription runs on the Mac with whisper.cpp (`brew install whisper-cpp` plus a `ggml-*.bin` model in `~/.prevail/models`) or Apple's on-device speech through `hear` (`brew install hear`); `ffmpeg` converts the phone's recording format. Nothing is sent to a transcription service. The upload is capped at 10 MB, staged in a private temp folder, and deleted after transcription; the transcribe command only accepts files from that folder.
-- **Same Wi-Fi, nothing to install.** With "Reachable from other devices" on, the bridge now listens on every interface, so a phone on the same Wi-Fi opens the Wi-Fi address straight away. Before, when Tailscale was installed on the Mac the bridge listened only on the Tailscale address, and a phone without Tailscale got connection refused. The pair card shows the Wi-Fi address in the QR and lists every way in: same Wi-Fi, Tailscale when both sides have it, and the internet.
-- **Share over the internet.** One tap in Settings > Remote runs a Cloudflare quick tunnel (`brew install cloudflared`, no account, no router setup) and gives the phone a public https address; the QR switches to it. https is what lets the phone browser use its microphone, so this is the address for hold-to-talk. The address changes each time you share, the tunnel stops with "Stop sharing" or when the app quits, only that exact hostname passes the bridge's Host check, and a remote client cannot start a tunnel. For a home-screen app you use every day, add the Wi-Fi address; use the internet address when away or for voice.
+- **Phone is its own screen.** It sits in the sidebar under Connections, instead of hiding inside the WebUI server panel where nobody would think to look for it. If phone access is off, the screen is a single button that does the whole setup: it mints a password, switches on reachability, starts the bridge and shows the code. The technical knobs stay in Network.
+- **Scan the code and you are in.** The QR now carries a one-time pairing code, so scanning signs the phone in and drops you straight into the app. Typing a generated password on a touch keyboard was the thing most likely to stop you from ever finishing setup.
+
+## Fixed
+
+- **Clicking an item in the Editor sidebar could land you on General.** The sidebar announced the section with an event the settings panel answers itself, so clicking an item before that panel finished loading meant nothing was listening, and you got the default page. The section is handed in directly now and survives the load. The Work sidebar already worked this way.
+
+## About the pairing code
+
+It is not your password. It is a random value that buys exactly one session and is destroyed the moment it is used, so a photographed QR code is worthless afterwards. It expires in ten minutes, it is cleared when you leave the screen or turn the bridge off, and a wrong guess is refused without invalidating the real code. It travels in the part of the address that browsers never send to a server, so it stays out of request logs and out of the Cloudflare tunnel. A phone that is already signed in cannot mint one for another device. If a code has expired, the phone falls back to the normal sign-in form and tells you where to find a fresh code.
 
 ## Notes
 
-- The in-app updater feed is still not published (the signing key on the build machine does not match the key shipped in v0.3.x), so install this build from the DMG.
+- The in-app updater feed is still not published, because the signing key on the build machine does not match the key shipped in v0.3.x. Install this build from the DMG.

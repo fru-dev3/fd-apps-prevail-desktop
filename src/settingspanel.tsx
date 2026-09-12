@@ -6,6 +6,7 @@ import { useAppearance } from "./hooks";
 import { SettingsHeader } from "./sectionutil";
 import { ProviderMark } from "./marks";
 import { FrameworksSection, IngestionSection, RemoteSection, ShortcutsSection } from "./settings1";
+import { PhoneSection } from "./remotepair";
 import { DaemonsSection, IntentsSection, MemoryContextSection, SkillsSection } from "./settings2";
 import { AppsPanel } from "./appspanel";
 import { SystemActivity } from "./activitypanel";
@@ -52,7 +53,7 @@ export function SettingsPanel({
   onVaultMoved?: (path: string) => void;
   jumpTo?: { section: string; n: number } | null;
 }) {
-  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intents" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "prompt-capture" | "remote" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "retrospect" | "loopboard" | "hooks" | "profiles" | "tools" | "ingestion" | "usage";
+  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intents" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "prompt-capture" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "retrospect" | "loopboard" | "hooks" | "profiles" | "tools" | "ingestion" | "usage";
   // Editor lands on General. The operational surfaces (Work board / Insights /
   // Spark) moved to Work mode, so Editor opens on a config page. A specific
   // jumpTo (e.g. "connectors") still wins.
@@ -181,6 +182,7 @@ export function SettingsPanel({
           {section === "hooks" && <HooksSection vaultPath={vaultPath} />}
           {section === "profiles" && <ProfilesSection />}
           {section === "remote" && <RemoteSection />}
+          {section === "phone" && <PhoneSection />}
           {/* IA-1: "workspace" is the umbrella; "vault"/"demo" remain as
               deep-link aliases (e.g. the demo ribbon's jump) → same section. */}
           {(section === "workspace" || section === "vault" || section === "demo") && (

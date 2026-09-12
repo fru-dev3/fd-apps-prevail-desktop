@@ -94,10 +94,34 @@ struct Inner {
     // The "Share over the internet" tunnel, shared with the request thread so
     // its hostname passes the Host check the moment it exists.
     tunnel: Arc<Mutex<Tunnel>>,
+    // The outstanding QR pairing code, shared with the request thread. At most
+    // one exists at a time: minting replaces, scanning consumes.
+    pair: Arc<Mutex<Option<PairCode>>>,
     next_id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<InvokeOut>>>>,
     sse: Arc<Mutex<Vec<Sender<String>>>>,
     stop: Option<Arc<std::net::TcpListener>>, // kept to unblock accept on stop
+}
+
+// How long a QR pairing code stays good. Long enough to walk to your phone and
+// find the camera, short enough that a code left on screen goes stale.
+const PAIR_TTL: Duration = Duration::from_secs(600);
+
+// A one-shot credential carried in the QR code, so a phone never has to type
+// the password on a touch keyboard. It is NOT the password: it is a random
+// 32-byte value that buys exactly one session token and is destroyed on use,
+// which is why it is safe to put in a QR code that someone might photograph.
+// It rides in the URL fragment, which browsers never send to a server, so it
+// stays out of request logs and out of the Cloudflare tunnel.
+struct PairCode {
+    code: String,
+    expires: Instant,
+}
+
+impl PairCode {
+    fn live(&self) -> bool {
+        Instant::now() < self.expires
+    }
 }
 
 // A Cloudflare quick tunnel (`cloudflared tunnel --url ...`): a public https
@@ -156,6 +180,10 @@ pub struct WebuiStatus {
     pub tunnel_error: String,
     // Whether `cloudflared` is installed (brew install cloudflared).
     pub cloudflared_installed: bool,
+    // True while a QR pairing code is outstanding. Goes false the moment a
+    // phone uses it, which is how the pairing card knows to show a fresh code
+    // (and that the phone got in).
+    pub pair_ready: bool,
 }
 
 // The machine's Tailscale IPv4, if the Tailscale app or CLI is installed and
@@ -261,6 +289,7 @@ impl WebuiState {
             let url = if t.state == TunnelState::On { t.url.clone() } else { String::new() };
             (url, t.state.as_str().to_string(), t.error.clone())
         };
+        let pair_ready = { i.pair.lock().unwrap_or_else(|e| e.into_inner()).as_ref().is_some_and(PairCode::live) };
         let remote_url = [&tunnel_url, &lan_url, &tailscale_url].into_iter().find(|u| !u.is_empty()).cloned().unwrap_or_default();
         let via_tailscale = !remote_url.is_empty() && remote_url == tailscale_url;
         WebuiStatus {
@@ -276,7 +305,37 @@ impl WebuiState {
             tunnel_state,
             tunnel_error,
             cloudflared_installed: cloudflared_bin().is_some(),
+            pair_ready,
         }
+    }
+
+    /// Mint a fresh QR pairing code, replacing any outstanding one, and return
+    /// the URL to put in the QR: the phone address with the code in the
+    /// fragment. Desktop-only by design.
+    pub fn mint_pair_code(&self) -> Result<String, String> {
+        let status = self.status();
+        if !status.running {
+            return Err("turn on phone access first".into());
+        }
+        let base = if status.remote_url.is_empty() {
+            return Err("no phone address yet: turn on \"Reachable from other devices\" or share over the internet".into());
+        } else {
+            status.remote_url
+        };
+        let code = random_token();
+        {
+            let i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+            let mut p = i.pair.lock().unwrap_or_else(|e| e.into_inner());
+            *p = Some(PairCode { code: code.clone(), expires: Instant::now() + PAIR_TTL });
+        }
+        Ok(format!("{base}/#p={code}"))
+    }
+
+    /// Drop any outstanding pairing code (the card closed, or the user asked).
+    pub fn clear_pair_code(&self) {
+        let i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let mut p = i.pair.lock().unwrap_or_else(|e| e.into_inner());
+        *p = None;
     }
 
     pub fn stop(&self) {
@@ -284,6 +343,9 @@ impl WebuiState {
             let mut i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             i.running = false;
             i.stop = None; // dropping the listener Arc lets the accept loop error out
+            // A code minted for a server that is gone must not survive to let
+            // someone in after it comes back.
+            *i.pair.lock().unwrap_or_else(|e| e.into_inner()) = None;
             i.tunnel.clone()
         };
         // Nothing to forward to once the bridge is down.
@@ -359,6 +421,7 @@ impl WebuiState {
         let pending = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).pending.clone() };
         let sse = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).sse.clone() };
         let tunnel = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).tunnel.clone() };
+        let pair = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).pair.clone() };
         // Failed-login throttle (M1): count + window-start, shared across
         // requests. Blocks brute force even if a DNS-rebind gets same-origin.
         let login_fail: Arc<Mutex<(u32, Instant)>> = Arc::new(Mutex::new((0, Instant::now())));
@@ -367,7 +430,7 @@ impl WebuiState {
         std::thread::spawn(move || {
             for req in server.incoming_requests() {
                 let tunnel_host = { tunnel.lock().unwrap_or_else(|e| e.into_inner()).host.clone() };
-                handle(&app, req, &token, &user, &pass, &next_id, &pending, &sse, &login_fail, bound_port, allow_remote, &advertised_hosts, &tunnel_host);
+                handle(&app, req, &token, &user, &pass, &next_id, &pending, &sse, &login_fail, bound_port, allow_remote, &advertised_hosts, &tunnel_host, &pair);
             }
         });
         Ok(())
@@ -539,6 +602,7 @@ fn handle(
     allow_remote: bool,
     advertised_hosts: &[String; 2],
     tunnel_host: &str,
+    pair: &Arc<Mutex<Option<PairCode>>>,
 ) {
     let method = req.method().clone();
     let url = req.url().to_string();
@@ -607,6 +671,46 @@ fn handle(
             (200, serde_json::json!({ "token": token }))
         } else {
             (401, serde_json::json!({ "error": "invalid credentials" }))
+        };
+        let _ = req.respond(json_response(code, &payload));
+        return;
+    }
+
+    // ── QR pairing ── trade the one-shot code from the QR for a session token,
+    // so a phone never types the password. Unauthenticated by necessity: this
+    // IS the way in. What keeps it safe is that the code is 32 random bytes,
+    // lives at most ten minutes, is destroyed the instant it is used, and only
+    // ever existed on the Mac's own screen. Failed attempts share the login
+    // lockout, so it cannot be ground down by guessing either.
+    if path == "/api/pair" && method == tiny_http::Method::Post {
+        {
+            let mut g = login_fail.lock().unwrap_or_else(|e| e.into_inner());
+            if g.1.elapsed() > Duration::from_secs(300) { *g = (0, Instant::now()); }
+            if g.0 >= 5 {
+                let _ = req.respond(json_response(429, &serde_json::json!({ "error": "too many attempts, wait a few minutes" })));
+                return;
+            }
+        }
+        let mut body = String::new();
+        let _ = req.as_reader().read_to_string(&mut body);
+        let offered = serde_json::from_str::<serde_json::Value>(&body).ok()
+            .and_then(|v| v.get("code").and_then(|c| c.as_str()).map(str::to_string))
+            .unwrap_or_default();
+        // Take the code out first: a spent or expired code must not survive
+        // this request. check_pair hands back the one that should be kept.
+        let held = { pair.lock().unwrap_or_else(|e| e.into_inner()).take() };
+        let (keep, ok) = check_pair(held, &offered);
+        if let Some(p) = keep {
+            *pair.lock().unwrap_or_else(|e| e.into_inner()) = Some(p);
+        }
+        {
+            let mut g = login_fail.lock().unwrap_or_else(|e| e.into_inner());
+            if ok { *g = (0, Instant::now()); } else { g.0 += 1; }
+        }
+        let (code, payload) = if ok {
+            (200, serde_json::json!({ "token": token }))
+        } else {
+            (401, serde_json::json!({ "error": "this code has expired, show a new one on your Mac" }))
         };
         let _ = req.respond(json_response(code, &payload));
         return;
@@ -711,6 +815,24 @@ fn handle(
     }
 }
 
+/// Decide a pairing attempt, pure so it can be tested. Takes the code that was
+/// outstanding (already removed from the shared slot) and what the client
+/// offered; returns the code to put BACK, and whether to let the client in.
+///
+/// The rules that matter:
+/// - A correct, live code is accepted and never comes back: one scan only.
+/// - A wrong guess is rejected but the real code is put back, so a stranger
+///   guessing cannot knock the user's own QR out from under them.
+/// - An expired code is rejected and discarded whatever was offered.
+fn check_pair(held: Option<PairCode>, offered: &str) -> (Option<PairCode>, bool) {
+    match held {
+        Some(p) if !p.live() => (None, false),
+        Some(p) if !offered.is_empty() && ct_eq(offered, &p.code) => (None, true),
+        Some(p) => (Some(p), false),
+        None => (None, false),
+    }
+}
+
 /// The Host-header policy, pure so it can be tested: loopback always; in
 /// remote mode the advertised addresses plus any Tailscale / RFC 1918 address
 /// and *.ts.net names; the tunnel hostname (exact match) whenever one is up,
@@ -791,6 +913,17 @@ pub fn webui_tunnel_stop(state: tauri::State<'_, WebuiState>) -> WebuiStatus {
     state.stop_tunnel();
     state.status()
 }
+// Mint the QR pairing code. Desktop-only and deliberately NOT in
+// WEBUI_ALLOWED: a phone that is already in must not be able to mint a
+// credential that lets another device in.
+#[tauri::command]
+pub fn webui_pair_code(state: tauri::State<'_, WebuiState>) -> Result<String, String> {
+    state.mint_pair_code()
+}
+#[tauri::command]
+pub fn webui_pair_clear(state: tauri::State<'_, WebuiState>) {
+    state.clear_pair_code();
+}
 // Host window → server: deliver the result of a proxied invoke.
 #[tauri::command]
 pub fn webui_resolve(state: tauri::State<'_, WebuiState>, id: u64, ok: bool, #[allow(unused)] data: Option<serde_json::Value>, error: Option<String>) {
@@ -826,6 +959,37 @@ mod tests {
     fn cloudflared_error_lines_lose_their_timestamp_and_level() {
         assert_eq!(tidy_cloudflared_line("2026-09-12T10:00:00Z ERR failed to request quick Tunnel error=\"dial tcp: no route\""), "failed to request quick Tunnel error=\"dial tcp: no route\"");
         assert_eq!(tidy_cloudflared_line("plain message"), "plain message");
+    }
+
+    fn code(s: &str, ttl_secs: u64) -> PairCode {
+        PairCode { code: s.to_string(), expires: Instant::now() + Duration::from_secs(ttl_secs) }
+    }
+
+    #[test]
+    fn a_scanned_code_works_once_and_a_guess_never_burns_it() {
+        // The real code gets exactly one session, and is gone afterwards.
+        let (keep, ok) = check_pair(Some(code("abc123", 60)), "abc123");
+        assert!(ok);
+        assert!(keep.is_none(), "a spent code must not survive");
+
+        // A wrong guess is refused, but the user's own QR keeps working.
+        let (keep, ok) = check_pair(Some(code("abc123", 60)), "wrong");
+        assert!(!ok);
+        assert_eq!(keep.map(|p| p.code).as_deref(), Some("abc123"));
+
+        // So does an empty probe.
+        let (keep, ok) = check_pair(Some(code("abc123", 60)), "");
+        assert!(!ok);
+        assert_eq!(keep.map(|p| p.code).as_deref(), Some("abc123"));
+
+        // An expired code is refused and discarded, even if quoted correctly.
+        let expired = PairCode { code: "abc123".into(), expires: Instant::now() - Duration::from_secs(1) };
+        let (keep, ok) = check_pair(Some(expired), "abc123");
+        assert!(!ok);
+        assert!(keep.is_none());
+
+        // Nothing outstanding: nothing to accept.
+        assert_eq!(check_pair(None, "abc123").1, false);
     }
 
     #[test]

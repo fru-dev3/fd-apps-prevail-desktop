@@ -72,13 +72,13 @@ test("6 · Remote: Wi-Fi address in the pair card; Share over the internet swaps
     running: true, port: 8787, user: "admin", remote: true,
     remote_url: "http://192.168.1.20:8787", via_tailscale: false,
     lan_url: "http://192.168.1.20:8787", tailscale_url: "", tunnel_url: "",
-    tunnel_state: "off", tunnel_error: "", cloudflared_installed: true,
+    tunnel_state: "off", tunnel_error: "", cloudflared_installed: true, pair_ready: true,
   };
   const on = { ...off, remote_url: "https://witty-otter-cat.trycloudflare.com", tunnel_url: "https://witty-otter-cat.trycloudflare.com", tunnel_state: "on" };
-  await mockTauri(page, { webui_status: off, webui_secret_get: "hunter2", webui_tunnel_start: on, webui_tunnel_stop: off });
+  await mockTauri(page, { webui_status: off, webui_secret_get: "hunter2", webui_tunnel_start: on, webui_tunnel_stop: off, webui_pair_code: "http://192.168.1.20:8787/#p=deadbeefdeadbeef" });
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "remote" })));
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "phone" })));
   const card = page.getByTestId("remote-pair");
   await expect(card).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("remote-primary-url")).toHaveText("http://192.168.1.20:8787");
@@ -101,6 +101,34 @@ test("6 · Remote: Wi-Fi address in the pair card; Share over the internet swaps
   await page.evaluate((s) => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.webui_status = s; }, off);
   await expect(card.getByRole("button", { name: "Share over the internet" })).toBeVisible();
   await expect(page.getByTestId("remote-primary-url")).toHaveText("http://192.168.1.20:8787");
+});
+
+// Phone is its own destination in the sidebar, and turning it on is one
+// button: mobile access used to be buried inside the WebUI panel.
+test("7 · Phone is a top-level section and turns itself on in one tap", async ({ page }) => {
+  const offline = { running: false, port: 8787, user: "admin", remote: false, remote_url: "", via_tailscale: false, lan_url: "", tailscale_url: "", tunnel_url: "", tunnel_state: "off", tunnel_error: "", cloudflared_installed: true, pair_ready: false };
+  const live = { ...offline, running: true, remote: true, remote_url: "http://192.168.1.20:8787", lan_url: "http://192.168.1.20:8787", pair_ready: true };
+  await mockTauri(page, { webui_status: offline, webui_secret_get: "", webui_pair_code: "http://192.168.1.20:8787/#p=deadbeefdeadbeef" });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+
+  // Reachable by name from the Editor sidebar, not only by deep link.
+  await page.getByRole("button", { name: "Editor" }).click();
+  const phoneNav = page.getByRole("button", { name: "Phone", exact: true });
+  await expect(phoneNav).toBeVisible({ timeout: 10_000 });
+  await phoneNav.click();
+  await expect(page.getByText("Put Prevail on your phone")).toBeVisible();
+
+  await page.getByRole("button", { name: "Turn on phone access" }).click();
+  await page.evaluate((s) => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.webui_status = s; }, live);
+  await expect(page.getByTestId("remote-pair")).toBeVisible({ timeout: 10_000 });
+  const cmds = await invokedCommands(page);
+  expect(cmds).toContain("webui_start");
+  // A password was minted and stored, so the user never had to invent one.
+  expect(cmds).toContain("webui_secret_set");
+  // The QR must promise a no-typing sign-in, which is the whole point.
+  await expect(page.getByText(/You are signed in\./)).toBeVisible();
+  await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-phone-section.png` });
 });
 
 test("5 · telemetry: section navigation emits allowlisted feature_used events only", async ({ page }) => {

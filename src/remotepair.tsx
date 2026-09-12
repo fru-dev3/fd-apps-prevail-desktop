@@ -1,17 +1,22 @@
-// Pair a phone with this Mac's WebUI. Shown under Settings > Remote once the
-// bridge is running: the address other devices use, a QR code that opens it,
-// every other way in (same Wi-Fi, Tailscale, the internet), and the two-tap
-// "install as an app" steps for iPhone and Android. There is no separate
-// mobile app to build: the WebUI serves the real bundle, and the manifest +
-// iOS meta in index.html make it installable as a standalone app.
+// Phone: the one screen for putting Prevail on your phone. Lives at the top
+// level of the Editor nav rather than buried in the network settings, because
+// nobody goes looking for "mobile access" inside a WebUI server panel.
 //
-// "Share over the internet" runs a Cloudflare quick tunnel on this Mac: a
-// public https address, no account, no router setup. https is also what lets
-// the phone browser record voice (the mic is off on plain http addresses).
-import { useCallback, useEffect, useState } from "react";
-import { Copy, Check, Globe, Mic, Smartphone, ShieldCheck, Wifi } from "lucide-react";
+// It does the whole job in one place: turn the bridge on, show a QR code that
+// signs the phone in WITHOUT typing a password, offer an internet address for
+// when you are away from home, and say how to install it to the home screen.
+// The technical knobs (port, username, password) stay in Network.
+//
+// The QR carries a one-shot pairing code in the URL fragment. Scanning trades
+// it for a session token, which is what makes this usable: a generated
+// password is miserable to type on a phone keyboard.
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Copy, Globe, Mic, Smartphone, ShieldCheck, Wifi } from "lucide-react";
 import QRCode from "qrcode";
 import { invoke } from "./bridge";
+import { PREF, getPref, setPref } from "./storage";
+import { SettingsHeader } from "./sectionutil";
+import { DesktopOnly } from "./emptystate";
 
 interface WebuiStatus {
   running: boolean;
@@ -26,6 +31,7 @@ interface WebuiStatus {
   tunnel_state: "off" | "starting" | "on" | "error";
   tunnel_error: string;
   cloudflared_installed: boolean;
+  pair_ready: boolean;
 }
 
 const BREW_CLOUDFLARED = "brew install cloudflared";
@@ -42,33 +48,77 @@ function CopyButton({ text, label = "Copy address" }: { text: string; label?: st
   );
 }
 
-export function RemotePairCard({ port }: { port: string }) {
+// Poll the bridge. One hook so the Phone screen and the Network screen agree.
+function useWebuiStatus(pollMs = 3000) {
   const [status, setStatus] = useState<WebuiStatus | null>(null);
-  const [qr, setQr] = useState("");
-  const [sharing, setSharing] = useState(false);
-  const [shareErr, setShareErr] = useState("");
-
   const refresh = useCallback(() => invoke<WebuiStatus>("webui_status").then(setStatus).catch(() => setStatus(null)), []);
-  // Poll while the card is up: the tunnel can drop on its own (Cloudflare
-  // reconnects, the Mac changes network) and the card must say so.
   useEffect(() => {
     let alive = true;
     const tick = () => { if (alive) void refresh(); };
     tick();
-    const id = window.setInterval(tick, 3000);
+    const id = window.setInterval(tick, pollMs);
     return () => { alive = false; window.clearInterval(id); };
-  }, [port, refresh]);
+  }, [refresh, pollMs]);
+  return { status, setStatus, refresh };
+}
+
+// Keep a live pairing code for the address currently on screen. A code is
+// single use, so the moment a phone spends one we mint the next: the QR on
+// screen is always scannable, and `paired` gives us something true to say.
+function usePairingQr(status: WebuiStatus | null) {
+  const url = status?.remote_url ?? "";
+  const [pairUrl, setPairUrl] = useState("");
+  const [paired, setPaired] = useState(false);
+  const mintedFor = useRef("");
+  const wasReady = useRef(false);
+
+  const mint = useCallback((forUrl: string) => {
+    mintedFor.current = forUrl;
+    invoke<string>("webui_pair_code")
+      .then((u) => setPairUrl(u))
+      .catch(() => setPairUrl("")); // fall back to the plain address + password
+  }, []);
+
+  useEffect(() => {
+    if (!status?.running || !url) {
+      setPairUrl("");
+      mintedFor.current = "";
+      wasReady.current = false;
+      return;
+    }
+    const first = mintedFor.current !== url;
+    const consumed = wasReady.current && !status.pair_ready;
+    wasReady.current = status.pair_ready;
+    if (consumed) {
+      setPaired(true);
+      window.setTimeout(() => setPaired(false), 6000);
+    }
+    if (first || consumed) mint(url);
+  }, [status?.running, status?.pair_ready, url, mint, status]);
+
+  // Stop handing out a way in once nobody is looking at the code.
+  useEffect(() => () => { void invoke("webui_pair_clear").catch(() => {}); }, []);
+
+  return { qrTarget: pairUrl || url, signsInAutomatically: !!pairUrl, paired, showNewCode: () => mint(url) };
+}
+
+export function RemotePairCard({ port }: { port: string }) {
+  const { status, setStatus, refresh } = useWebuiStatus();
+  const { qrTarget, signsInAutomatically, paired, showNewCode } = usePairingQr(status);
+  const [qr, setQr] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const [shareErr, setShareErr] = useState("");
 
   const url = status?.remote_url || "";
   useEffect(() => {
-    if (!url) { setQr(""); return; }
+    if (!qrTarget) { setQr(""); return; }
     let alive = true;
     // Dark-on-light so phone cameras lock on instantly regardless of theme.
-    QRCode.toDataURL(url, { margin: 1, width: 220, color: { dark: "#0a0d1f", light: "#ffffff" } })
+    QRCode.toDataURL(qrTarget, { margin: 1, width: 320, color: { dark: "#0a0d1f", light: "#ffffff" } })
       .then((d) => { if (alive) setQr(d); })
       .catch(() => { if (alive) setQr(""); });
     return () => { alive = false; };
-  }, [url]);
+  }, [qrTarget]);
 
   async function share() {
     setSharing(true); setShareErr("");
@@ -95,15 +145,32 @@ export function RemotePairCard({ port }: { port: string }) {
       </div>
 
       {url ? (
-        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
-          {qr && (
-            <img src={qr} alt={`QR code for ${url}`} width={160} height={160} className="h-40 w-40 shrink-0 rounded-md bg-white p-1" />
-          )}
+        <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-start">
+          <div className="shrink-0">
+            {qr && <img src={qr} alt={`QR code for ${url}`} width={200} height={200} className="h-50 w-50 rounded-md bg-white p-1.5" style={{ height: 200, width: 200 }} />}
+            {paired && (
+              <div className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-ok" data-testid="remote-paired">
+                <Check className="h-4 w-4" /> Phone paired
+              </div>
+            )}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <Smartphone className="h-4 w-4 text-accent" /> On your phone
             </div>
-            <div className="mt-1 flex items-center gap-2">
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-text-secondary">
+              <li>Point the camera at the code and open the link.</li>
+              {signsInAutomatically
+                ? <li><span className="font-medium text-text-primary">You are signed in.</span> No password to type.</li>
+                : <li>Sign in with the username and password from Network.</li>}
+              <li><span className="font-medium text-text-primary">iPhone:</span> tap Share, then <span className="font-medium text-text-primary">Add to Home Screen</span>. <span className="font-medium text-text-primary">Android:</span> tap the menu, then <span className="font-medium text-text-primary">Install app</span>.</li>
+            </ol>
+            {signsInAutomatically && (
+              <div className="mt-2 text-[11px] text-text-muted">
+                The code signs in one device and then expires. <button onClick={showNewCode} className="underline hover:text-accent">Show a new code</button> for another phone.
+              </div>
+            )}
+            <div className="mt-3 flex items-center gap-2">
               <code className="min-w-0 truncate rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-text-primary" data-testid="remote-primary-url">{url}</code>
               <CopyButton text={url} />
             </div>
@@ -114,17 +181,12 @@ export function RemotePairCard({ port }: { port: string }) {
                   ? <><ShieldCheck className="h-3.5 w-3.5 text-accent" /> Over Tailscale: private to your devices, encrypted end to end.</>
                   : <><Wifi className="h-3.5 w-3.5" /> Same Wi-Fi as this Mac. Nothing to install on the phone.</>}
             </div>
-            <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs text-text-secondary">
-              <li>Scan the code (or open the address) in Safari on iPhone, or Chrome on Android.</li>
-              <li>Sign in with the username and password above.</li>
-              <li><span className="font-medium text-text-primary">iPhone:</span> tap Share, then <span className="font-medium text-text-primary">Add to Home Screen</span>. <span className="font-medium text-text-primary">Android:</span> tap the menu, then <span className="font-medium text-text-primary">Install app</span>.</li>
-            </ol>
             <div className="mt-2 text-[11px] text-text-muted">It opens full screen as its own app and stays signed in. This Mac must stay on.</div>
           </div>
         </div>
       ) : (
         <div className="mt-3 text-xs text-text-muted">
-          Turn on <span className="font-medium text-text-primary">Reachable from other devices</span> above for a same-Wi-Fi address, or share over the internet below.
+          Turn on <span className="font-medium text-text-primary">Reachable from other devices</span> for a same-Wi-Fi address, or share over the internet below.
         </div>
       )}
 
@@ -179,5 +241,74 @@ export function RemotePairCard({ port }: { port: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ── The Phone screen ──────────────────────────────────────────────────
+
+// Turning phone access on is one button, not a tour of the network settings:
+// mint a password if there isn't one, switch reachability on, start the bridge.
+async function enablePhoneAccess(): Promise<void> {
+  let pass = "";
+  try { pass = await invoke<string>("webui_secret_get"); } catch { /* keychain unavailable */ }
+  if (!pass) {
+    pass = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    try { await invoke("webui_secret_set", { pass }); } catch { /* ignore */ }
+  }
+  const port = Number(getPref(PREF.webuiPort, "8787")) || 8787;
+  const user = getPref(PREF.webuiUser, "admin");
+  setPref(PREF.webuiRemote, "1");
+  await invoke("webui_start", { port, user, pass, remote: true });
+}
+
+export function PhoneSection() {
+  const { status, refresh } = useWebuiStatus();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function turnOn() {
+    setBusy(true); setErr("");
+    try { await enablePhoneAccess(); await refresh(); }
+    catch (e) { setErr(String(e instanceof Error ? e.message : e)); }
+    finally { setBusy(false); }
+  }
+
+  const running = !!status?.running;
+  const port = String(status?.port || getPref(PREF.webuiPort, "8787"));
+
+  return (
+    <>
+      <SettingsHeader
+        title="Phone"
+        subtitle="Use Prevail from your phone. It stays on your Mac: the phone is a window onto it, so your vault and your models never leave this machine."
+        icon={Smartphone}
+      />
+      <DesktopOnly feature="Phone setup">
+        {!running ? (
+          <div className="rounded-lg border border-border bg-surface px-6 py-8 text-center">
+            <Smartphone className="mx-auto h-10 w-10 text-accent" />
+            <div className="mt-3 text-base font-semibold text-text-primary">Put Prevail on your phone</div>
+            <p className="mx-auto mt-1 max-w-md text-sm text-text-muted">
+              Turn this on and a QR code appears. Scan it and your phone is signed in, with no password to type. It installs to the home screen like a normal app.
+            </p>
+            <button onClick={() => void turnOn()} disabled={busy} className="mt-5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">
+              {busy ? "Starting..." : "Turn on phone access"}
+            </button>
+            {err && <div className="mx-auto mt-3 max-w-md rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{err}</div>}
+            <div className="mt-4 text-[11px] text-text-muted">This Mac must stay on and awake for the phone to reach it.</div>
+          </div>
+        ) : (
+          <>
+            <RemotePairCard port={port} />
+            <div className="mt-3 text-xs text-text-muted">
+              Port, username and password live in{" "}
+              <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "remote" }))} className="underline hover:text-accent">
+                Network
+              </button>.
+            </div>
+          </>
+        )}
+      </DesktopOnly>
+    </>
   );
 }

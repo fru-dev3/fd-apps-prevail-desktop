@@ -336,6 +336,18 @@ export function LockScreen({ vault, encrypted, onUnlock }: { vault: string | nul
   );
 }
 
+// Shown for the moment it takes a scanned QR code to become a session. It
+// exists so the phone never flashes a password form on its way in.
+export function PairingScreen() {
+  return (
+    <div className="flex h-screen flex-col items-center justify-center bg-background px-6">
+      <PrevailLogo size={64} src="/logo-512.png" animated />
+      <h1 className="mt-5 font-display text-2xl font-semibold tracking-tight">Pairing your phone</h1>
+      <p className="mt-1 text-sm text-text-muted">Signing in from the code you scanned.</p>
+    </div>
+  );
+}
+
 export function WebLogin({ onAuthed }: { onAuthed: () => void }) {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -362,6 +374,9 @@ export function WebLogin({ onAuthed }: { onAuthed: () => void }) {
         <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void login(); }} placeholder="Password" className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
         <button onClick={login} disabled={busy || !user || !pass} className="w-full rounded-md bg-accent py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50">{busy ? "Signing in…" : "Sign in"}</button>
         {err && <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{err}</div>}
+        <p className="pt-2 text-center text-xs text-text-muted">
+          Rather not type this on a phone? On your Mac open <span className="font-medium text-text-secondary">Settings, Phone</span> and scan the QR code.
+        </p>
       </div>
     </div>
   );
