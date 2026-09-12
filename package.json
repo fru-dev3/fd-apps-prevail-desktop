@@ -1,7 +1,7 @@
 {
   "name": "prevail-desktop",
   "version": "0.3.111",
-  "description": "Prevail desktop \u2014 native macOS cockpit for AI council deliberation",
+  "description": "Prevail desktop — native macOS cockpit for AI council deliberation",
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -27,6 +27,7 @@
     "framer-motion": "^12.35.0",
     "lucide-react": "^0.577.0",
     "posthog-js": "^1.386.6",
+    "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
@@ -41,6 +42,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",

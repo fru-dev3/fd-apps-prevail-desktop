@@ -79,6 +79,11 @@ struct Inner {
     token: String,
     user: String,
     pass: String,
+    // Remote-devices mode: bound to the machine's Tailscale address (or all
+    // interfaces on a plain LAN) instead of loopback, so a phone can reach it.
+    remote: bool,
+    // The address other devices should use (Tailscale IPv4 when available).
+    advertised_host: String,
     next_id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<InvokeOut>>>>,
     sse: Arc<Mutex<Vec<Sender<String>>>>,
@@ -90,6 +95,62 @@ pub struct WebuiStatus {
     pub running: bool,
     pub port: u16,
     pub user: String,
+    pub remote: bool,
+    // URL for another device on the tailnet/LAN; empty when loopback-only.
+    pub remote_url: String,
+    // True when the advertised address is a Tailscale (100.64/10) address,
+    // i.e. traffic is WireGuard-encrypted end to end.
+    pub via_tailscale: bool,
+}
+
+// The machine's Tailscale IPv4, if the Tailscale app or CLI is installed and
+// connected. Tried first when remote mode is on: binding to that one address
+// keeps the bridge off the public interface while making it reachable from
+// every device on the user's tailnet, with transport encryption for free.
+fn tailscale_ipv4() -> Option<String> {
+    let candidates = [
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        "tailscale",
+    ];
+    for bin in candidates {
+        let out = std::process::Command::new(bin).args(["ip", "-4"]).output();
+        if let Ok(o) = out {
+            if o.status.success() {
+                let s = String::from_utf8_lossy(&o.stdout);
+                if let Some(ip) = s.lines().map(str::trim).find(|l| is_tailscale_ip(l)) {
+                    return Some(ip.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn parse_ipv4(s: &str) -> Option<[u8; 4]> {
+    let parts: Vec<&str> = s.split('.').collect();
+    if parts.len() != 4 {
+        return None;
+    }
+    let mut out = [0u8; 4];
+    for (i, p) in parts.iter().enumerate() {
+        out[i] = p.parse::<u8>().ok()?;
+    }
+    Some(out)
+}
+
+// 100.64.0.0/10, the CGNAT range Tailscale hands out.
+fn is_tailscale_ip(s: &str) -> bool {
+    matches!(parse_ipv4(s), Some([100, b, _, _]) if (64..=127).contains(&b))
+}
+
+// RFC 1918 private ranges: what a phone on the same Wi-Fi would use.
+fn is_private_lan_ip(s: &str) -> bool {
+    match parse_ipv4(s) {
+        Some([10, _, _, _]) => true,
+        Some([172, b, _, _]) => (16..=31).contains(&b),
+        Some([192, 168, _, _]) => true,
+        _ => false,
+    }
 }
 
 #[derive(Clone)]
@@ -137,7 +198,19 @@ struct InvokeReq {
 impl WebuiState {
     pub fn status(&self) -> WebuiStatus {
         let i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        WebuiStatus { running: i.running, port: i.port, user: i.user.clone() }
+        let remote_url = if i.running && i.remote && !i.advertised_host.is_empty() {
+            format!("http://{}:{}", i.advertised_host, i.port)
+        } else {
+            String::new()
+        };
+        WebuiStatus {
+            running: i.running,
+            port: i.port,
+            user: i.user.clone(),
+            remote: i.remote,
+            via_tailscale: is_tailscale_ip(&i.advertised_host),
+            remote_url,
+        }
     }
 
     pub fn stop(&self) {
@@ -166,15 +239,30 @@ impl WebuiState {
         clients.retain(|tx| tx.send(frame.clone()).is_ok());
     }
 
-    pub fn start(&self, app: tauri::AppHandle, port: u16, user: String, pass: String) -> Result<(), String> {
+    pub fn start(&self, app: tauri::AppHandle, port: u16, user: String, pass: String, remote: bool) -> Result<(), String> {
         self.stop();
         // Random per-session token (NOT derived from the password). Login
         // exchanges user/pass for this token; it never leaves the device except
         // to the authenticated client.
         let token = random_token();
-        // Bind to loopback only. Remote access is via Tailscale/SSH tunnel —
-        // never expose the bridge on all interfaces.
-        let listener = std::net::TcpListener::bind(("127.0.0.1", port)).map_err(|e| format!("bind 127.0.0.1:{port}: {e}"))?;
+        // Loopback only by default. In remote-devices mode, bind to the
+        // machine's Tailscale address when there is one (reachable from the
+        // user's tailnet, WireGuard-encrypted, never on the public interface);
+        // otherwise all interfaces, for a plain LAN. The Host check in handle()
+        // is widened to match, so the DNS-rebinding defense stays intact.
+        //
+        // Until this mode existed, the docs told phone users to "reach it over
+        // Tailscale", but the bridge was loopback-bound AND rejected any Host
+        // other than localhost, so a phone got 403 forbidden host.
+        let (bind_host, advertised): (String, String) = if remote {
+            match tailscale_ipv4() {
+                Some(ip) => (ip.clone(), ip),
+                None => ("0.0.0.0".to_string(), lan_ipv4().unwrap_or_default()),
+            }
+        } else {
+            ("127.0.0.1".to_string(), String::new())
+        };
+        let listener = std::net::TcpListener::bind((bind_host.as_str(), port)).map_err(|e| format!("bind {bind_host}:{port}: {e}"))?;
         let server = tiny_http::Server::from_listener(listener.try_clone().map_err(|e| e.to_string())?, None)
             .map_err(|e| e.to_string())?;
         {
@@ -184,8 +272,12 @@ impl WebuiState {
             i.token = token.clone();
             i.user = user.clone();
             i.pass = pass.clone();
+            i.remote = remote;
+            i.advertised_host = advertised.clone();
             i.stop = Some(Arc::new(listener));
         }
+        let allow_remote = remote;
+        let advertised_host = advertised;
         let next_id = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).next_id.clone() };
         let pending = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).pending.clone() };
         let sse = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).sse.clone() };
@@ -196,11 +288,26 @@ impl WebuiState {
 
         std::thread::spawn(move || {
             for req in server.incoming_requests() {
-                handle(&app, req, &token, &user, &pass, &next_id, &pending, &sse, &login_fail, bound_port);
+                handle(&app, req, &token, &user, &pass, &next_id, &pending, &sse, &login_fail, bound_port, allow_remote, &advertised_host);
             }
         });
         Ok(())
     }
+}
+
+// Best-effort primary LAN IPv4 (for the advertised URL when Tailscale is not
+// installed). Reads `ipconfig getifaddr` on the usual interfaces; None if the
+// machine has no private address.
+fn lan_ipv4() -> Option<String> {
+    for iface in ["en0", "en1", "en2", "en3"] {
+        if let Ok(o) = std::process::Command::new("ipconfig").args(["getifaddr", iface]).output() {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if is_private_lan_ip(&s) {
+                return Some(s);
+            }
+        }
+    }
+    None
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -215,23 +322,32 @@ fn handle(
     sse: &Arc<Mutex<Vec<Sender<String>>>>,
     login_fail: &Arc<Mutex<(u32, Instant)>>,
     bound_port: u16,
+    allow_remote: bool,
+    advertised_host: &str,
 ) {
     let method = req.method().clone();
     let url = req.url().to_string();
     let path = url.split('?').next().unwrap_or("/").to_string();
 
-    // DNS-rebinding defense (M1): the bridge is loopback-only, but a webpage
-    // the user visits can rebind its OWN hostname to 127.0.0.1:<port> and
-    // become same-origin. Reject any request whose Host header is not literally
-    // localhost/127.0.0.1 on our port, so a rebound attacker hostname can't
-    // drive the API even though the socket is reachable.
+    // DNS-rebinding defense (M1): a webpage the user visits can rebind its OWN
+    // hostname to this bridge's address and become same-origin. Reject any
+    // request whose Host header is not an address we legitimately serve on
+    // (loopback; in remote mode also the advertised address, any Tailscale or
+    // RFC 1918 address, and *.ts.net MagicDNS names), so a rebound attacker
+    // hostname can't drive the API even though the socket is reachable.
     {
         let host = req.headers().iter()
             .find(|h| h.field.equiv("Host"))
             .map(|h| h.value.as_str().to_string())
             .unwrap_or_default();
         let hostname = host.split(':').next().unwrap_or("").to_ascii_lowercase();
-        let ok_host = hostname == "127.0.0.1" || hostname == "localhost" || hostname == "[::1]" || hostname == "::1";
+        let ok_local = hostname == "127.0.0.1" || hostname == "localhost" || hostname == "[::1]" || hostname == "::1";
+        let ok_remote = allow_remote
+            && (hostname == advertised_host.to_ascii_lowercase()
+                || is_tailscale_ip(&hostname)
+                || is_private_lan_ip(&hostname)
+                || hostname.ends_with(".ts.net"));
+        let ok_host = ok_local || ok_remote;
         // If a port is present it must match ours (defense in depth).
         let ok_port = match host.rsplit(':').next().and_then(|p| p.parse::<u16>().ok()) {
             Some(p) => p == bound_port,
@@ -388,8 +504,8 @@ impl Read for SseReader {
 // ── Tauri commands ──
 
 #[tauri::command]
-pub fn webui_start(app: tauri::AppHandle, state: tauri::State<'_, WebuiState>, port: u16, user: String, pass: String) -> Result<WebuiStatus, String> {
-    state.start(app, port, user, pass)?;
+pub fn webui_start(app: tauri::AppHandle, state: tauri::State<'_, WebuiState>, port: u16, user: String, pass: String, remote: Option<bool>) -> Result<WebuiStatus, String> {
+    state.start(app, port, user, pass, remote.unwrap_or(false))?;
     Ok(state.status())
 }
 #[tauri::command]

@@ -539,7 +539,7 @@ export function BunkerRibbon({ enabled }: { enabled: boolean }) {
   const divider = <span className="select-none opacity-30">|</span>;
   return (
     <div
-      className={`relative flex shrink-0 items-center justify-center gap-3 border-t px-4 py-1 text-[11px] ${
+      className={`relative flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-0.5 border-t px-4 py-1 text-[11px] ${
         enabled
           ? "border-ai bg-ai text-[#0a2230]"
           : "border-black/30 bg-[#141416] text-white/90"

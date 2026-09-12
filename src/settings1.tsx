@@ -153,10 +153,16 @@ export function FrameworksSection() {
 // Stable color picker for the first-letter skill avatars. Same skill
 // name always lands on the same swatch so the grid feels consistent.
 
+import { RemotePairCard } from "./remotepair";
+
 export function RemoteSection() {
   const [running, setRunning] = useState(false);
   const [port, setPort] = useState(() => getPref(PREF.webuiPort, "8787"));
   const [user, setUser] = useState(() => getPref(PREF.webuiUser, "admin"));
+  // Reachable from other devices: binds to this Mac's Tailscale address (or
+  // the LAN when Tailscale isn't installed) instead of loopback. This is what
+  // makes the phone flow possible at all.
+  const [remote, setRemote] = useState(() => getPref(PREF.webuiRemote, "1") === "1");
   // E2: the password lives in the OS keychain, not plaintext localStorage. Load
   // it on mount, migrating any legacy localStorage value (then scrubbing it).
   const [pass, setPass] = useState("");
@@ -179,7 +185,7 @@ export function RemoteSection() {
     setErr("");
     try {
       if (on) {
-        await invoke("webui_start", { port: Number(port) || 8787, user, pass });
+        await invoke("webui_start", { port: Number(port) || 8787, user, pass, remote });
         setRunning(true);
       } else {
         await invoke("webui_stop");
@@ -196,6 +202,8 @@ export function RemoteSection() {
           control={<Toggle on={running} onChange={toggle} />} />
         <SettingsRowLite title="Port" desc="Local port the WebUI listens on."
           control={<input type="number" value={port} disabled={running} onChange={(e) => { setPort(e.target.value); setPref(PREF.webuiPort, e.target.value); }} className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none disabled:opacity-50" />} />
+        <SettingsRowLite title="Reachable from other devices" desc="Your phone and laptop can open it. Uses this Mac's Tailscale address when Tailscale is installed (private, encrypted), otherwise your local network. Off means this Mac only."
+          control={<Toggle on={remote} onChange={(v) => { setRemote(v); setPref(PREF.webuiRemote, v ? "1" : "0"); }} />} />
         <SettingsRowLite title="Username" desc="Login for the WebUI."
           control={<input value={user} disabled={running} onChange={(e) => { setUser(e.target.value); setPref(PREF.webuiUser, e.target.value); }} className="w-40 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-accent-border focus:outline-none disabled:opacity-50" />} />
         <SettingsRowLite title="Password" desc="Keep this private: anyone with it and the URL can use your agent."
@@ -206,12 +214,7 @@ export function RemoteSection() {
             </div>
           } />
       </div>
-      {running && (
-        <div className="mt-4 rounded-lg border border-accent-border bg-accent-soft px-5 py-4">
-          <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">Live</div>
-          <div className="text-sm text-text-primary">Open <a href={`http://localhost:${port}`} target="_blank" rel="noreferrer" className="font-mono text-accent hover:underline">http://localhost:{port}</a> in a browser, or from another device use this Mac's Tailscale/LAN address on port {port}.</div>
-        </div>
-      )}
+      {running && <RemotePairCard port={port} />}
       {err && <div className="mt-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{err}</div>}
       </DesktopOnly>
     </>

@@ -11,13 +11,27 @@ import { listen as tauriListen, emit as tauriEmit, type UnlistenFn, type EventCa
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-// Browser auth token (set by the WebUI login screen).
+// Browser auth token (set by the WebUI login screen). Kept in localStorage so
+// an installed home-screen app (iOS/Android PWA) stays signed in across
+// launches: sessionStorage is wiped every time the standalone app is closed,
+// which meant re-typing the password on every open. The token is already
+// per-server-session (a restart mints a new one), so persistence on the
+// user's own device costs nothing extra.
 const TOKEN_KEY = "prevail.web.token";
 export function setWebToken(t: string): void {
+  try { localStorage.setItem(TOKEN_KEY, t); } catch { /* ignore */ }
   try { sessionStorage.setItem(TOKEN_KEY, t); } catch { /* ignore */ }
 }
-function token(): string {
+export function getWebToken(): string {
+  try { const v = localStorage.getItem(TOKEN_KEY); if (v) return v; } catch { /* ignore */ }
   try { return sessionStorage.getItem(TOKEN_KEY) ?? ""; } catch { return ""; }
+}
+export function clearWebToken(): void {
+  try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+  try { sessionStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+}
+function token(): string {
+  return getWebToken();
 }
 export function isBrowser(): boolean { return !isTauri; }
 

@@ -1,5 +1,6 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { invoke, listen, isBrowser, type UnlistenFn } from "./bridge";
+import { invoke, listen, isBrowser, getWebToken, type UnlistenFn } from "./bridge";
+import { useIsPhone } from "./useisphone";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { titleCase } from "./format";
@@ -244,7 +245,7 @@ export default function App() {
   const appearance = useAppearance();
   // WebUI login gate - in a browser tab the app must authenticate to the
   // bridge server before any invoke works. On the desktop this is always true.
-  const [webAuthed, setWebAuthed] = useState(() => !isBrowser() || !!sessionStorage.getItem("prevail.web.token"));
+  const [webAuthed, setWebAuthed] = useState(() => !isBrowser() || !!getWebToken());
   // Desktop app lock (F4 Phase 0). If a passcode is set we gate the whole app
   // behind a lock screen until it's entered this session. Browser sessions use
   // the WebUI login instead, so the lock only applies on the desktop.
@@ -1312,12 +1313,21 @@ export default function App() {
     return () => window.removeEventListener("prevail:council-seed", onSeed as EventListener);
   }, []);
   const [vaultError, setVaultError] = useState<string | null>(null);
+  // Phone layout: the sidebar is an overlay drawer, closed by default, that
+  // closes itself whenever navigation happens from inside it (see the effect
+  // below the state hooks).
+  const phone = useIsPhone();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
     () => lsGet("prevail.sidebarCollapsed") === "1",
   );
   useEffect(() => {
     lsSet("prevail.sidebarCollapsed", sidebarCollapsed ? "1" : "0");
   }, [sidebarCollapsed]);
+  // Close the phone drawer whenever navigation happens from inside it. An
+  // effect rather than callback wrappers, so the Sidebar's setter props keep
+  // exactly the types it declares.
+  useEffect(() => { setMobileNavOpen(false); }, [selectedDomain, tab, selectedApp]);
   const fwLens = useFrameworkLens();
 
   const selectedDomainPath = useMemo(() => {
@@ -1634,10 +1644,31 @@ export default function App() {
         </div>
       )}
       <div className="flex min-h-0 flex-1">
-        {sidebarEl}
+        {phone ? (
+          <>
+            {!mobileNavOpen && (
+              <button
+                type="button"
+                aria-label="Open navigation"
+                onClick={() => setMobileNavOpen(true)}
+                className="fixed left-3 top-3 z-30 rounded-md border border-border bg-surface/90 px-2.5 py-1.5 text-base leading-none text-text-primary shadow-md backdrop-blur"
+              >
+                ☰
+              </button>
+            )}
+            {mobileNavOpen && (
+              <div className="fixed inset-0 z-40 flex" onClick={() => setMobileNavOpen(false)}>
+                <div className="absolute inset-0 bg-black/60" aria-hidden />
+                <div className="relative z-10 flex h-full max-w-[85vw] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                  {sidebarEl}
+                </div>
+              </div>
+            )}
+          </>
+        ) : sidebarEl}
         {/* Center region swaps by mode; the sidebar above stays mounted. */}
         {!isMainMode ? (tab === "settings" ? editorCenter : workCenter) : (<>
-        {!sidebarCollapsed && (
+        {!phone && !sidebarCollapsed && (
           <ResizeHandle
             ariaLabel="Resize domain rail"
             onChange={(dx) => setDomainRailWidth((w) => Math.max(180, Math.min(420, w + dx)))}
@@ -1652,8 +1683,10 @@ export default function App() {
             history stays one click away and the left chrome doesn't vanish
             when you switch to Benchmark. Picking a thread on Benchmark jumps
             back to Chat with that thread open. Hidden on the Map, which is a
-            cross-domain report (not a domain conversation) and wants full width. */}
-        {tab !== "map" && (
+            cross-domain report (not a domain conversation) and wants full width.
+            On a phone the rail cannot share the width with the conversation, so
+            it is hidden; threads stay reachable from the drawer's domain view. */}
+        {!phone && tab !== "map" && (
           <>
             <ThreadsRail
               threads={threads}
@@ -1696,7 +1729,7 @@ export default function App() {
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <div data-tour="nav" className="relative flex shrink-0 items-center gap-1 border-b border-border-subtle bg-background pl-1.5 pr-4">
+          <div data-tour="nav" className={`relative flex shrink-0 items-center gap-1 border-b border-border-subtle bg-background pr-4 ${phone ? "pl-14" : "pl-1.5"}`}>
             {/* DEV-only marker: lets you tell THIS live window apart from a stale
                 installed build. Absolutely positioned at the bottom-right corner so
                 it never pushes the first icon off the left edge. */}
