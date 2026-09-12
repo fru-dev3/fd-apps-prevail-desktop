@@ -1824,8 +1824,12 @@ export default function App() {
         </div>
       )}
       {/* O1/F6: no usable model - guide the user to set one up rather than letting
-          the first chat fail with a raw spawn error. */}
-      {noModelConfigured && !noModelDismissed && (
+          the first chat fail with a raw spawn error. Suppressed when the Bunker
+          banner above is already explaining the same absence: two stacked
+          banners saying nearly the same thing is a lot of a phone screen, and
+          "Set up a model" is the wrong advice when Bunker is what is blocking
+          them. Install a local one, or leave Bunker. */}
+      {noModelConfigured && !noModelDismissed && !(bunkerEnabled && !bunkerLocalOk) && (
         <div className="flex shrink-0 items-center justify-center gap-2 border-b border-accent-border bg-accent-soft px-4 py-1.5 text-xs text-text-primary">
           <Layers className="h-3.5 w-3.5 text-accent" />
           <span>No AI model is set up yet, so chat can't run.</span>
