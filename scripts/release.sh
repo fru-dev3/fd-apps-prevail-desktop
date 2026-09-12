@@ -65,10 +65,40 @@ echo "signing as: $APPLE_SIGNING_IDENTITY"
 # Prevail.app.tar.gz + .sig when createUpdaterArtifacts is on; these env vars
 # let `tauri build` sign them. Key lives at ~/.prevail/updater.key.
 UPDATER_KEY="$HOME/.prevail/updater.key"
+# Does the private key on this machine actually match the public key baked into
+# the app? Minisign blobs carry a key id: bytes 2..10 of the public blob, bytes
+# 54..62 of the secret one. If they differ, every signature we produce is
+# rejected at update time, so publishing the feed is worse than not having one:
+# clients find an update they cannot verify. Skip it, and say so.
+# (Currently they DO differ. See the updater-key note in the release docs.)
+UPDATER_MATCHES=0
 if [ -f "$UPDATER_KEY" ]; then
+  UPDATER_MATCHES="$(python3 - "$HERE/src-tauri/tauri.conf.json" "$UPDATER_KEY" <<'PY'
+import base64, binascii, json, sys
+def keyid(blob, lo, hi):
+    try:
+        raw = base64.b64decode(blob).decode("utf-8", "replace")
+        body = [l for l in raw.splitlines() if l and not l.startswith("untrusted comment")]
+        return binascii.hexlify(base64.b64decode(body[-1])[lo:hi]).decode()
+    except Exception:
+        return ""
+try:
+    pub = json.load(open(sys.argv[1]))["plugins"]["updater"]["pubkey"]
+    sec = open(sys.argv[2]).read().strip()
+    a, b = keyid(pub, 2, 10), keyid(sec, 54, 62)
+    print("1" if a and a == b else "0")
+except Exception:
+    print("0")
+PY
+)"
+fi
+if [ -f "$UPDATER_KEY" ] && [ "$UPDATER_MATCHES" = "1" ]; then
   export TAURI_SIGNING_PRIVATE_KEY="$(cat "$UPDATER_KEY")"
   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
   echo "updater artifacts will be signed"
+elif [ -f "$UPDATER_KEY" ]; then
+  echo "WARN: $UPDATER_KEY does NOT match the app's updater pubkey — publishing DMG only."
+  echo "      (a feed signed with it would be refused by every installed client)"
 else
   echo "WARN: $UPDATER_KEY missing — auto-update artifacts will be unsigned/skipped"
 fi
@@ -188,7 +218,11 @@ MACOS_DIR="$HERE/src-tauri/target/release/bundle/macos"
 TARBALL="$MACOS_DIR/Prevail.app.tar.gz"
 SIGFILE="$TARBALL.sig"
 UPDATE_ASSETS=()
-if [ -f "$TARBALL" ] && [ -f "$SIGFILE" ]; then
+if [ "$UPDATER_MATCHES" != "1" ]; then
+  # A stale tarball + .sig from an earlier build would otherwise be picked up
+  # and published with a signature no client can verify.
+  echo "skipped: the updater key does not match the app's pubkey (DMG-only release)"
+elif [ -f "$TARBALL" ] && [ -f "$SIGFILE" ]; then
   SIG="$(cat "$SIGFILE")"
   PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   LATEST_JSON="$WORK/latest.json"
