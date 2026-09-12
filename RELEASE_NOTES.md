@@ -1,19 +1,24 @@
-# Prevail v0.3.111
+# Prevail v0.3.112
 
-Every model picker now offers the September 2026 lineup, and the cost figures behind them are current again.
+Prevail now runs on your phone as a client of your Mac, and a truth-and-safety pass fixed a dead chart, a data race in the distiller, and two places the desktop was talking to the outside world without asking.
 
 ## New
 
-- **Claude Fable 5.1.** The `fable` alias joins the Claude runtime as the frontier tier above Opus, resolving to Fable 5.1. Fable 5 stays as a pinned older version.
-- **GPT-6 Astra.** Codex adds Astra (GA 2026-09-03) as its flagship, with a high-reasoning variant, alongside the existing GPT-5.6 tiers. Sol remains the default.
-- **Gemini 3.8, 3.7 and 3.6 Flash.** Antigravity picks up the three newest Flash generations. Gemini 3.5 Flash is gone from the `agy` catalog and has been removed.
-- **Refreshed hosted catalogs.** The OpenRouter picks and the direct-provider lists (Anthropic, OpenAI, Google, xAI, Kimi) carry current ids, including Grok 4.6, Kimi K3, DeepSeek V4 Pro, Qwen3.8 Max and GLM 5.3. The Google key path had still been on Gemini 2.5.
-
-Every id was checked against the runtime's own catalog and then smoke-tested through the real CLI, including the reasoning-effort suffixes.
+- **Prevail on your phone.** A phone cannot run the CLIs, so the mobile app is a client of the Mac. With "Reachable from other devices" on (Settings > Remote, on by default), the web bridge binds to this Mac's Tailscale address when Tailscale is present (private to the tailnet, encrypted, never on the public interface), otherwise to the LAN. The pairing card shows the phone URL, a QR code, and the two-tap install steps for iPhone (Add to Home Screen) and Android (Install app). The installed app stays signed in across launches.
+- **Phone-first shell.** Below 768px the desktop cockpit gives way to a shell built for a thumb: a fixed bottom tab bar (Chat, Domains, Needs you, Settings) with 44px targets and iOS safe-area padding. Domains is a card per domain with readiness, score and running or new-reply chips; tapping one opens its chat. Chat has a Chat | Council toggle, a Threads sheet, and a composer pinned above the tabs that the keyboard never covers. Needs you is the Decision Inbox full width. Settings is a grouped list with Back headers, and deep links land on the right section.
+- **Google refresh skill.** Connecting Google now writes `skills/sync-google.md`, which pulls the next 7 days of calendar and unread-important mail metadata into the vault on the refresh trigger. Until now every scheduled Google sync failed with "no refresh skill", so Google context only reached a prompt as a live MCP tool, never through the vault. Existing installs are upgraded in place and user edits are never overwritten.
+- **Honest catalog.** The app catalog shows the 216 curated apps by default, with "Show all (needs teaching)" for the rest. Non-curated entries are labelled "Teach by browser" and Connect routes into the browser-learn flow. Before, Connect on roughly 1,280 entries created an app that could never sync.
 
 ## Fixed
 
-- **Cost estimates ran about three times high for Opus.** Both price tables still used the $15/$75 Opus 4.x rate; Opus 5 is $5/$25. Fable and GPT-6 were not priced at all. The GPT-5.6 tier rates have also come down since July, and Gemini 3.x Flash is priced well above the old 2.x Flash rate the table assumed.
-- **Model names no longer shout.** The label formatter upper-cased any word of four letters or fewer, so `gpt-5.6-sol` rendered as "GPT 5.6 SOL". It now distinguishes real acronyms from codenames: GPT-5.6 Sol, GPT-6 Astra.
-- **A stale saved model no longer changes vendor.** Healing a retired pick sent every model id to a Codex model, so a domain pinned to an old Claude or Gemini model silently moved to OpenAI. Each dead pick now heals to its own vendor's current default.
-- **Release script.** It looked for the website repo under its pre-rename name and would exit immediately, and it now skips the version stamp when the site repo holds unrelated uncommitted work instead of sweeping it into a release commit.
+- **Context-score trend was dead.** The history call shelled out to a verb the engine never registered, and the unrecognized verb fell through to launching the TUI. It calls the real `score history` subcommand now.
+- **The in-app distiller raced the engine's learn daemon.** The desktop never took the daemon's `learn.lock`, and on a v4 domain it tracked progress in a different cursor file, so the two re-distilled the same records and could lose learned memory on a concurrent write. The desktop now takes the same lock with the same semantics (exclusive create, 5-minute staleness floor, local PID probe, foreign-host locks never stolen) and reads the daemon's cursor. Three tests.
+- **Usage telemetry is opt-in.** A local-first, private product does not phone home by default.
+- **Favicons stay local.** App icons went through Google's s2 lookup, which reported every connected app's hostname to a third party. The app's own `/favicon.ico` is fetched instead, still skipped under Bunker.
+- **A null domain context crashed both chat panels** into their error boundary, on desktop too.
+
+## Cleanup
+
+- Removed dead exports across the front end (unused settings sections, catalog, panel and bench card components, stale helpers, a dead sidebar branch in App) and dead Rust (legacy Composio engine shims, an unconstructed ingestion type, test-only storage helpers now gated). `cargo check` is warning-free.
+- One `cheapModel()` accessor replaces twenty copies of the distill-model preference read, and the last raw preference-key strings now go through the `PREF` table.
+- The two `AUTONOMY_LABEL` tables (app autonomy vs loop autonomy) no longer share a name.

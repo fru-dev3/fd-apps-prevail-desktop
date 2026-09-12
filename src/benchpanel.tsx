@@ -11,7 +11,7 @@ import { MODELS, MODEL_SEP, VENDOR_BRAND } from "./constants";
 import { relTime, scoreColor, titleCase } from "./format";
 import { isLocalCli } from "./helpers";
 import { curatedFor, modelLabel, modelsFor, parseRunLabel } from "./helpers2";
-import { PREF, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
+import { PREF, cheapModel, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
 import { BenchCrumbs, Field, ScoreBar } from "./panels";
 import { Sparkline, Toggle } from "./ui";
 import { ArenaBars, ArenaHeader, ArenaInsight, ArenaMetric, ArenaRightRail, ArenaStatCard, heatBg } from "./arena/arenaui";
@@ -111,11 +111,6 @@ export function fmtLatency(ms: number | null | undefined): string {
   if (ms === null || ms === undefined) return "-";
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)}s`;
-}
-// Throughput tokens/sec.
-export function fmtThroughput(tps: number | null | undefined): string {
-  if (tps === null || tps === undefined) return "-";
-  return `${tps >= 100 ? Math.round(tps) : tps.toFixed(1)} tok/s`;
 }
 // Cost: local runs are free; priced runs show $ to a sensible precision.
 export function fmtCost(usd: number | null | undefined, basis?: string | null): string {
@@ -1271,7 +1266,7 @@ export function BenchRunConfig({
   const suggestAiPresets = useCallback(() => {
     if (availableModelsForAi.length === 0) { setPresetSuggest({ error: "No runnable models to build presets from. Install or authorize a runtime first." }); return; }
     const provider = getPref(PREF.memoryProvider, "claude");
-    const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+    const model = cheapModel();
     void startPresetSuggest(JSON.stringify(availableModelsForAi), new Set(availableModels.map((m) => m.key)), provider, model);
   }, [availableModels, availableModelsForAi]);
   // Dedupe the AI suggestions so nothing repeats: drop any AI preset that matches

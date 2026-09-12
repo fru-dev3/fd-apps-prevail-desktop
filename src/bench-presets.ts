@@ -36,7 +36,6 @@ export function suiteOrigin(s: BenchSuite): "manual" | "ai" | "canonical" {
   return s.origin ?? "manual";
 }
 
-const BUNDLES_KEY = "prevail.bench.bundles";
 const SUITES_KEY = "prevail.bench.suites";
 const EVENT = "prevail:bench-presets";
 
@@ -55,30 +54,6 @@ function writeArr<T>(key: string, arr: T[]) {
 // Stable, collision-resistant id. (Date.now()/random are fine in app code.)
 function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-// ── Bundles ────────────────────────────────────────────────────────────────
-export function listBundles(): ModelBundle[] {
-  return readArr<ModelBundle>(BUNDLES_KEY).sort((a, b) => a.name.localeCompare(b.name));
-}
-export function saveBundle(name: string, models: string[]): ModelBundle | null {
-  const nm = name.trim();
-  if (!nm || models.length === 0) return null;
-  const all = readArr<ModelBundle>(BUNDLES_KEY);
-  // Same name → overwrite in place (a rename/update), so the list never grows duplicates.
-  const existing = all.find((b) => b.name.toLowerCase() === nm.toLowerCase());
-  if (existing) {
-    existing.name = nm;
-    existing.models = [...models];
-    writeArr(BUNDLES_KEY, all);
-    return existing;
-  }
-  const b: ModelBundle = { id: newId("bnd"), name: nm, models: [...models], createdAt: Date.now() };
-  writeArr(BUNDLES_KEY, [...all, b]);
-  return b;
-}
-export function deleteBundle(id: string) {
-  writeArr(BUNDLES_KEY, readArr<ModelBundle>(BUNDLES_KEY).filter((b) => b.id !== id));
 }
 
 // ── Suites ─────────────────────────────────────────────────────────────────
@@ -234,7 +209,6 @@ function useStore<T>(read: () => T[]): T[] {
   }, []);
   return items;
 }
-export function useBundles(): ModelBundle[] { return useStore(listBundles); }
 export function useSuites(): BenchSuite[] { return useStore(listSuites); }
 export function useSchedules(): BenchSchedule[] { return useStore(listSchedules); }
 

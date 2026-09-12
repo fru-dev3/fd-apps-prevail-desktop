@@ -9,7 +9,7 @@ import type { UnlistenFn } from "./bridge";
 import { SettingsHeader } from "./sectionutil";
 import { titleCase } from "./format";
 import { DOMAIN_PALETTE, isHarnessRuntime } from "./constants";
-import { PREF, getPref } from "./storage";
+import { PREF, cheapModel, getPref } from "./storage";
 import { DecisionInbox } from "./decisioninbox";
 import { TaskDetailPanel } from "./taskdetail";
 import { HarnessPicker } from "./harnesspicker";
@@ -287,7 +287,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
     setRunning(true);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       await invoke("loops_run_once", { vault: vaultPath, provider, model });
       reload();
       window.dispatchEvent(new Event("prevail:tasks-changed"));

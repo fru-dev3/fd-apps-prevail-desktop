@@ -7,7 +7,7 @@ import { Activity, Archive, ArrowRight, Briefcase, Clock, Cloud, Cpu, Folder, Fo
 import { PrevailLogo } from "./PrevailLogo";
 import { invoke } from "./bridge";
 import { PREF, getPref } from "./storage";
-import { APP_VERSION, AUTONOMY_LABEL, AUTONOMY_TINT, INTEGRATION_LABEL, STATUS_TINT } from "./constants";
+import { APP_VERSION, APP_AUTONOMY_LABEL, APP_AUTONOMY_TINT, INTEGRATION_LABEL, STATUS_TINT } from "./constants";
 import { relTime, titleCase } from "./format";
 import { appScheduleText } from "./helpers";
 import { AppCard, AppKV, FloatingChip } from "./widgets";
@@ -274,7 +274,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
             <AppKV k="Status"><span className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: tint }} />{app.status}</span></AppKV>
             <AppKV k="Method">{INTEGRATION_LABEL[app.integration] ?? app.integration}</AppKV>
             <AppKV k="Account">{app.account?.label ? <span>{app.account.label}{app.account.address ? <span className="text-text-muted"> · {app.account.address}</span> : null}</span> : <span className="text-text-muted">-</span>}</AppKV>
-            <AppKV k="Autonomy"><span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: `${AUTONOMY_TINT[autonomy] ?? "#9aa0a6"}1a`, color: AUTONOMY_TINT[autonomy] ?? "#9aa0a6" }}><ShieldCheck className="h-3 w-3" />{AUTONOMY_LABEL[autonomy] ?? autonomy}</span></AppKV>
+            <AppKV k="Autonomy"><span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: `${APP_AUTONOMY_TINT[autonomy] ?? "#9aa0a6"}1a`, color: APP_AUTONOMY_TINT[autonomy] ?? "#9aa0a6" }}><ShieldCheck className="h-3 w-3" />{APP_AUTONOMY_LABEL[autonomy] ?? autonomy}</span></AppKV>
             {app.connections && app.connections.length > 0 && (
               <AppKV k="Strategies">{app.connections.map((c) => c.kind).join(" → ")}</AppKV>
             )}

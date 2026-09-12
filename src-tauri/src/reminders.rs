@@ -11,7 +11,6 @@
 //   reminders_due_today — scan only, no notifications (for sidebar badges)
 
 use serde::{Deserialize, Serialize};
-use tauri_plugin_notification::NotificationExt;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;

@@ -39,9 +39,3 @@ export function useFavorites(): Set<string> {
   }, []);
   return favs;
 }
-
-// True when any of the given keys is favorited. Callers pass an app's title-key
-// and id-key so either match counts (an app may be keyed by either).
-export function isFavorited(favs: Set<string>, ...keys: string[]): boolean {
-  return keys.some((k) => favs.has(k));
-}

@@ -8,7 +8,7 @@ import { FRAMEWORKS, LENSES, isHarnessRuntime } from "./constants";
 import { curatedFor, modelsFor } from "./helpers2";
 import { formatFreshness, titleCase } from "./format";
 import { isLocalCli } from "./helpers";
-import { PREF, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
+import { PREF, cheapModel, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
 import { Toggle } from "./ui";
 import { ResizeHandle } from "./widgets";
 import { DrawerImportsSection } from "./panels";
@@ -27,35 +27,6 @@ export const SECTION_LABEL =
 // Replaces the popover. Every control writes to localStorage on
 // click; no save button - picks are immediate. Pickers use brand
 // icons for CLIs, prose labels for everything else.
-
-// BP1 (2026-06-27 feedback): clicking a .md/markdown context item opens this
-// preview overlay — rendered markdown by default, with a "View Raw Text" toggle.
-export function MarkdownPreview({ title, source, onClose, onUseInChat }: { title: string; source: string; onClose: () => void; onUseInChat?: () => void }) {
-  const [raw, setRaw] = useState(false);
-  return (
-    <div className="absolute inset-0 z-40 flex flex-col bg-background">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <div className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Markdown preview</div>
-          <div className="truncate font-display text-sm font-semibold text-text-primary" title={title}>{title}</div>
-        </div>
-        <button onClick={() => setRaw((v) => !v)} title={raw ? "Show formatted" : "Show raw text"}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent">
-          {raw ? <><Eye className="h-3 w-3" /> Formatted</> : <><Code className="h-3 w-3" /> Raw text</>}
-        </button>
-        {onUseInChat && (
-          <button onClick={onUseInChat} title="Use in chat" className="rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background">→ use</button>
-        )}
-        <button onClick={onClose} title="Close preview" className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-text-primary"><X className="h-4 w-4" /></button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        {raw
-          ? <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-text-secondary">{source}</pre>
-          : <div className="prose-sm text-sm leading-relaxed text-text-primary"><Markdown source={source} /></div>}
-      </div>
-    </div>
-  );
-}
 
 // A standalone file-viewer pane that lives on the LEFT of the chat (not an overlay
 // of the context drawer). Opened by dispatching `prevail:open-canvas` with
@@ -864,7 +835,7 @@ export function DomainPrefsPanel({
     setDraftingIdeal(true); setDraftErr(null);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       const text = await invoke<string>("domain_draft_ideal", { vault: vaultPath, domain, provider, model });
       if (text?.trim()) setDomainIdeal(text.trim());
     } catch (e) { setDraftErr(String(e)); }

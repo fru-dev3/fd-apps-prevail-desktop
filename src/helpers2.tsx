@@ -2,7 +2,7 @@
 import { invoke } from "./bridge";
 import { DEAD_MODELS, DEAD_MODEL_REPLACEMENT, DISCOVERED_MODELS, MODELS, SYCOPHANCY_RE, vendorOfModelId } from "./constants";
 import { titleCase } from "./format";
-import { lsGet, lsSet } from "./storage";
+import { PREF, lsGet, lsSet } from "./storage";
 import type { ModelPick, PanelistReply, PanelistSlot, SkillEntry } from "./types";
 
 // Build the prompt preamble for the skills the user attached via /skills or the
@@ -205,7 +205,7 @@ export function buildOmegaPreamble(omegaMd: string): string {
 
 export function maybeRedact(s: string): string {
   // Default ON (O58): redact unless the user explicitly turned it off ("0").
-  if (lsGet("prevail.pref.redactSecrets") === "0") return s;
+  if (lsGet(PREF.redactSecrets) === "0") return s;
   return s
     .replace(/\b(?:sk|pk|rk|ghp|gho|ghs|xoxb|xoxp|AKIA)[-_A-Za-z0-9]{12,}/g, "***REDACTED***")
     .replace(/\bBearer\s+[A-Za-z0-9._-]{12,}/gi, "Bearer ***REDACTED***")
@@ -213,7 +213,7 @@ export function maybeRedact(s: string): string {
 }
 
 export function maybeStripSycophancy(s: string): string {
-  if (lsGet("prevail.pref.stripSycophancy") !== "1") return s;
+  if (lsGet(PREF.stripSycophancy) !== "1") return s;
   return s.replace(SYCOPHANCY_RE, "");
 }
 

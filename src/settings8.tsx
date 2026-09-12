@@ -3,14 +3,13 @@
 // card).
 import { useEffect, useState } from "react";
 import { confirm as tauriConfirm, open } from "@tauri-apps/plugin-dialog";
-import { Archive, ChevronRight, Database, DatabaseBackup, ExternalLink, Folder, FolderCog, FolderOpen, FolderTree, Loader2, Monitor, Moon, RotateCw, ShieldCheck, Sparkles, Sun } from "lucide-react";
+import { Archive, DatabaseBackup, ExternalLink, FolderCog, FolderOpen, FolderTree, Loader2, Monitor, Moon, RotateCw, ShieldCheck, Sparkles, Sun } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
 import { PALETTES } from "./constants";
 import { formatFreshness } from "./format";
 import { bytesHuman } from "./helpers";
 import { LS, lsGet, lsSet } from "./storage";
-import { SettingRow } from "./panels";
 import { Toggle } from "./ui";
 import { PaletteCard } from "./panels3";
 import { useAppearance } from "./hooks";
@@ -519,181 +518,6 @@ export function BackupAutomationCard({ vault, onChange }: { vault: string; onCha
         </details>
       )}
     </div>
-  );
-}
-
-export function VaultSettings({ vaultPath, onChange, onSetupDomains, onVaultMoved, headerless, hideBackups, advancedOnly }: { vaultPath: string; onChange: () => void; onSetupDomains?: () => void; onVaultMoved?: (path: string) => void; headerless?: boolean; hideBackups?: boolean; advancedOnly?: boolean }) {
-  // "Move vault into the app" - copy the current vault into the app-owned
-  // location (~/.prevail/vault) via the engine, non-destructively, then repoint.
-  const [moving, setMoving] = useState(false);
-  const [moveNote, setMoveNote] = useState<string | null>(null);
-  const embedded = vaultPath.replace(/\/+$/, "").endsWith("/.prevail/vault");
-  // W4 - "Tidy into a data/ folder": relocate the whole vault under <vault>/data
-  // so the root holds no loose files and apps+domains sit together. The engine
-  // copies + verifies + repoints; we adopt the new path. Already-tidied vaults
-  // (path ends in /data) are a no-op.
-  const [tidying, setTidying] = useState(false);
-  const [tidyNote, setTidyNote] = useState<string | null>(null);
-  const tidied = vaultPath.replace(/\/+$/, "").endsWith("/data");
-  async function tidyIntoData() {
-    setTidying(true);
-    setTidyNote(null);
-    try {
-      const r = await invoke<{ dataDir: string; ok: boolean; alreadyMigrated?: boolean; copiedFiles?: number; sourceFiles?: number }>(
-        "engine_vault_migrate_data",
-        { vault: vaultPath },
-      );
-      if (r.alreadyMigrated) {
-        setTidyNote("Vault is already grouped under a data/ folder.");
-      } else if (r.ok) {
-        setTidyNote(`Grouped ${r.copiedFiles ?? "the"} files under data/. Your original files are kept until you archive them; nothing was deleted.`);
-        onVaultMoved?.(r.dataDir);
-      } else {
-        setTidyNote(`Tidy incomplete (${r.copiedFiles}/${r.sourceFiles} files). Your vault is unchanged; nothing was moved.`);
-      }
-    } catch (e) {
-      setTidyNote(`Tidy failed: ${String(e)}`);
-    } finally {
-      setTidying(false);
-    }
-  }
-  // B2-12 - "Tidy runtime files into build/": move the General/root SUPPORTING
-  // files (ledgers, benchmark, _meta, _threads, usage, …) into <vault>/build/ so
-  // the root holds just content + build/. Non-destructive copy + verify; originals
-  // are kept until you archive. No repoint needed (resolvers find build/).
-  const [tidyingBuild, setTidyingBuild] = useState(false);
-  const [tidyBuildNote, setTidyBuildNote] = useState<string | null>(null);
-  async function tidyIntoBuild() {
-    setTidyingBuild(true);
-    setTidyBuildNote(null);
-    try {
-      const r = await invoke<{ buildDir: string; ok: boolean; copiedFiles?: number; sourceFiles?: number; movedEntries?: string[] }>(
-        "engine_vault_migrate_build",
-        { vault: vaultPath },
-      );
-      if (r.ok) {
-        const n = r.movedEntries?.length ?? 0;
-        setTidyBuildNote(n === 0
-          ? "Nothing to tidy: no loose runtime files at the vault root."
-          : `Moved runtime files into build/ (${r.copiedFiles ?? "the"} files). Originals are kept until you archive them; nothing was deleted.`);
-        onChange();
-      } else {
-        setTidyBuildNote(`Tidy incomplete (${r.copiedFiles}/${r.sourceFiles} files). Your vault is unchanged; nothing was moved.`);
-      }
-    } catch (e) {
-      setTidyBuildNote(`Tidy failed: ${String(e)}`);
-    } finally {
-      setTidyingBuild(false);
-    }
-  }
-  async function moveIntoApp() {
-    setMoving(true);
-    setMoveNote(null);
-    try {
-      const r = await invoke<{ dest: string; alreadyEmbedded: boolean; copied: number; sourceFiles: number; ok: boolean }>(
-        "engine_vault_embed",
-        { vault: vaultPath },
-      );
-      if (r.alreadyEmbedded) {
-        setMoveNote("Vault is already inside the app.");
-      } else if (r.ok) {
-        setMoveNote(`Moved ${r.copied} file${r.copied === 1 ? "" : "s"} into the app. Your original folder is left untouched.`);
-        onVaultMoved?.(r.dest);
-      } else {
-        setMoveNote(`Move incomplete (${r.copied}/${r.sourceFiles} files). Your original folder is untouched; nothing was changed.`);
-      }
-    } catch (e) {
-      setMoveNote(`Move failed: ${String(e)}`);
-    } finally {
-      setMoving(false);
-    }
-  }
-  return (
-    <>
-      {/* VAULT-1: premium hierarchy - a location card leading with an icon chip,
-          the path shown in a styled mono box with an in-app badge + Finder
-          reveal; domains/move-into-app grouped as rows; backups cluster below. */}
-      {/* B2-15: advancedOnly renders just the Advanced disclosure (the Vault
-          location now lives in the Your/Demo vault cards). */}
-      {!headerless && !advancedOnly && (
-        <SettingsHeader icon={FolderTree} title="Vault" subtitle="Where Prevail reads + writes your domain folders. Each child folder with a state.md becomes a life domain." />
-      )}
-      {!advancedOnly && (
-      <div className="rounded-xl border border-border bg-surface p-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><FolderOpen className="h-5 w-5" /></span>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-text-primary">Vault folder</div>
-            <div className="text-xs text-text-secondary">The workspace Prevail is reading right now{embedded ? " · stored inside the app" : ""}.</div>
-          </div>
-          <button onClick={onChange} className="inline-flex shrink-0 items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-surface-warm">
-            <Folder className="h-3.5 w-3.5" /> Change
-          </button>
-        </div>
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-border-subtle bg-background px-3 py-2">
-          <Database className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-          <span className="min-w-0 flex-1 truncate font-mono text-xs text-text-primary" title={vaultPath}>{vaultPath}</span>
-          {embedded && <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent">in app</span>}
-          <button onClick={() => void invoke("open_in_finder", { path: vaultPath }).catch(() => {})} title="Reveal in Finder" className="shrink-0 rounded p-1 text-text-muted hover:text-accent">
-            <ExternalLink className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-      )}
-      {/* D4: these are rarely-needed maintenance actions - the founder found them
-          clutter on the main view. Tucked behind a collapsed "Advanced" disclosure
-          so the Workspace page stays minimal (location card + backups) while the
-          actions remain available. */}
-      {(onSetupDomains || !embedded || !tidied) && (
-        <details className="group mt-3 rounded-xl border border-border bg-surface px-4 py-2">
-          <summary className="flex cursor-pointer list-none items-center gap-2 py-1 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:text-accent">
-            <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" /> Advanced
-          </summary>
-          <div className="pt-1">
-          {onSetupDomains && (
-            <SettingRow label="Domains" desc="Let Prevail recommend a starter set of life domains, or add more.">
-              <button onClick={onSetupDomains} className="inline-flex items-center gap-2 rounded-md border border-accent-border bg-accent-soft px-3 py-1.5 text-sm text-accent hover:bg-accent hover:text-background">
-                <Sparkles className="h-3.5 w-3.5" /> Set up domains
-              </button>
-            </SettingRow>
-          )}
-          {!embedded && (
-            <SettingRow label="Move vault into the app" desc="Copy this vault into the app-owned location so there's no loose folder to manage. Your original folder is copied, never moved or deleted.">
-              <button onClick={moveIntoApp} disabled={moving} className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-surface-warm disabled:opacity-50">
-                {moving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Folder className="h-3.5 w-3.5" />}
-                {moving ? "Moving…" : "Move into app"}
-              </button>
-            </SettingRow>
-          )}
-          {!tidied && (
-            <SettingRow label="Tidy into a data/ folder" desc="Group apps + domains and move loose files under a single data/ folder so the vault root stays clean. Copied + verified first; your files are kept, never deleted.">
-              <button onClick={tidyIntoData} disabled={tidying} className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-surface-warm disabled:opacity-50">
-                {tidying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderTree className="h-3.5 w-3.5" />}
-                {tidying ? "Tidying…" : "Tidy into data/"}
-              </button>
-            </SettingRow>
-          )}
-          <SettingRow label="Tidy runtime files into build/" desc="Move generated runtime files (decision + intent ledgers, _meta, benchmark) into a build/ folder so the root holds just your content. Copied + verified first; originals are kept until you archive, never deleted.">
-            <button onClick={tidyIntoBuild} disabled={tidyingBuild} className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-surface-warm disabled:opacity-50">
-              {tidyingBuild ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderTree className="h-3.5 w-3.5" />}
-              {tidyingBuild ? "Tidying…" : "Tidy into build/"}
-            </button>
-          </SettingRow>
-          </div>
-        </details>
-      )}
-      {moveNote && (
-        <div className="mt-2 rounded-lg border border-border-subtle bg-surface px-4 py-2 text-xs text-text-secondary">{moveNote}</div>
-      )}
-      {tidyNote && (
-        <div className="mt-2 rounded-lg border border-border-subtle bg-surface px-4 py-2 text-xs text-text-secondary">{tidyNote}</div>
-      )}
-      {tidyBuildNote && (
-        <div className="mt-2 rounded-lg border border-border-subtle bg-surface px-4 py-2 text-xs text-text-secondary">{tidyBuildNote}</div>
-      )}
-      {/* W2 (Monday feedback): backups can render as their own section in Workspace. */}
-      {!hideBackups && <BackupAutomationCard vault={vaultPath} onChange={onChange} />}
-    </>
   );
 }
 

@@ -221,6 +221,7 @@ export const PREF = {
   redactSecrets: "prevail.pref.redactSecrets",             // "1" | "0" — scrub secrets from saved content
   allowPrivateUrls: "prevail.pref.allowPrivateUrls",       // "1" | "0"
   fileCheckpoints: "prevail.pref.fileCheckpoints",         // "1" | "0" — snapshot before file edits
+  touchIdLock: "prevail.pref.touchIdLock",                 // "1" | "0" - require Touch ID to unlock the vault
   // Remote / WebUI — serve the same UI to a browser via the bridge server.
   webuiPort: "prevail.pref.webuiPort",                     // integer port
   webuiUser: "prevail.pref.webuiUser",                     // login username
@@ -275,3 +276,6 @@ export function incognitoActive(surface: IncognitoSurface): boolean {
   return getPref(k, "0") === "1";
 }
 export function setPref(key: string, v: string): void { lsSet(key, v); }
+// The cheap model used for distillation, loops, summaries and other
+// background work. One accessor so the default lives in exactly one place.
+export function cheapModel(): string { return getPref(PREF.distillModel, "claude-haiku-4-5"); }

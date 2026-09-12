@@ -7,11 +7,11 @@ import { Archive, ArrowDownAZ, CalendarClock, Check, ChevronDown, Infinity as In
 import { invoke } from "./bridge";
 import { SettingsHeader } from "./sectionutil";
 import { titleCase } from "./format";
-import { PREF, getPref } from "./storage";
+import { PREF, cheapModel, getPref } from "./storage";
 import { startProcess, endProcess, useProcesses } from "./processes";
 import { Toggle } from "./ui";
 import {
-  AUTONOMY_LABEL, CADENCE_LABEL, type Loop, type LoopsRuntime,
+  LOOP_AUTONOMY_LABEL, CADENCE_LABEL, type Loop, type LoopsRuntime,
   ensureBriefingLoop, readLoops, readLoopsRuntime, writeLoops,
 } from "./loops";
 
@@ -152,7 +152,7 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
     startProcess(procId, "loop", `${titleCase(r.domain)} · ${r.loop.name}`, r.domain);
     try {
       const provider = (r.loop.executor && r.loop.executor.trim()) || getPref(PREF.memoryProvider, "claude");
-      const model = (r.loop.model && r.loop.model.trim()) || getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = (r.loop.model && r.loop.model.trim()) || cheapModel();
       await invoke("loop_run_now", { vault: vaultPath, domain: r.domain, loopId: r.loop.id, provider, model });
       window.dispatchEvent(new Event("prevail:loops-advanced"));
       window.dispatchEvent(new Event("prevail:tasks-changed"));
@@ -206,7 +206,7 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
             <div className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted">
               <span className="text-text-secondary">{titleCase(r.domain)}</span>
               <span>· {CADENCE_LABEL[r.loop.cadence]}</span>
-              {r.loop.kind !== "briefing" && <span>· {AUTONOMY_LABEL[r.loop.autonomy ?? "ask"]}</span>}
+              {r.loop.kind !== "briefing" && <span>· {LOOP_AUTONOMY_LABEL[r.loop.autonomy ?? "ask"]}</span>}
               <span>· {r.loop.status}</span>
               {nextLabel && <span>· next {nextLabel}</span>}
               {lastRun && <span>· last run {new Date(lastRun.ts).toLocaleDateString()}</span>}

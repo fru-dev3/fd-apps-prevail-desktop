@@ -9,7 +9,7 @@ import { invoke, listen } from "./bridge";
 import type { UnlistenFn } from "./bridge";
 import { open, save as saveFileDialog } from "@tauri-apps/plugin-dialog";
 import { titleCase, relTime } from "./format";
-import { PREF, getPref } from "./storage";
+import { PREF, cheapModel, getPref } from "./storage";
 import { startProcess, endProcess, updateProcess } from "./processes";
 import { Toggle } from "./ui";
 import { MODELS, VENDOR_BRAND, isHarnessRuntime } from "./constants";
@@ -17,7 +17,7 @@ import { useDetectedClis } from "./hooks";
 import { CollapsibleSection } from "./collapsible";
 import {
   AUTONOMY_BLURB,
-  AUTONOMY_LABEL,
+  LOOP_AUTONOMY_LABEL,
   CADENCE_LABEL,
   type Loop,
   type LoopAutonomy,
@@ -158,7 +158,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
     startProcess(procId, "loop", `${titleCase(domain || "general")} · Executing: ${short}`, domain);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       // Mint a single-use approval token bound to this exact action (C1/O16),
       // then execute with it — the backend verifies approval, not UI trust.
       const approval = await invoke<string>("loop_request_approval", { domain, action: text });
@@ -363,7 +363,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
             <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-subtle bg-border-subtle sm:grid-cols-2">
               {(["suggest", "tasks", "ask", "auto"] as LoopAutonomy[]).map((a) => (
                 <div key={a} className="bg-surface px-3 py-2">
-                  <div className="font-mono text-[11px] font-semibold text-accent">{AUTONOMY_LABEL[a]}</div>
+                  <div className="font-mono text-[11px] font-semibold text-accent">{LOOP_AUTONOMY_LABEL[a]}</div>
                   <div className="mt-0.5 text-xs leading-relaxed text-text-muted">{AUTONOMY_BLURB[a]}</div>
                 </div>
               ))}
@@ -512,7 +512,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
               <label className="block">
                 <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Guardrail</div>
                 <select value={newAutonomy} onChange={(e) => setNewAutonomy(e.target.value as LoopAutonomy)} className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs" title={AUTONOMY_BLURB[newAutonomy]}>
-                  {(["suggest", "tasks", "ask", "auto"] as LoopAutonomy[]).map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a]}</option>)}
+                  {(["suggest", "tasks", "ask", "auto"] as LoopAutonomy[]).map((a) => <option key={a} value={a}>{LOOP_AUTONOMY_LABEL[a]}</option>)}
                 </select>
               </label>
             </div>
@@ -619,7 +619,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
     (async () => {
       try {
         const provider = (loop.executor && loop.executor.trim()) || getPref(PREF.memoryProvider, "claude");
-        const model = (loop.model && loop.model.trim()) || getPref(PREF.distillModel, "claude-haiku-4-5");
+        const model = (loop.model && loop.model.trim()) || cheapModel();
         unline = await listen<{ session: string; data: unknown }>("loop_run:line", (e) => {
           if (e.payload.session !== session) return;
           const d = e.payload.data as { type?: string; phase?: string; label?: string; result?: RunResult };
@@ -687,7 +687,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
           <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-text-muted/70">{CADENCE_LABEL[loop.cadence]}</span>
           {isBriefing
             ? <span className="shrink-0 rounded-full bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-secondary" title="Delivery channel">{loop.channel ?? "gmail"}</span>
-            : <span className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent" title={AUTONOMY_BLURB[autonomy]}>{AUTONOMY_LABEL[autonomy]}</span>}
+            : <span className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent" title={AUTONOMY_BLURB[autonomy]}>{LOOP_AUTONOMY_LABEL[autonomy]}</span>}
         </button>
         {!done && (
           <Toggle on={loop.enabled} onChange={(v) => onChange({ enabled: v })} label={`${loop.name} enabled`} />
@@ -834,7 +834,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
               </select>
             ) : (
               <select value={autonomy} onChange={(e) => onChange({ autonomy: e.target.value as LoopAutonomy })} className="rounded-md border border-border bg-background px-2 py-1 text-xs" title={AUTONOMY_BLURB[autonomy]}>
-                {(["suggest", "tasks", "ask", "auto"] as LoopAutonomy[]).map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a]}</option>)}
+                {(["suggest", "tasks", "ask", "auto"] as LoopAutonomy[]).map((a) => <option key={a} value={a}>{LOOP_AUTONOMY_LABEL[a]}</option>)}
               </select>
             )}
             <select value={loop.status} onChange={(e) => onChange({ status: e.target.value as Loop["status"] })} className="rounded-md border border-border bg-background px-2 py-1 text-xs" title="Loop status">

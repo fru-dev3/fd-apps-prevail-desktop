@@ -6,7 +6,7 @@ import { siWhatsapp } from "simple-icons";
 import { PrevailLogo } from "./PrevailLogo";
 import { ProviderMark } from "./marks";
 import { invoke, setWebToken } from "./bridge";
-import { INTEGRATION_LABEL, PATTERN_LABEL, PATTERN_TIER, PATTERN_TINT, STATUS_TINT } from "./constants";
+import { INTEGRATION_LABEL, STATUS_TINT } from "./constants";
 import { favKeyOf, useFavorites } from "./appfavorites";
 import { formatFreshness, scoreColor, titleCase } from "./format";
 import { track } from "./telemetry";
@@ -18,11 +18,11 @@ const TELEMETRY_DAEMONS: Record<string, string> = {
   "Distill": "distill", "Reminders": "reminders", "Task Gen": "taskgen", "Skill Gen": "skillgen",
 };
 import { bytesHuman, compactNum, fmtCost, formatAuditedAt } from "./helpers";
-import { LS, PREF, getPref, lsGet, lsSet, setPref } from "./storage";
+import { LS, PREF, cheapModel, getPref, lsGet, lsSet, setPref } from "./storage";
 import { Markdown } from "./Markdown";
 import { InsightsDisclosure } from "./widgets";
 import { AppRowLogo } from "./panels3";
-import type { AlignmentReport, BackupResult, BrandLogo, CatalogApp, Connector, ContextScore, DaemonStatus, DirectProvider, Domain, DomainTask, EngineApp, IngestionAction, IngestionAuditEntry, PreambleOption, SkillEntry, SurfaceResult, TabId, ThreadMeta, UsageBucket } from "./types";
+import type { AlignmentReport, BackupResult, BrandLogo, ContextScore, DaemonStatus, Domain, DomainTask, EngineApp, IngestionAuditEntry, PreambleOption, SkillEntry, SurfaceResult, TabId, ThreadMeta, UsageBucket } from "./types";
 
 export function QuickSwitcher({
   vaultPath,
@@ -190,7 +190,7 @@ export function LockScreen({ vault, encrypted, onUnlock }: { vault: string | nul
   // Touch ID is offered only for the plaintext app lock - it authenticates the
   // user but doesn't release an encryption key, so an encrypted vault still
   // needs the passcode to derive the DEK.
-  const touchIdOn = !encrypted && lsGet("prevail.pref.touchIdLock") === "1";
+  const touchIdOn = !encrypted && lsGet(PREF.touchIdLock) === "1";
   async function tryTouchId() {
     setErr("");
     try {
@@ -896,7 +896,7 @@ export function SurfacePanel({ vaultPath, domain, onPick, onAddTask }: { vaultPa
         vault: vaultPath,
         domain,
         provider: getPref(PREF.memoryProvider, "claude"),
-        model: getPref(PREF.distillModel, "claude-haiku-4-5"),
+        model: cheapModel(),
         force,
       });
       setData(r);
@@ -1121,7 +1121,7 @@ export function NewSkillForm({ vaultPath, domain, seed, onCreated }: { vaultPath
     setDrafting(true);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       const md = await invoke<string>("engine_skill_draft", { vault: vaultPath, domain, name: name.trim(), describe: describe.trim(), provider, model });
       const { title, body: inner } = splitSkillMd(md);
       if (title && !name.trim()) setName(title);
@@ -1154,7 +1154,7 @@ export function NewSkillForm({ vaultPath, domain, seed, onCreated }: { vaultPath
     setErr(""); setSuggesting(true);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       const res = await invoke<{ ok: boolean; ideas?: SkillIdea[]; error?: string }>("engine_skill_ideas", { vault: vaultPath, domain, provider, model });
       if (res?.ok) setIdeas(res.ideas ?? []);
       else setErr(res?.error || "Could not suggest skills right now.");
@@ -1782,14 +1782,6 @@ export function SubsectionHeader({
   );
 }
 
-export function GroupLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`mb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-text-muted ${className}`}>
-      {children}
-    </div>
-  );
-}
-
 export function DaemonCard({
   name,
   status,
@@ -1961,87 +1953,6 @@ export function SettingsRowLite({ title, desc, control }: { title: string; desc:
   );
 }
 
-export function DirectProviderMark({ p }: { p: DirectProvider }) {
-  return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-white">
-      {p.path ? (
-        <svg width={17} height={17} viewBox="0 0 24 24" fill={p.hex ?? "#111"} aria-hidden><path d={p.path} /></svg>
-      ) : (
-        <span className="font-mono text-[10px] font-semibold text-text-muted">{p.mono}</span>
-      )}
-    </span>
-  );
-}
-
-export function ConnectorIcon({ c }: { c: Connector }) {
-  return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-white">
-      {c.brand ? (
-        <svg width={16} height={16} viewBox="0 0 24 24" fill={`#${c.brand.hex}`} aria-hidden>
-          <path d={c.brand.path} />
-        </svg>
-      ) : c.icon ? (
-        <c.icon className="h-[16px] w-[16px]" style={{ color: c.color }} />
-      ) : null}
-    </span>
-  );
-}
-
-// Deterministic monogram colors from an app name - a tasteful per-brand hue
-// (low-saturation tinted tile + darker same-hue letters) so apps without a real
-// logo still look intentional and stay scannable. The catalog has hundreds of
-// apps; most have no brand glyph, so the fallback has to carry its weight.
-function appMonoColor(name: string): { bg: string; fg: string } {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  const hue = h % 360;
-  return { bg: `hsl(${hue} 42% 91%)`, fg: `hsl(${hue} 58% 34%)` };
-}
-function appInitials(name: string): string {
-  const words = name.replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-export function AppLogo({ app, logos }: { app: CatalogApp; logos: Record<string, BrandLogo> }) {
-  const logo = app.iconSlug ? logos[app.iconSlug] : undefined;
-  if (logo) {
-    return (
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-white">
-        <svg width={16} height={16} viewBox="0 0 24 24" fill={`#${logo.hex}`} aria-hidden>
-          <path d={logo.path} />
-        </svg>
-      </span>
-    );
-  }
-  const { bg, fg } = appMonoColor(app.name);
-  return (
-    <span
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md font-display text-[11px] font-bold leading-none"
-      style={{ backgroundColor: bg, color: fg }}
-      title={app.name}
-      aria-hidden
-    >
-      {appInitials(app.name)}
-    </span>
-  );
-}
-
-export function PatternChip({ pattern }: { pattern: string }) {
-  const label = PATTERN_LABEL[pattern] ?? pattern;
-  const tint = PATTERN_TINT[pattern] ?? "#9aa0a6";
-  return (
-    <span
-      className="shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
-      style={{ color: tint, borderColor: `${tint}55`, backgroundColor: `${tint}14` }}
-      title={PATTERN_TIER[pattern] ?? pattern}
-    >
-      {label}
-    </span>
-  );
-}
-
 export function AppLockCard() {
   const [lockSet, setLockSet] = useState<boolean | null>(null);
   const [value, setValue] = useState("");
@@ -2080,7 +1991,7 @@ export function AppLockCard() {
       setNote("App lock removed. Your vault data is unchanged. Set a new passcode below.");
     } catch (e) { setNote(`Reset failed: ${String(e)}`); } finally { setBusy(false); }
   }
-  const [touchId, setTouchId] = useState(() => getPref("prevail.pref.touchIdLock", "0") === "1");
+  const [touchId, setTouchId] = useState(() => getPref(PREF.touchIdLock, "0") === "1");
   if (lockSet === null) return null;
   return (
     <div className="mb-4 rounded-lg border border-border bg-surface p-5">
@@ -2115,7 +2026,7 @@ export function AppLockCard() {
             <input
               type="checkbox"
               checked={touchId}
-              onChange={(e) => { setTouchId(e.target.checked); setPref("prevail.pref.touchIdLock", e.target.checked ? "1" : "0"); }}
+              onChange={(e) => { setTouchId(e.target.checked); setPref(PREF.touchIdLock, e.target.checked ? "1" : "0"); }}
             />
             Offer Touch ID on the lock screen. The passcode path is always available independently.
           </label>
@@ -2386,147 +2297,6 @@ export function IngestionAuditPanel() {
             );
           })}
         </ul>
-      )}
-    </div>
-  );
-}
-
-export function RecipeActionEditor({
-  actions,
-  onChange,
-}: {
-  actions: IngestionAction[];
-  onChange: (next: IngestionAction[]) => void;
-}) {
-  type ActionType = IngestionAction["type"];
-
-  function update(i: number, patch: Partial<IngestionAction>) {
-    const next = actions.slice();
-    next[i] = { ...next[i], ...patch } as IngestionAction;
-    onChange(next);
-  }
-  function remove(i: number) {
-    onChange(actions.filter((_, idx) => idx !== i));
-  }
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= actions.length) return;
-    const next = actions.slice();
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-  }
-  function add(type: ActionType) {
-    let a: IngestionAction;
-    switch (type) {
-      case "goto":               a = { type: "goto", url: "" }; break;
-      case "click":              a = { type: "click", selector: "" }; break;
-      case "wait_for":           a = { type: "wait_for", selector: "" }; break;
-      case "select_option":      a = { type: "select_option", selector: "", value: "" }; break;
-      case "download_all_links": a = { type: "download_all_links", selector: "" }; break;
-      case "sleep":              a = { type: "sleep", seconds: 2 }; break;
-    }
-    onChange([...actions, a]);
-  }
-
-  return (
-    <div className="mt-2 rounded-md border border-border-subtle bg-background px-3 py-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-text-muted">
-          Post-login steps
-          <span className="rounded-full bg-surface-warm px-1.5 py-0 text-[10px] text-text-secondary">{actions.length}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <select
-            value=""
-            onChange={(e) => { if (e.target.value) { add(e.target.value as ActionType); e.target.value = ""; } }}
-            className="rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-secondary focus:border-accent-border focus:outline-none"
-          >
-            <option value="">+ add step</option>
-            <option value="goto">goto url</option>
-            <option value="click">click selector</option>
-            <option value="wait_for">wait for selector</option>
-            <option value="select_option">select option</option>
-            <option value="download_all_links">download all links</option>
-            <option value="sleep">sleep</option>
-          </select>
-        </div>
-      </div>
-
-      {actions.length === 0 ? (
-        <p className="mt-1 text-xs text-text-muted">
-          No automation. Runner stops after login; trigger downloads manually in the headed window.
-        </p>
-      ) : (
-        <ol className="mt-2 flex flex-col gap-1.5">
-          {actions.map((a, i) => (
-            <li key={i} className="flex items-start gap-2 rounded border border-border-subtle bg-surface px-2 py-1.5">
-              <div className="mt-0.5 flex shrink-0 flex-col items-center gap-0.5">
-                <button onClick={() => move(i, -1)} disabled={i === 0} className="text-[10px] text-text-muted hover:text-accent disabled:opacity-30">▲</button>
-                <button onClick={() => move(i, 1)} disabled={i === actions.length - 1} className="text-[10px] text-text-muted hover:text-accent disabled:opacity-30">▼</button>
-              </div>
-              <span className="mt-0.5 rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent">
-                {a.type.replace(/_/g, " ")}
-              </span>
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                {a.type === "goto" && (
-                  <input
-                    value={a.url}
-                    onChange={(e) => update(i, { url: e.target.value } as Partial<IngestionAction>)}
-                    placeholder="https://..."
-                    className="rounded border border-border-subtle bg-background px-2 py-0.5 font-mono text-[11px] focus:border-accent-border focus:outline-none"
-                  />
-                )}
-                {(a.type === "click" || a.type === "wait_for" || a.type === "select_option" || a.type === "download_all_links") && (
-                  <input
-                    value={(a as { selector: string }).selector}
-                    onChange={(e) => update(i, { selector: e.target.value } as Partial<IngestionAction>)}
-                    placeholder="CSS selector, e.g. a[href*='.pdf']"
-                    className="rounded border border-border-subtle bg-background px-2 py-0.5 font-mono text-[11px] focus:border-accent-border focus:outline-none"
-                  />
-                )}
-                {a.type === "select_option" && (
-                  <input
-                    value={a.value}
-                    onChange={(e) => update(i, { value: e.target.value } as Partial<IngestionAction>)}
-                    placeholder="option value"
-                    className="rounded border border-border-subtle bg-background px-2 py-0.5 font-mono text-[11px] focus:border-accent-border focus:outline-none"
-                  />
-                )}
-                {a.type === "download_all_links" && (
-                  <input
-                    type="number"
-                    min={1}
-                    max={200}
-                    value={a.max ?? ""}
-                    onChange={(e) => update(i, { max: e.target.value ? parseInt(e.target.value, 10) : undefined } as Partial<IngestionAction>)}
-                    placeholder="max downloads (optional)"
-                    className="rounded border border-border-subtle bg-background px-2 py-0.5 font-mono text-[11px] focus:border-accent-border focus:outline-none"
-                  />
-                )}
-                {a.type === "sleep" && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={60}
-                      value={a.seconds}
-                      onChange={(e) => update(i, { seconds: parseInt(e.target.value, 10) || 1 } as Partial<IngestionAction>)}
-                      className="w-20 rounded border border-border-subtle bg-background px-2 py-0.5 font-mono text-[11px] focus:border-accent-border focus:outline-none"
-                    />
-                    <span className="font-mono text-[10px] text-text-muted">seconds</span>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => remove(i)}
-                title="Remove step"
-                className="shrink-0 rounded border border-border bg-background px-1.5 py-0 font-mono text-[11px] text-text-muted hover:border-warn hover:text-warn"
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ol>
       )}
     </div>
   );

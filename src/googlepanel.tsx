@@ -20,7 +20,7 @@ import type { LucideIcon } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke, listen } from "./bridge";
 import { favKeyOf, toggleFavorite, useFavorites } from "./appfavorites";
-import { PREF, getPref, setDomainToggle } from "./storage";
+import { PREF, cheapModel, getPref, setDomainToggle } from "./storage";
 import { AppRowLogo } from "./panels3";
 import { ConnectorRunPanel, type ConnectorRunMode } from "./connectorrun";
 import type { BrandLogo, ChatEvent } from "./types";
@@ -314,7 +314,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
     setDraftBusy(true); setDraftErr(null);
     try {
       const provider = getPref(PREF.memoryProvider, "claude");
-      const model = getPref(PREF.distillModel, "claude-haiku-4-5");
+      const model = cheapModel();
       const text = await invoke<string>("engine_app_draft_ideal", { id: GOOGLE_APP_ID, provider, model, vault: vaultPath });
       if (text?.trim()) { setSoulDraft(text.trim()); setEditSoul(true); }
     } catch (e) { setDraftErr(String(e)); }

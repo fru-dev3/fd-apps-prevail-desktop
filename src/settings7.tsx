@@ -1,8 +1,8 @@
 // Settings sections extracted from App.tsx: Providers (API-key activation +
 // OpenRouter catalog) and Models (the per-provider model catalog), plus the
 // refreshDiscoveredModels helper they share (imported from helpers2).
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, ChevronDown, Clock, Globe, Layers, Loader2, Sparkles, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Check, Globe, Layers, Loader2, Sparkles, Zap } from "lucide-react";
 import { invoke } from "./bridge";
 import { CollapsibleSection } from "./collapsible";
 import { DISCOVERED_MODELS } from "./constants";
@@ -24,113 +24,6 @@ import { AgentsSection } from "./settings6";
 import { OrVendorMark, orVendorOf } from "./providermarks";
 import { ProviderMark } from "./marks";
 import type { CliInfo } from "./types";
-
-// Auto-refresh cadence: how often model lists re-discover and providers
-// re-validate. Stored as a preset key OR "custom:<days>" for an arbitrary
-// interval, so the user is never boxed into the presets.
-const REFRESH_PRESETS: { value: string; label: string }[] = [
-  { value: "launch", label: "Every launch" },
-  { value: "daily", label: "Daily" },
-  { value: "3days", label: "Every 3 days" },
-  { value: "weekly", label: "Weekly" },
-  { value: "2weeks", label: "Every 2 weeks" },
-  { value: "monthly", label: "Monthly" },
-  { value: "manual", label: "Manual only" },
-];
-const DAY_MS = 86_400_000;
-const LEGACY_REFRESH_LABEL: Record<string, string> = {
-  "2days": "Every other day",
-  "3months": "Every 3 months",
-  "6months": "Every 6 months",
-};
-const LEGACY_REFRESH_MS: Record<string, number> = {
-  "2days": 2 * DAY_MS,
-  "3months": 91 * DAY_MS,
-  "6months": 182 * DAY_MS,
-};
-
-export function refreshPeriodMs(p: string): number {
-  if (p === "launch") return 0;
-  if (p === "manual") return Infinity;
-  const custom = /^custom:(\d+)$/.exec(p);
-  if (custom) return Math.max(1, parseInt(custom[1], 10)) * DAY_MS;
-  const presetMs: Record<string, number> = {
-    daily: DAY_MS, "3days": 3 * DAY_MS, weekly: 7 * DAY_MS, "2weeks": 14 * DAY_MS, monthly: 30 * DAY_MS,
-  };
-  return presetMs[p] ?? LEGACY_REFRESH_MS[p] ?? 0;
-}
-
-function refreshPeriodLabel(p: string): string {
-  const preset = REFRESH_PRESETS.find((x) => x.value === p);
-  if (preset) return preset.label;
-  const custom = /^custom:(\d+)$/.exec(p);
-  if (custom) { const n = parseInt(custom[1], 10); return `Every ${n} day${n === 1 ? "" : "s"}`; }
-  return LEGACY_REFRESH_LABEL[p] ?? p;
-}
-
-// On-brand cadence picker: a chip that opens a styled popover of presets plus a
-// "every N days" custom field. Replaces the native <select> (no OS dropdown, and
-// any interval is reachable).
-// Vestigial after the Runtimes status strip was removed; kept (exported) in case
-// an explicit cadence picker returns. Not currently rendered.
-export function RefreshCadence({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [days, setDays] = useState(() => { const m = /^custom:(\d+)$/.exec(value); return m ? m[1] : "3"; });
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-  const commitCustom = () => {
-    const n = Math.max(1, Math.min(365, parseInt(days, 10) || 1));
-    onChange(`custom:${n}`); setDays(String(n)); setOpen(false);
-  };
-  const isCustom = /^custom:/.test(value);
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        title="How often model lists auto-refresh and providers re-validate"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary transition-colors hover:border-accent-border hover:text-accent"
-      >
-        <Clock className="h-3 w-3" />
-        {refreshPeriodLabel(value)}
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-60 overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
-          <div className="border-b border-border-subtle px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">Auto-refresh cadence</div>
-          <ul className="p-1">
-            {REFRESH_PRESETS.map((p) => (
-              <li key={p.value}>
-                <button
-                  onClick={() => { onChange(p.value); setOpen(false); }}
-                  className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-accent-soft"
-                >
-                  <span className={value === p.value ? "font-semibold text-accent" : "text-text-secondary"}>{p.label}</span>
-                  {value === p.value && <Check className="h-3.5 w-3.5 text-accent" />}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className={`flex items-center gap-2 border-t border-border-subtle px-3 py-2 ${isCustom ? "bg-accent-soft/40" : ""}`}>
-            <span className="text-[11px] text-text-muted">Every</span>
-            <input
-              type="number" min={1} max={365} value={days}
-              onChange={(e) => setDays(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") commitCustom(); }}
-              className="w-14 rounded border border-border bg-background px-2 py-1 text-[13px] text-text-primary outline-none focus:border-accent-border"
-            />
-            <span className="text-[11px] text-text-muted">days</span>
-            <button onClick={commitCustom} className="ml-auto rounded border border-accent-border bg-accent px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-background hover:opacity-90">Set</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function ProvidersSection({ onActivated, embedded }: { onActivated?: () => Promise<CliInfo[]>; embedded?: boolean }) {
   const [key, setKey] = useState("");

@@ -4,7 +4,7 @@
 // primitives give panels a consistent, designed baseline.
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Loader2, Monitor } from "lucide-react";
+import { Monitor } from "lucide-react";
 import { isBrowser } from "./bridge";
 
 export function EmptyState({
@@ -55,13 +55,4 @@ export function DesktopOnly({ children, feature, inline }: { children: ReactNode
     );
   }
   return <EmptyState icon={Monitor} title="Desktop only" body={`${feature} is configured in the Prevail desktop app, not the web view.`} />;
-}
-
-export function LoadingState({ label = "Loading…" }: { label?: string }) {
-  return (
-    <div className="flex items-center justify-center gap-2 px-6 py-12 text-sm text-text-muted">
-      <Loader2 className="h-4 w-4 animate-spin text-ai" />
-      {label}
-    </div>
-  );
 }
