@@ -113,7 +113,11 @@ export function ChatPanel({
   setDomainTab,
   active = true,
   phone = false,
+  phoneMic,
 }: {
+  /// Rendered inside the composer action row on a phone: the hold-to-talk
+  /// mic. It belongs beside Send, not in a strip of its own below the card.
+  phoneMic?: React.ReactNode;
   domain: string | null;
   domainPath: string | null;
   // Where threads are stored/listed. Defaults to `domain`. An open app passes
@@ -3355,10 +3359,13 @@ export function ChatPanel({
                 title="Pick runtime (model + how it runs)"
               >
                 {selectedCli && <ProviderMark vendor={selectedCli} size={18} />}
-                <span className="font-mono text-xs text-text-primary">
-                  {selectedCliLabel}
+                <span className={`truncate font-mono text-xs text-text-primary ${phone ? "max-w-[7rem]" : "max-w-[9rem]"}`}>
+                  {/* One pill, so it has to say the useful half: the model when
+                      one is actually pinned, otherwise who is answering.
+                      "Auto" alone tells you nothing. */}
+                  {phone ? (selectedModelLabel && selectedModelLabel.toLowerCase() !== "auto" ? selectedModelLabel : selectedCliLabel) : selectedCliLabel}
                 </span>
-                {selectedModelLabel && (
+                {!phone && selectedModelLabel && (
                   <span className="font-mono text-xs text-text-muted">· {selectedModelLabel}</span>
                 )}
                 <svg className="h-3 w-3 text-text-muted" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -3466,6 +3473,8 @@ export function ChatPanel({
               )}
             </div>
 
+            {phoneMic}
+
             {/* Phone already has a Chat | Council toggle in its header, so this
                 pill would be the same trip twice. */}
             {!phone && <button
@@ -3501,13 +3510,28 @@ export function ChatPanel({
                       });
                     }}
                     title="Stop the reply"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-err bg-err/10 px-4 py-1.5 text-sm font-semibold text-err hover:bg-err hover:text-background"
+                    aria-label="Stop"
+                    className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-err bg-err/10 font-semibold text-err hover:bg-err hover:text-background ${phone ? "h-11 w-11 text-lg" : "px-4 py-1.5 text-sm"}`}
                   >
-                    ■ Stop
+                    {phone ? "\u25A0" : "\u25A0 Stop"}
                   </button>
                 );
               }
-              return (
+              // Phone: a round arrow, the shape every messaging app uses. The
+              // word "Send" plus a model pill plus a mic does not fit one row
+              // at 360px, and a wrapped row costs another 44px of a short
+              // screen.
+              return phone ? (
+                <button
+                  onClick={send}
+                  disabled={!input.trim() || !selectedCli}
+                  title="Send"
+                  aria-label="Send"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-background shadow-sm transition-all disabled:bg-surface-strong disabled:text-text-muted"
+                >
+                  <ArrowUpRight className="h-5 w-5" />
+                </button>
+              ) : (
                 <button
                   onClick={send}
                   disabled={!input.trim() || !selectedCli}

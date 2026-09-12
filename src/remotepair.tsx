@@ -56,6 +56,13 @@ function ago(ms: number): string {
   return `${Math.round(s / 86400)} d ago`;
 }
 
+// A phone polls while its tab is open, so silence for two minutes means the
+// screen went off or the tab was closed, not that it is mid-request.
+const LIVE_WINDOW_MS = 120_000;
+function isLive(d: Device): boolean {
+  return Date.now() - d.last_seen_ms < LIVE_WINDOW_MS;
+}
+
 const BREW_CLOUDFLARED = "brew install cloudflared";
 
 function CopyButton({ text, label = "Copy address" }: { text: string; label?: string }) {
@@ -295,7 +302,7 @@ function DeviceList({ devices, onChanged }: { devices: Device[]; onChanged: (s: 
     <div className="border-t border-border-subtle px-5 py-4" data-testid="remote-devices">
       <div className="mb-2 flex items-center justify-between">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-          Connected phones{devices.length > 0 ? ` (${devices.length})` : ""}
+          Connected phones{devices.length > 0 ? ` (${devices.filter(isLive).length} of ${devices.length} live)` : ""}
         </div>
         {devices.length > 0 && (
           <button onClick={() => void revokeAll()} disabled={busy !== ""} className="text-xs text-text-muted underline hover:text-warn disabled:opacity-50">
@@ -308,12 +315,21 @@ function DeviceList({ devices, onChanged }: { devices: Device[]; onChanged: (s: 
       ) : (
         <div className="divide-y divide-border-subtle">
           {devices.map((d) => (
-            <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2" data-device={d.id}>
+            <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5" data-device={d.id}>
+              {/* A live green pulse, because "is my phone actually connected"
+                  should be answerable from across the room. It goes grey when
+                  we have not heard from the device in a couple of minutes,
+                  which on a phone usually means the screen is off. */}
+              <span className="relative flex h-2.5 w-2.5 shrink-0" title={isLive(d) ? "Connected now" : "Idle"} data-live={isLive(d) ? "1" : "0"}>
+                {isLive(d) && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-75" />}
+                <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${isLive(d) ? "bg-ok" : "bg-text-muted/40"}`} />
+              </span>
               <Smartphone className="h-4 w-4 shrink-0 text-text-muted" />
               <span className="text-sm font-medium text-text-primary">{d.label}</span>
               <span className="font-mono text-[11px] text-text-muted">{d.ip}</span>
-              <span className="min-w-0 flex-1 text-[11px] text-text-muted">
-                {d.via === "qr" ? "paired by code" : "signed in"}, active {ago(d.last_seen_ms)}
+              <span className="min-w-0 flex-1 text-[11px]">
+                <span className={isLive(d) ? "font-semibold text-ok" : "text-text-muted"}>{isLive(d) ? "Connected" : `Idle, last seen ${ago(d.last_seen_ms)}`}</span>
+                <span className="text-text-muted">{d.via === "qr" ? " · paired by code" : " · signed in"}</span>
               </span>
               <button onClick={() => void revoke(d.id)} disabled={busy !== ""} className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-text-muted hover:border-warn/50 hover:text-warn disabled:opacity-50">
                 Disconnect

@@ -13,6 +13,7 @@ import { BridgeStatusChips, DemoRibbon, ResizeHandle } from "./widgets";
 import { useProcesses } from "./processes";
 import { OnboardingModal } from "./panels3";
 import { BunkerRibbon, VaultWizard } from "./shell";
+import { PhoneVoiceBar } from "./phonevoice";
 // Heavy surfaces are code-split: each loads its own chunk on first use instead of
 // inflating the initial bundle (and the live memory footprint). SettingsPanel
 // alone transitively pulls in every settings section, so deferring it is the
@@ -1724,6 +1725,7 @@ export default function App() {
                 domainTab={domainTab}
                 setDomainTab={setDomainTab}
                 phone={phone}
+                phoneMic={phone ? <PhoneVoiceBar vaultPath={vaultPath} domain={selectedDomain} /> : undefined}
               />
             )}
             {/* Council STAYS MOUNTED (hidden) on other tabs so a convened council
@@ -1790,7 +1792,9 @@ export default function App() {
   // Footer ribbons (demo sandbox / Bunker). On a phone they sit above the tab bar.
   const ribbons = (
     <>
-      <BunkerRibbon enabled={bunkerEnabled} compact={phone} />
+      {/* Desktop only. Three tiny mono labels is a poor use of the ~30px it
+          costs on a phone, and every one of them is reachable in Settings. */}
+      {!phone && <BunkerRibbon enabled={bunkerEnabled} compact={false} />}
       <DemoRibbon onSwitch={() => openSettingsAt("demo")} />
     </>
   );
