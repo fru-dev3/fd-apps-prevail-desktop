@@ -382,4 +382,41 @@ mod tests {
     fn transcript_is_one_clean_paragraph() {
         assert_eq!(clean_transcript(" Book the dentist.\n\n[BLANK_AUDIO]\n for   Tuesday \n"), "Book the dentist. for Tuesday");
     }
+
+    /// The real pipeline, end to end, on synthesized speech: `say` makes the
+    /// audio, ffmpeg encodes it the way a phone would (opus in webm), and the
+    /// same transcribe_file the command calls has to read words back out. This
+    /// is what catches a wrong whisper/hear flag, which no amount of unit
+    /// testing around it would.
+    ///
+    /// It SKIPS (rather than fails) when the machine has no transcriber or no
+    /// ffmpeg, so CI and a fresh checkout stay green; installing whisper-cpp
+    /// plus a model, which is what voice needs anyway, turns it on.
+    #[test]
+    fn speech_goes_in_and_words_come_out() {
+        let have_engine = (find_bin(&["whisper-cli", "whisper-cpp", "whisper"]).is_some() && whisper_model().is_some())
+            || find_bin(&["hear"]).is_some();
+        if !have_engine || find_bin(&["ffmpeg"]).is_none() || find_bin(&["say"]).is_none() {
+            eprintln!("skipping: no local transcriber, ffmpeg or say on this machine");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("prevail-voice-test-{:x}", rand::random::<u64>()));
+        fs::create_dir_all(&dir).expect("mkdir");
+        let aiff = dir.join("src.aiff");
+        let webm = dir.join("phone.webm");
+        let ok = std::process::Command::new("say")
+            .arg("-o").arg(&aiff).arg("Book the dentist for Tuesday morning")
+            .status().map(|s| s.success()).unwrap_or(false);
+        assert!(ok, "`say` could not synthesize the test audio");
+        let ok = std::process::Command::new(find_bin(&["ffmpeg"]).unwrap())
+            .args(["-y", "-loglevel", "error", "-i"]).arg(&aiff)
+            .args(["-c:a", "libopus"]).arg(&webm)
+            .status().map(|s| s.success()).unwrap_or(false);
+        assert!(ok, "ffmpeg could not encode the phone-format recording");
+
+        let out = transcribe_file(&webm).expect("transcription failed");
+        let text = out.text.to_ascii_lowercase();
+        let _ = fs::remove_dir_all(&dir);
+        assert!(text.contains("dentist"), "transcript lost the words: {:?} (backend {})", out.text, out.backend);
+    }
 }

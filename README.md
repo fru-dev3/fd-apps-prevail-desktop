@@ -75,6 +75,7 @@ Prefer to click? **[Download the `.dmg`](https://github.com/fru-dev3/prevail-des
 - **Self-learning memory**: raw intent ledger → distilled per-domain `_memory.md`, always reusable.
 - **Council & benchmarks**: multi-model deliberation plus a built-in benchmark viewer.
 - **Gateway (Telegram), MCP** (consume *and* expose), **Providers**, and a **Remote WebUI**: the *same* UI in a browser, allowlisted and off by default. Loopback only until you turn on "Reachable from other devices", which adds your Wi-Fi and Tailscale addresses, and an optional one-tap Cloudflare tunnel for an https address you can reach from anywhere.
+- **Phone, with your voice**: open the WebUI on a phone and it becomes a thumb-sized client of your Mac, installable to the home screen. Hold the mic to talk instead of typing. Transcription runs **on the Mac**, never on a third-party service, so the Mac needs one local engine: `brew install whisper-cpp` plus a `ggml-*.bin` model in `~/.prevail/models` (a good default is `ggml-base.en.bin`), or `brew install hear` for Apple's on-device speech. `ffmpeg` converts the phone's recording. Browsers only open the microphone on a secure origin, so voice needs the https address from "Share over the internet" (`brew install cloudflared`); over plain Wi-Fi everything else still works.
 - **Quality of life**: usage dashboard, in-app auto-update, start-on-boot, tray, export/import config.
 
 ## Screenshots
