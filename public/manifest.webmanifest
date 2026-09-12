@@ -1,0 +1,17 @@
+{
+  "name": "Prevail",
+  "short_name": "Prevail",
+  "description": "Your private AI that learns your life. This is the same Prevail app, served from your own Mac.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0d1f",
+  "theme_color": "#0a0d1f",
+  "icons": [
+    { "src": "/logo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/logo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/logo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

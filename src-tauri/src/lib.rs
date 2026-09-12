@@ -294,9 +294,12 @@ pub fn run() {
             if let (Ok(u), Ok(p)) = (std::env::var("PREVAIL_WEBUI_USER"), std::env::var("PREVAIL_WEBUI_PASS")) {
                 if !u.is_empty() && !p.is_empty() {
                     let port: u16 = std::env::var("PREVAIL_WEBUI_PORT").ok().and_then(|s| s.parse().ok()).unwrap_or(8787);
+                    // PREVAIL_WEBUI_REMOTE=1 binds to the Tailscale/LAN address
+                    // so phones can reach a headless instance.
+                    let remote = std::env::var("PREVAIL_WEBUI_REMOTE").map(|v| v == "1").unwrap_or(false);
                     let handle = app.handle().clone();
                     let st = app.state::<webui::WebuiState>();
-                    let _ = st.start(handle, port, u, p);
+                    let _ = st.start(handle, port, u, p, remote);
                 }
             }
 

@@ -225,6 +225,7 @@ export const PREF = {
   webuiPort: "prevail.pref.webuiPort",                     // integer port
   webuiUser: "prevail.pref.webuiUser",                     // login username
   webuiPass: "prevail.pref.webuiPass",                     // login password (local only)
+  webuiRemote: "prevail.pref.webuiRemote",                 // "1" | "0": reachable from other devices (Tailscale/LAN)
   // Heartbeat (X1) — ambient proactivity: nudge you during active hours when
   // approvals/overdue work are waiting. Default on, 8-22, min 3h between nudges.
   heartbeatEnabled: "prevail.pref.heartbeatEnabled",       // "1" | "0"
