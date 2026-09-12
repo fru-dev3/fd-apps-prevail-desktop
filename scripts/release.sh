@@ -90,9 +90,38 @@ fi
 [ -f "$DMG" ] || die "DMG not found at $DMG"
 
 step "Notarize + staple the DMG"
-xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 20m
-xcrun stapler staple "$DMG"
-xcrun stapler validate "$DMG"
+# Already stapled (e.g. resuming after a later step failed)? Nothing to do:
+# re-notarizing a ticketed DMG just burns ten minutes for the same answer.
+if xcrun stapler validate "$DMG" >/dev/null 2>&1; then
+  echo "already notarized + stapled, skipping"
+else
+  # NOTE: do NOT use `notarytool submit --wait`. Its wait loop crashes with a
+  # Bus error (stack overflow in the NIO networking thread while formatting a
+  # status string) — reproduced twice on v0.3.115, submission never even
+  # started. Plain `submit` uploads fine, so we poll `info` ourselves. That is
+  # also more debuggable: the submission id is printed and survives a crash.
+  SUB_JSON="$(xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --output-format json)"
+  SUB_ID="$(python3 -c 'import sys,json;print(json.loads(sys.stdin.read()).get("id",""))' <<<"$SUB_JSON")"
+  [ -n "$SUB_ID" ] || die "notarytool did not return a submission id: $SUB_JSON"
+  echo "submission: $SUB_ID"
+  NOTARY_STATUS=""
+  for _ in $(seq 1 80); do   # 80 x 15s = 20 minutes, the old --wait timeout
+    sleep 15
+    INFO="$(xcrun notarytool info "$SUB_ID" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --output-format json 2>/dev/null || true)"
+    NOTARY_STATUS="$(python3 -c 'import sys,json
+try: print(json.loads(sys.stdin.read()).get("status",""))
+except Exception: print("")' <<<"$INFO")"
+    echo "  status: ${NOTARY_STATUS:-unknown}"
+    case "$NOTARY_STATUS" in Accepted|Invalid|Rejected) break;; esac
+  done
+  if [ "$NOTARY_STATUS" != "Accepted" ]; then
+    echo "notarization did not pass ($NOTARY_STATUS). Apple's log:"
+    xcrun notarytool log "$SUB_ID" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" 2>&1 | head -40 || true
+    die "notarization failed for $SUB_ID"
+  fi
+  xcrun stapler staple "$DMG"
+  xcrun stapler validate "$DMG"
+fi
 
 step "GATE: Gatekeeper test on a quarantined copy (must be Notarized Developer ID)"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
