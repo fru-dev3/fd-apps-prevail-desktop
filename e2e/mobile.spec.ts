@@ -87,6 +87,79 @@ test("Domains lists General + the fixture domains; tapping career opens its chat
   await noHorizontalScroll(page, "council");
 });
 
+// Voice: the mic is held (pointerdown), the fake recorder produces a blob on
+// release, transcription is a mocked invoke, and the transcript must land in
+// the composer textarea where Send would take it. getUserMedia + MediaRecorder
+// are stubbed in an init script because headless Chromium has no microphone.
+test("hold the mic, release, the transcript lands in the composer; Save as note files it", async ({ page }) => {
+  await page.addInitScript(() => {
+    // navigator.mediaDevices is a prototype getter with no setter: a plain
+    // assignment is silently dropped and the real (device-less) API answers.
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: async () => ({ getTracks: () => [{ stop: () => {} }] }) },
+    });
+    class FakeRecorder {
+      static isTypeSupported(t: string) { return t.startsWith("audio/webm"); }
+      state = "inactive";
+      mimeType = "audio/webm";
+      ondataavailable: ((e: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      constructor(_s: unknown, opts?: { mimeType?: string }) { if (opts?.mimeType) this.mimeType = opts.mimeType; }
+      start() { this.state = "recording"; }
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable?.({ data: new Blob([new Uint8Array(64)], { type: this.mimeType }) });
+        this.onstop?.();
+      }
+    }
+    (window as unknown as { MediaRecorder: unknown }).MediaRecorder = FakeRecorder;
+  });
+  await mockTauri(page, {
+    engine_score_all: { life_readiness: 62, computed_at: "2026-09-11", domains: [{ domain: "career", score: 70 }] },
+    transcribe_audio: { text: "Book the dentist for Tuesday morning", backend: "stub" },
+    voice_note_capture: "n_voice_1",
+  });
+  await page.goto("/");
+  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await tabBar(page).getByRole("button", { name: "Domains" }).click();
+  await page.locator("[data-domain=career]").click();
+  await expect(page.locator("[data-tour=composer] textarea")).toBeVisible();
+
+  const mic = page.getByRole("button", { name: "Hold to talk" });
+  await expect(mic).toBeVisible();
+  const box = await mic.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  await mic.dispatchEvent("pointerdown", { pointerId: 1, clientX: 40, clientY: 700, isPrimary: true });
+  const held = page.getByRole("button", { name: "Recording, release to transcribe" });
+  await expect(held).toBeVisible();
+  await expect(page.getByTestId("phone-voice-timer")).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/phone-voice-recording.png`, fullPage: false });
+  await noHorizontalScroll(page, "voice recording");
+
+  await page.waitForTimeout(500); // past the tap-vs-hold threshold
+  await held.dispatchEvent("pointerup", { pointerId: 1, clientX: 40, clientY: 700, isPrimary: true });
+  await expect(page.locator("[data-tour=composer] textarea")).toHaveValue("Book the dentist for Tuesday morning", { timeout: 10_000 });
+  await expect(page.getByTestId("phone-voice-status")).toContainText("Fix a word");
+  await page.screenshot({ path: `${SHOTS}/phone-voice-transcribed.png`, fullPage: false });
+  await noHorizontalScroll(page, "voice transcribed");
+  // Transcription ran through the Mac-side command, with the audio inline
+  // (the mocked window is the Tauri path; a browser would upload first).
+  const calls = await page.evaluate(() => (window as unknown as { __invokeLog: Array<{ cmd: string; args: { base64?: string; ext?: string } }> }).__invokeLog.filter((e) => e.cmd === "transcribe_audio"));
+  expect(calls).toHaveLength(1);
+  expect(calls[0].args.ext).toBe("webm");
+  expect((calls[0].args.base64 ?? "").length).toBeGreaterThan(0);
+
+  // Save as note files it into the current domain with the voice source.
+  await page.getByRole("button", { name: "Save as note" }).click();
+  await expect(page.getByText("Saved to notes")).toBeVisible();
+  const notes = await page.evaluate(() => (window as unknown as { __invokeLog: Array<{ cmd: string; args: { domain?: string; text?: string } }> }).__invokeLog.filter((e) => e.cmd === "voice_note_capture"));
+  expect(notes).toHaveLength(1);
+  expect(notes[0].args.domain).toBe("career");
+  expect(notes[0].args.text).toBe("Book the dentist for Tuesday morning");
+  await expect(page.locator("[data-tour=composer] textarea")).toHaveValue("");
+});
+
 test("Needs you shows the approval queues", async ({ page }) => {
   await tabBar(page).getByRole("button", { name: "Needs you" }).click();
   await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible();

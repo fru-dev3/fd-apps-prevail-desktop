@@ -63,6 +63,7 @@ mod telegram_bridge;
 mod watchdog;
 mod webhook_bridge;
 mod webui;
+mod voice;
 mod integrations;
 
 use std::fs;
@@ -450,6 +451,8 @@ pub fn run() {
             webui::webui_start,
             webui::webui_stop,
             webui::webui_status,
+            webui::webui_tunnel_start,
+            webui::webui_tunnel_stop,
             webui::webui_resolve,
             webui::webui_event,
             distill::distill_start,
@@ -513,6 +516,8 @@ pub fn run() {
             appcmds::write_paste_attachment,
             appcmds::write_paste_image,
             appcmds::write_voice_note,
+            voice::transcribe_audio,
+            voice::voice_note_capture,
             appcmds::save_session,
             chat::verify_cli_model,
             chat::model_oneshot,
@@ -718,8 +723,17 @@ pub fn run() {
             email_bridge::email_bridge_stop,
             email_bridge::email_bridge_status,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            // The internet tunnel is a separate cloudflared process; it does
+            // not die with its parent, so kill it here or the public address
+            // keeps pointing at a port nobody answers.
+            if let tauri::RunEvent::Exit = event {
+                use tauri::Manager;
+                app.state::<webui::WebuiState>().stop_tunnel();
+            }
+        });
 }
 
 #[cfg(test)]

@@ -74,6 +74,9 @@ export async function mockTauri(page: Page, overrides: Record<string, unknown> =
     localStorage.setItem("prevail.onboarding.encryptOffered", "1");
     const log: Array<{ cmd: string; args: unknown }> = [];
     (window as unknown as Record<string, unknown>).__invokeLog = log;
+    // The live fixture table, so a test can change what a command answers
+    // mid-flow (a status that flips after an action) via page.evaluate.
+    (window as unknown as Record<string, unknown>).__fixtures = fx;
     let cb = 0;
     // The event plugin's unlisten path reaches this internal directly.
     (window as unknown as Record<string, unknown>).__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
