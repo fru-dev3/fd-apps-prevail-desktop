@@ -92,13 +92,21 @@ except Exception:
 PY
 )"
 fi
-if [ -f "$UPDATER_KEY" ] && [ "$UPDATER_MATCHES" = "1" ]; then
+if [ -f "$UPDATER_KEY" ]; then
+  # Always hand tauri the key when we have one. tauri.conf.json declares
+  # createUpdaterArtifacts with a pubkey, and `tauri build` ERRORS at the very
+  # end ("a public key has been found, but no private key") if the private key
+  # is absent — after the DMG is already built and signed, killing the release
+  # for nothing. Whether the resulting signature is USABLE is a separate
+  # question, answered by UPDATER_MATCHES at publish time below.
   export TAURI_SIGNING_PRIVATE_KEY="$(cat "$UPDATER_KEY")"
   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
-  echo "updater artifacts will be signed"
-elif [ -f "$UPDATER_KEY" ]; then
-  echo "WARN: $UPDATER_KEY does NOT match the app's updater pubkey — publishing DMG only."
-  echo "      (a feed signed with it would be refused by every installed client)"
+  if [ "$UPDATER_MATCHES" = "1" ]; then
+    echo "updater artifacts will be signed and published"
+  else
+    echo "WARN: $UPDATER_KEY does NOT match the app's updater pubkey — publishing DMG only."
+    echo "      (a feed signed with it would be refused by every installed client)"
+  fi
 else
   echo "WARN: $UPDATER_KEY missing — auto-update artifacts will be unsigned/skipped"
 fi
