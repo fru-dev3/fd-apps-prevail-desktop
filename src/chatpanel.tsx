@@ -112,6 +112,7 @@ export function ChatPanel({
   domainTab,
   setDomainTab,
   active = true,
+  phone = false,
 }: {
   domain: string | null;
   domainPath: string | null;
@@ -156,6 +157,10 @@ export function ChatPanel({
   // surface claims the global drag-attach hook so a dropped app/domain lands
   // here and not in the hidden-but-mounted council panel (and vice versa).
   active?: boolean;
+  // Rendered inside the phone shell: the domain identity lives in the shell's
+  // own big header (so the in-panel strip is dropped), the side context rail
+  // has no room, and the composer placeholder is short.
+  phone?: boolean;
 }) {
   const available = useMemo(() => clis.filter((c) => c.available), [clis]);
   // Thread storage scope: the app's own space when given, else the domain.
@@ -657,7 +662,8 @@ export function ChatPanel({
         const label = `auto: ${titleCase(domain)}/state.md`;
         setPrimedContext((cur) => {
           const cleared = cur.filter((x) => !x.label.startsWith("auto:"));
-          if (!c.state) return cleared;
+          // Null-tolerant: a null body from the engine must not crash the panel.
+          if (!c?.state) return cleared;
           return [...cleared, { label, body: c.state }];
         });
       })
@@ -2304,7 +2310,7 @@ export function ChatPanel({
           archive moved up to the top tab bar; the score badge opens the
           context view. When no domain is active there's no header at all -
           the empty state owns the canvas. */}
-      {inDomainDetail ? detailHeader : domain && !isApp && (
+      {inDomainDetail ? detailHeader : domain && !isApp && !phone && (
         <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-4 py-2">
           {(() => {
             const I = domainIcon(domain);
@@ -3135,7 +3141,7 @@ export function ChatPanel({
                 }
               }
             }}
-            placeholder={history.length > 0 ? "ask anything · enter to send · ↑ history · / skills · $ context" : "ask anything · enter to send · / skills · $ context · shift+enter for newline"}
+            placeholder={phone ? "Ask anything" : history.length > 0 ? "ask anything · enter to send · ↑ history · / skills · $ context" : "ask anything · enter to send · / skills · $ context · shift+enter for newline"}
             rows={2}
             className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
           />
@@ -3521,7 +3527,7 @@ export function ChatPanel({
           preferredSet={preferredSkillsSet}
           onTogglePreferred={togglePreferredSkill}
         />
-      ) : (
+      ) : phone ? null : (
         <button
           onClick={() => setContextOpen(true)}
           title="Show context"

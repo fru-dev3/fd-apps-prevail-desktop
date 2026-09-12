@@ -42,6 +42,7 @@ export function CouncilPanel({
   seedAutoConvene,
   onSeedConsumed,
   active = true,
+  phone = false,
 }: {
   domain: string | null;
   domainPath: string | null;
@@ -63,6 +64,10 @@ export function CouncilPanel({
       mounted (so a convened run keeps streaming) but ignores shared-thread
       changes driven by chat, so it doesn't clobber its own run/verdict. */
   active?: boolean;
+  // Rendered inside the phone shell: the domain identity lives in the shell's
+  // own big header (so the in-panel strip is dropped), the side context rail
+  // has no room, and the composer placeholder is short.
+  phone?: boolean;
 }) {
   // Thread storage scope (app space when set), else the grounding domain.
   const tDomain = threadDomain !== undefined ? threadDomain : domain;
@@ -316,7 +321,8 @@ export function CouncilPanel({
         const label = `auto: ${titleCase(domain)}/state.md`;
         setPrimedContext((cur) => {
           const cleared = cur.filter((x) => !x.label.startsWith("auto:"));
-          if (!c.state) return cleared;
+          // Null-tolerant: a null body from the engine must not crash the panel.
+          if (!c?.state) return cleared;
           return [...cleared, { label, body: c.state }];
         });
       })
@@ -995,6 +1001,7 @@ export function CouncilPanel({
         </div>
       )}
       {/* Minimal header - same shape as Chat. Domain + Finder on left. */}
+      {!phone && (
       <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-6 py-3">
         {domain ? (
           <>
@@ -1024,6 +1031,7 @@ export function CouncilPanel({
           {panelistSlots.length} on panel
         </span>
       </div>
+      )}
 
       {/* Hero / transcript area */}
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -1416,7 +1424,7 @@ export function CouncilPanel({
                 convene();
               }
             }}
-            placeholder="ask the council · enter to convene · / skills · $ context · shift+enter for newline"
+            placeholder={phone ? "Ask the council" : "ask the council · enter to convene · / skills · $ context · shift+enter for newline"}
             rows={2}
             disabled={phase === "panelists" || phase === "synthesizing"}
             className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-50"
@@ -1748,7 +1756,7 @@ export function CouncilPanel({
           preferredSet={preferredSkillsSet}
           onTogglePreferred={togglePreferredSkill}
         />
-      ) : (
+      ) : phone ? null : (
         // Collapsed: a thin chevron rail to expand the context sidebar - no
         // labeled button, just the collapse/expand affordance.
         <button

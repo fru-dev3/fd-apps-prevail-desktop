@@ -314,6 +314,11 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
   const [availOpen, setAvailOpen] = useState(() => { try { return localStorage.getItem("prevail.apps.availOpen") !== "0"; } catch { return true; } });
   const toggleMyList = useCallback(() => setMyListOpen((v) => { const n = !v; try { localStorage.setItem("prevail.apps.myListOpen", n ? "1" : "0"); } catch { /* ignore */ } return n; }), []);
   const toggleAvail = useCallback(() => setAvailOpen((v) => { const n = !v; try { localStorage.setItem("prevail.apps.availOpen", n ? "1" : "0"); } catch { /* ignore */ } return n; }), []);
+  // Catalog honesty: only `curated` entries ship skills, so only they can sync
+  // after Connect. The long tail (~1,300 apps) has to be taught by browser
+  // first. It stays hidden by default and is revealed by an explicit control,
+  // labeled as such, instead of looking like 1,496 ready-to-go connectors.
+  const [showAllCatalog, setShowAllCatalog] = useState(false);
   // Real brand marks for every connector (AllTrails, Booking.com, Garmin, …),
   // loaded once and shared by the list rows + the detail header via AppRowLogo so
   // logos render identically here, in the per-domain list, and in the connect flow.
@@ -691,9 +696,10 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
       const hay = `${c.name} ${c.domain} ${(c.tags ?? []).join(" ")}`.toLowerCase();
       return hay.includes(q);
     });
-    // DEFAULT view = the curated launch set only (~200). Searching reveals the
-    // full catalog so the long tail is reachable, just not shown by default.
-    const pool = searching ? searchMatched : searchMatched.filter((c) => c.curated === true);
+    // DEFAULT view = the curated launch set only (~200): the entries that ship
+    // skills and can actually sync. Searching, or the explicit "Show all"
+    // control, reveals the full catalog so the long tail is reachable.
+    const pool = searching || showAllCatalog ? searchMatched : searchMatched.filter((c) => c.curated === true);
     const ranked = [...pool].sort((a, b) => {
       const score = (c: CatalogApp) => (c.curated ? 0 : 2) + (c.tier === 1 ? 0 : 1) - (c.verified ? 1 : 0);
       const d = score(a) - score(b);
@@ -702,10 +708,13 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
     // Perf: the catalog is ~1500 apps; rendering every match on each keystroke is
     // the dominant cost while searching. Cap the rendered rows (the best-ranked
     // ones surface first); `total` still reports the true match count so the UI
-    // can say "showing N of M - refine to narrow."
-    const RENDER_CAP = 80;
-    return { shown: ranked.slice(0, RENDER_CAP), total: ranked.length, capped: ranked.length > RENDER_CAP, searching, fullCount: deduped.length };
-  }, [apps, catalog, query, lane, isPinnedApp]);
+    // can say "showing N of M - refine to narrow." "Show all" renders once (no
+    // keystroke churn), and curated ranks first, so it must not be capped or
+    // the uncurated rest would never appear.
+    const RENDER_CAP = searching || !showAllCatalog ? 80 : Number.POSITIVE_INFINITY;
+    const curatedCount = searchMatched.filter((c) => c.curated === true).length;
+    return { shown: ranked.slice(0, RENDER_CAP), total: ranked.length, capped: ranked.length > RENDER_CAP, searching, fullCount: deduped.length, uncuratedCount: deduped.length - curatedCount };
+  }, [apps, catalog, query, lane, isPinnedApp, showAllCatalog]);
 
   const liveCount = directApps.filter((a) => appStatus(a) === "connected").length;
 
@@ -1017,10 +1026,16 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
                         />
                         );
                       })}
-                      {availOpen && !catalogView.searching && catalogView.fullCount > catalogView.total && (
-                        <div className="px-1 pt-0.5 text-[10px] text-text-muted/70">
-                          {catalogView.total} curated apps · search to find any of {catalogView.fullCount}
-                        </div>
+                      {/* The honest split: curated apps ship skills and sync; the
+                          rest must be taught by browser first, so they are
+                          revealed on purpose, never mistaken for ready ones. */}
+                      {availOpen && !catalogView.searching && catalogView.uncuratedCount > 0 && (
+                        <button onClick={() => setShowAllCatalog((v) => !v)}
+                          className="px-1 pt-0.5 text-left text-[10px] text-text-muted/70 transition-colors hover:text-accent">
+                          {showAllCatalog
+                            ? `Show curated only (${catalogView.fullCount - catalogView.uncuratedCount} ready to sync)`
+                            : `Show all (needs teaching) · ${catalogView.uncuratedCount} more`}
+                        </button>
                       )}
                     </section>
                   )}
@@ -1102,7 +1117,21 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
                   onSync={async () => {}}
                   onSetEnabled={() => {}}
                   onReload={reload}
-                  connect={{ onConnect: () => connectCatalogApp(catalogPick), connecting: catalogConnecting, soul: catalogPick.soul, skills: catalogPick.skills, onResearch: () => setConnecting(true) }}
+                  connect={{
+                    // Uncurated entries ship no skills, so a plain Connect would
+                    // create an app that never syncs. Route them into the existing
+                    // browser-learn flow: scaffold, then land on the Skills tab's
+                    // compose step (pendingAutolearn carries that across the remount).
+                    onConnect: () => {
+                      if (catalogPick.curated !== true) pendingAutolearn = { id: catalogToApp(catalogPick).id, goal: "", compose: true };
+                      void connectCatalogApp(catalogPick);
+                    },
+                    connecting: catalogConnecting,
+                    soul: catalogPick.soul,
+                    skills: catalogPick.skills,
+                    onResearch: () => setConnecting(true),
+                    teach: catalogPick.curated !== true,
+                  }}
                 />
               </>
             ) : selected === "google" ? (
@@ -2206,12 +2235,21 @@ function CatalogRow({ app, logos, active, onSelect, isFav, onToggleFav }: {
   const meta = STATUS_META.disconnected;
   const method = METHOD_META[methodOf(app)].label;
   const category = titleCase(app.domain || (app.tags && app.tags[0]) || "");
+  // Only curated entries ship skills; the rest cannot sync until taught, so say
+  // so on the row itself (always visible, unlike the hover-only RowMeta).
+  const needsTeaching = app.curated !== true;
   return (
     <div className={rowCls(active)}>
       <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5 text-left">
         <AppRowLogo app={catalogLogoApp(app)} logos={logos} size={28} fallback="letter" />
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>{app.name}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className={`truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>{app.name}</span>
+            {needsTeaching && (
+              <span title="No starter skills yet. Connect opens the browser-learn flow so Prevail can be taught what to fetch."
+                className={`shrink-0 rounded border px-1 py-px font-mono text-[9px] uppercase tracking-wider ${active ? "border-background/40 text-background/80" : "border-border text-text-muted"}`}>Teach by browser</span>
+            )}
+          </span>
           <RowMeta method={method} category={category} active={active} />
         </span>
       </button>
@@ -2423,7 +2461,10 @@ function ChromeLogo({ size = 28 }: { size?: number }) {
 // this carries the goal across that remount so learning starts automatically,
 // without a separate "Connect" step. Keyed by the derived app id (which
 // catalogToApp and connectCatalogApp compute identically).
-let pendingAutolearn: { id: string; goal: string } | null = null;
+// `compose`: open the "tell me what to fetch" step instead of learning at once,
+// used when Connect on an uncurated (skill-less) catalog app routes here and
+// there is no goal yet to learn from.
+let pendingAutolearn: { id: string; goal: string; compose?: boolean } | null = null;
 
 function catalogToApp(c: CatalogApp): EngineApp {
   return {
@@ -2906,7 +2947,9 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
   // Set when this is an un-added CATALOG app: the SAME detail view renders, but
   // the primary action is Connect (not Sync), and connected-only bits are muted.
   // This is what makes catalog + connected apps share one view.
-  connect?: { onConnect: () => void; connecting: boolean; soul?: string; skills?: CatalogSkill[]; onResearch?: () => void };
+  // `teach`: the catalog entry ships no skills, so Connect scaffolds the app and
+  // lands in the browser-learn flow rather than pretending it can sync as-is.
+  connect?: { onConnect: () => void; connecting: boolean; soul?: string; skills?: CatalogSkill[]; onResearch?: () => void; teach?: boolean };
   // When set, this app is fronted by a managed gateway (Composio / Nango) rather
   // than connected directly. The per-method auth UI (Method picker + login /
   // credentials / MCP-setup) is meaningless for a gateway app, so it is hidden;
@@ -3037,8 +3080,13 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
   useEffect(() => {
     if (pendingAutolearn && pendingAutolearn.id === app.id && !connect) {
       setGoalText(pendingAutolearn.goal);
-      setComposing(false);
-      setLearnMode("learn");
+      if (pendingAutolearn.compose) {
+        setComposing(true);
+        setLearnMode(null);
+      } else {
+        setComposing(false);
+        setLearnMode("learn");
+      }
       setTab("skills");
       pendingAutolearn = null;
     }
@@ -3318,7 +3366,9 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
   // (Run setup / Learn a skill add the app on first run) and the button is dropped.
   const ConnectBtn = ({ label }: { label: string }) => (
     <button onClick={() => connect?.onConnect()} disabled={connect?.connecting}
-      title="Add this app to your vault so you can teach it skills and set its schedule. Skills can run without this."
+      title={connect?.teach
+        ? "This app has no starter skills yet. Add it to your vault, then teach Prevail what to fetch in your browser; it cannot sync until then."
+        : "Add this app to your vault so you can teach it skills and set its schedule. Skills can run without this."}
       className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-background hover:bg-accent-hover disabled:opacity-60">
       {connect?.connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {connect?.connecting ? "Adding…" : label}
     </button>
@@ -3386,7 +3436,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                   <Sparkles className="h-4 w-4" />
                 </button>
               )}
-              {hasRunnableSkills ? null : <ConnectBtn label="Add" />}
+              {hasRunnableSkills ? null : <ConnectBtn label={connect?.teach ? "Teach by browser" : "Add"} />}
             </>
           ) : (
             <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-app", { detail: app }))} title="Open in chat"
