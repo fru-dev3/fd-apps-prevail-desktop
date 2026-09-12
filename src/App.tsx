@@ -1,5 +1,5 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { invoke, listen, isBrowser, getWebToken, type UnlistenFn } from "./bridge";
+import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode, type UnlistenFn } from "./bridge";
 import { useIsPhone } from "./useisphone";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -41,7 +41,7 @@ import { startOmegaScheduler } from "./omega";
 import { OnboardingTour } from "./onboarding";
 import { VaultEncryptPrompt, vaultEncryptOffered } from "./vault-encrypt-prompt";
 import { migrateModelPrefs } from "./helpers2";
-import { AppHeaderBar, DomainActionsMenu, LockScreen, QuickSwitcher, ThreadsRail, WebLogin } from "./panels";
+import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
 import { EDITOR_NAV, WORK_NAV } from "./navdefs";
 
@@ -249,6 +249,22 @@ export default function App() {
   // WebUI login gate - in a browser tab the app must authenticate to the
   // bridge server before any invoke works. On the desktop this is always true.
   const [webAuthed, setWebAuthed] = useState(() => !isBrowser() || !!getWebToken());
+  // Arriving from a scanned QR code: the address carries a one-shot pairing
+  // code, which we trade for a session token before anything renders, so the
+  // phone never sees a password field. A code always wins over a stored token,
+  // because the usual reason to re-scan is that the old token went stale when
+  // the Mac's bridge restarted.
+  const [pairing, setPairing] = useState(() => isBrowser() && !!pendingPairCode());
+  useEffect(() => {
+    if (!pairing) return;
+    let alive = true;
+    void redeemPairCode().then((ok) => {
+      if (!alive) return;
+      if (ok) setWebAuthed(true);
+      setPairing(false);
+    });
+    return () => { alive = false; };
+  }, [pairing]);
   // Desktop app lock (F4 Phase 0). If a passcode is set we gate the whole app
   // behind a lock screen until it's entered this session. Browser sessions use
   // the WebUI login instead, so the lock only applies on the desktop.
@@ -1191,6 +1207,18 @@ export default function App() {
       if (s) openWorkAt(s);
     };
     window.addEventListener("prevail:work-section", onWorkSection as EventListener);
+    // The Editor sidebar needs the same treatment, and did not have it: its
+    // items dispatched a bare event that SettingsPanel answers from its own
+    // listener. Switch to Editor and click an item before that lazy panel has
+    // mounted and the event lands on nobody, dropping the user on General.
+    // Routing through openSettingsAt carries the section in as a prop instead,
+    // so it survives the mount. SettingsPanel keeps its listener for
+    // in-settings deep links, which arrive when it is already up.
+    const onEditorSection = (e: Event) => {
+      const s = (e as CustomEvent<string>).detail;
+      if (s && !s.includes(":")) openSettingsAt(s);
+    };
+    window.addEventListener("prevail:settings-section", onEditorSection as EventListener);
     // Jump straight to a domain (from the Recommendations "Open" action or the
     // Loop Board). "" = General (a real domain now), so accept any string.
     const onOpenDomain = (e: Event) => {
@@ -1223,6 +1251,7 @@ export default function App() {
     return () => {
       window.removeEventListener("prevail:open-settings", onOpen as EventListener);
       window.removeEventListener("prevail:work-section", onWorkSection as EventListener);
+      window.removeEventListener("prevail:settings-section", onEditorSection as EventListener);
       window.removeEventListener("prevail:open-domain", onOpenDomain as EventListener);
       window.removeEventListener("prevail:domain-tab", onDomainTabEvt as EventListener);
       window.removeEventListener("prevail:new-chat", onNewChat);
@@ -1521,6 +1550,7 @@ export default function App() {
     }
   }
 
+  if (isBrowser() && pairing) return <PairingScreen />;
   if (isBrowser() && !webAuthed) return <WebLogin onAuthed={() => setWebAuthed(true)} />;
   if (!isBrowser() && (lockSet || vaultEncrypted) && !unlocked) return <LockScreen vault={vaultPath} encrypted={vaultEncrypted} onUnlock={() => setUnlocked(true)} />;
   if (!vaultPath) return <VaultWizard onPick={pickVault} />;

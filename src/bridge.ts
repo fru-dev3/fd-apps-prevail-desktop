@@ -35,6 +35,50 @@ function token(): string {
 }
 export function isBrowser(): boolean { return !isTauri; }
 
+// ── QR pairing ────────────────────────────────────────────────────────
+// The QR code on the Mac carries a one-shot code in the URL FRAGMENT
+// (`#p=...`). A fragment is never sent to any server, so the code stays out of
+// request logs and out of the Cloudflare tunnel; only this script reads it.
+// Trading it for a session token is what spares the user from typing a
+// password on a phone keyboard.
+export function pendingPairCode(): string {
+  if (typeof window === "undefined") return "";
+  const h = window.location.hash.replace(/^#/, "");
+  const code = new URLSearchParams(h).get("p") ?? "";
+  return /^[a-f0-9]{16,128}$/i.test(code) ? code : "";
+}
+
+// Strip the code from the address bar so it is not left in history, in a
+// screenshot, or in a link the user shares afterwards.
+function forgetPairCode(): void {
+  try {
+    const h = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    h.delete("p");
+    const rest = h.toString();
+    window.history.replaceState(null, "", window.location.pathname + window.location.search + (rest ? `#${rest}` : ""));
+  } catch { /* history unavailable, the code just stays in the bar */ }
+}
+
+export async function redeemPairCode(): Promise<boolean> {
+  const code = pendingPairCode();
+  if (!code) return false;
+  try {
+    const res = await fetch("/api/pair", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { token?: string };
+    if (!res.ok || !j.token) return false;
+    setWebToken(j.token);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    forgetPairCode();
+  }
+}
+
 export async function invoke<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (isTauri) return tauriInvoke<T>(cmd, args);
   const res = await fetch("/api/invoke", {
