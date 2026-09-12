@@ -322,6 +322,26 @@
   html, body, #root {
     height: 100%;
   }
+  /* Phone: the page itself must never scroll, the way a native app does not.
+     `height: 100%` resolves against the LARGE viewport on mobile Safari, the
+     one measured with the URL bar hidden, so the document ends up taller than
+     what you can actually see and the whole app slides under your thumb. The
+     dynamic viewport unit is the visible height, URL bar and all, so pinning
+     html to it and hiding overflow makes the shell exact. Scrolling still
+     happens, inside the per-screen containers that should own it.
+     Matches PHONE_MAX_PX in useisphone.ts, which is what swaps in PhoneShell. */
+  @media (max-width: 767px) {
+    html {
+      height: 100vh;  /* floor for anything without dvh support */
+      height: 100dvh;
+    }
+    body, #root {
+      height: 100%;
+      overflow: hidden;
+      /* No rubber-band bounce past the edges: that reads as a web page. */
+      overscroll-behavior: none;
+    }
+  }
   body {
     @apply bg-background text-text-primary antialiased;
     font-feature-settings: "ss01" 1, "cv11" 1;

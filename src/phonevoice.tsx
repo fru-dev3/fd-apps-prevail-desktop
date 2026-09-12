@@ -204,7 +204,7 @@ export function PhoneVoiceBar({ vaultPath, domain, composerRoot }: {
   const domainLabel = domain ? domain : "General";
 
   return (
-    <div data-testid="phone-voice" className="shrink-0 border-t border-border-subtle bg-surface px-3 py-2">
+    <div data-testid="phone-voice" className="shrink-0 border-t border-border-subtle bg-surface px-3 py-1.5">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -216,17 +216,17 @@ export function PhoneVoiceBar({ vaultPath, domain, composerRoot }: {
           onPointerUp={onUp}
           onPointerCancel={() => stop(true)}
           onContextMenu={(e) => e.preventDefault()}
-          className={`relative flex h-14 w-14 shrink-0 select-none items-center justify-center rounded-full transition-colors disabled:opacity-40 ${recording ? "bg-accent text-on-accent" : "bg-accent-soft text-accent ring-1 ring-inset ring-accent-border"}`}
+          className={`relative flex h-12 w-12 shrink-0 select-none items-center justify-center rounded-full transition-colors disabled:opacity-40 ${recording ? "bg-accent text-on-accent" : "bg-accent-soft text-accent ring-1 ring-inset ring-accent-border"}`}
           style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" } as React.CSSProperties}
         >
           {recording && <span aria-hidden className="pulse-soft absolute -inset-1.5 rounded-full ring-[3px] ring-accent/60" />}
-          <Mic className="h-6 w-6" />
+          <Mic className="h-5 w-5" />
         </button>
 
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
           {recording ? (
             <>
-              <span className="font-mono text-[22px] font-semibold tabular-nums text-accent" data-testid="phone-voice-timer">{mmss(seconds)}</span>
+              <span className="font-mono text-[19px] font-semibold tabular-nums text-accent" data-testid="phone-voice-timer">{mmss(seconds)}</span>
               <span className="text-[12px] text-text-muted">Listening. Release to transcribe, slide away to cancel.</span>
             </>
           ) : busy ? (

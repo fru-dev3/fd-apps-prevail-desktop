@@ -22,12 +22,40 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
 });
 
+// A native app does not scroll as a whole: the shell is exactly the screen,
+// and only the surface inside it scrolls. If the document grows past the
+// viewport the entire app slides under your thumb, which is the tell that this
+// is a web page in a costume.
+async function fitsTheScreen(page: Page, label: string) {
+  const { sh, ch } = await page.evaluate(() => ({ sh: document.documentElement.scrollHeight, ch: document.documentElement.clientHeight }));
+  expect(sh, `${label}: the page itself scrolls vertically (${sh} > ${ch})`).toBeLessThanOrEqual(ch + 1);
+}
+
 async function noHorizontalScroll(page: Page, label: string) {
   const { sw, cw } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
   expect(sw, `${label}: page scrolls horizontally (${sw} > ${cw})`).toBeLessThanOrEqual(cw + 1);
 }
 
 const tabBar = (page: Page) => page.getByRole("navigation", { name: "Primary" });
+
+// The shell is pinned to the visible viewport, not the layout viewport. On
+// mobile Safari `height: 100%` resolves against the taller URL-bar-hidden
+// viewport, which is what made the whole app slide under your thumb.
+test("the shell is pinned to the screen: no page scrolling, no rubber band", async ({ page }) => {
+  const css = await page.evaluate(() => {
+    const b = getComputedStyle(document.body);
+    return {
+      overflow: b.overflow,
+      overscroll: b.overscrollBehaviorY,
+      htmlH: document.documentElement.getBoundingClientRect().height,
+      innerH: window.innerHeight,
+    };
+  });
+  expect(css.overflow).toBe("hidden");
+  expect(css.overscroll).toBe("none");
+  // The document box is the screen, to the pixel.
+  expect(Math.abs(css.htmlH - css.innerH)).toBeLessThanOrEqual(1);
+});
 
 test("bottom tab bar: four tabs, Chat active, no desktop rail", async ({ page }) => {
   const nav = tabBar(page);
@@ -46,6 +74,7 @@ test("bottom tab bar: four tabs, Chat active, no desktop rail", async ({ page })
   await expect(page.getByText("Work board")).toBeHidden();
   await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
   await noHorizontalScroll(page, "home");
+  await fitsTheScreen(page, "home");
 });
 
 test("Domains lists General + the fixture domains; tapping career opens its chat", async ({ page }) => {
@@ -57,6 +86,7 @@ test("Domains lists General + the fixture domains; tapping career opens its chat
   await expect(page.locator("[data-domain=career]")).toContainText("70");
   await page.screenshot({ path: `${SHOTS}/phone-domains.png`, fullPage: false });
   await noHorizontalScroll(page, "domains");
+  await fitsTheScreen(page, "domains");
 
   await page.locator("[data-domain=career]").click();
   await expect(tabBar(page).getByRole("button", { name: "Chat" })).toHaveAttribute("aria-current", "page");
@@ -70,6 +100,7 @@ test("Domains lists General + the fixture domains; tapping career opens its chat
   expect(composer!.y + composer!.height).toBeLessThanOrEqual(nav!.y + 1);
   await page.screenshot({ path: `${SHOTS}/phone-chat.png`, fullPage: false });
   await noHorizontalScroll(page, "chat");
+  await fitsTheScreen(page, "chat");
 
   // Threads sheet opens and closes.
   await page.getByRole("button", { name: /Threads/ }).click();
@@ -85,6 +116,7 @@ test("Domains lists General + the fixture domains; tapping career opens its chat
   await expect(page.getByText("This section didn't load")).toHaveCount(0);
   await page.screenshot({ path: `${SHOTS}/phone-council.png`, fullPage: false });
   await noHorizontalScroll(page, "council");
+  await fitsTheScreen(page, "council");
 });
 
 // Voice: the mic is held (pointerdown), the fake recorder produces a blob on
@@ -136,6 +168,7 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
   await expect(page.getByTestId("phone-voice-timer")).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/phone-voice-recording.png`, fullPage: false });
   await noHorizontalScroll(page, "voice recording");
+  await fitsTheScreen(page, "voice recording");
 
   await page.waitForTimeout(500); // past the tap-vs-hold threshold
   await held.dispatchEvent("pointerup", { pointerId: 1, clientX: 40, clientY: 700, isPrimary: true });
@@ -143,6 +176,7 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
   await expect(page.getByTestId("phone-voice-status")).toContainText("Fix a word");
   await page.screenshot({ path: `${SHOTS}/phone-voice-transcribed.png`, fullPage: false });
   await noHorizontalScroll(page, "voice transcribed");
+  await fitsTheScreen(page, "voice transcribed");
   // Transcription ran through the Mac-side command, with the audio inline
   // (the mocked window is the Tauri path; a browser would upload first).
   const calls = await page.evaluate(() => (window as unknown as { __invokeLog: Array<{ cmd: string; args: { base64?: string; ext?: string } }> }).__invokeLog.filter((e) => e.cmd === "transcribe_audio"));
@@ -167,6 +201,7 @@ test("Needs you shows the approval queues", async ({ page }) => {
   await expect(page.getByText("Gmail: send")).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/phone-needs.png`, fullPage: false });
   await noHorizontalScroll(page, "needs");
+  await fitsTheScreen(page, "needs");
 });
 
 test("Settings renders as a list, opens a section, and deep links land on the section", async ({ page }) => {
@@ -175,11 +210,13 @@ test("Settings renders as a list, opens a section, and deep links land on the se
   await expect(page.getByRole("button", { name: "Privacy" })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/phone-settings.png`, fullPage: false });
   await noHorizontalScroll(page, "settings list");
+  await fitsTheScreen(page, "settings list");
 
   await page.getByRole("button", { name: "Privacy" }).click();
   await expect(page.getByText("Bunker Mode").first()).toBeVisible({ timeout: 10_000 });
   await page.waitForTimeout(300);
   await noHorizontalScroll(page, "settings section");
+  await fitsTheScreen(page, "settings section");
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page.getByRole("button", { name: "Privacy" })).toBeVisible();
 
@@ -188,4 +225,5 @@ test("Settings renders as a list, opens a section, and deep links land on the se
   await page.waitForTimeout(800);
   await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
   await noHorizontalScroll(page, "settings deep link");
+  await fitsTheScreen(page, "settings deep link");
 });

@@ -41,7 +41,7 @@ import { startOmegaScheduler } from "./omega";
 import { OnboardingTour } from "./onboarding";
 import { VaultEncryptPrompt, vaultEncryptOffered } from "./vault-encrypt-prompt";
 import { migrateModelPrefs } from "./helpers2";
-import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin } from "./panels";
+import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin, WebVaultLinking } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
 import { EDITOR_NAV, WORK_NAV } from "./navdefs";
 
@@ -298,6 +298,11 @@ export default function App() {
   // vault physically lives on the desktop machine, so the browser's own
   // localStorage path is meaningless - start empty and always inherit the
   // desktop's authoritative vault from the backend (see the effect below).
+  // The phone has no vault of its own and never should: the vault lives on the
+  // Mac, and this client is a window onto it. So in a browser we wait for the
+  // Mac to tell us its vault rather than ever asking the user to pick a folder.
+  const [webVaultTried, setWebVaultTried] = useState(false);
+  const webVaultPull = useRef<null | (() => Promise<void>)>(null);
   const [vaultPath, setVaultPath] = useState<string | null>(() =>
     isBrowser() ? null : localStorage.getItem(LS.vault),
   );
@@ -548,8 +553,10 @@ export default function App() {
         try {
           const bp = await invoke<string | null>("bootstrap_vault");
           if (bp) setVaultPath((cur) => (cur === bp ? cur : bp));
-        } catch { /* ignore */ }
+          setWebVaultTried(true);
+        } catch { setWebVaultTried(true); }
       };
+      webVaultPull.current = pull;
       // Mirror the desktop's pins / model picks / toggles, then pull its vault,
       // then nudge a re-render so the hydrated prefs take effect.
       void hydrateUiPrefs().then(() => pull()).then(() => setUiPrefsNonce((n) => n + 1));
@@ -1553,6 +1560,12 @@ export default function App() {
   if (isBrowser() && pairing) return <PairingScreen />;
   if (isBrowser() && !webAuthed) return <WebLogin onAuthed={() => setWebAuthed(true)} />;
   if (!isBrowser() && (lockSet || vaultEncrypted) && !unlocked) return <LockScreen vault={vaultPath} encrypted={vaultEncrypted} onUnlock={() => setUnlocked(true)} />;
+  // A browser client never picks a vault. It either has the Mac's vault or it
+  // is still asking for it; a folder picker here would offer to choose a
+  // directory on a phone, which is meaningless.
+  if (isBrowser() && !vaultPath) {
+    return <WebVaultLinking resolving={!webVaultTried} onRetry={() => { setWebVaultTried(false); void webVaultPull.current?.(); }} />;
+  }
   if (!vaultPath) return <VaultWizard onPick={pickVault} />;
 
   // The left Sidebar is shared across every mode (chat, Work, Editor) so the

@@ -10,7 +10,7 @@ import { FIXTURES } from "./tauri-mock";
 
 const CODE = "deadbeefdeadbeefdeadbeefdeadbeef";
 
-async function serveBridge(page: import("@playwright/test").Page, opts: { pairStatus?: number } = {}) {
+async function serveBridge(page: import("@playwright/test").Page, opts: { pairStatus?: number; overrides?: Record<string, unknown> } = {}) {
   const pairCalls: string[] = [];
   await page.route("**/api/pair", async (route) => {
     pairCalls.push(route.request().postData() ?? "");
@@ -23,7 +23,8 @@ async function serveBridge(page: import("@playwright/test").Page, opts: { pairSt
   });
   await page.route("**/api/invoke", async (route) => {
     const { cmd } = JSON.parse(route.request().postData() || "{}") as { cmd: string };
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: FIXTURES[cmd] ?? null }) });
+    const table = { ...FIXTURES, ...(opts.overrides ?? {}) };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: table[cmd] ?? null }) });
   });
   // EventSource: answer so the stream opens and closes rather than hanging.
   await page.route("**/api/events**", (route) => route.fulfill({ status: 200, contentType: "text/event-stream", body: "" }));
@@ -62,4 +63,21 @@ test("an expired code falls back to the sign-in form instead of a dead end", asy
   await expect(page.getByText(/scan the QR code/i)).toBeVisible();
   expect(pairCalls).toHaveLength(1);
   expect(await page.evaluate(() => localStorage.getItem("prevail.web.token"))).toBeNull();
+});
+
+// The vault lives on the Mac. A phone is a window onto it, so it must never be
+// asked to choose a folder: there is no meaningful folder to choose there.
+test("the phone inherits the Mac's vault and is never shown a folder picker", async ({ page }) => {
+  await serveBridge(page);
+  await page.goto(`/#p=${CODE}`);
+  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Pick your vault folder")).toHaveCount(0);
+});
+
+test("when the Mac has no vault the phone says so, rather than offering a folder picker", async ({ page }) => {
+  await serveBridge(page, { overrides: { bootstrap_vault: null, engine_config_vault: null } });
+  await page.goto(`/#p=${CODE}`);
+  await expect(page.getByRole("heading", { name: "Your Mac has no vault yet" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Pick your vault folder")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
 });

@@ -2336,15 +2336,17 @@ export function ChatPanel({
       )}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 && !domain && domainTab === "chat" && (
-          <div className="flex h-full flex-col items-center justify-center px-6 py-8">
+          <div className={`flex h-full flex-col items-center justify-center ${phone ? "px-5 py-4" : "px-6 py-8"}`} style={{ justifyContent: "safe center" }}>
             {/* Starred apps as a horizontal strip at the top of home - same
-                chip language as the in-domain Apps strip, per user feedback. */}
-            <div className="mb-6"><HomeAppsStrip /></div>
-            <PrevailLogo size={64} src="/logo-512.png" />
-            <h2 className="mt-6 font-display text-4xl font-bold tracking-tight sm:text-5xl">
+                chip language as the in-domain Apps strip, per user feedback.
+                Dropped on a phone: the Domains tab is one thumb away and this
+                greeting has a short screen to live on. */}
+            {!phone && <div className="mb-6"><HomeAppsStrip /></div>}
+            <PrevailLogo size={phone ? 44 : 64} src="/logo-512.png" />
+            <h2 className={`font-display font-bold tracking-tight ${phone ? "mt-3 text-2xl" : "mt-6 text-4xl sm:text-5xl"}`}>
               What should we work on?
             </h2>
-            <p className="mt-3 max-w-md text-balance text-center text-sm text-text-muted">
+            <p className={`max-w-md text-balance text-center text-text-muted ${phone ? "mt-1.5 text-[13px]" : "mt-3 text-sm"}`}>
               An AI that learns you, gets sharper, and surfaces what you'd have missed.
             </p>
             {lifeReadiness && lifeReadiness.life_readiness !== null && (
@@ -2367,11 +2369,13 @@ export function ChatPanel({
                 </span>
               </div>
             )}
-            <AgentPickerRail
+            {/* Phone already names the model twice, in the header pill and in
+                the composer, so a third copy is just height. */}
+            {!phone && <AgentPickerRail
               clis={available}
               selected={selectedCli}
               onSelect={(id) => setSelectedCli(id)}
-            />
+            />}
 
             {/* HOME-1: the Briefing - proactive digest (top recommendations +
                 recent intents). Off by default for a minimal landing; opt in
@@ -3329,15 +3333,17 @@ export function ChatPanel({
               )}
             </div>
             <DomainStatusBar domain={domain} fwLens={fwLens} googleInContext={googleInContext} googleBound={boundGoogleAccount} />
-            {/* X7: plan-mode toggle - ask for a plan before acting. */}
-            <button
+            {/* X7: plan-mode toggle - ask for a plan before acting. Desktop
+                only: on a phone every composer row costs the conversation, and
+                asking for a written plan is deskwork. */}
+            {!phone && <button
               onClick={() => setPlanMode((v) => !v)}
               title={planMode ? "Plan mode on: the AI will propose a plan and wait before acting" : "Plan mode: get an editable plan before the AI acts"}
               aria-pressed={planMode}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${planMode ? "border-accent bg-accent font-semibold text-background shadow-sm" : "border-border bg-background text-text-muted hover:text-accent"}`}
             >
               <ListChecks className="h-3.5 w-3.5" /> {planMode ? "Plan on" : "Plan"}
-            </button>
+            </button>}
             <div className="flex-1" />
 
             {/* Model picker pill - Codex-style. Click opens cascading
@@ -3460,14 +3466,16 @@ export function ChatPanel({
               )}
             </div>
 
-            <button
+            {/* Phone already has a Chat | Council toggle in its header, so this
+                pill would be the same trip twice. */}
+            {!phone && <button
               onClick={onSwitchToCouncil}
               title="Switch to Council mode"
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 font-mono text-xs text-text-secondary hover:border-accent-border hover:bg-accent-soft hover:text-accent"
             >
               <Scale className="h-3.5 w-3.5" />
               Council
-            </button>
+            </button>}
 
             {(() => {
               const last = messages[messages.length - 1];
