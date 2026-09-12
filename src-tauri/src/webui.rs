@@ -81,7 +81,6 @@ pub struct WebuiState {
 struct Inner {
     running: bool,
     port: u16,
-    token: String,
     user: String,
     pass: String,
     // Remote-devices mode: bound to every interface instead of loopback, so a
@@ -97,6 +96,10 @@ struct Inner {
     // The outstanding QR pairing code, shared with the request thread. At most
     // one exists at a time: minting replaces, scanning consumes.
     pair: Arc<Mutex<Option<PairCode>>>,
+    // One entry per signed-in device. Each holds its OWN bearer token, which
+    // is what makes "disconnect this phone" mean anything: revoking one does
+    // not touch the others.
+    sessions: Arc<Mutex<Vec<Session>>>,
     next_id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<InvokeOut>>>>,
     sse: Arc<Mutex<Vec<Sender<String>>>>,
@@ -121,6 +124,51 @@ struct PairCode {
 impl PairCode {
     fn live(&self) -> bool {
         Instant::now() < self.expires
+    }
+}
+
+/// A signed-in device. The token never leaves the Mac in this struct: it is
+/// skipped on the way to the UI, which addresses a device by its short id.
+#[derive(Clone, Serialize)]
+pub struct Session {
+    pub id: String,
+    #[serde(skip)]
+    pub token: String,
+    /// Something a person can recognise, read off the User-Agent.
+    pub label: String,
+    pub ip: String,
+    pub first_seen_ms: u64,
+    pub last_seen_ms: u64,
+    /// How it got in: "qr" or "password".
+    pub via: String,
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+/// A short, human name for a device from its User-Agent. Not exact science,
+/// and it does not need to be: it only has to let someone tell their phone
+/// from their laptop in a list of two or three.
+pub(crate) fn device_label(ua: &str) -> String {
+    let u = ua.to_ascii_lowercase();
+    let device = if u.contains("ipad") { "iPad" }
+        else if u.contains("iphone") { "iPhone" }
+        else if u.contains("android") { "Android phone" }
+        else if u.contains("mac os") || u.contains("macintosh") { "Mac" }
+        else if u.contains("windows") { "Windows PC" }
+        else if u.contains("linux") { "Linux" }
+        else { "Device" };
+    // Chrome and Edge both claim Safari, and Edge claims Chrome, so test the
+    // most specific first.
+    let browser = if u.contains("edg/") { Some("Edge") }
+        else if u.contains("crios") || u.contains("chrome") { Some("Chrome") }
+        else if u.contains("firefox") || u.contains("fxios") { Some("Firefox") }
+        else if u.contains("safari") { Some("Safari") }
+        else { None };
+    match browser {
+        Some(b) => format!("{device} ({b})"),
+        None => device.to_string(),
     }
 }
 
@@ -180,6 +228,12 @@ pub struct WebuiStatus {
     pub tunnel_error: String,
     // Whether `cloudflared` is installed (brew install cloudflared).
     pub cloudflared_installed: bool,
+    /// Every device signed in right now, newest first.
+    pub devices: Vec<Session>,
+    /// True when Bunker Mode is on, which keeps the bridge on loopback: a
+    /// phone on the network is another way off this device, and Bunker's
+    /// whole promise is that nothing leaves it.
+    pub bunker_blocking: bool,
     // True while a QR pairing code is outstanding. Goes false the moment a
     // phone uses it, which is how the pairing card knows to show a fresh code
     // (and that the phone got in).
@@ -305,6 +359,12 @@ impl WebuiState {
             tunnel_state,
             tunnel_error,
             cloudflared_installed: cloudflared_bin().is_some(),
+            bunker_blocking: crate::bunker::bunker_enabled(),
+            devices: {
+                let mut d = i.sessions.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                d.sort_by(|a, b| b.last_seen_ms.cmp(&a.last_seen_ms));
+                d
+            },
             pair_ready,
         }
     }
@@ -331,6 +391,20 @@ impl WebuiState {
         Ok(format!("{base}/#p={code}"))
     }
 
+    /// Sign one device out. Its very next request fails the token check.
+    pub fn revoke_device(&self, id: &str) {
+        let i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        i.sessions.lock().unwrap_or_else(|e| e.into_inner()).retain(|s| s.id != id);
+    }
+
+    /// Sign every device out, and drop any pairing code with them so the act
+    /// of revoking cannot be immediately undone by a code still on screen.
+    pub fn revoke_all_devices(&self) {
+        let i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        i.sessions.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        *i.pair.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
     /// Drop any outstanding pairing code (the card closed, or the user asked).
     pub fn clear_pair_code(&self) {
         let i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -346,6 +420,7 @@ impl WebuiState {
             // A code minted for a server that is gone must not survive to let
             // someone in after it comes back.
             *i.pair.lock().unwrap_or_else(|e| e.into_inner()) = None;
+            i.sessions.lock().unwrap_or_else(|e| e.into_inner()).clear();
             i.tunnel.clone()
         };
         // Nothing to forward to once the bridge is down.
@@ -386,7 +461,6 @@ impl WebuiState {
         // Random per-session token (NOT derived from the password). Login
         // exchanges user/pass for this token; it never leaves the device except
         // to the authenticated client.
-        let token = random_token();
         // Loopback only by default. In remote-devices mode, bind every
         // interface so a phone on the same Wi-Fi reaches it with nothing
         // installed, and a Tailscale peer reaches it too. (Binding only the
@@ -395,6 +469,10 @@ impl WebuiState {
         // not the bind address but the Host check in handle(), the login, and
         // the random bearer token; the Host check is widened to match, so the
         // DNS-rebinding defense stays intact.
+        // Bunker Mode overrides the request: loopback only, whatever the
+        // toggle says. Enforced HERE, at the bind, rather than by hiding a
+        // button, so it holds however the start was triggered.
+        let remote = remote && !crate::bunker::bunker_enabled();
         let (bind_host, lan_host, ts_host): (String, String, String) = if remote {
             ("0.0.0.0".to_string(), lan_ipv4().unwrap_or_default(), tailscale_ipv4().unwrap_or_default())
         } else {
@@ -407,7 +485,6 @@ impl WebuiState {
             let mut i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             i.running = true;
             i.port = port;
-            i.token = token.clone();
             i.user = user.clone();
             i.pass = pass.clone();
             i.remote = remote;
@@ -422,15 +499,48 @@ impl WebuiState {
         let sse = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).sse.clone() };
         let tunnel = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).tunnel.clone() };
         let pair = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).pair.clone() };
+        let sessions = { self.inner.lock().unwrap_or_else(|e| e.into_inner()).sessions.clone() };
+        // A restart invalidates every device: tokens are per-run, and a list
+        // of phones that cannot actually talk to us is a lie on screen.
+        sessions.lock().unwrap_or_else(|e| e.into_inner()).clear();
         // Failed-login throttle (M1): count + window-start, shared across
         // requests. Blocks brute force even if a DNS-rebind gets same-origin.
         let login_fail: Arc<Mutex<(u32, Instant)>> = Arc::new(Mutex::new((0, Instant::now())));
         let bound_port = port;
 
+        // One thread PER REQUEST. tiny_http's incoming_requests() is sequential,
+        // and two of our responses are long-lived: the SSE stream never ends,
+        // and a proxied invoke waits on the host window for up to five minutes.
+        // Handling them on the accept loop meant a single connected phone
+        // wedged the whole bridge — every later request connected and then got
+        // nothing, which is exactly what a second phone (or a reloaded tab) hit.
+        // It is also what multiple devices need in order to work at all.
+        let server = Arc::new(server);
+        let inflight = Arc::new(AtomicU64::new(0));
         std::thread::spawn(move || {
-            for req in server.incoming_requests() {
-                let tunnel_host = { tunnel.lock().unwrap_or_else(|e| e.into_inner()).host.clone() };
-                handle(&app, req, &token, &user, &pass, &next_id, &pending, &sse, &login_fail, bound_port, allow_remote, &advertised_hosts, &tunnel_host, &pair);
+            loop {
+                let req = match server.recv() {
+                    Ok(r) => r,
+                    Err(_) => break, // listener dropped on stop()
+                };
+                // A cap so a misbehaving client cannot spawn threads without
+                // bound. Well above any real number of phones plus their
+                // event streams.
+                if inflight.load(Ordering::SeqCst) >= 64 {
+                    let _ = req.respond(json_response(503, &serde_json::json!({ "error": "too many requests in flight" })));
+                    continue;
+                }
+                inflight.fetch_add(1, Ordering::SeqCst);
+                let (app, user, pass) = (app.clone(), user.clone(), pass.clone());
+                let (next_id, pending, sse, login_fail) = (next_id.clone(), pending.clone(), sse.clone(), login_fail.clone());
+                let (tunnel, pair, sessions) = (tunnel.clone(), pair.clone(), sessions.clone());
+                let advertised_hosts = advertised_hosts.clone();
+                let inflight_done = inflight.clone();
+                std::thread::spawn(move || {
+                    let tunnel_host = { tunnel.lock().unwrap_or_else(|e| e.into_inner()).host.clone() };
+                    handle(&app, req, &user, &pass, &next_id, &pending, &sse, &login_fail, bound_port, allow_remote, &advertised_hosts, &tunnel_host, &pair, &sessions);
+                    inflight_done.fetch_sub(1, Ordering::SeqCst);
+                });
             }
         });
         Ok(())
@@ -444,6 +554,9 @@ impl WebuiState {
 fn start_tunnel_blocking(tunnel: Arc<Mutex<Tunnel>>, (port, running): (u16, bool)) -> Result<(), String> {
     if !running {
         return Err("turn on the WebUI first".into());
+    }
+    if crate::bunker::bunker_enabled() {
+        return Err("Bunker Mode is on, so nothing may leave this Mac. Turn it off in Privacy to share over the internet.".into());
     }
     let bin = cloudflared_bin().ok_or_else(|| "cloudflared is not installed. In Terminal: brew install cloudflared".to_string())?;
     stop_tunnel(&tunnel);
@@ -591,7 +704,6 @@ fn lan_ipv4() -> Option<String> {
 fn handle(
     app: &tauri::AppHandle,
     mut req: tiny_http::Request,
-    token: &str,
     user: &str,
     pass: &str,
     next_id: &Arc<AtomicU64>,
@@ -603,6 +715,7 @@ fn handle(
     advertised_hosts: &[String; 2],
     tunnel_host: &str,
     pair: &Arc<Mutex<Option<PairCode>>>,
+    sessions: &Arc<Mutex<Vec<Session>>>,
 ) {
     let method = req.method().clone();
     let url = req.url().to_string();
@@ -635,13 +748,25 @@ fn handle(
         }
     }
 
+    // Header bearer OR ?token= query (EventSource cannot set headers). Each
+    // signed-in device has its OWN token, so this walks the session list; a
+    // revoked device simply stops matching and gets a 401 on its next request.
+    let offered: String = req.headers().iter()
+        .find(|h| h.field.equiv("Authorization"))
+        .map(|h| h.value.as_str().to_string())
+        .filter(|v| !v.is_empty())
+        .or_else(|| url.split('?').nth(1).and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("token=").map(str::to_string))))
+        .unwrap_or_default();
     let authed = || -> bool {
-        // Header bearer OR ?token= query (for EventSource which can't set headers).
-        // Constant-time comparison against the random session token.
-        if let Some(h) = req.headers().iter().find(|h| h.field.equiv("Authorization")) {
-            if ct_eq(h.value.as_str(), token) { return true; }
+        if offered.is_empty() { return false; }
+        let mut list = sessions.lock().unwrap_or_else(|e| e.into_inner());
+        for sess in list.iter_mut() {
+            if ct_eq(&offered, &sess.token) {
+                sess.last_seen_ms = now_ms();
+                return true;
+            }
         }
-        url.split('?').nth(1).map(|q| q.split('&').filter_map(|kv| kv.strip_prefix("token=")).any(|t| ct_eq(t, token))).unwrap_or(false)
+        false
     };
 
     // ── Login ──
@@ -668,7 +793,7 @@ fn handle(
             if ok { *g = (0, Instant::now()); } else { g.0 += 1; }
         }
         let (code, payload) = if ok {
-            (200, serde_json::json!({ "token": token }))
+            (200, serde_json::json!({ "token": open_session(sessions, &req, "password") }))
         } else {
             (401, serde_json::json!({ "error": "invalid credentials" }))
         };
@@ -708,7 +833,7 @@ fn handle(
             if ok { *g = (0, Instant::now()); } else { g.0 += 1; }
         }
         let (code, payload) = if ok {
-            (200, serde_json::json!({ "token": token }))
+            (200, serde_json::json!({ "token": open_session(sessions, &req, "qr") }))
         } else {
             (401, serde_json::json!({ "error": "this code has expired, show a new one on your Mac" }))
         };
@@ -813,6 +938,31 @@ fn handle(
             }
         }
     }
+}
+
+/// Register a newly signed-in device and hand back its private bearer token.
+fn open_session(sessions: &Arc<Mutex<Vec<Session>>>, req: &tiny_http::Request, via: &str) -> String {
+    let ua = req.headers().iter().find(|h| h.field.equiv("User-Agent")).map(|h| h.value.as_str().to_string()).unwrap_or_default();
+    let ip = req.remote_addr().map(|a| a.ip().to_string()).unwrap_or_default();
+    let token = random_token();
+    let now = now_ms();
+    let sess = Session {
+        id: format!("d_{:x}", rand::random::<u64>()),
+        token: token.clone(),
+        label: device_label(&ua),
+        ip,
+        first_seen_ms: now,
+        last_seen_ms: now,
+        via: via.to_string(),
+    };
+    let mut list = sessions.lock().unwrap_or_else(|e| e.into_inner());
+    // Cap the list so a script cannot grow it without bound; oldest-seen goes.
+    if list.len() >= 32 {
+        list.sort_by(|a, b| b.last_seen_ms.cmp(&a.last_seen_ms));
+        list.truncate(31);
+    }
+    list.push(sess);
+    token
 }
 
 /// Decide a pairing attempt, pure so it can be tested. Takes the code that was
@@ -924,6 +1074,19 @@ pub fn webui_pair_code(state: tauri::State<'_, WebuiState>) -> Result<String, St
 pub fn webui_pair_clear(state: tauri::State<'_, WebuiState>) {
     state.clear_pair_code();
 }
+// Disconnect one device, or all of them. Desktop-only and deliberately NOT in
+// WEBUI_ALLOWED: a phone must not be able to kick another phone off, nor
+// itself into a state the Mac did not ask for.
+#[tauri::command]
+pub fn webui_device_revoke(state: tauri::State<'_, WebuiState>, id: String) -> WebuiStatus {
+    state.revoke_device(&id);
+    state.status()
+}
+#[tauri::command]
+pub fn webui_device_revoke_all(state: tauri::State<'_, WebuiState>) -> WebuiStatus {
+    state.revoke_all_devices();
+    state.status()
+}
 // Host window → server: deliver the result of a proxied invoke.
 #[tauri::command]
 pub fn webui_resolve(state: tauri::State<'_, WebuiState>, id: u64, ok: bool, #[allow(unused)] data: Option<serde_json::Value>, error: Option<String>) {
@@ -990,6 +1153,20 @@ mod tests {
 
         // Nothing outstanding: nothing to accept.
         assert_eq!(check_pair(None, "abc123").1, false);
+    }
+
+    #[test]
+    fn devices_get_a_name_you_could_recognise() {
+        let iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+        assert_eq!(device_label(iphone), "iPhone (Safari)");
+        let android = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36";
+        assert_eq!(device_label(android), "Android phone (Chrome)");
+        // Chrome and Edge both claim Safari; the most specific must win.
+        let edge = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 Edg/120.0";
+        assert_eq!(device_label(edge), "Windows PC (Edge)");
+        let mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15";
+        assert_eq!(device_label(mac), "Mac (Safari)");
+        assert_eq!(device_label(""), "Device");
     }
 
     #[test]

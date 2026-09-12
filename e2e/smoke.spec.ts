@@ -72,7 +72,8 @@ test("6 · Remote: Wi-Fi address in the pair card; Share over the internet swaps
     running: true, port: 8787, user: "admin", remote: true,
     remote_url: "http://192.168.1.20:8787", via_tailscale: false,
     lan_url: "http://192.168.1.20:8787", tailscale_url: "", tunnel_url: "",
-    tunnel_state: "off", tunnel_error: "", cloudflared_installed: true, pair_ready: true,
+    tunnel_state: "off", tunnel_error: "", cloudflared_installed: true, pair_ready: true, bunker_blocking: false,
+    devices: [{ id: "d_1", label: "iPhone (Safari)", ip: "192.168.1.44", first_seen_ms: Date.now() - 60000, last_seen_ms: Date.now() - 5000, via: "qr" }],
   };
   const on = { ...off, remote_url: "https://witty-otter-cat.trycloudflare.com", tunnel_url: "https://witty-otter-cat.trycloudflare.com", tunnel_state: "on" };
   await mockTauri(page, { webui_status: off, webui_secret_get: "hunter2", webui_tunnel_start: on, webui_tunnel_stop: off, webui_pair_code: "http://192.168.1.20:8787/#p=deadbeefdeadbeef" });
@@ -106,7 +107,7 @@ test("6 · Remote: Wi-Fi address in the pair card; Share over the internet swaps
 // Phone is its own destination in the sidebar, and turning it on is one
 // button: mobile access used to be buried inside the WebUI panel.
 test("7 · Phone is a top-level section and turns itself on in one tap", async ({ page }) => {
-  const offline = { running: false, port: 8787, user: "admin", remote: false, remote_url: "", via_tailscale: false, lan_url: "", tailscale_url: "", tunnel_url: "", tunnel_state: "off", tunnel_error: "", cloudflared_installed: true, pair_ready: false };
+  const offline = { running: false, port: 8787, user: "admin", remote: false, remote_url: "", via_tailscale: false, lan_url: "", tailscale_url: "", tunnel_url: "", tunnel_state: "off", tunnel_error: "", cloudflared_installed: true, pair_ready: false, devices: [], bunker_blocking: false };
   const live = { ...offline, running: true, remote: true, remote_url: "http://192.168.1.20:8787", lan_url: "http://192.168.1.20:8787", pair_ready: true };
   await mockTauri(page, { webui_status: offline, webui_secret_get: "", webui_pair_code: "http://192.168.1.20:8787/#p=deadbeefdeadbeef" });
   await page.goto("/");
@@ -143,4 +144,61 @@ test("5 · telemetry: section navigation emits allowlisted feature_used events o
   for (const f of feats) {
     if (typeof f.props.feature === "string") expect(f.props.feature).toMatch(/^[a-z_]+$/);
   }
+});
+
+// Multiple phones, each revocable on its own, and a master off switch.
+test("8 · connected phones are listed and can be disconnected one at a time", async ({ page }) => {
+  const two = [
+    { id: "d_1", label: "iPhone (Safari)", ip: "192.168.1.44", first_seen_ms: Date.now() - 600000, last_seen_ms: Date.now() - 4000, via: "qr" },
+    { id: "d_2", label: "iPad (Safari)", ip: "192.168.1.45", first_seen_ms: Date.now() - 90000, last_seen_ms: Date.now() - 90000, via: "password" },
+  ];
+  const live = {
+    running: true, port: 8787, user: "admin", remote: true,
+    remote_url: "http://192.168.1.20:8787", via_tailscale: false,
+    lan_url: "http://192.168.1.20:8787", tailscale_url: "", tunnel_url: "",
+    tunnel_state: "off", tunnel_error: "", cloudflared_installed: true, pair_ready: true,
+    bunker_blocking: false, devices: two,
+  };
+  const afterRevoke = { ...live, devices: [two[1]] };
+  await mockTauri(page, { webui_status: live, webui_secret_get: "x", webui_pair_code: "http://192.168.1.20:8787/#p=abc123abc123", webui_device_revoke: afterRevoke, webui_device_revoke_all: { ...live, devices: [] } });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "phone" })));
+
+  const list = page.getByTestId("remote-devices");
+  await expect(list).toBeVisible({ timeout: 10_000 });
+  await expect(list).toContainText("Connected phones (2)");
+  await expect(list.locator("[data-device=d_1]")).toContainText("iPhone (Safari)");
+  await expect(list.locator("[data-device=d_1]")).toContainText("paired by code");
+  await expect(list.locator("[data-device=d_2]")).toContainText("iPad (Safari)");
+
+  await list.locator("[data-device=d_1]").getByRole("button", { name: "Disconnect" }).click();
+  await page.evaluate((s) => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.webui_status = s; }, afterRevoke);
+  await expect(list.locator("[data-device=d_1]")).toHaveCount(0);
+  await expect(list.locator("[data-device=d_2]")).toBeVisible();
+  const cmds = await invokedCommands(page);
+  expect(cmds).toContain("webui_device_revoke");
+  await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-phone-devices.png` });
+
+  // And the master switch stops the bridge, which takes every device with it.
+  await page.getByRole("button", { name: "Turn off phone access" }).click();
+  expect(await invokedCommands(page)).toContain("webui_stop");
+});
+
+// Bunker Mode's promise is that nothing leaves this Mac, and a phone on the
+// network is a way off it. The screen must say so rather than silently fail.
+test("9 · Bunker Mode blocks phone access and explains why", async ({ page }) => {
+  const blocked = {
+    running: false, port: 8787, user: "admin", remote: false, remote_url: "", via_tailscale: false,
+    lan_url: "", tailscale_url: "", tunnel_url: "", tunnel_state: "off", tunnel_error: "",
+    cloudflared_installed: true, pair_ready: false, devices: [], bunker_blocking: true,
+  };
+  await mockTauri(page, { webui_status: blocked });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "phone" })));
+  await expect(page.getByText("Bunker Mode is on, so phones cannot connect")).toBeVisible({ timeout: 10_000 });
+  // No way to switch it on from here: the block is real, not advisory.
+  await expect(page.getByRole("button", { name: "Turn on phone access" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Open Privacy" })).toBeVisible();
 });

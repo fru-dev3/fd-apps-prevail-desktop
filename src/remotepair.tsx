@@ -32,6 +32,28 @@ interface WebuiStatus {
   tunnel_error: string;
   cloudflared_installed: boolean;
   pair_ready: boolean;
+  devices: Device[];
+  bunker_blocking: boolean;
+}
+
+export interface Device {
+  id: string;
+  label: string;
+  ip: string;
+  first_seen_ms: number;
+  last_seen_ms: number;
+  via: "qr" | "password" | string;
+}
+
+// "just now" / "4 min ago" / "2 h ago". Phones drop off Wi-Fi constantly, so
+// the useful question is not "is it connected" but "when did I last hear from
+// it", which this answers without a clock on screen.
+function ago(ms: number): string {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 45) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
 }
 
 const BREW_CLOUDFLARED = "brew install cloudflared";
@@ -248,6 +270,58 @@ export function RemotePairCard({ port }: { port: string }) {
           <span>Hold-to-talk needs the internet address: browsers only open the microphone on https. Everything else works over Wi-Fi.</span>
         </div>
       </div>
+
+      <DeviceList devices={status?.devices ?? []} onChanged={setStatus} />
+    </div>
+  );
+}
+
+// Who is signed in, and the means to end it. A phone keeps its session until
+// it is revoked here, so this is the honest answer to "what can reach my
+// vault right now" and the only place to change that answer.
+function DeviceList({ devices, onChanged }: { devices: Device[]; onChanged: (s: WebuiStatus) => void }) {
+  const [busy, setBusy] = useState("");
+  async function revoke(id: string) {
+    setBusy(id);
+    try { onChanged(await invoke<WebuiStatus>("webui_device_revoke", { id })); } catch { /* the poll will correct it */ }
+    finally { setBusy(""); }
+  }
+  async function revokeAll() {
+    setBusy("all");
+    try { onChanged(await invoke<WebuiStatus>("webui_device_revoke_all")); } catch { /* ignore */ }
+    finally { setBusy(""); }
+  }
+  return (
+    <div className="border-t border-border-subtle px-5 py-4" data-testid="remote-devices">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+          Connected phones{devices.length > 0 ? ` (${devices.length})` : ""}
+        </div>
+        {devices.length > 0 && (
+          <button onClick={() => void revokeAll()} disabled={busy !== ""} className="text-xs text-text-muted underline hover:text-warn disabled:opacity-50">
+            Disconnect all
+          </button>
+        )}
+      </div>
+      {devices.length === 0 ? (
+        <div className="text-xs text-text-muted">Nothing is connected. Scan the code above to add a phone.</div>
+      ) : (
+        <div className="divide-y divide-border-subtle">
+          {devices.map((d) => (
+            <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2" data-device={d.id}>
+              <Smartphone className="h-4 w-4 shrink-0 text-text-muted" />
+              <span className="text-sm font-medium text-text-primary">{d.label}</span>
+              <span className="font-mono text-[11px] text-text-muted">{d.ip}</span>
+              <span className="min-w-0 flex-1 text-[11px] text-text-muted">
+                {d.via === "qr" ? "paired by code" : "signed in"}, active {ago(d.last_seen_ms)}
+              </span>
+              <button onClick={() => void revoke(d.id)} disabled={busy !== ""} className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-text-muted hover:border-warn/50 hover:text-warn disabled:opacity-50">
+                Disconnect
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -305,8 +379,17 @@ export function PhoneSection() {
     catch (e) { setErr(String(e instanceof Error ? e.message : e)); }
     finally { setBusy(false); }
   }
+  async function turnOff() {
+    setBusy(true); setErr("");
+    // Stopping the bridge revokes every device with it: no phone keeps a way
+    // in after you have said no.
+    try { await invoke("webui_stop"); await refresh(); }
+    catch (e) { setErr(String(e instanceof Error ? e.message : e)); }
+    finally { setBusy(false); }
+  }
 
   const running = !!status?.running;
+  const bunker = !!status?.bunker_blocking;
   const port = String(status?.port || getPref(PREF.webuiPort, "8787"));
 
   return (
@@ -317,7 +400,25 @@ export function PhoneSection() {
         icon={Smartphone}
       />
       <DesktopOnly feature="Phone setup">
-        {!running ? (
+        {bunker ? (
+          <div className="rounded-lg border border-accent-border bg-accent-soft px-6 py-6">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+              <div className="min-w-0">
+                <div className="text-base font-semibold text-text-primary">Bunker Mode is on, so phones cannot connect</div>
+                <p className="mt-1 max-w-xl text-sm text-text-secondary">
+                  Bunker Mode promises that nothing leaves this Mac, and a phone on your network is another way off it. The bridge stays on this machine only, and sharing over the internet is refused, until you turn Bunker Mode off.
+                </p>
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" }))}
+                  className="mt-3 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary hover:border-accent-border hover:text-accent"
+                >
+                  Open Privacy
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : !running ? (
           <div className="rounded-lg border border-border bg-surface px-6 py-8 text-center">
             <Smartphone className="mx-auto h-10 w-10 text-accent" />
             <div className="mt-3 text-base font-semibold text-text-primary">Put Prevail on your phone</div>
@@ -333,12 +434,18 @@ export function PhoneSection() {
         ) : (
           <>
             <RemotePairCard port={port} />
-            <div className="mt-3 text-xs text-text-muted">
-              Port, username and password live in{" "}
-              <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "remote" }))} className="underline hover:text-accent">
-                Network
-              </button>.
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs text-text-muted">
+                Port, username and password live in{" "}
+                <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "remote" }))} className="underline hover:text-accent">
+                  Network
+                </button>.
+              </div>
+              <button onClick={() => void turnOff()} disabled={busy} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:border-warn/50 hover:text-warn disabled:opacity-50">
+                {busy ? "Turning off..." : "Turn off phone access"}
+              </button>
             </div>
+            {err && <div className="mt-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{err}</div>}
           </>
         )}
       </DesktopOnly>
