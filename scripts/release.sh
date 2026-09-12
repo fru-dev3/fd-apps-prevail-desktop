@@ -138,9 +138,22 @@ else
   # status string) — reproduced twice on v0.3.115, submission never even
   # started. Plain `submit` uploads fine, so we poll `info` ourselves. That is
   # also more debuggable: the submission id is printed and survives a crash.
-  SUB_JSON="$(xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --output-format json)"
-  SUB_ID="$(python3 -c 'import sys,json;print(json.loads(sys.stdin.read()).get("id",""))' <<<"$SUB_JSON")"
-  [ -n "$SUB_ID" ] || die "notarytool did not return a submission id: $SUB_JSON"
+  # notarytool itself crashes intermittently: SIGBUS, a stack overflow in its
+  # own NIO networking thread while formatting a string. Seen three times on
+  # 2026-09-12, in `submit` as well as in the `--wait` loop it replaced. It is
+  # not our DMG and not the network (the very next attempt succeeds), so retry
+  # rather than lose a finished build to it.
+  SUB_ID=""
+  for attempt in 1 2 3 4 5; do
+    SUB_JSON="$(xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --output-format json 2>&1 || true)"
+    SUB_ID="$(python3 -c 'import sys,json
+try: print(json.loads(sys.stdin.read()).get("id",""))
+except Exception: print("")' <<<"$SUB_JSON")"
+    [ -n "$SUB_ID" ] && break
+    echo "notarytool submit failed (attempt $attempt), retrying in 10s..."
+    sleep 10
+  done
+  [ -n "$SUB_ID" ] || die "notarytool never returned a submission id after 5 attempts: $SUB_JSON"
   echo "submission: $SUB_ID"
   NOTARY_STATUS=""
   for _ in $(seq 1 80); do   # 80 x 15s = 20 minutes, the old --wait timeout
