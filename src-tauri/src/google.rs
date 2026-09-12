@@ -441,6 +441,112 @@ pub fn google_profile_remove(config_dir: String) -> Result<serde_json::Value, St
     Ok(serde_json::json!({ "ok": true }))
 }
 
+/// The refresh skill the engine's sync daemon runs for the Google app. Without
+/// a `runner: cli` skill under skills/ the daemon fails every cycle with "no
+/// refresh skill", so Google context never reaches the vault like other apps.
+pub(crate) const GOOGLE_REFRESH_SKILL_ID: &str = "sync-google";
+
+/// The skill file body (frontmatter + notes) for `sync-google`. The engine's cli
+/// runner executes `command:` through /bin/sh with cwd = the app dir and a
+/// scrubbed env, then writes the WHOLE stdout to each declared output. One
+/// stdout cannot feed two files, so the calendar pull is redirected straight to
+/// data/calendar-upcoming.json by the command itself (relative writes land in
+/// the app dir) and only the inbox summary goes through `outputs:`.
+///
+/// `managed_bin` is the Prevail-managed bin dir: the daemon's PATH is not the
+/// user's shell PATH, so the command appends the well-known gws locations when
+/// a bare `gws` is not found.
+fn google_refresh_skill_md(managed_bin: &Path) -> String {
+    // Single-line `command:` on purpose: the engine's frontmatter parser reads
+    // one line per key (no folded scalars). No `${...}` anywhere either, that
+    // is the runner's own substitution syntax.
+    let command = concat!(
+        "set -e; ",
+        "command -v gws >/dev/null 2>&1 || PATH=\"$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:__MANAGED_BIN__\"; ",
+        "mkdir -p data; ",
+        "now=$(date -u +%Y-%m-%dT%H:%M:%SZ); ",
+        "end=$(date -u -v+7d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+7 days' +%Y-%m-%dT%H:%M:%SZ); ",
+        "gws calendar events list --params \"{\\\"calendarId\\\":\\\"primary\\\",\\\"timeMin\\\":\\\"$now\\\",\\\"timeMax\\\":\\\"$end\\\",\\\"singleEvents\\\":true,\\\"orderBy\\\":\\\"startTime\\\",\\\"maxResults\\\":50}\" > data/calendar-upcoming.json; ",
+        "ids=$(gws gmail users messages list --params '{\"userId\":\"me\",\"q\":\"is:unread is:important\",\"maxResults\":25}' | grep -o '\"id\"[[:space:]]*:[[:space:]]*\"[^\"]*\"' | sed 's/.*\"\\([^\"]*\\)\"$/\\1/'); ",
+        "printf '['; sep=''; ",
+        "for id in $ids; do printf '%s' \"$sep\"; ",
+        "gws gmail users messages get --params \"{\\\"userId\\\":\\\"me\\\",\\\"id\\\":\\\"$id\\\",\\\"format\\\":\\\"metadata\\\",\\\"metadataHeaders\\\":[\\\"From\\\",\\\"Subject\\\",\\\"Date\\\"]}\"; ",
+        "sep=','; done; printf ']'",
+    )
+    .replace("__MANAGED_BIN__", &managed_bin.to_string_lossy());
+    [
+        "---",
+        &format!("id: {GOOGLE_REFRESH_SKILL_ID}"),
+        "runner: cli",
+        "trigger: refresh",
+        "timeout_sec: 300",
+        // Declared so the runner forwards the profile var when the daemon has
+        // one set; unset means gws uses its default profile (~/.config/gws).
+        "auth:",
+        "  - GOOGLE_WORKSPACE_CLI_CONFIG_DIR",
+        "outputs:",
+        "  - path: data/inbox-unread.json",
+        "    kind: replace",
+        "    description: Unread important inbox summary (message id, from, subject, date; no bodies)",
+        &format!("command: {command}"),
+        "---",
+        "Pull the next 7 days of calendar events and the unread important inbox",
+        "summary through the already-authenticated `gws` CLI (Google Workspace CLI).",
+        "",
+        "- data/calendar-upcoming.json: primary calendar, now to +7 days, written by",
+        "  the command itself (one stdout cannot feed two outputs).",
+        "- data/inbox-unread.json: is:unread is:important, up to 25 messages, each",
+        "  fetched with format=metadata so only From / Subject / Date headers and the",
+        "  snippet come back, never the body.",
+        "",
+        "Profile: honors GOOGLE_WORKSPACE_CLI_CONFIG_DIR when set, else the default",
+        "gws profile. Auth is whatever `gws auth login` already granted; a missing or",
+        "expired token makes gws exit non-zero and the sync reports that error.",
+        "",
+    ]
+    .join("\n")
+}
+
+/// Make sure the Google app has its refresh skill and that the manifest points
+/// at it. Idempotent and edit-safe:
+/// - the skill file is written only when absent AND the manifest does not name
+///   a different refresh skill (a user who wrote their own keeps it);
+/// - `refresh.skill` is set only when the manifest has none (never overwritten).
+/// Returns true when anything was written.
+pub(crate) fn ensure_google_refresh_skill(dir: &Path, managed_bin: &Path) -> Result<bool, String> {
+    let manifest_path = dir.join("manifest.json");
+    let raw = std::fs::read_to_string(&manifest_path).map_err(|e| format!("read manifest: {e}"))?;
+    let mut manifest: serde_json::Value = serde_json::from_str(&raw).map_err(|e| format!("parse manifest: {e}"))?;
+    let current_skill = manifest
+        .get("refresh")
+        .and_then(|r| r.get("skill"))
+        .and_then(|s| s.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string());
+    let mut changed = false;
+
+    let skill_path = dir.join("skills").join(format!("{GOOGLE_REFRESH_SKILL_ID}.md"));
+    let ours = current_skill.as_deref().map_or(true, |s| s == GOOGLE_REFRESH_SKILL_ID);
+    if ours && !skill_path.exists() {
+        std::fs::create_dir_all(dir.join("skills")).map_err(|e| format!("mkdir skills: {e}"))?;
+        std::fs::write(&skill_path, google_refresh_skill_md(managed_bin)).map_err(|e| format!("write refresh skill: {e}"))?;
+        changed = true;
+    }
+
+    if current_skill.is_none() {
+        let obj = manifest.as_object_mut().ok_or("manifest is not an object")?;
+        let refresh = obj.entry("refresh").or_insert_with(|| serde_json::json!({ "every": "daily" }));
+        if !refresh.is_object() {
+            *refresh = serde_json::json!({ "every": "daily" });
+        }
+        refresh["skill"] = serde_json::Value::String(GOOGLE_REFRESH_SKILL_ID.into());
+        std::fs::write(&manifest_path, format!("{}\n", serde_json::to_string_pretty(&manifest).unwrap_or_default()))
+            .map_err(|e| format!("write manifest: {e}"))?;
+        changed = true;
+    }
+    Ok(changed)
+}
+
 /// Scaffold the Google connector as a first-class vault app (data/apps/google)
 /// with a SKILL.md that teaches the agent the multi-profile fan-out: it lists the
 /// live profiles (config dir + account) and the `gws` calling pattern, so chat
@@ -461,7 +567,7 @@ pub fn google_scaffold(vault: String) -> Result<serde_json::Value, String> {
             "google_workspace": true,
             "covers": GOOGLE_SERVICES,
             "domains": [],
-            "refresh": { "every": "daily" },
+            "refresh": { "every": "daily", "skill": GOOGLE_REFRESH_SKILL_ID },
             // Lets the engine's connector probe verify the connection by running
             // the already-authenticated gws CLI (exit 0 = authenticated), instead
             // of reporting "not-configured".
@@ -470,6 +576,9 @@ pub fn google_scaffold(vault: String) -> Result<serde_json::Value, String> {
         std::fs::write(&manifest, format!("{}\n", serde_json::to_string_pretty(&m).unwrap_or_default()))
             .map_err(|e| format!("write manifest: {e}"))?;
     }
+    // New and pre-existing apps alike: write the refresh skill if missing and
+    // upgrade an older manifest (no refresh.skill) so the daemon can sync it.
+    ensure_google_refresh_skill(&dir, &app_managed_bin_dir())?;
     let profiles = google_profiles().unwrap_or_default();
     let mut lines: Vec<String> = vec![
         "---".into(),
@@ -1007,4 +1116,77 @@ fn extract_oauth_url(line: &str) -> Option<String> {
 fn open_in_browser(app: &tauri::AppHandle, url: &str) {
     use tauri_plugin_opener::OpenerExt;
     let _ = app.opener().open_url(url, None::<&str>);
+}
+
+#[cfg(test)]
+mod refresh_skill_tests {
+    use super::*;
+    use std::fs;
+
+    fn temp_vault(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("prevail-google-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(d.join("data")).unwrap();
+        d
+    }
+
+    fn manifest_skill(dir: &Path) -> Option<String> {
+        let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join("manifest.json")).unwrap()).unwrap();
+        v.get("refresh")?.get("skill")?.as_str().map(|s| s.to_string())
+    }
+
+    #[test]
+    fn scaffold_writes_refresh_skill_and_manifest_field_idempotently() {
+        let vault = temp_vault("scaffold");
+        let dir = vault.join("data").join("apps").join("google");
+        google_scaffold(vault.to_string_lossy().to_string()).unwrap();
+        let skill = dir.join("skills").join("sync-google.md");
+        assert!(skill.is_file(), "skills/sync-google.md must be scaffolded");
+        assert_eq!(manifest_skill(&dir).as_deref(), Some(GOOGLE_REFRESH_SKILL_ID));
+        // Frontmatter the engine's cli runner relies on.
+        let body = fs::read_to_string(&skill).unwrap();
+        for needle in ["id: sync-google", "runner: cli", "trigger: refresh", "path: data/inbox-unread.json", "kind: replace",
+                       "data/calendar-upcoming.json", "gws calendar events list", "gws gmail users messages list", "GOOGLE_WORKSPACE_CLI_CONFIG_DIR"] {
+            assert!(body.contains(needle), "skill missing {needle:?}");
+        }
+        // The runner substitutes ${...} itself, so the shell must never use it.
+        assert!(!body.contains("${"), "skill command must not use ${{...}}");
+        // Second run: nothing rewritten, user-visible files stay byte-identical.
+        let manifest_before = fs::read_to_string(dir.join("manifest.json")).unwrap();
+        google_scaffold(vault.to_string_lossy().to_string()).unwrap();
+        assert_eq!(fs::read_to_string(&skill).unwrap(), body);
+        assert_eq!(fs::read_to_string(dir.join("manifest.json")).unwrap(), manifest_before);
+        assert!(!ensure_google_refresh_skill(&dir, &app_managed_bin_dir()).unwrap());
+        let _ = fs::remove_dir_all(&vault);
+    }
+
+    #[test]
+    fn upgrades_legacy_manifest_and_respects_user_edits() {
+        let vault = temp_vault("upgrade");
+        let dir = vault.join("data").join("apps").join("google");
+        fs::create_dir_all(&dir).unwrap();
+        // A manifest from before the refresh skill existed: every, no skill.
+        fs::write(dir.join("manifest.json"), r#"{"id":"google","title":"Google","refresh":{"every":"weekly","at":"07:00"}}"#).unwrap();
+        assert!(ensure_google_refresh_skill(&dir, Path::new("/nowhere/bin")).unwrap());
+        assert!(dir.join("skills").join("sync-google.md").is_file());
+        assert_eq!(manifest_skill(&dir).as_deref(), Some(GOOGLE_REFRESH_SKILL_ID));
+        let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join("manifest.json")).unwrap()).unwrap();
+        assert_eq!(v["refresh"]["every"], "weekly", "existing refresh fields must survive");
+        assert_eq!(v["refresh"]["at"], "07:00");
+        assert!(!ensure_google_refresh_skill(&dir, Path::new("/nowhere/bin")).unwrap(), "second call is a no-op");
+        // A user-edited skill file is never overwritten.
+        fs::write(dir.join("skills").join("sync-google.md"), "---\nid: sync-google\nrunner: cli\ncommand: echo mine\n---\n").unwrap();
+        assert!(!ensure_google_refresh_skill(&dir, Path::new("/nowhere/bin")).unwrap());
+        assert!(fs::read_to_string(dir.join("skills").join("sync-google.md")).unwrap().contains("echo mine"));
+        // A manifest naming a different refresh skill keeps it, and we do not
+        // plant our file next to it.
+        let other = temp_vault("other").join("data").join("apps").join("google");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("manifest.json"), r#"{"id":"google","refresh":{"every":"daily","skill":"my-sync"}}"#).unwrap();
+        assert!(!ensure_google_refresh_skill(&other, Path::new("/nowhere/bin")).unwrap());
+        assert!(!other.join("skills").join("sync-google.md").exists());
+        assert_eq!(manifest_skill(&other).as_deref(), Some("my-sync"));
+        let _ = fs::remove_dir_all(&vault);
+        let _ = fs::remove_dir_all(other.parent().unwrap().parent().unwrap().parent().unwrap());
+    }
 }

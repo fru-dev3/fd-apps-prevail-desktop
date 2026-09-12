@@ -25,6 +25,9 @@ const BenchmarkPanel = lazy(() => import("./benchpanel").then((m) => ({ default:
 const RetrospectPanel = lazy(() => import("./retrospectpanel").then((m) => ({ default: m.RetrospectPanel })));
 const ToolsPanel = lazy(() => import("./toolspanel").then((m) => ({ default: m.ToolsPanel })));
 const MapPanel = lazy(() => import("./mappanel").then((m) => ({ default: m.MapPanel })));
+// The phone frame (bottom tab bar, big header, one full-width surface). Only
+// fetched at phone width, so the desktop bundle stays as it was.
+const PhoneShell = lazy(() => import("./phoneshell").then((m) => ({ default: m.PhoneShell })));
 import { Sidebar } from "./sidebar";
 import { ObsidianImportModal } from "./obsidianmodal";
 import { useAppearance, useFrameworkLens } from "./hooks";
@@ -1313,21 +1316,15 @@ export default function App() {
     return () => window.removeEventListener("prevail:council-seed", onSeed as EventListener);
   }, []);
   const [vaultError, setVaultError] = useState<string | null>(null);
-  // Phone layout: the sidebar is an overlay drawer, closed by default, that
-  // closes itself whenever navigation happens from inside it (see the effect
-  // below the state hooks).
+  // Phone layout: below PHONE_MAX_PX the desktop cockpit is replaced by the
+  // PhoneShell (bottom tab bar + one full-width surface, see phoneshell.tsx).
   const phone = useIsPhone();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
     () => lsGet("prevail.sidebarCollapsed") === "1",
   );
   useEffect(() => {
     lsSet("prevail.sidebarCollapsed", sidebarCollapsed ? "1" : "0");
   }, [sidebarCollapsed]);
-  // Close the phone drawer whenever navigation happens from inside it. An
-  // effect rather than callback wrappers, so the Sidebar's setter props keep
-  // exactly the types it declares.
-  useEffect(() => { setMobileNavOpen(false); }, [selectedDomain, tab, selectedApp]);
   const fwLens = useFrameworkLens();
 
   const selectedDomainPath = useMemo(() => {
@@ -1605,8 +1602,158 @@ export default function App() {
     </PanelBoundary>
   );
 
+  // "+" in the threads rail (and the phone Threads sheet): create the thread
+  // file immediately so the user gets a renameable entry BEFORE typing the
+  // first prompt. Backend accepts empty turns. Scoped to the active app's own
+  // thread space when an app is open.
+  const newThread = async () => {
+    try {
+      const path = await invoke<string>("save_thread", {
+        vault: vaultPath,
+        domain: threadScope || null,
+        slug: null,
+        title: "Untitled",
+        turns: [],
+      });
+      setActiveThreadPath(path);
+      await refreshThreads();
+    } catch (e) {
+      console.error("create thread stub", e);
+      // Fall back to the old behavior on failure so + at
+      // least clears the chat for a fresh start.
+      setActiveThreadPath(null);
+    }
+  };
+
+  // The conversation surface (chat / council / arena / retrospect / tools /
+  // map), shared by the desktop main column and the phone shell's Chat screen.
+  const conversationCenter = (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <PanelBoundary resetKey={tab}>
+            <Suspense fallback={<PanelLoading />}>
+            {tab === "chat" && onApp && selectedApp && appTab !== "chat" ? (
+              // Unified canonical app-detail surface, the SAME component the Apps
+              // panel renders. `embedded` suppresses its own identity header since
+              // AppHeaderBar already sits above; it brings every facet itself.
+              <AppDetail
+                key={selectedApp.id}
+                app={selectedApp}
+                vaultPath={vaultPath}
+                logos={{}}
+                status={appStatus(selectedApp)}
+                busy={appSyncBusy}
+                onSync={onAppSync}
+                onSetEnabled={onAppSetEnabled}
+                onReload={reloadSelectedApp}
+                embedded
+              />
+            ) : tab === "chat" && (
+              <ChatPanel
+                // Scope the chat view to its domain: a fresh instance per domain
+                // (and per app) so a stream running in one domain can't bleed its
+                // session/messages into another's view when you switch. The old
+                // domain's stream keeps running in the engine and re-hydrates from
+                // its thread when you return.
+                key={`chat:${threadScope ?? "general"}`}
+                active={tab === "chat"}
+                domain={selectedDomain}
+                domainPath={selectedDomainPath}
+                threadDomain={threadScope}
+                isApp={onApp}
+                appId={onApp && selectedApp ? selectedApp.id : null}
+                appAccount={onApp && selectedApp ? selectedApp.account?.label ?? null : null}
+                appRuntime={onApp && selectedApp ? selectedApp.runtime ?? null : null}
+                vaultPath={vaultPath}
+                clis={clis}
+                fwLens={fwLens}
+                onSwitchToCouncil={() => setTab("council")}
+                activeThreadPath={activeThreadPath}
+                chatViewNonce={chatViewNonce}
+                onActiveThreadChange={setActiveThreadPath}
+                onThreadsChanged={() => void refreshThreads()}
+                onStreamStart={markStreamStart}
+                onStreamEnd={markStreamEnd}
+                domains={domains}
+                domainStats={domainStats}
+                runningDomains={runningDomains}
+                finishedDomains={finishedDomainSet}
+                onPickDomain={(name) => setSelectedDomain(name)}
+                domainTab={domainTab}
+                setDomainTab={setDomainTab}
+                phone={phone}
+              />
+            )}
+            {/* Council STAYS MOUNTED (hidden) on other tabs so a convened council
+                keeps streaming and holds its replies/verdict when you navigate to
+                chat and back. Lazy-mounted on first visit. */}
+            {councilEverVisited && (
+              <div className={tab === "council" ? "h-full" : "hidden"}>
+                <CouncilPanel
+                  domain={selectedDomain}
+                  domainPath={selectedDomainPath}
+                  threadDomain={threadScope}
+                  vaultPath={vaultPath}
+                  clis={clis}
+                  fwLens={fwLens}
+                  activeThreadPath={activeThreadPath}
+                  onActiveThreadChange={setActiveThreadPath}
+                  onOpenInFinder={() => openInFinder(selectedDomainPath)}
+                  onSwitchToChat={() => setTab("chat")}
+                  onThreadsChanged={() => void refreshThreads()}
+                  seedPrompt={councilSeed}
+                  seedAutoConvene={councilAutoConvene}
+                  onSeedConsumed={() => { setCouncilSeed(null); setCouncilAutoConvene(false); }}
+                  active={tab === "council"}
+                  phone={phone}
+                />
+              </div>
+            )}
+            {/* Per-domain benchmark, full screen - scoped to whatever domain
+                you're in. Remounts (via key) when you switch domains so it
+                re-scopes cleanly. STAYS MOUNTED (hidden) on other tabs so an
+                in-flight run keeps its live progress when you navigate away
+                and back. The global cockpit lives in the configuration page. */}
+            {benchEverVisited && (
+              <div className={tab === "benchmark" ? "h-full" : "hidden"}>
+                <BenchmarkPanel
+                  key={selectedDomain || benchScope || "all"}
+                  vaultPath={vaultPath}
+                  initialDomain={selectedDomain || benchScope}
+                />
+              </div>
+            )}
+            {/* Retrospect - cross-domain, full screen. Mounted on demand (no
+                in-flight state to preserve); reads the intent ledger rollup. */}
+            {tab === "retrospect" && (
+              <div className="h-full">
+                <RetrospectPanel vaultPath={vaultPath} />
+              </div>
+            )}
+            {tab === "tools" && (
+              <div className="h-full">
+                <ToolsPanel />
+              </div>
+            )}
+            {tab === "map" && (
+              <div className="h-full">
+                <MapPanel vaultPath={vaultPath} />
+              </div>
+            )}
+            </Suspense>
+            </PanelBoundary>
+          </div>
+  );
+
+  // Footer ribbons (demo sandbox / Bunker). On a phone they sit above the tab bar.
+  const ribbons = (
+    <>
+      <BunkerRibbon enabled={bunkerEnabled} compact={phone} />
+      <DemoRibbon onSwitch={() => openSettingsAt("demo")} />
+    </>
+  );
+
   return (
-    <div className="relative flex h-screen flex-col bg-background text-text-primary">
+    <div className={`relative flex ${phone ? "h-[100dvh]" : "h-screen"} flex-col bg-background text-text-primary`}>
       {/* O1 (Monday feedback): first-run onboarding tour (dismissible, replayable). */}
       <OnboardingTour />
       {/* C4: first-run encrypt-at-rest prompt (default-ON). Only for a fresh,
@@ -1643,29 +1790,40 @@ export default function App() {
           <button onClick={() => setNoModelDismissed(true)} aria-label="Dismiss" className="ml-1 rounded p-0.5 text-text-muted hover:text-text-primary"><X className="h-3.5 w-3.5" /></button>
         </div>
       )}
+      {phone ? (
+        <Suspense fallback={<PanelLoading />}>
+          <PhoneShell
+            vaultPath={vaultPath}
+            domains={domains}
+            selectedDomain={selectedDomain}
+            onOpenDomain={openDomain}
+            onDomainCreated={(d) => {
+              setDomains((cur) => [...cur, d].sort((a, b) => a.name.localeCompare(b.name)));
+              openDomain(d.name);
+            }}
+            scopeLabel={onApp && selectedApp ? selectedApp.title : null}
+            onCloseApp={() => { setSelectedApp(null); setAppView(false); }}
+            tab={tab}
+            setTab={setTab}
+            setDomainTab={setDomainTab}
+            clis={clis}
+            runningDomains={runningDomains}
+            finishedDomains={finishedDomainSet}
+            threads={threads}
+            activeThreadPath={activeThreadPath}
+            onPickThread={(p) => { setActiveThreadPath(p); setChatViewNonce((n) => n + 1); setTab("chat"); }}
+            onNewThread={() => void newThread()}
+            decisionsCount={decisionsCount}
+            onOpenSettingsAt={openSettingsAt}
+            settingsJump={settingsJump}
+            conversation={conversationCenter}
+            settings={editorCenter}
+            footer={ribbons}
+          />
+        </Suspense>
+      ) : (
       <div className="flex min-h-0 flex-1">
-        {phone ? (
-          <>
-            {!mobileNavOpen && (
-              <button
-                type="button"
-                aria-label="Open navigation"
-                onClick={() => setMobileNavOpen(true)}
-                className="fixed left-3 top-3 z-30 rounded-md border border-border bg-surface/90 px-2.5 py-1.5 text-base leading-none text-text-primary shadow-md backdrop-blur"
-              >
-                ☰
-              </button>
-            )}
-            {mobileNavOpen && (
-              <div className="fixed inset-0 z-40 flex" onClick={() => setMobileNavOpen(false)}>
-                <div className="absolute inset-0 bg-black/60" aria-hidden />
-                <div className="relative z-10 flex h-full max-w-[85vw] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                  {sidebarEl}
-                </div>
-              </div>
-            )}
-          </>
-        ) : sidebarEl}
+        {sidebarEl}
         {/* Center region swaps by mode; the sidebar above stays mounted. */}
         {!isMainMode ? (tab === "settings" ? editorCenter : workCenter) : (<>
         {!phone && !sidebarCollapsed && (
@@ -1695,28 +1853,7 @@ export default function App() {
               scopeLabel={appView && selectedApp ? selectedApp.title : null}
               vaultPath={vaultPath}
               onPick={(p) => { setActiveThreadPath(p); setChatViewNonce((n) => n + 1); if (tab === "benchmark") setTab("chat"); }}
-              onNew={async () => {
-                // Create the thread file immediately so the user gets
-                // a renameable entry in the rail BEFORE typing the
-                // first prompt. Backend accepts empty turns. Scoped to the
-                // active app's own thread space when an app is open.
-                try {
-                  const path = await invoke<string>("save_thread", {
-                    vault: vaultPath,
-                    domain: threadScope || null,
-                    slug: null,
-                    title: "Untitled",
-                    turns: [],
-                  });
-                  setActiveThreadPath(path);
-                  await refreshThreads();
-                } catch (e) {
-                  console.error("create thread stub", e);
-                  // Fall back to the old behavior on failure so + at
-                  // least clears the chat for a fresh start.
-                  setActiveThreadPath(null);
-                }
-              }}
+              onNew={() => void newThread()}
               onRefresh={() => void refreshThreads()}
               runningThreadPaths={runningThreadPaths}
               railWidth={threadsRailWidth}
@@ -1729,7 +1866,7 @@ export default function App() {
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <div data-tour="nav" className={`relative flex shrink-0 items-center gap-1 border-b border-border-subtle bg-background pr-4 ${phone ? "pl-14" : "pl-1.5"}`}>
+          <div data-tour="nav" className="relative flex shrink-0 items-center gap-1 border-b border-border-subtle bg-background pl-1.5 pr-4">
             {/* DEV-only marker: lets you tell THIS live window apart from a stale
                 installed build. Absolutely positioned at the bottom-right corner so
                 it never pushes the first icon off the left edge. */}
@@ -1936,123 +2073,12 @@ export default function App() {
               onClose={() => { setSelectedApp(null); setAppView(false); }}
             />
           )}
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <PanelBoundary resetKey={tab}>
-            <Suspense fallback={<PanelLoading />}>
-            {tab === "chat" && onApp && selectedApp && appTab !== "chat" ? (
-              // Unified canonical app-detail surface, the SAME component the Apps
-              // panel renders. `embedded` suppresses its own identity header since
-              // AppHeaderBar already sits above; it brings every facet itself.
-              <AppDetail
-                key={selectedApp.id}
-                app={selectedApp}
-                vaultPath={vaultPath}
-                logos={{}}
-                status={appStatus(selectedApp)}
-                busy={appSyncBusy}
-                onSync={onAppSync}
-                onSetEnabled={onAppSetEnabled}
-                onReload={reloadSelectedApp}
-                embedded
-              />
-            ) : tab === "chat" && (
-              <ChatPanel
-                // Scope the chat view to its domain: a fresh instance per domain
-                // (and per app) so a stream running in one domain can't bleed its
-                // session/messages into another's view when you switch. The old
-                // domain's stream keeps running in the engine and re-hydrates from
-                // its thread when you return.
-                key={`chat:${threadScope ?? "general"}`}
-                active={tab === "chat"}
-                domain={selectedDomain}
-                domainPath={selectedDomainPath}
-                threadDomain={threadScope}
-                isApp={onApp}
-                appId={onApp && selectedApp ? selectedApp.id : null}
-                appAccount={onApp && selectedApp ? selectedApp.account?.label ?? null : null}
-                appRuntime={onApp && selectedApp ? selectedApp.runtime ?? null : null}
-                vaultPath={vaultPath}
-                clis={clis}
-                fwLens={fwLens}
-                onSwitchToCouncil={() => setTab("council")}
-                activeThreadPath={activeThreadPath}
-                chatViewNonce={chatViewNonce}
-                onActiveThreadChange={setActiveThreadPath}
-                onThreadsChanged={() => void refreshThreads()}
-                onStreamStart={markStreamStart}
-                onStreamEnd={markStreamEnd}
-                domains={domains}
-                domainStats={domainStats}
-                runningDomains={runningDomains}
-                finishedDomains={finishedDomainSet}
-                onPickDomain={(name) => setSelectedDomain(name)}
-                domainTab={domainTab}
-                setDomainTab={setDomainTab}
-              />
-            )}
-            {/* Council STAYS MOUNTED (hidden) on other tabs so a convened council
-                keeps streaming and holds its replies/verdict when you navigate to
-                chat and back. Lazy-mounted on first visit. */}
-            {councilEverVisited && (
-              <div className={tab === "council" ? "h-full" : "hidden"}>
-                <CouncilPanel
-                  domain={selectedDomain}
-                  domainPath={selectedDomainPath}
-                  threadDomain={threadScope}
-                  vaultPath={vaultPath}
-                  clis={clis}
-                  fwLens={fwLens}
-                  activeThreadPath={activeThreadPath}
-                  onActiveThreadChange={setActiveThreadPath}
-                  onOpenInFinder={() => openInFinder(selectedDomainPath)}
-                  onSwitchToChat={() => setTab("chat")}
-                  onThreadsChanged={() => void refreshThreads()}
-                  seedPrompt={councilSeed}
-                  seedAutoConvene={councilAutoConvene}
-                  onSeedConsumed={() => { setCouncilSeed(null); setCouncilAutoConvene(false); }}
-                  active={tab === "council"}
-                />
-              </div>
-            )}
-            {/* Per-domain benchmark, full screen - scoped to whatever domain
-                you're in. Remounts (via key) when you switch domains so it
-                re-scopes cleanly. STAYS MOUNTED (hidden) on other tabs so an
-                in-flight run keeps its live progress when you navigate away
-                and back. The global cockpit lives in the configuration page. */}
-            {benchEverVisited && (
-              <div className={tab === "benchmark" ? "h-full" : "hidden"}>
-                <BenchmarkPanel
-                  key={selectedDomain || benchScope || "all"}
-                  vaultPath={vaultPath}
-                  initialDomain={selectedDomain || benchScope}
-                />
-              </div>
-            )}
-            {/* Retrospect - cross-domain, full screen. Mounted on demand (no
-                in-flight state to preserve); reads the intent ledger rollup. */}
-            {tab === "retrospect" && (
-              <div className="h-full">
-                <RetrospectPanel vaultPath={vaultPath} />
-              </div>
-            )}
-            {tab === "tools" && (
-              <div className="h-full">
-                <ToolsPanel />
-              </div>
-            )}
-            {tab === "map" && (
-              <div className="h-full">
-                <MapPanel vaultPath={vaultPath} />
-              </div>
-            )}
-            </Suspense>
-            </PanelBoundary>
-          </div>
+          {conversationCenter}
         </main>
         </>)}
       </div>
-      <BunkerRibbon enabled={bunkerEnabled} />
-      <DemoRibbon onSwitch={() => openSettingsAt("demo")} />
+      )}
+      {!phone && ribbons}
       {/* A7: live bridge/WebUI chips - bottom-left, follow you across the app */}
       <BridgeStatusChips />
       {quickSwitcherOpen && (

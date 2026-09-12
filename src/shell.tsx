@@ -462,7 +462,9 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
 // Compact strip of the apps bound to this domain, with live status dots, shown
 // at the top of the domain view so you can see at a glance which feeds are fresh.
 
-export function BunkerRibbon({ enabled }: { enabled: boolean }) {
+// `compact` is the phone variant: one line at 390px (tighter type, no machine
+// role segment, no version chip), so the trust bar never wraps above the tab bar.
+export function BunkerRibbon({ enabled, compact = false }: { enabled: boolean; compact?: boolean }) {
   // Vault Lock status, surfaced in the trust bar so the user always knows whether
   // reads/writes are confined to the vault. Defaults to ON (locked) until the
   // backend says otherwise, and refreshes when the toggle changes or on focus.
@@ -529,7 +531,7 @@ export function BunkerRibbon({ enabled }: { enabled: boolean }) {
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
-      className={`inline-flex select-none items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] ${onClick ? "cursor-pointer underline-offset-2 hover:underline" : "cursor-default"} ${on ? "opacity-100" : "opacity-55"}`}
+      className={`inline-flex select-none items-center gap-1.5 font-mono font-semibold uppercase ${compact ? "text-[9px] tracking-[0.08em]" : "text-[10px] tracking-[0.16em]"} ${onClick ? "cursor-pointer underline-offset-2 hover:underline" : "cursor-default"} ${on ? "opacity-100" : "opacity-55"}`}
       title={onClick ? `${tip} (click to change)` : tip}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -539,7 +541,7 @@ export function BunkerRibbon({ enabled }: { enabled: boolean }) {
   const divider = <span className="select-none opacity-30">|</span>;
   return (
     <div
-      className={`relative flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-0.5 border-t px-4 py-1 text-[11px] ${
+      className={`relative flex shrink-0 items-center justify-center border-t py-1 text-[11px] ${compact ? "flex-nowrap gap-x-2 overflow-hidden whitespace-nowrap px-2" : "flex-wrap gap-x-3 gap-y-0.5 px-4"} ${
         enabled
           ? "border-ai bg-ai text-[#0a2230]"
           : "border-black/30 bg-[#141416] text-white/90"
@@ -593,6 +595,7 @@ export function BunkerRibbon({ enabled }: { enabled: boolean }) {
       {/* 4. Machine role - which Mac this is for a shared vault. Distinct icon
           (server tower for the hub, laptop for a client) so it's obvious at a
           glance. Always shown; hub is the default single-machine state. */}
+      {!compact && (<>
       {divider}
       <Seg
         Icon={machineRole === "hub" ? Server : Laptop}
@@ -608,6 +611,7 @@ export function BunkerRibbon({ enabled }: { enabled: boolean }) {
       <span className="pointer-events-none absolute right-3 select-none font-mono text-[10px] tracking-wider opacity-70">
         v{APP_VERSION}
       </span>
+      </>)}
     </div>
   );
 }
