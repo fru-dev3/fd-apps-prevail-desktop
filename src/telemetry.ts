@@ -46,7 +46,9 @@ const ENUM_VALUES: Record<string, Set<string>> = {
 };
 
 // ── Consent ──────────────────────────────────────────────────────────────────
-export function usageOn(): boolean { return getPref(PREF.telemetryUsage, "1") === "1"; }
+// Opt-IN. A local-first, private product does not phone home by default; the
+// user turns usage telemetry on in Settings if they want to help.
+export function usageOn(): boolean { return getPref(PREF.telemetryUsage, "0") === "1"; }
 export function crashOn(): boolean { return getPref(PREF.telemetryCrash, "0") === "1"; }
 export function setUsage(on: boolean) { setPref(PREF.telemetryUsage, on ? "1" : "0"); }
 export function setCrash(on: boolean) {

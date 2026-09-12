@@ -163,11 +163,136 @@ impl DistillState {
 // One distillation pass across all domains. Returns (domains_distilled,
 // lines_distilled).
 
+// ─────────────────────────────────────────────────────────────────────
+// Cross-process learn lock.
+//
+// The engine's headless learn daemon (daemon-learn.ts) distills the SAME
+// ledgers this in-app distiller does, and serializes itself with
+// <runtime>/_log/learn.lock (file-lock.ts: O_CREAT|O_EXCL sentinel holding
+// JSON {pid, host, ts}; a 5-minute mtime staleness floor; a local PID liveness
+// probe; foreign-host locks are never probed). This side never took that lock:
+// the only mutual exclusion was a UI-level "is the daemon running?" check,
+// so an IPC hiccup, a manual `prevail daemon --learn`, or a second machine on a
+// synced vault produced two writers doing read-modify-write on memory.md,
+// state.md and the cursor. Take the same lock, with the same rules.
+
+const LEARN_LOCK_STALE_SECS: u64 = 5 * 60;
+
+struct LearnLock {
+    path: PathBuf,
+}
+
+impl Drop for LearnLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+fn learn_lock_path(vault: &str) -> PathBuf {
+    crate::paths::runtime_path(vault, "_log").join("learn.lock")
+}
+
+#[cfg(unix)]
+fn pid_is_dead(pid: i64) -> bool {
+    // kill(pid, 0) signals nothing; ESRCH means no such process. EPERM means it
+    // exists but isn't ours, which still counts as alive.
+    let rc = unsafe { libc::kill(pid as libc::pid_t, 0) };
+    if rc == 0 {
+        return false;
+    }
+    std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+}
+
+#[cfg(not(unix))]
+fn pid_is_dead(_pid: i64) -> bool {
+    // No cheap liveness probe here; the mtime staleness floor reclaims a
+    // crashed holder within five minutes, which is the documented recovery.
+    false
+}
+
+fn learn_lock_is_stale(path: &Path) -> bool {
+    let meta = match std::fs::metadata(path) {
+        Ok(m) => m,
+        Err(_) => return true, // vanished between EEXIST and stat: caller retries
+    };
+    if let Ok(modified) = meta.modified() {
+        if let Ok(age) = modified.elapsed() {
+            if age.as_secs() > LEARN_LOCK_STALE_SECS {
+                return true;
+            }
+        }
+    }
+    let raw = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(_) => return true,
+    };
+    let text = raw.trim();
+    if text.is_empty() {
+        return true;
+    }
+    let (pid, host): (Option<i64>, Option<String>) = if text.starts_with('{') {
+        match serde_json::from_str::<serde_json::Value>(text) {
+            Ok(v) => (
+                v.get("pid").and_then(|p| p.as_i64()),
+                v.get("host").and_then(|h| h.as_str()).map(|s| s.to_string()),
+            ),
+            Err(_) => return true,
+        }
+    } else {
+        // Legacy bare-PID sentinel: local-machine format.
+        (text.parse::<i64>().ok(), None)
+    };
+    if let Some(h) = host {
+        if h != crate::intents::machine_hostname() {
+            return false; // fresh lock from another machine: live, never steal
+        }
+    }
+    match pid {
+        Some(p) if p > 0 => pid_is_dead(p),
+        _ => true,
+    }
+}
+
+fn try_acquire_learn_lock(vault: &str) -> Option<LearnLock> {
+    let path = learn_lock_path(vault);
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    for attempt in 0..2 {
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut f) => {
+                let sentinel = serde_json::json!({
+                    "pid": std::process::id(),
+                    "host": crate::intents::machine_hostname(),
+                    "ts": now_secs() * 1000,
+                });
+                let _ = std::io::Write::write_all(&mut f, sentinel.to_string().as_bytes());
+                return Some(LearnLock { path });
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                if attempt == 0 && learn_lock_is_stale(&path) {
+                    let _ = std::fs::remove_file(&path);
+                    continue;
+                }
+                return None;
+            }
+            Err(_) => return None,
+        }
+    }
+    None
+}
+
 async fn run_once(cfg: &DistillConfig) -> Result<(u64, u64), String> {
     let vault = PathBuf::from(&cfg.vault);
     if !vault.exists() {
         return Err(format!("vault not found: {}", cfg.vault));
     }
+    // Another distiller (the engine daemon, or this app on another machine)
+    // holds the lock: skip this pass rather than race it. Released on drop.
+    let _learn_lock = match try_acquire_learn_lock(&cfg.vault) {
+        Some(lock) => lock,
+        None => return Ok((0, 0)),
+    };
     let mut domains_done = 0u64;
     let mut lines_done = 0u64;
     for target in ledger_dirs(&vault) {
@@ -615,8 +740,16 @@ fn ledger_dirs(vault: &Path) -> Vec<DistillTarget> {
     targets
 }
 
+// The distiller cursor MUST resolve to the same file the engine's daemon-learn.ts
+// uses (`.system/distill.cursor.json` on a v4 domain, flat `_distill.json`
+// otherwise). Until this went through v4_content_path the two distillers kept
+// separate cursors on a migrated domain and re-distilled the same records.
+fn cursor_path(dir: &Path) -> std::path::PathBuf {
+    crate::paths::v4_content_path(dir, ".system/distill.cursor.json", "_distill.json")
+}
+
 fn read_cursor(dir: &Path) -> Cursor {
-    crate::read_to_string_retry(dir.join("_distill.json"))
+    crate::read_to_string_retry(cursor_path(dir))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default()
@@ -624,7 +757,7 @@ fn read_cursor(dir: &Path) -> Cursor {
 
 fn write_cursor(dir: &Path, c: &Cursor) {
     if let Ok(s) = serde_json::to_string_pretty(c) {
-        let _ = write_atomic(&dir.join("_distill.json"), &s);
+        let _ = write_atomic(&cursor_path(dir), &s);
     }
 }
 
@@ -874,5 +1007,71 @@ mod tests {
         assert_eq!(general.ledger_dir, base.join("build")); // ledger -> build/
         assert_eq!(general.content_dir, base); // memory/state stay at root
         let _ = std::fs::remove_dir_all(&base);
+    }
+}
+
+#[cfg(test)]
+mod learn_lock_tests {
+    use super::*;
+
+    // A throwaway vault dir under the OS temp dir, removed on drop. No crate
+    // needed; a counter keeps parallel tests from colliding.
+    struct TmpVault(PathBuf);
+    impl TmpVault {
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+    impl Drop for TmpVault {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    fn tmp_vault() -> TmpVault {
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("prevail-learn-lock-{}-{}", std::process::id(), n));
+        std::fs::create_dir_all(&dir).expect("temp vault");
+        TmpVault(dir)
+    }
+
+    #[test]
+    fn lock_is_exclusive_and_released_on_drop() {
+        let v = tmp_vault();
+        let vault = v.path().to_string_lossy().to_string();
+        let first = try_acquire_learn_lock(&vault).expect("first acquire");
+        assert!(learn_lock_path(&vault).exists(), "sentinel written");
+        assert!(try_acquire_learn_lock(&vault).is_none(), "second acquire must fail while held");
+        drop(first);
+        assert!(!learn_lock_path(&vault).exists(), "sentinel removed on drop");
+        assert!(try_acquire_learn_lock(&vault).is_some(), "re-acquire after release");
+    }
+
+    #[test]
+    fn engine_daemon_sentinel_from_this_host_with_dead_pid_is_reclaimed() {
+        let v = tmp_vault();
+        let vault = v.path().to_string_lossy().to_string();
+        let path = learn_lock_path(&vault);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        // The engine's file-lock.ts format, from THIS host, with a PID that
+        // cannot be alive (pid_max on every platform is far below this).
+        let sentinel = serde_json::json!({
+            "pid": 2_000_000_000_i64,
+            "host": crate::intents::machine_hostname(),
+            "ts": 0,
+        });
+        std::fs::write(&path, sentinel.to_string()).unwrap();
+        assert!(try_acquire_learn_lock(&vault).is_some(), "dead local holder is stale");
+    }
+
+    #[test]
+    fn fresh_foreign_host_sentinel_is_never_stolen() {
+        let v = tmp_vault();
+        let vault = v.path().to_string_lossy().to_string();
+        let path = learn_lock_path(&vault);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let sentinel = serde_json::json!({ "pid": 1, "host": "some-other-machine.local", "ts": 0 });
+        std::fs::write(&path, sentinel.to_string()).unwrap();
+        assert!(try_acquire_learn_lock(&vault).is_none(), "a fresh lock from another machine is live");
     }
 }

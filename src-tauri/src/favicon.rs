@@ -54,10 +54,14 @@ pub async fn app_favicon(host: String) -> Result<String, String> {
     Ok(uri)
 }
 
-// Fetch the favicon via Google's s2 service (returns a real PNG for known
-// domains). Async. Returns a base64 data: URI or None.
+// Fetch the app's own /favicon.ico. This used to go through Google's s2
+// favicon service, which meant every connected app's hostname was reported to
+// Google - a third party the user never chose - from a product whose promise
+// is that nothing leaves the machine that you didn't send. Asking the app's
+// own host reveals nothing it doesn't already know. Async. Returns a base64
+// data: URI or None.
 async fn fetch_favicon(host: &str) -> Option<String> {
-    let url = format!("https://www.google.com/s2/favicons?domain={host}&sz=64");
+    let url = format!("https://{host}/favicon.ico");
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(6))
         .build()
