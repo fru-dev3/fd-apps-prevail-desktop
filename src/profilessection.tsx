@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { ArrowLeftRight, Check, FolderOpen, Layers, Lock, Pencil, Pin, Plus, Sparkles, Star, Trash2, UserRound, X } from "lucide-react";
-import { invoke } from "./bridge";
+import { invoke, isBrowser } from "./bridge";
 import { SettingsHeader } from "./sectionutil";
 import {
   getActiveId, getDefaultId, hashPasscode, imageFileToDataUrl, loadProfiles, newProfileId, PROFILE_COLORS,
@@ -255,6 +255,21 @@ export function ProfilesSection() {
       {/* Profile list — rich, full-width cards. The active one is ringed in accent;
           every card lifts + brightens on hover so the target is obvious. */}
       {!draft && err && <div className="mb-3 text-xs text-err">{err}</div>}
+      {/* With no profiles the page was a title, a button, and an empty screen -
+          nothing saying what a profile is or why the list is blank. In a
+          browser it is blank for a reason worth naming: profiles live on the
+          Mac that owns them. */}
+      {!draft && profiles.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border bg-surface px-5 py-8 text-center">
+          <UserRound className="mx-auto h-6 w-6 text-text-muted" />
+          <div className="mt-2 text-sm font-semibold text-text-primary">No profiles yet</div>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-text-muted">
+            {isBrowser()
+              ? "Profiles are set up on the Mac that holds them. Add one there and it appears here."
+              : "A profile is a separate identity with its own vault, domains and history. Add one to keep two lives apart."}
+          </p>
+        </div>
+      )}
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {profiles.map((p) => {
           const isActive = p.id === activeId;
