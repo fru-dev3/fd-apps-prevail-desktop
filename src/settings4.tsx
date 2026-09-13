@@ -421,7 +421,7 @@ export function ObsidianCard() {
             Import now
           </button>
           {obPath && (
-            <button onClick={() => { setObsidianPath(""); setObPath(""); }} className="text-[12px] text-text-muted underline hover:text-accent">clear</button>
+            <button onClick={() => { setObsidianPath(""); setObPath(""); }} className="text-[12px] text-text-muted underline hover:text-accent">Clear</button>
           )}
         </div>
       </div>

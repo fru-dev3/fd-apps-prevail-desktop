@@ -899,11 +899,11 @@ export function AppHeaderBar({ app, enabled, onOpenDomain, onClose }: { app: Eng
           <div className="flex items-center gap-2">
             <span className="truncate text-base font-semibold text-text-primary">{app.account?.label ? `${app.title} · ${app.account.label}` : app.title}</span>
             <span className="shrink-0 rounded-full border border-border-subtle px-2 py-0.5 text-[11px] text-text-muted">{INTEGRATION_LABEL[app.integration] ?? app.integration}</span>
-            {!enabled && <span className="shrink-0 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] text-warn">disabled</span>}
+            {!enabled && <span className="shrink-0 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] text-warn">Disabled</span>}
           </div>
           {app.domains.length > 0 && (
             <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-              <span className="font-mono text-[11px] text-text-muted/70">feeds</span>
+              <span className="font-mono text-[11px] text-text-muted/70">Feeds</span>
               {app.domains.map((d, i) => (
                 <span key={d} className="inline-flex items-center gap-1.5">
                   <button onClick={() => onOpenDomain(d)} className="rounded px-1 text-[11px] font-medium text-accent hover:bg-accent-soft hover:underline" title={`Open ${titleCase(d)} and chat there`}>{titleCase(d)}</button>
@@ -1973,7 +1973,7 @@ export function HeadlessLearnCard({ vaultPath }: { vaultPath: string }) {
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
                   <span className="shrink-0 text-text-secondary">{a.id}</span>
                   <code className="min-w-0 flex-1 truncate text-text-muted">{a.cmd}</code>
-                  <span className="shrink-0 text-[11px] text-text-muted/70">at login</span>
+                  <span className="shrink-0 text-[11px] text-text-muted/70">At login</span>
                 </div>
               ))}
             </div>
@@ -2233,12 +2233,21 @@ export function PreambleCard({
         on ? "border-accent-border bg-accent-soft" : "border-border bg-surface"
       }`}
     >
-      <div className="flex items-start gap-3 p-3">
+      {/* Picking one IS the interaction, so the row does it. Eighteen rows each
+          carrying their own "set default" button was eighteen buttons to say
+          what a click on the row says; the chevron alone opens the preamble. */}
+      <div className="flex items-start gap-2 p-3">
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={onSelect}
+          aria-pressed={on}
+          title={on ? `${option.label} is the default` : `Use ${option.label} by default`}
           className="flex min-w-0 flex-1 items-start gap-2 text-left"
         >
-          <span className="mt-0.5 text-[11px] text-text-muted">{open ? "▾" : "▸"}</span>
+          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+            {on
+              ? <Check className="h-4 w-4 text-accent" strokeWidth={3} />
+              : <span className="h-2 w-2 rounded-full ring-1 ring-border" />}
+          </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className={`font-mono text-sm font-semibold ${on ? "text-accent" : "text-text-primary"}`}>
@@ -2249,15 +2258,12 @@ export function PreambleCard({
           </div>
         </button>
         <button
-          onClick={onSelect}
-          disabled={on}
-          className={`shrink-0 rounded-md border px-2.5 py-1 text-[11px] ${
-            on
-              ? "border-accent-border bg-accent text-background"
-              : "border-border bg-background text-text-secondary hover:bg-surface-warm"
-          }`}
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? `Hide ${option.label}'s preamble` : `Show ${option.label}'s preamble`}
+          className="shrink-0 rounded p-1 text-text-muted transition-colors hover:text-accent"
         >
-          {on ? "active" : "set default"}
+          <ChevronRight className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} />
         </button>
       </div>
       {open && (
@@ -2376,7 +2382,7 @@ export function WhatsAppCard() {
         </div>
         <div>
           <h3 className="font-semibold">
-            WhatsApp <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">soon</span>
+            WhatsApp <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">Soon</span>
           </h3>
           <p className="text-xs text-text-muted">Same idea as Telegram, via WhatsApp Cloud API. Setup pending Meta business approval.</p>
         </div>

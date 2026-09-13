@@ -360,7 +360,7 @@ function DomainRow(p: RowProps) {
         {/* Coverage at a glance: one dot per owned tool, colored by status. */}
         <div className="ml-2 hidden min-w-0 flex-1 items-center gap-1 sm:flex">
           {owned.length === 0 ? (
-            <span className="text-[11px] text-text-muted">no apps yet</span>
+            <span className="text-[11px] text-text-muted">No apps yet</span>
           ) : (
             <>
               {owned.slice(0, DOT_CAP).map((t, i) => (

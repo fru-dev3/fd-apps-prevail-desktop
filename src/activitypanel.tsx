@@ -341,8 +341,8 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
                           <span className={m.tint}>{m.label}</span>
                           {e.domain && <span className="rounded bg-surface-warm px-1.5 py-0.5 text-text-secondary">{titleCase(e.domain)}</span>}
                           <span>{relTime(e.ts)}</span>
-                          {e.status === "error" && <span className="text-err">failed</span>}
-                          {e.status === "pending" && <span className="text-warn">needs setup</span>}
+                          {e.status === "error" && <span className="text-err">Failed</span>}
+                          {e.status === "pending" && <span className="text-warn">Needs setup</span>}
                         </div>
                         <div className="mt-0.5 text-[13px] leading-snug text-text-primary">{e.title}</div>
                         {e.detail && <div className="mt-0.5 text-[11px] leading-relaxed text-text-muted">{e.detail}</div>}

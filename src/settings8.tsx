@@ -179,9 +179,9 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
           title="How often automatic backups run"
           className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-text-secondary focus:border-accent-border focus:outline-none"
         >
-          <option value="daily">daily</option>
-          <option value="weekly">weekly</option>
-          <option value="monthly">monthly</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
           <option value="custom">every N days</option>
         </select>
         {/^custom:/.test(backupFreq) && (
@@ -189,7 +189,7 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
             <input type="number" min={1} max={365} value={customDays}
               onChange={(e) => setBackupFreq(`custom:${Math.max(1, Math.min(365, parseInt(e.target.value, 10) || 1))}`)}
               className="w-12 rounded border border-border bg-background px-1.5 py-0.5 text-right font-mono text-[10px] text-text-secondary focus:border-accent-border focus:outline-none" />
-            <span>days</span>
+            <span>Days</span>
           </span>
         )}
         <span className="min-w-0 flex-1 truncate" title="Next scheduled backup">· next ~{backupNextLabel}</span>
@@ -209,8 +209,8 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
         <div className="flex w-full items-center gap-1.5 text-[11px] text-text-muted">
           <FolderOpen className="h-3 w-3 shrink-0" />
           <span className="min-w-0 flex-1 truncate" title={backupDir}>{backupDir || "default location"}{backupDirCustom ? "" : " · default"}</span>
-          <button onClick={changeBackupDir} className="shrink-0 hover:text-accent">change</button>
-          {backupDirCustom && <button onClick={resetBackupDir} className="shrink-0 hover:text-accent">reset</button>}
+          <button onClick={changeBackupDir} className="shrink-0 hover:text-accent">Change</button>
+          {backupDirCustom && <button onClick={resetBackupDir} className="shrink-0 hover:text-accent">Reset</button>}
         </div>
       </div>
     ) : null
@@ -447,9 +447,9 @@ export function BackupAutomationCard({ vault, onChange }: { vault: string; onCha
             onChange={(e) => { const v = e.target.value === "custom" ? `custom:${/^custom:(\d+)$/.exec(freq)?.[1] ?? "3"}` : e.target.value; setFreq(v); lsSet(BACKUP_CFG.freq, v); }}
             disabled={!enabled}
             className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-text-secondary disabled:opacity-40">
-            <option value="daily">daily</option>
-            <option value="weekly">weekly</option>
-            <option value="monthly">monthly</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
             <option value="custom">every N days</option>
           </select>
           {/^custom:/.test(freq) && (
@@ -457,7 +457,7 @@ export function BackupAutomationCard({ vault, onChange }: { vault: string; onCha
               <input type="number" min={1} max={365} value={/^custom:(\d+)$/.exec(freq)?.[1] ?? "3"} disabled={!enabled}
                 onChange={(e) => { const v = `custom:${Math.max(1, Math.min(365, parseInt(e.target.value, 10) || 1))}`; setFreq(v); lsSet(BACKUP_CFG.freq, v); }}
                 className="w-14 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-text-secondary disabled:opacity-40" />
-              <span className="font-mono text-[11px] text-text-muted">days</span>
+              <span className="font-mono text-[11px] text-text-muted">Days</span>
             </div>
           )}
         </div>

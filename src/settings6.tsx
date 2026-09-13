@@ -425,7 +425,7 @@ function CouncilCircle({ members, chair, clis }: { members: string[]; chair: str
         {/* Center emblem: the panel size at a glance. */}
         <div className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-border bg-background">
           <span className="font-display text-base font-bold leading-none text-text-primary">{members.length}</span>
-          <span className="font-mono text-[11px] text-text-muted">panel</span>
+          <span className="font-mono text-[11px] text-text-muted">Panel</span>
         </div>
         {ordered.map((key, i) => {
           const a = -Math.PI / 2 + i * ((2 * Math.PI) / n);
@@ -1189,7 +1189,7 @@ export function AgentCard({
             {meta?.blurb || `${cli.label} is a harness runtime.`}
           </div>
           <p className="text-xs leading-relaxed text-text-muted">
-            This is a <span className="font-semibold text-text-secondary">harness</span>: it wraps the{" "}
+            This is a <span className="font-semibold text-text-secondary">Harness</span>: it wraps the{" "}
             <code className="text-accent">{meta?.protocol ?? "base"}</code> protocol and runs through your installed base CLI. It's installed and validated, so it's ready to use wherever harnesses are offered (it isn't a homepage chat runtime).
           </p>
           <div className="flex flex-wrap items-center gap-2 pt-0.5">

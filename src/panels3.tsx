@@ -1256,7 +1256,7 @@ export function IngestionTierCard({
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-text-primary">{p.label}</span>
                       <span className="font-mono text-[11px] text-text-muted">→ {titleCase(p.domain)}</span>
-                      {installed === true && <span className="font-mono text-[11px] text-accent">installed</span>}
+                      {installed === true && <span className="font-mono text-[11px] text-accent">Installed</span>}
                       {installed === false && <span className="font-mono text-[11px] text-text-muted/60">not found on PATH</span>}
                     </div>
                     <div className="font-mono text-[11px] text-text-muted">{p.binary} {p.fetch_args.join(" ")}</div>

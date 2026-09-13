@@ -230,7 +230,7 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
                     className="inline-flex items-center gap-1.5 rounded-md border border-err/50 bg-err/10 px-2.5 py-1 text-[11px] text-err hover:bg-err/20 disabled:opacity-50">
                     {isActing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />} Confirm delete
                   </button>
-                  <button onClick={() => setConfirmId(null)} className="text-[11px] text-text-muted hover:text-text-secondary">cancel</button>
+                  <button onClick={() => setConfirmId(null)} className="text-[11px] text-text-muted hover:text-text-secondary">Cancel</button>
                 </span>
               ) : (
                 <button onClick={() => setConfirmId(id)}

@@ -124,7 +124,7 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
             />
             <div className="mt-1 flex items-center gap-2 text-[11px] text-text-muted">
               <span className="rounded-full bg-surface-warm px-1.5 py-px">{titleCase(task.domain)}</span>
-              {task.trashed && <span className="text-warn">trashed</span>}
+              {task.trashed && <span className="text-warn">Trashed</span>}
             </div>
           </div>
           <button onClick={onClose} className="shrink-0 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>

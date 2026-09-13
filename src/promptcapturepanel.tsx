@@ -165,7 +165,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
 
           <div className="flex shrink-0 flex-col items-center justify-center border-l border-border-subtle pl-6 text-center">
             <span className="font-mono text-5xl font-bold leading-none tabular-nums tracking-tight text-accent">{totalCaptured.toLocaleString()}</span>
-            <span className="mt-2 text-[11px] font-semibold text-text-muted">prompts captured</span>
+            <span className="mt-2 text-[11px] font-semibold text-text-muted">Prompts captured</span>
           </div>
         </div>
 

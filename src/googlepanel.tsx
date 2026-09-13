@@ -1064,7 +1064,7 @@ function StreamLog({ lines, busy, idle }: { lines: string[]; busy: boolean; idle
         <span className="h-2 w-2 rounded-full bg-white/15" />
         <span className="h-2 w-2 rounded-full bg-white/15" />
         <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="ml-1 text-[11px] text-white/30">setup log</span>
+        <span className="ml-1 text-[11px] text-white/30">Setup log</span>
         {busy && <Loader2 className="ml-auto h-3 w-3 animate-spin text-white/40" />}
       </div>
       <div ref={ref} className="max-h-44 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-white/70">

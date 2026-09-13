@@ -302,7 +302,7 @@ function RecentActivity({ vaultPath }: { vaultPath: string }) {
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
                     {e.type && <span className={pb ? "text-accent" : ""}>{titleCase(e.type.replace(/_/g, " "))}</span>}
                     <span>{relTime(e.ts)}</span>
-                    {err && <span className="text-err">failed</span>}
+                    {err && <span className="text-err">Failed</span>}
                   </div>
                   <div className="mt-0.5 text-[13px] leading-snug text-text-primary">{e.title}</div>
                   {e.detail && <div className="mt-0.5 text-[11px] leading-relaxed text-text-muted">{e.detail}</div>}

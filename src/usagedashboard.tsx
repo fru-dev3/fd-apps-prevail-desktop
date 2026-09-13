@@ -206,7 +206,7 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border-subtle px-6 py-16 text-center text-sm text-text-muted">
           Nothing matches the current search, filters, or time range.
-          <button onClick={() => { setQuery(""); setFilters({}); setRange("all"); }} className="ml-1 underline underline-offset-2 hover:text-accent">reset</button>
+          <button onClick={() => { setQuery(""); setFilters({}); setRange("all"); }} className="ml-1 underline underline-offset-2 hover:text-accent">Reset</button>
         </div>
       ) : (
         <>
@@ -236,7 +236,7 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
                   <span className="text-text-muted">{d.label}:</span> {v} <X className="h-3 w-3" />
                 </button>
               )))}
-              <button onClick={() => setFilters({})} className="ml-1 text-[11px] text-text-muted underline underline-offset-2 hover:text-accent">clear all</button>
+              <button onClick={() => setFilters({})} className="ml-1 text-[11px] text-text-muted underline underline-offset-2 hover:text-accent">Clear all</button>
             </div>
           )}
 

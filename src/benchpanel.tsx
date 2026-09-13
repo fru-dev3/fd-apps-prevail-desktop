@@ -675,7 +675,7 @@ export function BenchQuestions({
     <div className="w-full px-8 pb-6">
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-text-secondary">
-          <option value="all">all domains</option>
+          <option value="all">All domains</option>
           {allDomains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
         </select>
         <div className="flex-1" />
@@ -1083,7 +1083,7 @@ function RunningBatchCard({
       )}
       {log && (
         <details className="rounded-lg border border-border-subtle bg-surface px-3 py-2">
-          <summary className="cursor-pointer text-[11px] text-text-muted">engine log</summary>
+          <summary className="cursor-pointer text-[11px] text-text-muted">Engine log</summary>
           <pre ref={logRef} className="mt-2 max-h-48 overflow-y-auto text-[11px] leading-relaxed text-text-muted">{log}</pre>
         </details>
       )}
@@ -2083,7 +2083,7 @@ export function BenchRunConfig({
                             className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border bg-surface-warm/30 p-4 text-center transition-colors hover:border-accent-border hover:bg-accent-soft hover:text-accent"
                           >
                             <span className="font-display text-xl font-bold text-accent">+{n - CAP}</span>
-                            <span className="font-mono text-[11px] text-text-muted">show all</span>
+                            <span className="font-mono text-[11px] text-text-muted">Show all</span>
                           </button>
                         )}
                       </div>
@@ -2520,7 +2520,7 @@ export function BenchResults({
                   {r.scored ? (
                     <RunDims run={r} />
                   ) : (
-                    <span className="font-mono text-[11px] text-warn">unscored</span>
+                    <span className="font-mono text-[11px] text-warn">Unscored</span>
                   )}
                 </button>
                 {!r.scored && (
@@ -2855,9 +2855,9 @@ export function BenchResults({
                   <RotateCw className="h-3 w-3" /> rerun batch
                 </span>
                 {scores.length >= 2 && <span className="hidden md:inline"><Sparkline values={scores} width={64} height={20} /></span>}
-                <span className="hidden font-mono text-[10px] text-text-muted sm:inline">avg</span>
+                <span className="hidden font-mono text-[10px] text-text-muted sm:inline">Avg</span>
                 <span className="hidden font-mono text-sm text-text-secondary sm:inline">{avg != null ? avg.toFixed(1) : "-"}</span>
-                <span className="font-mono text-[10px] text-text-muted">best</span>
+                <span className="font-mono text-[10px] text-text-muted">Best</span>
                 <span className="font-mono text-sm font-semibold text-accent">{best?.toFixed(1) ?? "-"}</span>
               </summary>
               <div className="space-y-1.5 border-t border-border-subtle px-3 py-2.5">
@@ -3017,9 +3017,9 @@ function BenchFrontier({
           <span key={g} className="absolute -translate-y-1/2 pr-1.5 text-right font-mono text-[10px] tabular-nums text-text-muted" style={{ left: 0, width: `${PL}%`, top: `${yPct(g)}%` }}>{g}</span>
         ))}
         {/* Y-axis title — rotated along the axis. */}
-        <span className="pointer-events-none absolute left-0 text-[11px] text-text-muted" style={{ top: `${(PT + PB) / 2}%`, transform: "translateY(-50%) rotate(-90deg)", transformOrigin: "center", marginLeft: -14 }}>intelligence</span>
+        <span className="pointer-events-none absolute left-0 text-[11px] text-text-muted" style={{ top: `${(PT + PB) / 2}%`, transform: "translateY(-50%) rotate(-90deg)", transformOrigin: "center", marginLeft: -14 }}>Intelligence</span>
         {/* X-axis tick numbers — centered under each gridpoint. */}
-        <span className="absolute -translate-x-1/2 font-mono text-[10px] text-text-muted" style={{ left: `${PL}%`, top: `${PB + 3}%` }}>free</span>
+        <span className="absolute -translate-x-1/2 font-mono text-[10px] text-text-muted" style={{ left: `${PL}%`, top: `${PB + 3}%` }}>Free</span>
         {positives.length > 0 && [xmin, Math.sqrt(xmin * xmax), xmax].map((c, i) => (
           <span key={i} className="absolute -translate-x-1/2 font-mono text-[10px] tabular-nums text-text-muted" style={{ left: `${xPct(c)}%`, top: `${PB + 3}%` }}>{fmtCost(c)}</span>
         ))}
@@ -3205,7 +3205,7 @@ function BenchSchedulePage({ vault }: { vault: string }) {
                   <div className="flex items-center gap-2">
                     <span className="truncate text-[13px] font-medium text-text-primary">{s.name}</span>
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent"><CalendarClock className="h-2.5 w-2.5" /> {benchFreqLabel(s.freq)}</span>
-                    {!s.enabled && <span className="shrink-0 rounded-full border border-border-subtle bg-surface-warm px-1.5 py-px text-[11px] text-text-muted">paused</span>}
+                    {!s.enabled && <span className="shrink-0 rounded-full border border-border-subtle bg-surface-warm px-1.5 py-px text-[11px] text-text-muted">Paused</span>}
                   </div>
                   <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
                     <span>{s.models.length} model{s.models.length === 1 ? "" : "s"} · {scopeLabel(s)}</span>

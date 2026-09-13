@@ -217,7 +217,7 @@ export function RemoteSection() {
           control={
             <div className="flex items-center gap-2">
               <input type={showPass ? "text" : "password"} value={pass} disabled={running} onChange={(e) => savePass(e.target.value)} className="w-40 rounded-md border border-border bg-background px-2 py-1.5 font-mono text-sm focus:border-accent-border focus:outline-none disabled:opacity-50" />
-              <button onClick={() => setShowPass((v) => !v)} className="font-mono text-[11px] text-text-muted hover:text-accent">{showPass ? "hide" : "show"}</button>
+              <button onClick={() => setShowPass((v) => !v)} className="font-mono text-[11px] text-text-muted hover:text-accent">{showPass ? "Hide" : "Show"}</button>
             </div>
           } />
       </div>

@@ -3232,7 +3232,7 @@ export function ChatPanel({
             if (matches.length === 0) return null;
             return (
               <div className="mt-1 flex flex-wrap items-center gap-1.5 px-2">
-                <span className="font-mono text-[11px] text-text-muted">suggested</span>
+                <span className="font-mono text-[11px] text-text-muted">Suggested</span>
                 {matches.map((s) => (
                   <button
                     key={s.name}
@@ -3399,7 +3399,7 @@ export function ChatPanel({
                               {c.label}
                             </span>
                             {!c.available && (
-                              <span className="ml-auto text-[11px] text-text-muted">not installed</span>
+                              <span className="ml-auto text-[11px] text-text-muted">Not installed</span>
                             )}
                           </div>
                           {searchable && c.available && (
