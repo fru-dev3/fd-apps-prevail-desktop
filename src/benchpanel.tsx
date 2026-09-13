@@ -13,7 +13,8 @@ import { isLocalCli } from "./helpers";
 import { curatedFor, modelLabel, modelsFor, parseRunLabel } from "./helpers2";
 import { PREF, cheapModel, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
 import { BenchCrumbs, Field, ScoreBar } from "./panels";
-import { Sparkline, Toggle } from "./ui";
+import { RowMenu, Sparkline, Toggle } from "./ui";
+import type { RowMenuItem } from "./ui";
 import { ArenaBars, ArenaHeader, ArenaInsight, ArenaMetric, ArenaRightRail, ArenaStatCard, heatBg } from "./arena/arenaui";
 import { domainIcon } from "./icons";
 import { BENCH_CLI_OPTIONS, benchBatches, benchFreqLabel, benchFreqMs, benchNotify, cancelBenchBatch, executeBenchBatch, runBenchModels, startQuestionSuggest, useBenchBatches, useQuestionSuggest } from "./bench";
@@ -1093,6 +1094,76 @@ function RunningBatchCard({
 // ─────────────────────────────────────────────────────────────────────
 // SETTINGS PANEL - vault, theme, defaults, about
 
+// Model chips for a preset row: the provider's real mark plus the human model
+// name. A model whose runtime cannot run right now is dimmed with the reason on
+// hover; no per-chip check icons, since a ready model is the normal case.
+function PresetChips({ models, providerStatus }: { models: string[]; providerStatus: (id: string) => { status: string; runnable: boolean } }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {models.map((k) => {
+        const [cli, modelId] = k.split(MODEL_SEP);
+        const ps = providerStatus(cli!);
+        const label = modelLabel(cli!, modelId!) || modelId;
+        const provider = BENCH_CLI_OPTIONS.find((c) => c.id === cli)?.label ?? VENDOR_BRAND[cli!]?.name ?? titleCase(cli!);
+        return (
+          <span
+            key={k}
+            title={ps.runnable ? `${provider} · ${label}` : `${provider} · ${label}: runtime is ${ps.status === "failed" ? "not working" : "not ready"}`}
+            className={`inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface-warm py-0.5 pl-1 pr-2 text-xs text-text-secondary ${ps.runnable ? "" : "opacity-50"}`}
+          >
+            <ProviderMark vendor={cli!} size={16} />
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// One preset per row: name + badge + rationale + chips on the left, ONE primary
+// action (Run) on the right, everything else in the row menu. Module-level (not
+// defined inside the panel's render) so it keeps its menu open across parent
+// re-renders.
+function PresetRowView({ name, rationale, badge, schedLabel, countLabel, models, onRun, menu, providerStatus }: {
+  name: string;
+  rationale?: string;
+  badge: { label: string; cls: string; sparkle: boolean };
+  schedLabel?: string;
+  countLabel: string;
+  models: string[];
+  onRun: () => void;
+  menu: RowMenuItem[];
+  providerStatus: (id: string) => { status: string; runnable: boolean };
+}) {
+  return (
+    <div className="group flex items-start gap-4 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-semibold text-text-primary">{name}</span>
+          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-px text-[10px] font-medium ${badge.cls}`}>
+            {badge.sparkle && <Sparkles className="h-2.5 w-2.5" aria-hidden />}
+            {badge.label}
+          </span>
+          {schedLabel && (
+            <span title={`Runs ${schedLabel.toLowerCase()}`} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-px text-[10px] font-medium text-accent">
+              <CalendarClock className="h-2.5 w-2.5" /> {schedLabel}
+            </span>
+          )}
+          <span className="text-xs text-text-muted">{countLabel}</span>
+        </div>
+        {rationale && <div className="mt-0.5 text-xs leading-snug text-text-muted">{rationale}</div>}
+        <div className="mt-2"><PresetChips models={models} providerStatus={providerStatus} /></div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1 pt-0.5">
+        <button onClick={onRun} title="Run this preset now" className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-background transition-colors hover:bg-accent-hover">
+          <Play className="h-3 w-3" /> Run
+        </button>
+        <RowMenu items={menu} label={`More actions for ${name}`} />
+      </div>
+    </div>
+  );
+}
+
 export function BenchRunConfig({
   mode, setMode, selModels, toggleModel, allDomains, scope, toggleScope, scoped,
   applyModels, applyScope, onRunSuite,
@@ -1193,8 +1264,6 @@ export function BenchRunConfig({
   // Live list of schedule entries (many, each its own cadence). The card and the
   // Schedule page both read from this one source of truth.
   const schedules = useSchedules();
-  // Which preset card currently has its cadence picker open (keyed by schedule id).
-  const [cadencePickerFor, setCadencePickerFor] = useState<string | null>(null);
   // Filter for the unified preset list. "ai" is the LIVE Suggest-presets output
   // (ephemeral suggestions); "mine" = saved presets the user owns (manual or
   // canonical origin); "fromAi" = saved presets that originated from an AI
@@ -1220,7 +1289,10 @@ export function BenchRunConfig({
       // cannot possibly run is noise. Verifying / ok both count as present.
       if (ps.status === "unavailable") continue;
       const curated = curatedFor(c.id);
-      const models = (curated.length ? curated : modelsFor(c.id)).slice(0, 8);
+      // "auto" is the per-runtime router, not a model: a preset that lists it
+      // reads as "Auto · Auto · Auto" and benchmarks nothing nameable. Skip it
+      // so every preset (and the AI's flagship pick) is a real model.
+      const models = (curated.length ? curated : modelsFor(c.id)).filter((m) => m.id !== "auto").slice(0, 8);
       for (const m of models) {
         rows.push({
           key: `${c.id}${MODEL_SEP}${m.id}`,
@@ -1319,12 +1391,10 @@ export function BenchRunConfig({
   // updates that entry instead of piling up duplicates.
   const schedulePreset = (name: string, models: string[], domains: string[], freq: BenchSchedule["freq"]) => {
     upsertSchedule({ id: presetScheduleId(name), name, models, domains, freq, enabled: true });
-    setCadencePickerFor(null);
     window.dispatchEvent(new Event("prevail:bench-sched"));
   };
   const unschedulePreset = (name: string) => {
     removeSchedule(presetScheduleId(name));
-    setCadencePickerFor(null);
     window.dispatchEvent(new Event("prevail:bench-sched"));
   };
   // The existing schedule entry for a preset (by name), if any.
@@ -1708,28 +1778,8 @@ export function BenchRunConfig({
       {effectiveStep === "presets" && (
         <div className="space-y-1">
         {(() => {
-          // Compact model chips with a runtime validity tick, reused by every
-          // preset card. modelLabel gives the human name; providerStatus gives the
-          // live runnability of that model's provider.
-          const PresetChips = ({ models }: { models: string[] }) => (
-            <div className="flex flex-wrap gap-1">
-              {models.map((k) => {
-                const [cli, modelId] = k.split(MODEL_SEP);
-                const ps = providerStatus(cli!);
-                const label = modelLabel(cli!, modelId!) || modelId;
-                return (
-                  <span key={k} title={ps.runnable ? `${label} is ready to run` : `${label} runtime is not ready`} className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] text-text-secondary">
-                    {ps.runnable
-                      ? <Check className="h-2.5 w-2.5 text-ok" strokeWidth={3} aria-hidden />
-                      : <span className={`h-1.5 w-1.5 rounded-full ${ps.status === "failed" ? "bg-err" : "bg-warn"}`} aria-hidden />}
-                    {label}
-                  </span>
-                );
-              })}
-            </div>
-          );
           // ── Unified preset model. Canonical, AI, and Saved presets all become
-          // one shape so a SINGLE card renders every source identically. `suite`
+          // one shape so a SINGLE row renders every source identically. `suite`
           // is set only for saved presets (the ones you can Edit / Delete). ──────
           type Source = "canonical" | "ai" | "saved";
           type Origin = "manual" | "ai" | "canonical";
@@ -1765,99 +1815,65 @@ export function BenchRunConfig({
           // Counts mirror each filter's list.
           const mineCount = savedUnified.filter((u) => u.origin !== "ai").length;
           const fromAiCount = savedUnified.filter((u) => u.origin === "ai").length;
-          const SOURCE_META: Record<Source, { label: string; badge: string }> = {
-            canonical: { label: "Built-in", badge: "border-border-subtle bg-surface-warm text-text-secondary" },
-            ai: { label: "Suggested", badge: "border-accent-border bg-accent-soft text-accent" },
-            saved: { label: "Saved", badge: "border-ok/40 bg-ok/10 text-ok" },
-          };
-          // A saved card's badge shows WHERE it came from, so manual-saved vs
-          // AI-saved vs canonical-saved is obvious at a glance. Non-saved cards
-          // (live canonical / AI) keep their plain source badge.
-          const ORIGIN_META: Record<Origin, { qualifier: string; sparkle: boolean }> = {
-            manual: { qualifier: "yours", sparkle: false },
-            ai: { qualifier: "from AI", sparkle: true },
-            canonical: { qualifier: "from Built-in", sparkle: false },
+          // Source badge: sentence case, one tone per source. A saved row says
+          // where it came from ("Saved from AI") so manual vs AI vs built-in
+          // origin is obvious at a glance.
+          const badgeFor = (p: UnifiedPreset): { label: string; cls: string; sparkle: boolean } => {
+            if (p.source === "ai") return { label: "Suggested", cls: "bg-accent-soft text-accent", sparkle: true };
+            if (p.source === "canonical") return { label: "Built-in", cls: "bg-surface-strong text-text-secondary", sparkle: false };
+            const origin = p.origin ?? "manual";
+            return {
+              label: origin === "ai" ? "Saved from AI" : origin === "canonical" ? "Saved from built-in" : "Yours",
+              cls: "bg-ok/10 text-ok",
+              sparkle: origin === "ai",
+            };
           };
           const CADENCES: BenchSchedule["freq"][] = ["daily", "weekly", "monthly"];
 
-          const PresetCard = ({ p }: { p: UnifiedPreset }) => {
-            // Whether this preset already lives in the saved library, so Save/Saved
-            // reflects state honestly across every source.
+          // Per-row props for the hoisted PresetRowView (a stable component type,
+          // so its menu state survives this panel re-rendering while verify
+          // results stream in).
+          const rowFor = (p: UnifiedPreset) => {
+            // Whether this preset already lives in the saved library, so Save vs
+            // Update reflects state honestly across every source.
             const saved = p.source === "saved" || suites.some((s) => s.name.trim().toLowerCase() === p.name.trim().toLowerCase());
             const sched = scheduleFor(p.name);
-            const pickerOpen = cadencePickerFor === presetScheduleId(p.name);
-            const meta = SOURCE_META[p.source];
             const doRun = () => p.suite ? onRunSuite(p.suite) : runPreset({ name: p.name, rationale: p.rationale ?? "", models: p.models });
             const doApply = () => p.suite ? loadSuite(p.suite) : applyPreset({ name: p.name, rationale: p.rationale ?? "", models: p.models });
-            return (
-            <div className={`rounded-lg border px-3 py-2 ${p.source === "ai" ? "border-accent-border/60 bg-accent-soft/20" : "border-border-subtle bg-surface"}`}>
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-px font-mono text-[10px] uppercase tracking-wider ${meta.badge}`}>
-                      {p.source === "ai" && <Sparkles className="h-2.5 w-2.5" aria-hidden />}
-                      {p.source === "saved" && p.origin && ORIGIN_META[p.origin].sparkle && <Sparkles className="h-2.5 w-2.5" aria-hidden />}
-                      {meta.label}
-                      {p.source === "saved" && p.origin && (
-                        <span className="font-normal normal-case tracking-normal opacity-70">· {ORIGIN_META[p.origin].qualifier}</span>
-                      )}
-                    </span>
-                    <span className="truncate text-[13px] font-medium text-text-primary">{p.name}</span>
-                    {sched && <span title={`Scheduled ${benchFreqLabel(sched.freq)}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-border bg-accent-soft px-1.5 py-px font-mono text-[10px] text-accent"><CalendarClock className="h-2.5 w-2.5" /> {benchFreqLabel(sched.freq)}</span>}
-                    <span className="ml-auto shrink-0 font-mono text-[10px] text-text-muted">{p.models.length} model{p.models.length === 1 ? "" : "s"}{p.domains.length ? ` · ${suiteScopeLabel(p.suite!)}` : ""}</span>
-                  </div>
-                  {p.rationale && <div className="mt-0.5 text-[11px] leading-snug text-text-muted">{p.rationale}</div>}
-                  <div className="mt-1.5"><PresetChips models={p.models} /></div>
-                </div>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <button onClick={doRun} title="Run this preset now" className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 font-mono text-[11px] font-semibold text-background hover:bg-accent-hover disabled:opacity-40">
-                  <Play className="h-3 w-3" /> Run
-                </button>
-                <button onClick={doApply} title="Drop these models onto the Run panel to tweak" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 font-mono text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
-                  Apply
-                </button>
-                <button
-                  onClick={() => { if (p.source === "saved" && p.suite) { loadSuite(p.suite); setSuiteName(p.suite.name); setSavingSuite(true); } else { savePreset({ name: p.name, rationale: p.rationale ?? "", models: p.models }, p.source === "ai" ? "ai" : "canonical"); } }}
-                  title={saved ? (p.source === "saved" ? "Update this saved preset with the models in the editor" : "Already in your library. Click to update it with the current models.") : "Save this preset into your library"}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${saved ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}
-                >
-                  {saved ? <><Check className="h-3 w-3" strokeWidth={3} /> {p.source === "saved" ? "Update" : "Saved"}</> : <><Bookmark className="h-3 w-3" /> Save</>}
-                </button>
-                <div className="relative">
-                  <button
-                    onClick={() => setCadencePickerFor(pickerOpen ? null : presetScheduleId(p.name))}
-                    title={sched ? "Change cadence or unschedule" : "Schedule this preset on its own cadence"}
-                    className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${sched ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}
-                  >
-                    <CalendarClock className="h-3 w-3" /> {sched ? `Scheduled · ${benchFreqLabel(sched.freq)}` : "Schedule"}
-                  </button>
-                  {pickerOpen && (
-                    <div className="absolute left-0 top-full z-20 mt-1 w-44 rounded-lg border border-border bg-surface p-1 shadow-lg">
-                      <div className="px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Run on a cadence</div>
-                      {CADENCES.map((f) => (
-                        <button key={f} onClick={() => schedulePreset(p.name, p.models, p.domains, f)}
-                          className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-left font-mono text-[11px] hover:bg-surface-warm ${sched?.freq === f ? "text-accent" : "text-text-secondary"}`}>
-                          {f}{sched?.freq === f && <Check className="h-3 w-3" strokeWidth={3} />}
-                        </button>
-                      ))}
-                      {sched && (
-                        <button onClick={() => unschedulePreset(p.name)} className="mt-1 flex w-full items-center gap-1.5 rounded-md border-t border-border-subtle px-2 py-1 text-left font-mono text-[11px] text-text-muted hover:text-err">
-                          <Trash2 className="h-3 w-3" /> Unschedule
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {p.source === "saved" && p.suite && (
-                  <>
-                    <button onClick={() => { loadSuite(p.suite!); setSuiteName(p.suite!.name); setSavingSuite(true); }} title="Edit: load this preset's models into the editor above, adjust, then Save to update it" className="ml-auto text-text-muted/60 hover:text-accent"><Pencil className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => { if (sched) removeSchedule(sched.id); deleteSuite(p.suite!.id); }} title="Delete this saved preset" className="text-text-muted/50 hover:text-err"><Trash2 className="h-3.5 w-3.5" /></button>
-                  </>
-                )}
-              </div>
-            </div>
-            );
+            const doEdit = () => { if (p.suite) { loadSuite(p.suite); setSuiteName(p.suite.name); setSavingSuite(true); } };
+            const doSave = () => {
+              if (p.source === "saved" && p.suite) doEdit();
+              else savePreset({ name: p.name, rationale: p.rationale ?? "", models: p.models }, p.source === "ai" ? "ai" : "canonical");
+            };
+            const menu: RowMenuItem[] = [
+              { icon: Layers, label: "Apply to the Run panel", hint: "Adjust the models before running", onClick: doApply },
+              p.source === "saved" && p.suite
+                ? { icon: Pencil, label: "Edit", hint: "Load into the editor, then Save", onClick: doEdit }
+                : { icon: Bookmark, label: saved ? "Update saved copy" : "Save to my presets", hint: saved ? "Already in your library" : undefined, onClick: doSave },
+              { kind: "separator" },
+              { kind: "heading", label: sched ? `Runs ${benchFreqLabel(sched.freq)}` : "Run on a schedule" },
+              ...CADENCES.map((f): RowMenuItem => ({
+                icon: CalendarClock,
+                label: `Run ${f}`,
+                checked: sched?.freq === f,
+                onClick: () => schedulePreset(p.name, p.models, p.domains, f),
+              })),
+            ];
+            if (sched) menu.push({ icon: X, label: "Unschedule", onClick: () => unschedulePreset(p.name) });
+            if (p.source === "saved" && p.suite) {
+              menu.push({ kind: "separator" });
+              menu.push({ icon: Trash2, label: "Delete preset", danger: true, onClick: () => { if (sched) removeSchedule(sched.id); deleteSuite(p.suite!.id); } });
+            }
+            return {
+              name: p.name,
+              rationale: p.rationale,
+              badge: badgeFor(p),
+              schedLabel: sched ? titleCase(benchFreqLabel(sched.freq)) : undefined,
+              countLabel: `${p.models.length} model${p.models.length === 1 ? "" : "s"}${p.domains.length ? ` · ${suiteScopeLabel(p.suite!)}` : ""}`,
+              models: p.models,
+              onRun: doRun,
+              menu,
+            };
           };
 
           const FILTERS: Array<{ id: typeof presetFilter; label: string; count: number; title: string }> = [
@@ -1874,34 +1890,35 @@ export function BenchRunConfig({
                 <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
                   {FILTERS.map((f) => (
                     <button key={f.id} onClick={() => setPresetFilter(f.id)} title={f.title}
-                      className={`rounded-md px-2.5 py-1 font-mono text-[11px] transition-colors ${presetFilter === f.id ? "bg-accent text-background shadow-sm" : "text-text-secondary hover:bg-surface-warm"}`}>
+                      className={`rounded-md px-2.5 py-1 text-xs transition-colors ${presetFilter === f.id ? "bg-accent text-background shadow-sm" : "text-text-secondary hover:bg-surface-warm"}`}>
                       {f.label}<span className="ml-1 opacity-60">{f.count}</span>
                     </button>
                   ))}
                 </div>
-                <button onClick={suggestAiPresets} disabled={aiBusy || availableModelsForAi.length === 0} title="Ask AI to curate a library of presets over your current models" className="ml-auto inline-flex items-center gap-1 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 font-mono text-[11px] text-accent hover:bg-accent-soft/70 disabled:opacity-40">
-                  {aiBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {aiPresets ? "Refresh AI" : "Suggest presets"}
+                <button onClick={suggestAiPresets} disabled={aiBusy || availableModelsForAi.length === 0} title="Ask AI to curate a library of presets over your current models" className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-xs text-accent hover:bg-accent-soft/70 disabled:opacity-40">
+                  {aiBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {aiPresets ? "Refresh suggestions" : "Suggest presets"}
                 </button>
               </div>
 
-              {aiBusy && <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface px-3 py-2 font-mono text-[11px] text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> Curating presets over {availableModelsForAi.length} model{availableModelsForAi.length === 1 ? "" : "s"}…</div>}
-              {aiErr && !aiBusy && <div className="flex items-center gap-2 rounded-lg border border-err/40 bg-surface px-3 py-2 text-[11px] text-err"><AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {aiErr}</div>}
+              {aiBusy && <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface px-3 py-2 text-xs text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> Curating presets over {availableModelsForAi.length} model{availableModelsForAi.length === 1 ? "" : "s"}…</div>}
+              {aiErr && !aiBusy && <div className="flex items-center gap-2 rounded-lg border border-err/40 bg-surface px-3 py-2 text-xs text-err"><AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {aiErr}</div>}
 
-              {/* The unified, filtered list. */}
-              <div className="space-y-2">
-                {filtered.map((p) => <PresetCard key={`${p.source}-${p.name}`} p={p} />)}
-                {filtered.length === 0 && (
-                  <div className="rounded-lg border border-dashed border-border px-3 py-2 font-mono text-[11px] text-text-muted">
-                    {presetFilter === "ai" && !aiPresets
-                      ? `AI can suggest presets like Top Frontier, Second-in-class, or Open source over your ${availableModelsForAi.length} runnable model${availableModelsForAi.length === 1 ? "" : "s"}.`
-                      : presetFilter === "mine"
-                      ? "No presets of your own yet. Build one from the models below, or save a built-in preset to make it yours."
-                      : presetFilter === "fromAi"
-                      ? "No AI-saved presets yet. Suggest presets, then Save the ones you want to keep and reuse."
-                      : "No presets to show for this filter."}
-                  </div>
-                )}
-              </div>
+              {/* The unified, filtered list: uniform rows, one frame. */}
+              {filtered.length > 0 ? (
+                <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+                  {filtered.map((p) => <PresetRowView key={`${p.source}-${p.name}`} {...rowFor(p)} providerStatus={providerStatus} />)}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border px-4 py-3 text-xs text-text-muted">
+                  {presetFilter === "ai" && !aiPresets
+                    ? `AI can suggest presets like Top Frontier, Second-in-class, or Open source over your ${availableModelsForAi.length} runnable model${availableModelsForAi.length === 1 ? "" : "s"}.`
+                    : presetFilter === "mine"
+                    ? "No presets of your own yet. Build one from the models below, or save a built-in preset to make it yours."
+                    : presetFilter === "fromAi"
+                    ? "No AI-saved presets yet. Suggest presets, then Save the ones you want to keep and reuse."
+                    : "No presets to show for this filter."}
+                </div>
+              )}
 
               {/* Save the current selection as a new preset. */}
               {savingSuite ? (
@@ -1909,14 +1926,14 @@ export function BenchRunConfig({
                   <input
                     autoFocus value={suiteName} onChange={(e) => setSuiteName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") commitSuite(); if (e.key === "Escape") { setSavingSuite(false); setSuiteName(""); } }}
-                    placeholder="preset name (e.g. Frontier x Finance)" className="flex-1 rounded-md border border-border bg-background px-2.5 py-1 font-mono text-[11px] outline-none focus:border-accent-border"
+                    placeholder="Preset name, for example Frontier x Finance" className="flex-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs outline-none focus:border-accent-border"
                   />
-                  <span className="font-mono text-[10px] text-text-muted">{selModels.size} model{selModels.size === 1 ? "" : "s"}</span>
-                  <button onClick={commitSuite} disabled={!suiteName.trim() || selModels.size === 0} className="rounded-md bg-accent px-2.5 py-1 font-mono text-[11px] text-background disabled:opacity-40">{suites.some((x) => x.name.toLowerCase() === suiteName.trim().toLowerCase()) ? "Update" : "Save"}</button>
+                  <span className="text-xs text-text-muted">{selModels.size} model{selModels.size === 1 ? "" : "s"}</span>
+                  <button onClick={commitSuite} disabled={!suiteName.trim() || selModels.size === 0} className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-background disabled:opacity-40">{suites.some((x) => x.name.toLowerCase() === suiteName.trim().toLowerCase()) ? "Update" : "Save"}</button>
                   <button onClick={() => { setSavingSuite(false); setSuiteName(""); }} className="text-text-muted hover:text-text-primary"><X className="h-3.5 w-3.5" /></button>
                 </div>
               ) : (
-                <button onClick={() => setSavingSuite(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 font-mono text-[11px] text-text-muted hover:border-accent-border hover:text-accent">
+                <button onClick={() => setSavingSuite(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-text-muted hover:border-accent-border hover:text-accent">
                   <Plus className="h-3.5 w-3.5" /> Save selected models as a preset
                 </button>
               )}

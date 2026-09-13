@@ -232,9 +232,13 @@ export type AvailablePresetModel = {
 
 export type CanonicalPreset = { name: string; rationale: string; models: string[] };
 
-export function canonicalPresets(available: AvailablePresetModel[]): CanonicalPreset[] {
+export function canonicalPresets(input: AvailablePresetModel[]): CanonicalPreset[] {
   const out: CanonicalPreset[] = [];
   const cap = (models: string[]): string[] => models.slice(0, 6); // keep presets tight
+  // The "auto" router sentinel is not a model. Callers already drop it, but
+  // guard here too: it was what made "One per provider" read "Auto · Auto ·
+  // Auto" (each provider's curated list leads with Auto).
+  const available = input.filter((m) => m.key.split("::")[1] !== "auto");
 
   const validated = available.filter((m) => m.validated);
   if (validated.length >= 2) {

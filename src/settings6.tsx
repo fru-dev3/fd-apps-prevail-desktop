@@ -2,7 +2,7 @@
 // Council defaults, Configuration (groups the memory/tasks/ideal sub-sections),
 // and the Agents catalog (AgentCard + AgentsSection).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpRight, Brain, Check, ChevronRight, Cloud, CloudOff, Cpu, Crown, FileX, Fingerprint, FolderCheck, FolderX, Globe, ListChecks, Loader2, Lock, LockOpen, Mail, MailCheck, Scale, Search, Send, Server, ShieldCheck, ShieldOff, Sigma, Sparkles, Target, Terminal, User, Wifi, WifiOff, X } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Brain, Check, ChevronRight, Circle, CircleCheck, CircleX, Cloud, CloudOff, Copy, Cpu, Crown, FileX, Fingerprint, FolderCheck, FolderX, Globe, LineChart, ListChecks, Loader2, Lock, LockOpen, Mail, MailCheck, RefreshCw, Scale, Search, Send, Server, ShieldCheck, ShieldOff, Sigma, Sparkles, Star, Target, Terminal, User, Wifi, WifiOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
 import { DISCOVERED_MODELS, RUNTIME_META, VENDOR_BRAND, isHarnessRuntime } from "./constants";
@@ -10,7 +10,8 @@ import { isLocalCli } from "./helpers";
 import { modelsFor, prettyModelId } from "./helpers2";
 import { LS, PREF, getPref, isBunkerOn, lsGet, lsSet, setPref } from "./storage";
 import { Ghost } from "lucide-react";
-import { Toggle } from "./ui";
+import { RowMenu, Toggle } from "./ui";
+import type { RowMenuItem } from "./ui";
 import { COUNCIL_CHAIR_KEY, COUNCIL_MEMBERS_KEY, councilModelsFor, councilSlotKey, readCouncilChair, readCouncilMembers } from "./council";
 import { SettingsHeader, authLoginCmd } from "./sectionutil";
 import { cliVerifyLive, loadVerifyMap, recheckCli, saveVerifyMap, setCliVerify, useCliVerifyLive } from "./verify";
@@ -806,97 +807,98 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
 // rendered directly inside Settings → Integrations. Old ToolsPanel
 // wrapper removed.
 
-// Economy - Balanced - Quality bias for the "Auto" model router. Persisted
-// globally at prevail.route.bias (default "balanced") and forwarded to the
-// engine only on auto turns. Shown inside a runtime's model list when that
-// runtime offers an "Auto" model, so the control sits next to what it governs.
+// Economy / Balanced / Quality bias plus cascade escalation for the "Auto"
+// router, in ONE compact row that sits above the model list of any runtime
+// that offers Auto. Both persist globally (prevail.route.bias, default
+// "balanced"; prevail.route.cascade, default off) and are forwarded to the
+// engine only on auto turns. Cascade answers an ambiguous prompt with a cheaper
+// model first and escalates only when a confidence check fails, so it can cost
+// two calls: slower, usually cheaper. Obvious easy/hard prompts never cascade.
 export const ROUTE_BIAS_KEY = "prevail.route.bias";
+export const ROUTE_CASCADE_KEY = "prevail.route.cascade";
 type RouteBiasValue = "economy" | "balanced" | "quality";
-function RouteBiasControl() {
-  const read = (): RouteBiasValue => {
-    const v = lsGet(ROUTE_BIAS_KEY, "balanced");
-    return v === "economy" || v === "quality" ? v : "balanced";
-  };
-  const [bias, setBias] = useState<RouteBiasValue>(read);
-  // Stay in sync if another runtime card (or window) changed it.
+const ROUTE_BIAS_OPTIONS: { id: RouteBiasValue; label: string; blurb: string }[] = [
+  { id: "economy", label: "Economy", blurb: "Cheaper and faster" },
+  { id: "balanced", label: "Balanced", blurb: "Cost against quality" },
+  { id: "quality", label: "Quality", blurb: "Strongest model every time" },
+];
+function readRouteBias(): RouteBiasValue {
+  const v = lsGet(ROUTE_BIAS_KEY, "balanced");
+  return v === "economy" || v === "quality" ? v : "balanced";
+}
+function readRouteCascade(): boolean { return lsGet(ROUTE_CASCADE_KEY, "0") === "1"; }
+
+function RoutingRow() {
+  const [bias, setBias] = useState<RouteBiasValue>(readRouteBias);
+  const [cascade, setCascade] = useState<boolean>(readRouteCascade);
+  // Stay in sync if another runtime's detail (or another window) changed it.
   useEffect(() => {
-    const h = () => setBias(read());
-    window.addEventListener("prevail:route-bias-changed", h);
-    return () => window.removeEventListener("prevail:route-bias-changed", h);
+    const hb = () => setBias(readRouteBias());
+    const hc = () => setCascade(readRouteCascade());
+    window.addEventListener("prevail:route-bias-changed", hb);
+    window.addEventListener("prevail:route-cascade-changed", hc);
+    return () => {
+      window.removeEventListener("prevail:route-bias-changed", hb);
+      window.removeEventListener("prevail:route-cascade-changed", hc);
+    };
   }, []);
-  const pick = (v: RouteBiasValue) => {
+  const pickBias = (v: RouteBiasValue) => {
     setBias(v);
     lsSet(ROUTE_BIAS_KEY, v);
     window.dispatchEvent(new Event("prevail:route-bias-changed"));
   };
-  const opts: { id: RouteBiasValue; label: string; blurb: string }[] = [
-    { id: "economy", label: "Economy", blurb: "cheaper + faster" },
-    { id: "balanced", label: "Balanced", blurb: "cost vs quality" },
-    { id: "quality", label: "Quality", blurb: "strongest model" },
-  ];
+  const setCascadeOn = (v: boolean) => {
+    setCascade(v);
+    lsSet(ROUTE_CASCADE_KEY, v ? "1" : "0");
+    window.dispatchEvent(new Event("prevail:route-cascade-changed"));
+  };
   return (
-    <div className="mb-2.5 rounded-md border border-accent-border/50 bg-accent-soft/40 px-3 py-2">
-      <div className="mb-1.5 flex items-center gap-2">
-        <Sparkles className="h-3 w-3 text-accent" />
-        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-text-primary">Auto routing bias</span>
-      </div>
-      <div className="flex gap-1">
-        {opts.map((o) => (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border-subtle bg-surface-warm/50 px-3 py-2">
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text-primary">
+        <Sparkles className="h-3.5 w-3.5 text-accent" /> Auto routing
+      </span>
+      <div className="inline-flex rounded-md border border-border bg-background p-0.5" role="radiogroup" aria-label="Auto routing bias">
+        {ROUTE_BIAS_OPTIONS.map((o) => (
           <button
             key={o.id}
-            onClick={() => pick(o.id)}
+            role="radio"
+            aria-checked={bias === o.id}
+            onClick={() => pickBias(o.id)}
             title={o.blurb}
-            className={`flex-1 rounded-md border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
-              bias === o.id
-                ? "border-accent-border bg-accent text-background"
-                : "border-border bg-background text-text-muted hover:border-accent-border hover:text-accent"
-            }`}
+            className={`rounded px-2.5 py-1 text-xs transition-colors ${bias === o.id ? "bg-accent text-background shadow-sm" : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"}`}
           >
             {o.label}
           </button>
         ))}
       </div>
-      <div className="mt-1 font-mono text-[9px] text-text-muted">{opts.find((o) => o.id === bias)?.blurb}</div>
-      <RouteCascadeControl />
+      <span className="text-xs text-text-muted">{ROUTE_BIAS_OPTIONS.find((o) => o.id === bias)?.blurb}</span>
+      <label
+        className="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs text-text-secondary"
+        title="Answer ambiguous prompts with a cheaper model first and escalate only if it is not confident. Can cost two calls, so it is slower but often cheaper."
+      >
+        <Toggle on={cascade} onChange={setCascadeOn} label="Cascade escalation" />
+        Try a cheaper model first
+      </label>
     </div>
   );
 }
 
-// Cascade escalation for the "Auto" router (Layer 4). OPT-IN, default OFF.
-// Persisted globally at prevail.route.cascade and forwarded to the engine only
-// on auto turns. When on, an ambiguous-middle prompt is answered by a cheaper
-// model first and escalated to the stronger pick only if a confidence check
-// fails, so it can cost up to two model calls (slower, but cheaper when the
-// first answer holds). Obvious easy/hard prompts never cascade.
-export const ROUTE_CASCADE_KEY = "prevail.route.cascade";
-function RouteCascadeControl() {
-  const read = (): boolean => lsGet(ROUTE_CASCADE_KEY, "0") === "1";
-  const [on, setOn] = useState<boolean>(read);
-  useEffect(() => {
-    const h = () => setOn(read());
-    window.addEventListener("prevail:route-cascade-changed", h);
-    return () => window.removeEventListener("prevail:route-cascade-changed", h);
-  }, []);
-  const toggle = () => {
-    const next = !on;
-    setOn(next);
-    lsSet(ROUTE_CASCADE_KEY, next ? "1" : "0");
-    window.dispatchEvent(new Event("prevail:route-cascade-changed"));
-  };
+// A quiet status pill: colored dot (or spinner) + a two-word sentence-case
+// label. Used for the runtime's health and for a failed model row.
+type ChipTone = "ok" | "warn" | "err" | "muted";
+function StatusChip({ tone, label, spin, title }: { tone: ChipTone; label: string; spin?: boolean; title?: string }) {
+  const cls = tone === "ok" ? "bg-ok/10 text-ok" : tone === "warn" ? "bg-warn/10 text-warn" : tone === "err" ? "bg-err/10 text-err" : "bg-surface-strong text-text-muted";
+  const dot = tone === "ok" ? "bg-ok" : tone === "warn" ? "bg-warn" : tone === "err" ? "bg-err" : "bg-text-muted";
   return (
-    <div className="mt-2 border-t border-accent-border/30 pt-2">
-      <button onClick={toggle} className="flex w-full items-start gap-2 text-left" aria-pressed={on}>
-        <span className={`mt-0.5 inline-flex h-4 w-7 shrink-0 items-center rounded-full border transition-colors ${on ? "border-accent-border bg-accent" : "border-border bg-background"}`}>
-          <span className={`h-3 w-3 rounded-full bg-background shadow-sm transition-transform ${on ? "translate-x-3.5 bg-background" : "translate-x-0.5 bg-text-muted"}`} />
-        </span>
-        <span className="min-w-0">
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-text-primary">Cascade escalation {on ? "on" : "off"}</span>
-          <span className="mt-0.5 block font-mono text-[9px] leading-snug text-text-muted">Answer ambiguous prompts with a cheaper model first, escalate only if it is not confident. Can use two model calls, so it is slower but often cheaper.</span>
-        </span>
-      </button>
-    </div>
+    <span title={title} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}>
+      {spin ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
+      {label}
+    </span>
   );
 }
+
+const btnSecondary = "inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-text-secondary transition-colors hover:border-accent-border hover:text-accent disabled:opacity-40";
+const btnPrimary = "inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover";
 
 export function AgentCard({
   cli,
@@ -931,7 +933,7 @@ export function AgentCard({
   }, []);
   const models = modelsFor(cli.id);
   // "auto" is a router sentinel, not a real model: it can't be verified and must
-  // not count against the "N/M verified" tally or trigger a verify call.
+  // not count against the "N of M verified" tally or trigger a verify call.
   const verifiable = models.filter((m) => m.id !== "auto");
   const [open, setOpen] = useState(false);
   const isOpen = forceOpen || open;
@@ -952,6 +954,7 @@ export function AgentCard({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [cmdCopied, setCmdCopied] = useState(false);
+  const [idCopied, setIdCopied] = useState("");
 
   async function verifyModel(modelId: string) {
     if (modelId === "auto") return; // sentinel, nothing to verify
@@ -995,220 +998,176 @@ export function AgentCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  function StatusGlyph({ s }: { s: ModelVerifyStatus | undefined }) {
-    if (s === "ok") return <span className="text-accent" title="Verified">✓</span>;
-    if (s === "verifying") return <span className="text-text-muted animate-pulse" title="Verifying…">◐</span>;
-    if (s === "failed") return <span className="text-warn" title="Failed verification">✗</span>;
-    return <span className="text-text-muted/60" title="Not yet verified">○</span>;
-  }
+  const copyText = (text: string, done: () => void) => {
+    navigator.clipboard.writeText(text).then(done).catch(() => {});
+  };
 
   const cliErr = liveVerify.get(cli.id);
+  const meta = RUNTIME_META[cli.id];
+  const verifiedCount = verifiable.filter((m) => status[m.id] === "ok").length;
+
+  // Runtime health, one chip. Sentence case, two words at most.
+  const health = (() => {
+    if (!cli.available) {
+      return cli.error
+        ? { tone: "err" as ChipTone, label: "Won't run", title: cli.error }
+        : { tone: "muted" as ChipTone, label: "Not installed" };
+    }
+    const v = cliVerifyLive.get(cli.id);
+    if (v?.status === "ok") return { tone: "ok" as ChipTone, label: "Ready" };
+    if (v?.status === "failed") {
+      const login = authLoginCmd(cli.id, v.error ?? "");
+      return { tone: "err" as ChipTone, label: login !== null ? "Not signed in" : "Not working", title: v.error ?? undefined };
+    }
+    if (v?.status === "verifying") return { tone: "warn" as ChipTone, label: "Checking", spin: true };
+    return { tone: "muted" as ChipTone, label: "Detected" };
+  })();
+
+  // The one-line fact strip under the name: vendor, version, spend, verified.
+  const metaParts: string[] = [brand.name];
+  if (cli.available) metaParts.push(cli.version ? `Version ${cli.version}` : `${cli.bin} in PATH`);
+  if (typeof cost === "number" && cost > 0) metaParts.push(`$${cost < 1 ? cost.toFixed(2) : cost < 100 ? cost.toFixed(1) : Math.round(cost)} spent`);
+  if (cli.available && verifiable.length > 0) metaParts.push(`${verifiedCount} of ${verifiable.length} models verified`);
+
+  // Runtime-level secondary actions, behind one menu in the header.
+  const runtimeMenu: RowMenuItem[] = [];
+  if (cli.available && verifiable.length > 0) runtimeMenu.push({ icon: RefreshCw, label: "Verify all models", onClick: verifyAll });
+  if (cli.available) runtimeMenu.push({ icon: RefreshCw, label: "Re-check runtime", onClick: () => recheckCli(cli.id) });
+  if (meta?.install) runtimeMenu.push({ icon: ArrowUpRight, label: "Open setup guide", onClick: () => { window.open(meta.install, "_blank", "noreferrer"); } });
+
   return (
     <div className={forceOpen ? "bg-surface" : `rounded-lg border bg-surface transition-colors ${open ? "border-accent-border" : "border-border-subtle"}`}>
-      {/* Single-line runtime row, Multica-style columns: Runtime · Health · Cost
-          · Version · action. Column widths mirror the header strip in AgentsSection. */}
-      <div className="flex items-center gap-3 px-4 py-3">
-        <ProviderMark vendor={cli.id} size={40} />
-        {/* Runtime identity (click to expand the model list; no-op in detail mode). */}
+      {/* Header: mark, big name, health chip, fact strip, ONE primary action. */}
+      <div className="flex items-center gap-4 px-5 py-4">
+        <ProviderMark vendor={cli.id} size={44} />
         <button
           onClick={() => !forceOpen && cli.available && setOpen((v) => !v)}
           disabled={forceOpen || !cli.available || models.length === 0}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-default"
+          className="min-w-0 flex-1 text-left disabled:cursor-default"
         >
-          {!forceOpen && cli.available && models.length > 0 && (
-            <span className="shrink-0 text-[11px] text-text-muted">{open ? "▾" : "▸"}</span>
-          )}
-          <span className="truncate font-display text-sm font-semibold tracking-tight">{cli.label}</span>
-          {isDefault && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-background">
-              <Check className="h-2.5 w-2.5" strokeWidth={3} /> Default
-            </span>
-          )}
-          <span className="truncate font-mono text-[10px] text-text-muted/60">{brand.name}</span>
+          <span className="flex items-center gap-2">
+            {!forceOpen && cli.available && models.length > 0 && (
+              <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} />
+            )}
+            <span className="truncate font-display text-lg font-semibold tracking-tight text-text-primary">{cli.label}</span>
+            {isDefault && <span className="shrink-0 rounded-full bg-accent px-2 py-px text-[10px] font-semibold text-background">Default</span>}
+            <StatusChip tone={health.tone} label={health.label} spin={health.spin} title={health.title} />
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-text-muted">{metaParts.join("  ·  ")}</span>
         </button>
-        {/* Health column. Color-coded so valid/not-installed read at a glance:
-            green for valid, amber for checking/not-valid, neutral muted for
-            not-installed. */}
-        <div className="flex w-[124px] shrink-0 flex-col items-start gap-0.5">
-          {(() => {
-            const v = cli.available ? cliVerifyLive.get(cli.id) : undefined;
-            const chip = !cli.available
-              ? cli.error
-                ? { cls: "border-err/40 bg-err/10 text-err", label: "Broken", Icon: X, spin: false }
-                : { cls: "border-border bg-surface-warm text-text-muted", label: "Not installed", Icon: null, spin: false }
-              : v?.status === "ok"
-                ? { cls: "border-ok/40 bg-ok/10 text-ok", label: "Valid", Icon: Check, spin: false }
-                : v?.status === "failed"
-                  ? { cls: "border-err/40 bg-err/10 text-err", label: "Not valid", Icon: X, spin: false }
-                  : v?.status === "verifying"
-                    ? { cls: "border-warn/40 bg-warn/10 text-warn", label: "Checking", Icon: Loader2, spin: true }
-                    : { cls: "border-border bg-background text-text-muted", label: "Detected", Icon: null, spin: false };
-            return (
-              <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${chip.cls}`}>
-                {chip.Icon && <chip.Icon className={`h-2.5 w-2.5 ${chip.spin ? "animate-spin" : ""}`} strokeWidth={3} />}
-                {chip.label}
-              </span>
-            );
-          })()}
-          {cli.available && verifiable.length > 0 && (
-            <span className="font-mono text-[10px] text-text-muted">{verifiable.filter((m) => status[m.id] === "ok").length}/{verifiable.length} verified</span>
-          )}
-        </div>
-        {/* Cost column (cumulative spend on this runtime). */}
-        <div className="w-[64px] shrink-0 text-right font-mono text-[11px] text-text-secondary" title="Total spend on this runtime (local usage ledger)">
-          {typeof cost === "number" && cost > 0
-            ? `$${cost < 1 ? cost.toFixed(2) : cost < 100 ? cost.toFixed(1) : Math.round(cost)}`
-            : <span className="text-text-muted/50">–</span>}
-        </div>
-        {/* Version column. */}
-        <div className="w-[116px] shrink-0 truncate text-right font-mono text-[10px] text-text-muted/80">
-          {cli.available ? (cli.version ?? `${cli.bin} in PATH`) : cli.error ? "won't run" : `${cli.bin} not found`}
-        </div>
         {cli.available && chattable ? (
-          <button
-            onClick={() => onStartChat?.(cli.id)}
-            className="w-[92px] shrink-0 rounded-md border border-accent-border bg-accent-soft py-1.5 text-center font-mono text-[11px] uppercase tracking-wider text-accent transition-colors hover:bg-accent hover:text-background"
-          >
+          <button onClick={() => onStartChat?.(cli.id)} className={btnPrimary}>
             Start chat
           </button>
         ) : cli.available && !chattable ? (
           // Harness, installed: catalog-only (not a homepage chat runtime).
-          <span className="inline-flex w-[92px] shrink-0 items-center justify-center font-mono text-[10px] uppercase tracking-wider text-text-muted/60" title="Harness: set up here; not a chat runtime">
-            Ready
-          </span>
+          <span className="text-xs text-text-muted" title="Harness: set up here; not a chat runtime">Ready to use</span>
         ) : (
-          // Not installed → prompt setup with a link to the install docs.
           <a
-            href={RUNTIME_META[cli.id]?.install ?? "#"}
+            href={meta?.install ?? "#"}
             target="_blank"
             rel="noreferrer"
-            title={RUNTIME_META[cli.id]?.blurb ? `${RUNTIME_META[cli.id]?.blurb} (opens setup docs)` : "Open setup docs"}
-            className="inline-flex w-[92px] shrink-0 items-center justify-center gap-1 rounded-md border border-border bg-background py-1.5 text-center font-mono text-[11px] uppercase tracking-wider text-text-secondary transition-colors hover:border-accent-border hover:text-accent"
+            title={meta?.blurb ? `${meta.blurb} (opens setup docs)` : "Open setup docs"}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-accent"
           >
-            Set up <ArrowUpRight className="h-3 w-3" />
+            Set up <ArrowUpRight className="h-3.5 w-3.5" />
           </a>
         )}
+        {runtimeMenu.length > 0 && <RowMenu items={runtimeMenu} label="Runtime actions" />}
       </div>
 
-      {/* Why it's not valid, on the card face: usually an auth/token problem,
+      {/* Why it's not working, on the card face: usually an auth/token problem,
           so lead with the fix (the login command) rather than the stack. */}
       {cli.available && cliErr?.status === "failed" && cliErr.error && (
-        <div className="flex items-start gap-2 border-t border-border-subtle bg-warn/5 px-4 py-2">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
-          <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2.5 border-t border-border-subtle bg-warn/5 px-5 py-2.5">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn" />
+          <div className="min-w-0 flex-1 text-xs text-text-secondary">
             {(() => {
               const loginCmd = authLoginCmd(cli.id, cliErr.error ?? "");
               return loginCmd ? (
-                <span className="text-xs text-text-secondary">
-                  Not signed in. Run <code className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[11px] text-accent">{loginCmd}</code> in a terminal, then hit Re-check.
-                </span>
+                <>Not signed in. Run <code className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[11px] text-accent">{loginCmd}</code> in a terminal, then re-check.</>
               ) : (
-                <span className="line-clamp-2 text-xs text-text-secondary">{cliErr.error}</span>
+                <span className="line-clamp-2">{cliErr.error}</span>
               );
             })()}
           </div>
-          <button
-            onClick={() => recheckCli(cli.id)}
-            className="shrink-0 rounded-md border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
-          >
-            Re-check
-          </button>
+          <button onClick={() => recheckCli(cli.id)} className={btnSecondary}>Re-check</button>
         </div>
       )}
 
       {isOpen && cli.available && models.length > 0 && (
-        <div className="border-t border-border-subtle px-4 py-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-text-primary">
-              Models · {models.length}
-            </div>
-            <button
-              onClick={verifyAll}
-              className="rounded-md border border-border bg-background px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
-            >
-              re-verify all
-            </button>
+        <div className="border-t border-border-subtle px-5 py-4">
+          <div className="mb-3 flex items-baseline gap-2">
+            <h4 className="text-base font-semibold text-text-primary">Models</h4>
+            <span className="text-sm text-text-muted">{models.length}</span>
+            {verifiable.length > 0 && (
+              <button onClick={verifyAll} className="ml-auto text-xs text-text-secondary hover:text-accent">
+                Verify all
+              </button>
+            )}
           </div>
-          {/* Auto-routing bias, shown only for runtimes that offer an "Auto" model. */}
-          {models.some((m) => m.id === "auto") && <RouteBiasControl />}
-          <div className="flex flex-col gap-1.5">
+          {/* Auto routing, one compact row, only for runtimes that offer "Auto". */}
+          {models.some((m) => m.id === "auto") && <div className="mb-3"><RoutingRow /></div>}
+          <div className="divide-y divide-border-subtle rounded-lg border border-border-subtle bg-background">
             {models.map((m) => {
               const s = status[m.id];
               const err = errors[m.id];
+              const isAuto = m.id === "auto";
+              const isDef = defaultModel === m.id;
+              const failed = s === "failed";
+              const loginCmd = failed && err ? authLoginCmd(cli.id, err) : null;
+              const idTip = m.resolved && m.resolved !== m.id ? `${m.id} (resolves to ${m.resolved})` : m.id;
+              const glyph = isAuto
+                ? <Sparkles className="h-4 w-4 text-accent" />
+                : s === "ok" ? <CircleCheck className="h-4 w-4 text-ok" />
+                : s === "verifying" ? <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
+                : failed ? <CircleX className="h-4 w-4 text-err" />
+                : <Circle className="h-4 w-4 text-text-muted/40" />;
+              const glyphTip = isAuto ? "Router: picks a model per prompt" : s === "ok" ? "Verified" : s === "verifying" ? "Checking" : failed ? "Failed" : "Not checked yet";
+              const menu: RowMenuItem[] = [];
+              if (!isDef) menu.push({ icon: Star, label: "Use as default", hint: "New chats start here", onClick: () => setAsDefault(m.id) });
+              if (!isAuto) menu.push({ icon: RefreshCw, label: s === "ok" || failed ? "Test again" : "Test now", disabled: s === "verifying", onClick: () => { void verifyModel(m.id); } });
+              menu.push({
+                icon: LineChart,
+                label: "Benchmark runs",
+                hint: "Scores, domains, history",
+                onClick: () => {
+                  // Jump to the Arena with this model's runs expanded (key matches
+                  // the leaderboard aggregation).
+                  lsSet("prevail.bench.expandModel", `${cli.id}::${m.label}`);
+                  window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: "benchmark" }));
+                },
+              });
+              menu.push({ kind: "separator" });
+              menu.push({ icon: Copy, label: idCopied === m.id ? "Copied" : "Copy model id", hint: idTip, onClick: () => copyText(m.id, () => { setIdCopied(m.id); window.setTimeout(() => setIdCopied(""), 1500); }) });
               return (
-                <div key={m.id} className={`flex items-start gap-3 rounded-md border px-3 py-2 ${defaultModel === m.id ? "border-accent-border bg-accent-soft" : "border-border-subtle bg-background"}`}>
-                  <div className="mt-0.5 w-3 shrink-0 text-center text-[12px] leading-none">
-                    {m.id === "auto" ? <span className="text-accent" title="Router (picks a model per prompt)">✦</span> : <StatusGlyph s={s} />}
-                  </div>
+                <div key={m.id} className="group flex items-center gap-3 px-3 py-2.5">
+                  <span className="flex w-5 shrink-0 justify-center" title={glyphTip}>{glyph}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-mono text-sm text-text-primary">{m.label}</span>
-                      {defaultModel === m.id && <span className="rounded-full bg-accent px-1.5 py-0 font-mono text-[10px] uppercase tracking-wider text-background">default</span>}
-                      {m.blurb && <span className="text-[11px] text-text-muted">{m.blurb}</span>}
+                    <div className="flex items-center gap-2">
+                      {/* A failed model is muted by color, not opacity: opacity would
+                          also fade the row's popover menu. */}
+                      <span className={`truncate text-sm font-medium ${failed ? "text-text-muted" : "text-text-primary"}`} title={`Model id: ${idTip}`}>{m.label}</span>
+                      {isDef && <span className="shrink-0 rounded-full bg-accent px-2 py-px text-[10px] font-semibold text-background">Default</span>}
+                      {failed && (
+                        <StatusChip
+                          tone="err"
+                          label={loginCmd !== null ? "Not signed in" : "Failed"}
+                          title={loginCmd ? `Run ${loginCmd} in a terminal, then test again. ${err}` : err}
+                        />
+                      )}
                     </div>
-                    <div className="mt-0.5 font-mono text-[10px] text-text-muted/80">
-                      <code className="text-accent">{m.id}</code>
-                      {s === "failed" && err && (() => {
-                        const loginCmd = authLoginCmd(cli.id, err);
-                        // Not an auth error → show the raw message as before.
-                        if (loginCmd === null) return <span className="ml-2 text-warn">· {err}</span>;
-                        // Auth error → actionable hint; raw error on hover.
-                        return (
-                          <span className="ml-2 text-warn" title={err}>
-                            · not signed in: run{" "}
-                            {loginCmd
-                              ? <code className="text-accent">{loginCmd}</code>
-                              : "this CLI's login"}{" "}
-                            in a terminal, then re-test
-                          </span>
-                        );
-                      })()}
-                    </div>
+                    {m.blurb && <div className={`truncate text-xs ${failed ? "text-text-muted/60" : "text-text-muted"}`}>{m.blurb}</div>}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      onClick={() => {
-                        // Jump to the Benchmark cockpit with this model's runs
-                        // expanded (key matches the leaderboard aggregation).
-                        lsSet("prevail.bench.expandModel", `${cli.id}::${m.label}`);
-                        window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: "benchmark" }));
-                      }}
-                      title={`Benchmark runs for ${m.label}: scores, domains, history`}
-                      className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
-                    >
-                      runs
-                    </button>
-                    {m.id !== "auto" && (
-                      <button
-                        onClick={() => verifyModel(m.id)}
-                        disabled={s === "verifying"}
-                        className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40"
-                      >
-                        {s === "verifying" ? "testing…" : s === "ok" ? "re-test" : "test"}
-                      </button>
-                    )}
-                    {defaultModel === m.id ? (
-                      <span className="rounded-md border border-accent-border bg-accent-soft px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-accent">default</span>
-                    ) : (
-                      <button
-                        onClick={() => setAsDefault(m.id)}
-                        title="Use this model by default for new chats"
-                        className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
-                      >
-                        set default
-                      </button>
-                    )}
+                  {chattable && (
                     <button
                       onClick={() => onStartChat?.(cli.id, m.id)}
-                      className={`rounded-md border px-2 py-1 font-mono text-[10px] uppercase tracking-wider ${
-                        s === "ok"
-                          ? "border-accent-border bg-accent-soft text-accent hover:bg-accent hover:text-background"
-                          : "border-border bg-background text-text-secondary hover:bg-surface-warm"
-                      }`}
+                      className={`${btnSecondary} ${isDef ? "border-accent-border text-accent" : ""}`}
                     >
-                      chat
+                      Chat
                     </button>
-                  </div>
+                  )}
+                  <RowMenu items={menu} reveal label={`More actions for ${m.label}`} />
                 </div>
               );
             })}
@@ -1219,18 +1178,18 @@ export function AgentCard({
       {/* Installed but no model list (harnesses): the body was previously blank,
           which read as "broken." Explain what it is and that it's ready. */}
       {isOpen && cli.available && models.length === 0 && (
-        <div className="space-y-2 border-t border-border-subtle px-4 py-3">
+        <div className="space-y-2 border-t border-border-subtle px-5 py-4">
           <div className="text-sm text-text-secondary">
-            {RUNTIME_META[cli.id]?.blurb || `${cli.label} is a harness runtime.`}
+            {meta?.blurb || `${cli.label} is a harness runtime.`}
           </div>
           <p className="text-xs leading-relaxed text-text-muted">
             This is a <span className="font-semibold text-text-secondary">harness</span>: it wraps the{" "}
-            <code className="text-accent">{RUNTIME_META[cli.id]?.protocol ?? "base"}</code> protocol and runs through your installed base CLI. It's installed and validated, so it's ready to use wherever harnesses are offered (it isn't a homepage chat runtime).
+            <code className="text-accent">{meta?.protocol ?? "base"}</code> protocol and runs through your installed base CLI. It's installed and validated, so it's ready to use wherever harnesses are offered (it isn't a homepage chat runtime).
           </p>
           <div className="flex flex-wrap items-center gap-2 pt-0.5">
-            <span className="font-mono text-[10px] text-text-muted/80">{cli.version ? `version ${cli.version} · ` : ""}{cli.bin}</span>
-            {RUNTIME_META[cli.id]?.install && (
-              <a href={RUNTIME_META[cli.id]!.install} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">
+            <span className="text-xs text-text-muted">{cli.version ? `Version ${cli.version} · ` : ""}{cli.bin}</span>
+            {meta?.install && (
+              <a href={meta.install} target="_blank" rel="noreferrer" className={btnSecondary}>
                 Docs <ArrowUpRight className="h-3 w-3" />
               </a>
             )}
@@ -1241,62 +1200,52 @@ export function AgentCard({
       {/* Not installed: a real setup body (not just a tiny link), so the detail
           pane always says something actionable. */}
       {isOpen && !cli.available && (
-        <div className="space-y-2.5 border-t border-border-subtle px-4 py-3">
+        <div className="space-y-3 border-t border-border-subtle px-5 py-4">
           <div className="text-sm text-text-secondary">
             {cli.error
               ? `${cli.label} is installed but won't run: its launcher is on disk but failed to start.`
-              : RUNTIME_META[cli.id]?.blurb || `${cli.label} isn't installed on this Mac yet.`}
+              : meta?.blurb || `${cli.label} isn't installed on this Mac yet.`}
           </div>
           {/* Broken install: show the actual failure so the user knows what to
               fix (the most common cause is a wrapper pointing at a removed env). */}
           {cli.error && (
             <div className="flex items-start gap-2 rounded-md border border-err/30 bg-err/5 px-2.5 py-2">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-err" />
-              <code className="min-w-0 flex-1 break-all font-mono text-[10px] leading-relaxed text-text-secondary">{cli.error}</code>
+              <code className="min-w-0 flex-1 break-all font-mono text-[11px] leading-relaxed text-text-secondary">{cli.error}</code>
             </div>
           )}
-          <div className="space-y-2 rounded-lg border border-border-subtle bg-background p-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">{cli.error ? `Reinstall ${cli.label}` : `Set up ${cli.label}`}</div>
+          <div className="space-y-2.5 rounded-lg border border-border-subtle bg-background p-3">
+            <div className="text-sm font-semibold text-text-primary">{cli.error ? `Reinstall ${cli.label}` : `Set up ${cli.label}`}</div>
             <p className="text-xs leading-relaxed text-text-secondary">
               {cli.error
                 ? `Reinstall ${cli.label} to repair the launcher. It runs on your own subscription, no key to paste here. Prevail auto-detects it; hit Re-check once it's fixed.`
                 : `Install ${cli.label} from its setup guide. It runs on your own subscription, no key to paste here. Prevail auto-detects it; hit Re-check once it's installed.`}
             </p>
-            {RUNTIME_META[cli.id]?.cmd && (
+            {meta?.cmd && (
               <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-warm/60 px-2 py-1.5">
-                <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-primary" title={RUNTIME_META[cli.id]!.cmd}>{RUNTIME_META[cli.id]!.cmd}</code>
+                <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-primary" title={meta.cmd}>{meta.cmd}</code>
                 <button
-                  onClick={() => { void invoke("open_in_terminal", { command: RUNTIME_META[cli.id]!.cmd }).catch((e) => console.error("open_in_terminal", e)); }}
+                  onClick={() => { void invoke("open_in_terminal", { command: meta.cmd }).catch((e) => console.error("open_in_terminal", e)); }}
                   title="Open Terminal and run this install command (you'll see it run and can confirm any prompts)"
-                  className="inline-flex shrink-0 items-center gap-1 rounded border border-accent-border bg-accent-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-xs text-accent hover:bg-accent hover:text-background"
                 >
                   <Terminal className="h-3 w-3" /> Install
                 </button>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(RUNTIME_META[cli.id]!.cmd!).then(() => { setCmdCopied(true); window.setTimeout(() => setCmdCopied(false), 1500); }).catch(() => {}); }}
-                  className="inline-flex shrink-0 items-center gap-1 rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
+                  onClick={() => copyText(meta.cmd!, () => { setCmdCopied(true); window.setTimeout(() => setCmdCopied(false), 1500); })}
+                  className={btnSecondary}
                 >
                   {cmdCopied ? <><Check className="h-3 w-3" /> Copied</> : "Copy"}
                 </button>
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              {RUNTIME_META[cli.id]?.install && (
-                <a
-                  href={RUNTIME_META[cli.id]!.install}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-background hover:opacity-90"
-                >
-                  Open setup guide <ArrowUpRight className="h-3 w-3" />
+              {meta?.install && (
+                <a href={meta.install} target="_blank" rel="noreferrer" className={btnPrimary}>
+                  Open setup guide <ArrowUpRight className="h-3.5 w-3.5" />
                 </a>
               )}
-              <button
-                onClick={() => recheckCli(cli.id)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-text-secondary hover:border-accent-border hover:text-accent"
-              >
-                Re-check
-              </button>
+              <button onClick={() => recheckCli(cli.id)} className={btnSecondary}>Re-check</button>
             </div>
           </div>
         </div>
@@ -1304,6 +1253,7 @@ export function AgentCard({
     </div>
   );
 }
+
 
 // Pick a representative icon for a settings page from its title, so every
 // header gets a matching glyph without threading an icon through 20 call sites.
@@ -1335,19 +1285,20 @@ function RuntimeRow({ cli, active, vstatus, isDefault, onSelect }: {
   // from genuinely not-installed, so the row never disagrees with the detail
   // panel's BROKEN / "won't run" status.
   const broken = !cli.available && !!cli.error;
-  const sub = cli.available ? (cli.version ? cli.version.slice(0, 22) : "detected") : broken ? "won't run" : "not installed";
-  const badge = cli.available
-    ? (vstatus === "ok" ? "bg-ok text-background"
-      : vstatus === "failed" ? "bg-warn text-background"
-      : vstatus === "verifying" ? "animate-pulse bg-text-muted text-background"
-      : "bg-surface-strong text-text-muted")
-    : broken ? "bg-warn text-background" : "bg-surface-strong text-text-muted";
-  const glyph = cli.available
-    ? (vstatus === "ok" ? "✓" : vstatus === "failed" ? "✗" : vstatus === "verifying" ? "·" : "○")
-    : broken ? "✕" : "";
-  const tip = cli.available
-    ? (vstatus === "ok" ? "valid" : vstatus === "failed" ? "not valid" : vstatus === "verifying" ? "checking…" : "detected")
-    : broken ? "won't run" : "not installed";
+  const sub = cli.available ? (cli.version ? `Version ${cli.version.slice(0, 22)}` : "Detected") : broken ? "Won't run" : "Not installed";
+  // One lucide glyph per state, colored, no badge background: the row stays
+  // quiet and the color alone says ready / checking / failed / absent.
+  const state: { Icon: LucideIcon; cls: string; tip: string } = !cli.available
+    ? broken
+      ? { Icon: CircleX, cls: "text-err", tip: "Installed but won't run" }
+      : { Icon: Circle, cls: "text-text-muted/40", tip: "Not installed" }
+    : vstatus === "ok"
+      ? { Icon: CircleCheck, cls: "text-ok", tip: "Ready" }
+      : vstatus === "failed"
+        ? { Icon: CircleX, cls: "text-warn", tip: "Not working" }
+        : vstatus === "verifying"
+          ? { Icon: Loader2, cls: "animate-spin text-text-muted", tip: "Checking" }
+          : { Icon: Circle, cls: "text-text-muted/60", tip: "Detected, not checked yet" };
   return (
     <button
       onClick={onSelect}
@@ -1356,10 +1307,10 @@ function RuntimeRow({ cli, active, vstatus, isDefault, onSelect }: {
       <ProviderMark vendor={cli.id} size={28} />
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>{cli.label}</span>
-        <span className="block truncate font-mono text-[10px] uppercase tracking-wider text-text-muted">{sub}</span>
+        <span className="block truncate text-[11px] text-text-muted">{sub}</span>
       </span>
-      {isDefault && <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-background">def</span>}
-      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold leading-none ${badge}`} title={tip}>{glyph}</span>
+      {isDefault && <span className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10px] font-semibold text-background">Default</span>}
+      <span className="flex shrink-0" title={state.tip} aria-label={state.tip}><state.Icon className={`h-4 w-4 ${state.cls}`} /></span>
     </button>
   );
 }
@@ -1455,11 +1406,11 @@ export function AgentsSection({
               aria-expanded={open}
               className="flex w-full items-baseline justify-between rounded-md px-1 py-0.5 transition-colors hover:bg-surface-warm"
             >
-              <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+              <span className="flex items-center gap-1 text-xs font-medium text-text-secondary">
                 <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
-                {g.label} · {g.list.length}
+                {g.label} <span className="font-normal text-text-muted">{g.list.length}</span>
               </span>
-              <span className="font-mono text-[10px] text-text-muted/60">{ready}/{g.list.length} set up</span>
+              <span className="text-[11px] text-text-muted">{ready} of {g.list.length} set up</span>
             </button>
             {open && g.list.map((c) => (
               <RuntimeRow
