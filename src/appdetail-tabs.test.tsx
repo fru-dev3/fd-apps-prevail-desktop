@@ -59,10 +59,13 @@ beforeEach(() => { invokeMock.mockClear(); localStorage.clear(); });
 describe("AppDetail - unified app-detail surface (the two surfaces merged into one)", () => {
   it("exposes both the rich tabs AND the operational facets for a connected app", async () => {
     renderDetail();
-    // Rich connector tabs.
-    for (const label of ["Welcome", "Ideal State", "Context", "Skills", "Connections", "Chat"]) {
+    // Rich connector tabs. No Welcome: that tab answers "what does connecting
+    // this do", which is spent once the app IS connected, so a connected app
+    // lands on Context instead of a page restating its own header.
+    for (const label of ["Ideal State", "Context", "Skills", "Connections", "Chat"]) {
       expect(screen.getByRole("button", { name: new RegExp(`^${label}$`, "i") })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("button", { name: /^Welcome$/i })).not.toBeInTheDocument();
     // Operational facets ported from AppFacetPanel - the heart of the unification.
     for (const label of ["Runs", "Loops", "Settings", "Domains"]) {
       expect(screen.getByRole("button", { name: new RegExp(`^${label}$`, "i") })).toBeInTheDocument();
@@ -76,7 +79,7 @@ describe("AppDetail - unified app-detail surface (the two surfaces merged into o
       // If the embedded AppFacetPanel threw on mount, the tree would unmount and
       // this query would throw. Surviving == that facet rendered.
       await waitFor(() =>
-        expect(screen.getByRole("button", { name: /^Welcome$/i })).toBeInTheDocument(),
+        expect(screen.getByRole("button", { name: /^Context$/i })).toBeInTheDocument(),
       );
     }
   });
