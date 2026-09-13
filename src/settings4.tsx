@@ -23,13 +23,13 @@ import type { Mode } from "./types";
 
 // SAFETY-1: a labelled cluster header so the panel reads as deliberate groups
 // (Access protection vs Agent guardrails) instead of one flat stack of rows.
-function SafetyGroup({ icon: Icon, label, desc, children }: { icon: LucideIcon; label: string; desc: string; children: React.ReactNode }) {
+function SafetyGroup({ icon: Icon, label, desc, children }: { icon: LucideIcon; label: string; desc?: string; children: React.ReactNode }) {
   return (
     <div className="mb-6">
       <div className="mb-2 flex items-center gap-2 px-1">
         <Icon className="h-3.5 w-3.5 text-accent" />
         <h3 className="text-sm font-semibold text-text-primary">{label}</h3>
-        <span className="ml-auto text-[11px] text-text-muted">{desc}</span>
+        {desc && <span className="ml-auto text-[11px] text-text-muted">{desc}</span>}
       </div>
       {children}
     </div>
@@ -38,7 +38,7 @@ function SafetyGroup({ icon: Icon, label, desc, children }: { icon: LucideIcon; 
 
 // SAFETY-1: a guardrail row with a leading state icon (lit when active) so each
 // control reads as a deliberate, premium switch rather than a bare label row.
-function GuardRow({ icon: Icon, title, desc, control, active }: { icon: LucideIcon; title: string; desc: string; control: React.ReactNode; active?: boolean }) {
+function GuardRow({ icon: Icon, title, desc, control, active }: { icon: LucideIcon; title: string; desc?: string; control: React.ReactNode; active?: boolean }) {
   return (
     <div className="flex items-start gap-3 border-b border-border-subtle px-4 py-3.5 last:border-0">
       <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${active ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}>
@@ -46,7 +46,7 @@ function GuardRow({ icon: Icon, title, desc, control, active }: { icon: LucideIc
       </span>
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold text-text-primary">{title}</div>
-        <div className="mt-0.5 text-xs text-text-secondary">{desc}</div>
+        {desc && <div className="mt-0.5 text-xs text-text-muted">{desc}</div>}
       </div>
       <div className="shrink-0 self-center">{control}</div>
     </div>
@@ -71,9 +71,9 @@ export function SafetySection({ vaultPath }: { vaultPath: string }) {
           <VaultEncryptionCard vaultPath={vaultPath} />
         </div>
       </SafetyGroup>
-      <SafetyGroup icon={ShieldAlert} label="Agent guardrails" desc="What the agent may do, and what gets stored">
+      <SafetyGroup icon={ShieldAlert} label="Agent guardrails" desc="">
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
-          <GuardRow icon={ShieldAlert} active={approvalMode === "manual"} title="Approval mode" desc="How commands that need explicit approval are handled."
+          <GuardRow icon={ShieldAlert} active={approvalMode === "manual"} title="Approval mode" desc=""
             control={
               <select value={approvalMode} onChange={(e) => { setApprovalMode(e.target.value); setPref(PREF.approvalMode, e.target.value); }}
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-accent-border focus:outline-none">
@@ -81,17 +81,17 @@ export function SafetySection({ vaultPath }: { vaultPath: string }) {
                 <option value="auto">Auto</option>
               </select>
             } />
-          <GuardRow icon={Clock} title="Approval timeout" desc="How long an approval prompt waits before timing out."
+          <GuardRow icon={Clock} title="Approval timeout" desc=""
             control={<div className="flex items-center gap-1.5"><input type="number" value={approvalTimeout} onChange={(e) => { setApprovalTimeout(e.target.value); setPref(PREF.approvalTimeoutSec, e.target.value); }} className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" /><span className="font-mono text-xs text-text-muted">s</span></div>} />
-          <GuardRow icon={RefreshCw} active={confirmMcp} title="Confirm MCP reloads" desc="Ask before reloading MCP servers."
+          <GuardRow icon={RefreshCw} active={confirmMcp} title="Confirm MCP reloads" desc=""
             control={<Toggle on={confirmMcp} onChange={(v) => { setConfirmMcp(v); setPref(PREF.confirmMcpReloads, v ? "1" : "0"); }} />} />
-          <GuardRow icon={Terminal} active={!!allowlist.trim()} title="Command allowlist" desc="Comma-separated commands the agent may run without prompting."
+          <GuardRow icon={Terminal} active={!!allowlist.trim()} title="Command allowlist" desc="Run without prompting."
             control={<input value={allowlist} placeholder="git, ls, cat" onChange={(e) => { setAllowlist(e.target.value); setPref(PREF.commandAllowlist, e.target.value); }} className="w-56 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-accent-border focus:outline-none" />} />
-          <GuardRow icon={EyeOff} active={redact} title="Redact secrets" desc="Scrub API keys, tokens, and passwords from saved chat transcripts and the intent ledger."
+          <GuardRow icon={EyeOff} active={redact} title="Redact secrets" desc="Keys and passwords never reach a saved transcript."
             control={<Toggle on={redact} onChange={(v) => { setRedact(v); setPref(PREF.redactSecrets, v ? "1" : "0"); }} />} />
-          <GuardRow icon={Globe} active={allowPrivate} title="Allow private URLs" desc="Let the agent fetch localhost / private-network URLs."
+          <GuardRow icon={Globe} active={allowPrivate} title="Allow private URLs" desc="Reach localhost and your private network."
             control={<Toggle on={allowPrivate} onChange={(v) => { setAllowPrivate(v); setPref(PREF.allowPrivateUrls, v ? "1" : "0"); }} />} />
-          <GuardRow icon={FileClock} active={checkpoints} title="File checkpoints" desc="Snapshot files before the agent edits them so changes can be rolled back."
+          <GuardRow icon={FileClock} active={checkpoints} title="File checkpoints" desc="Edits can be rolled back."
             control={<Toggle on={checkpoints} onChange={(v) => { setCheckpoints(v); setPref(PREF.fileCheckpoints, v ? "1" : "0"); }} />} />
         </div>
       </SafetyGroup>
