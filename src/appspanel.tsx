@@ -2701,13 +2701,17 @@ function SkillRunPanel({ appId, skill, label, vaultPath, onClose, onDone }: {
   );
 }
 
-// One-paragraph "what connecting does" overview for the Welcome tab.
+// The Welcome tab's one line about this app.
+//
+// It takes the SAME state the status chip shows. It used to key off whether a
+// "Set up" button happened to be rendered, which could be false while the chip
+// said Not connected - so the page claimed the app was "connected and feeding
+// your vault" directly under a chip saying it was not.
 function welcomeText(app: EngineApp, notConnected: boolean): string {
   const name = app.title || app.id;
-  if (notConnected) {
-    return `Connecting ${name} lets Prevail pull your data from ${name} into your private vault on this Mac. You connect once; Prevail confirms the best method, drives any sign-in for you, then keeps the data in sync. Once connected, it is available as context to any domain you point it at, with no copies leaving your machine unless you say so.`;
-  }
-  return `${name} is connected and feeding your vault. Prevail keeps its data in sync on the schedule you set, and that data is available as context to the domains it feeds. Use the tabs below to give it a soul, see the skills Prevail has learned on it, manage which domains it feeds, or open a chat scoped to ${name}.`;
+  return notConnected
+    ? `Connect ${name} once and Prevail keeps its data in sync, in your vault on this Mac.`
+    : `Feeding your vault on the schedule you set. The tabs below are its context, skills and domains.`;
 }
 
 // App/domain parity: the Journal tab. An app is a domain with a little more, so a
@@ -3362,7 +3366,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
           <div className="space-y-4">
             <div className={card}>
               <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Plug className="h-4 w-4 text-accent" /> What connecting {app.title || app.id} does</h3>
-              <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-text-secondary">{welcomeText(app, notConnected)}</p>
+              <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-text-secondary">{welcomeText(app, status === "disconnected" || notConnected)}</p>
               <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
                 {!gatewayProvider && !learnedLane && <CatalogField label="Connection">{methodLabel(app.integration)}</CatalogField>}
                 {gatewayProvider && <CatalogField label="Connection">{`Via ${titleCase(gatewayProvider)}`}</CatalogField>}
