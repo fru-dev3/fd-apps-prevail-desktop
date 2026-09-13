@@ -34,7 +34,7 @@
       "endpoints": [
         "https://github.com/fru-dev3/prevail-desktop/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERBRTIyRTJENzNEM0MyRkIKUldUN3d0TnpMUzdpMm51aTUwV3Y3d0NaN2owSnhrLzdtS2dzUm8weURrUHAwRWN1TnR1MGNndnYK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxNTcyMTBGNkYyODVDRjkKUldUNVhDaHZEeUZYNGRtRUNmOEFEdFllWDdmYmlCU3VZYkRQVmhqWjhvZFVJRVc1c1pYbVlYWHgK"
     },
     "deep-link": {
       "desktop": {

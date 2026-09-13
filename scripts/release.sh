@@ -70,7 +70,14 @@ UPDATER_KEY="$HOME/.prevail/updater.key"
 # 54..62 of the secret one. If they differ, every signature we produce is
 # rejected at update time, so publishing the feed is worse than not having one:
 # clients find an update they cannot verify. Skip it, and say so.
-# (Currently they DO differ. See the updater-key note in the release docs.)
+# NOTE (2026-09-13): this byte-offset test is NOT reliable. An rsign secret key
+# stores its key id INSIDE the encrypted keynum section, so offset 54..62 is
+# ciphertext for any password-protected key - including ones generated with an
+# empty password, which is what `tauri signer generate` writes. The test
+# therefore reports "mismatch" even for a freshly generated, genuinely matched
+# pair. The authoritative check is tauri's own: `tauri build` warns
+# "The updater secret key ... does not match the public key" when they really
+# differ. Trust that line in the build log, not this one.
 UPDATER_MATCHES=0
 if [ -f "$UPDATER_KEY" ]; then
   UPDATER_MATCHES="$(python3 - "$HERE/src-tauri/tauri.conf.json" "$UPDATER_KEY" <<'PY'
