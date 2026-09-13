@@ -705,7 +705,9 @@ export function DomainStatusBar({
   const bunker = isBunkerOn();
   const webShown = bunker ? false : web;
   const incogOn = incognito || globalIncognito;
-  const activeModes = [webShown, save, serendipity, auto, incogOn, act].filter(Boolean).length;
+  // The badge counts everything the menu now governs, Framework and Lens
+  // included, so folding them in does not hide the fact that one is on.
+  const activeModes = [webShown, save, serendipity, auto, incogOn, act, hasPreamble(fwLens.framework), hasPreamble(fwLens.lens)].filter(Boolean).length;
 
   const flip = (
     t: DomainToggle,
@@ -749,12 +751,25 @@ export function DomainStatusBar({
   // Auto are per-domain so they only render when a domain is selected.
   return (
     <>
-      {/* Per-prompt reasoning controls - change often, so they sit inline.
-          Each opens a labelled list so you pick directly. */}
-      <PreamblePicker glyph="◆" label="Framework" options={FRAMEWORKS} selectedId={fwLens.framework} onSelect={fwLens.setFramework} />
-      <PreamblePicker glyph="◇" label="Lens" options={LENSES} selectedId={fwLens.lens} onSelect={fwLens.setLens} />
+      {/* Framework and Lens are OFF for almost every conversation, and both
+          have a settings page of their own. Two permanent dropdowns in the row
+          you look at most, to say "nothing applied", is two buttons earning
+          nothing. They appear here only once one is actually shaping the
+          answer - which is when you want to see and change it - and they live
+          in Modes the rest of the time, with everything else set per
+          conversation. */}
+      {hasPreamble(fwLens.framework) && (
+        <PreamblePicker glyph="◆" label="Framework" options={FRAMEWORKS} selectedId={fwLens.framework} onSelect={fwLens.setFramework} />
+      )}
+      {hasPreamble(fwLens.lens) && (
+        <PreamblePicker glyph="◇" label="Lens" options={LENSES} selectedId={fwLens.lens} onSelect={fwLens.setLens} />
+      )}
       <div ref={modesRef} className="relative inline-flex items-center">
-          <span className="mx-1 select-none text-text-muted/40">·</span>
+          {/* The separator existed to part the Framework/Lens pills from Modes.
+              With those gone unless one is active, it would float on its own. */}
+          {(hasPreamble(fwLens.framework) || hasPreamble(fwLens.lens)) && (
+            <span className="mx-1 select-none text-text-muted/40">·</span>
+          )}
           {/* Modes - set once, rarely changed, so they're tucked in a popover
               with an active-count badge instead of crowding the row. Available
               everywhere, including General (stored in its own bucket). */}
@@ -775,6 +790,12 @@ export function DomainStatusBar({
           {modesOpen && (
             <div className="absolute bottom-full left-0 z-50 mb-2 w-80 rounded-xl border border-border bg-surface p-1.5 shadow-xl">
               <div className="px-2.5 py-1.5 text-[11px] font-bold text-text-muted">Modes</div>
+              {/* How the answer is shaped, alongside what the model may do. */}
+              <div className="flex items-center gap-1.5 px-2.5 pb-1.5">
+                <PreamblePicker glyph="◆" label="Framework" options={FRAMEWORKS} selectedId={fwLens.framework} onSelect={fwLens.setFramework} />
+                <PreamblePicker glyph="◇" label="Lens" options={LENSES} selectedId={fwLens.lens} onSelect={fwLens.setLens} />
+              </div>
+              <div className="mx-2.5 mb-1 border-t border-border-subtle" />
               <ModeRow label="Act mode" on={act} onClick={() => flip("act", act, setAct)}
                 desc="Let this domain actually do things: create skills and loops in your vault, and queue emails for your approval. You see a verified list of exactly what ran." />
               <ModeRow label="Web access" on={webShown} disabled={bunker}
@@ -809,7 +830,11 @@ export function DomainStatusBar({
             actually bring Google in; then you pick which account(s) are active. */}
         {googleInContext && gProfiles.length > 0 && (
           <div ref={gRef} className="relative inline-flex items-center">
+            {/* The separator existed to part the Framework/Lens pills from Modes.
+              With those gone unless one is active, it would float on its own. */}
+          {(hasPreamble(fwLens.framework) || hasPreamble(fwLens.lens)) && (
             <span className="mx-1 select-none text-text-muted/40">·</span>
+          )}
             {/* With 2+ connected accounts and none picked, Prevail will refuse to
                 guess which identity to act as - make the required pick visible
                 here instead of only in the refusal message. */}
