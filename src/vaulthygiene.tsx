@@ -14,14 +14,14 @@ type Kind = "normalize" | "consolidate";
 const META: Record<Kind, { title: string; desc: string; planCmd: string; applyCmd: string; empty: string }> = {
   normalize: {
     title: "Normalize context files",
-    desc: "Some vaults name files differently (MEMORY.md instead of _memory.md). This copies them to the names Prevail reads, so your Context panel fills in. Originals are kept.",
+    desc: "Copies differently-named files to the names Prevail reads. Originals are kept.",
     planCmd: "vault_normalize_plan",
     applyCmd: "vault_normalize_apply",
     empty: "Every context file already uses its canonical name. Nothing to normalize.",
   },
   consolidate: {
     title: "Consolidate vault layout",
-    desc: "Move stray root-level domains and apps into the canonical data/ container. Copies only missing files and never overwrites, so nothing is lost.",
+    desc: "Moves stray root-level domains into data/. Never overwrites, so nothing is lost.",
     planCmd: "vault_consolidate_plan",
     applyCmd: "vault_consolidate_apply",
     empty: "Your vault already uses the canonical data/ layout. Nothing to consolidate.",

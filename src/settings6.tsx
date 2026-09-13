@@ -707,7 +707,17 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
         <Toggle on={autoCouncil} disabled={autoCouncilBusy} onChange={toggleAutoCouncil} label="Auto-convene the council on high-stakes questions" />
       </div>
       <div className="space-y-2">
-        {available.length === 0 && <div className="rounded-lg border border-dashed border-border bg-surface p-4 text-sm text-text-muted">No providers available{isBunkerOn() ? " in Bunker Mode (local only)" : ""}.</div>}
+        {/* "None" and "not asked yet" are different answers. Detection had not
+            returned yet in the common case, and the page said there were no
+            providers directly under a panel naming six models - two states of
+            the same screen contradicting each other. */}
+        {available.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border bg-surface p-4 text-sm text-text-muted">
+            {clis.length === 0
+              ? "Checking the runtimes on this Mac…"
+              : `No runtime is ready to join a panel${isBunkerOn() ? " in Bunker Mode, which allows local models only" : ""}.`}
+          </div>
+        )}
         {available.map((c) => {
           const curated = councilModelsFor(c.id);
           const live = DISCOVERED_MODELS[c.id] ?? [];
@@ -795,7 +805,7 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
         })}
       </div>
       <p className="mt-4 text-xs leading-relaxed text-text-muted">
-        Convene a council from the <span className="text-accent">Council</span> tab in any domain: it starts with this panel. Each model answers in parallel; the <Crown className="inline h-3 w-3" /> chair synthesizes a consensus + disagreements + recommended action. <span className="text-accent">Defaults</span> sets your single-model chat; this sets the panel.
+        The <span className="text-accent">Council</span> tab in any domain starts with this panel.
       </p>
     </>
   );
