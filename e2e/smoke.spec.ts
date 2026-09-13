@@ -270,3 +270,25 @@ test("11 · the trust ribbon names an axis that is not protective", async ({ pag
   // And it does not also claim to be protected.
   await expect(page.getByText(/^Protected$/)).toHaveCount(0);
 });
+
+// The worst defect this app can have is a safety control that claims
+// protection it does not have. Bunker Mode keeps a localStorage mirror so
+// deeply-nested code can read it synchronously, and that mirror defaults to ON
+// so an unknown state fails CLOSED for readers. Displaying that guess is a
+// different matter: the call that corrects it used to run before sign-in, 401
+// into a silent catch, and leave the ribbon and the Privacy screen both
+// announcing "fully local, nothing leaves your machine" while the engine had
+// Bunker Mode off. The backend is the only thing allowed to answer this.
+test("12 · the trust ribbon never claims Bunker Mode the engine does not have", async ({ page }) => {
+  await mockTauri(page, { bunker_status: { enabled: false, network_blocked: false, web_blocked: false, cloud_blocked: false, local_available: false } });
+  // Seed the optimistic mirror, exactly as a stale or pre-auth state would.
+  await page.addInitScript(() => localStorage.setItem("prevail.pref.bunkerMode", "1"));
+  await page.goto("/");
+  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  // The engine says off, so nothing on screen may say otherwise.
+  await expect(page.getByText(/Bunker mode/i)).toHaveCount(0);
+  // And the mirror is corrected rather than left lying for the next reader.
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("prevail.pref.bunkerMode")), { timeout: 10_000 })
+    .toBe("0");
+});
