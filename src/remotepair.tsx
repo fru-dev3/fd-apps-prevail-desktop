@@ -91,18 +91,35 @@ function useWebuiStatus(pollMs = 3000) {
   return { status, setStatus, refresh };
 }
 
-// Keep a live pairing code for the address currently on screen. A code is
-// single use, so the moment a phone spends one we mint the next: the QR on
-// screen is always scannable, and `paired` gives us something true to say.
+// A pairing code lives about two minutes, so the QR on screen is refreshed
+// while you are looking at it and nothing stays valid for long after you walk
+// away.
+const PAIR_REFRESH_MS = 100_000;
+
+// Keep a live pairing code for the address currently on screen.
+//
+// A code is single use. When one is spent we deliberately do NOT mint another:
+// we stop showing a QR and name the device that took it instead. That matters
+// because the person who redeems a code is not necessarily the person holding
+// the Mac - anyone who can see the screen, or a photo of it, can race for it.
+// Auto-minting hid that completely: the owner saw "paired", scanned the fresh
+// code, and never learned that a second device had also got in. Now a spent
+// code produces a confirmation with a name, an address and a way to cut it off,
+// and showing another code takes a deliberate tap.
 function usePairingQr(status: WebuiStatus | null) {
   const url = status?.remote_url ?? "";
   const [pairUrl, setPairUrl] = useState("");
-  const [paired, setPaired] = useState(false);
+  // The device that spent the last code, held until dismissed - not a toast
+  // that disappears before it is read.
+  const [pairedDevice, setPairedDevice] = useState<Device | null>(null);
   const mintedFor = useRef("");
+  const mintedAt = useRef(0);
   const wasReady = useRef(false);
 
   const mint = useCallback((forUrl: string) => {
     mintedFor.current = forUrl;
+    mintedAt.current = Date.now();
+    setPairedDevice(null);
     invoke<string>("webui_pair_code")
       .then((u) => setPairUrl(u))
       .catch(() => setPairUrl("")); // fall back to the plain address + password
@@ -119,24 +136,63 @@ function usePairingQr(status: WebuiStatus | null) {
     const consumed = wasReady.current && !status.pair_ready;
     wasReady.current = status.pair_ready;
     if (consumed) {
-      setPaired(true);
-      window.setTimeout(() => setPaired(false), 6000);
+      // Whichever device signed in by code most recently is the one that just
+      // spent it. Naming it is what turns a silent compromise into a visible
+      // one.
+      const byCode = (status.devices ?? []).filter((d) => d.via === "qr");
+      const newest = byCode.reduce<Device | null>((best, d) => (!best || d.first_seen_ms > best.first_seen_ms ? d : best), null);
+      setPairedDevice(newest);
+      setPairUrl("");
+      return;
     }
-    if (first || consumed) mint(url);
-  }, [status?.running, status?.pair_ready, url, mint, status]);
+    // A spent code waits for a deliberate tap before another is minted, so a
+    // photographed screen cannot keep producing working codes.
+    if (pairedDevice) return;
+    // Refresh the code while the screen is open so what is displayed always
+    // works, without leaving a long-lived credential behind when it is not.
+    const stale = Date.now() - mintedAt.current > PAIR_REFRESH_MS;
+    if (first || stale) mint(url);
+  }, [status?.running, status?.pair_ready, url, mint, status, pairedDevice]);
+
+  // Re-check staleness on a timer too: the status poll alone would leave a
+  // code expired-but-displayed if nothing else changed.
+  useEffect(() => {
+    if (!url || pairedDevice) return;
+    const id = window.setInterval(() => {
+      if (Date.now() - mintedAt.current > PAIR_REFRESH_MS) mint(url);
+    }, 10_000);
+    return () => window.clearInterval(id);
+  }, [url, pairedDevice, mint]);
 
   // Stop handing out a way in once nobody is looking at the code.
   useEffect(() => () => { void invoke("webui_pair_clear").catch(() => {}); }, []);
 
-  return { qrTarget: pairUrl || url, signsInAutomatically: !!pairUrl, paired, showNewCode: () => mint(url) };
+  return {
+    qrTarget: pairUrl || (pairedDevice ? "" : url),
+    signsInAutomatically: !!pairUrl,
+    pairedDevice,
+    showNewCode: () => mint(url),
+  };
 }
 
 export function RemotePairCard({ port }: { port: string }) {
   const { status, setStatus, refresh } = useWebuiStatus();
-  const { qrTarget, signsInAutomatically, paired, showNewCode } = usePairingQr(status);
+  const { qrTarget, signsInAutomatically, pairedDevice, showNewCode } = usePairingQr(status);
   const [qr, setQr] = useState("");
   const [sharing, setSharing] = useState(false);
   const [shareErr, setShareErr] = useState("");
+  const [revoking, setRevoking] = useState(false);
+
+  // "That wasn't me": end the session the code just created, right where the
+  // pairing is confirmed, so cutting off a stolen scan is one tap and not a
+  // hunt through a device list.
+  async function revokePaired() {
+    if (!pairedDevice) return;
+    setRevoking(true);
+    try { setStatus(await invoke<WebuiStatus>("webui_device_revoke", { id: pairedDevice.id })); }
+    catch { void refresh(); }
+    finally { setRevoking(false); showNewCode(); }
+  }
 
   const url = status?.remote_url || "";
   useEffect(() => {
@@ -182,14 +238,26 @@ export function RemotePairCard({ port }: { port: string }) {
 
       {url ? (
         <div className="flex flex-col gap-6 px-5 py-5 sm:flex-row">
-          {/* The QR is the product here, so it gets real size and a quiet frame. */}
+          {/* The QR is the product here, so it gets real size and a quiet frame.
+              Once a code is spent there is no QR to show: a new one is a
+              deliberate tap, so a screen someone photographed cannot keep
+              producing working codes. */}
           <div className="shrink-0">
-            {qr
-              ? <img src={qr} alt={`QR code for ${url}`} width={190} height={190} className="rounded-xl bg-white p-2 ring-1 ring-border" style={{ height: 190, width: 190 }} />
-              : <div className="rounded-xl bg-surface-warm" style={{ height: 190, width: 190 }} />}
+            {pairedDevice ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-ok/40 bg-ok/5 p-4 text-center" style={{ height: 190, width: 190 }}>
+                <Check className="h-7 w-7 text-ok" />
+                <div className="mt-2 text-sm font-semibold text-text-primary" data-testid="remote-paired">{pairedDevice.label}</div>
+                <div className="font-mono text-[11px] text-text-muted">{pairedDevice.ip}</div>
+                <div className="mt-0.5 text-[11px] text-text-muted">paired {ago(pairedDevice.first_seen_ms)}</div>
+              </div>
+            ) : qr ? (
+              <img src={qr} alt={`QR code for ${url}`} width={190} height={190} className="rounded-xl bg-white p-2 ring-1 ring-border" style={{ height: 190, width: 190 }} />
+            ) : (
+              <div className="rounded-xl bg-surface-warm" style={{ height: 190, width: 190 }} />
+            )}
             <div className="mt-2 text-center">
-              {paired
-                ? <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ok" data-testid="remote-paired"><Check className="h-4 w-4" /> Phone paired</span>
+              {pairedDevice
+                ? <button onClick={showNewCode} className="text-xs text-text-muted underline hover:text-accent">Pair another device</button>
                 : signsInAutomatically
                   ? <button onClick={showNewCode} className="text-xs text-text-muted underline hover:text-accent">Show a new code</button>
                   : null}
@@ -199,12 +267,31 @@ export function RemotePairCard({ port }: { port: string }) {
           {/* Three steps, as steps: a numbered badge and a short line each,
               instead of a paragraph pretending to be instructions. */}
           <div className="min-w-0 flex-1">
+            {pairedDevice ? (
+              <>
+                <h3 className="font-display text-xl font-semibold tracking-tight text-text-primary">A device paired</h3>
+                <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                  <span className="font-medium text-text-primary">{pairedDevice.label}</span> at{" "}
+                  <span className="font-mono text-xs">{pairedDevice.ip}</span> used the code and can now reach this vault.
+                  If that is not your phone, cut it off now. The code itself is already spent and cannot be used again.
+                </p>
+                <button
+                  onClick={() => void revokePaired()}
+                  disabled={revoking}
+                  data-testid="remote-revoke-paired"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-warn/50 bg-warn/10 px-3 py-1.5 text-sm font-semibold text-warn disabled:opacity-50"
+                >
+                  {revoking ? "Disconnecting..." : "That wasn't me, disconnect it"}
+                </button>
+              </>
+            ) : (
+              <>
             <h3 className="font-display text-xl font-semibold tracking-tight text-text-primary">Scan it with your phone</h3>
             <ol className="mt-3 space-y-2.5">
               {[
                 ["Point your camera at the code", "Then open the link it offers."],
                 signsInAutomatically
-                  ? ["You are signed in.", "No password to type. The code works once, then expires."]
+                  ? ["You are signed in.", "No password to type. The code works once, expires in two minutes, and this Mac tells you which device used it."]
                   : ["Sign in", "Use the username and password from Network."],
                 ["Keep it on your home screen", "iPhone: Share, then Add to Home Screen. Android: menu, then Install app."],
               ].map(([title, sub], i) => (
@@ -217,6 +304,8 @@ export function RemotePairCard({ port }: { port: string }) {
                 </li>
               ))}
             </ol>
+              </>
+            )}
             <div className="mt-3 flex items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-text-primary" data-testid="remote-primary-url">{url}</code>
               <CopyButton text={url} />

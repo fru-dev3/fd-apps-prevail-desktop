@@ -207,3 +207,46 @@ test("9 · Bunker Mode blocks phone access and explains why", async ({ page }) =
   await expect(page.getByRole("button", { name: "Turn on phone access" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Open Privacy" })).toBeVisible();
 });
+
+// A pairing code is a credential on a screen. Anyone who can see that screen,
+// or a photo of it, can race the owner to redeem it. The old card hid that
+// completely: it printed "Phone paired" and silently minted the next code, so
+// a stolen scan looked exactly like your own phone arriving. What must happen
+// instead is that the Mac names what got in and offers to cut it off, and that
+// showing another code takes a deliberate tap.
+test("10 · a spent pairing code names the device that used it and offers to cut it off", async ({ page }) => {
+  const stranger = { id: "d_x", label: "Android phone (Chrome)", ip: "192.168.1.99", first_seen_ms: Date.now() - 2000, last_seen_ms: Date.now() - 1000, via: "qr" };
+  const base = {
+    running: true, port: 8787, user: "admin", remote: true,
+    remote_url: "http://192.168.1.20:8787", via_tailscale: false,
+    lan_url: "http://192.168.1.20:8787", tailscale_url: "", tunnel_url: "",
+    tunnel_state: "off", tunnel_error: "", cloudflared_installed: true,
+    bunker_blocking: false,
+  };
+  const waiting = { ...base, pair_ready: true, devices: [] };
+  const spent = { ...base, pair_ready: false, devices: [stranger] };
+  await mockTauri(page, {
+    webui_status: waiting, webui_secret_get: "x",
+    webui_pair_code: "http://192.168.1.20:8787/#p=abc123abc123",
+    webui_device_revoke: { ...base, pair_ready: false, devices: [] },
+  });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "phone" })));
+  const card = page.getByTestId("remote-pair");
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
+
+  // Somebody redeems the code: pair_ready falls and a device appears.
+  await page.evaluate((s) => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.webui_status = s; }, spent);
+
+  // The card says WHO, not just "paired", and stops showing a code.
+  await expect(card.getByTestId("remote-paired")).toContainText("Android phone (Chrome)", { timeout: 10_000 });
+  await expect(card).toContainText("192.168.1.99");
+  await expect(card.getByRole("img", { name: /QR code/ })).toHaveCount(0);
+  await expect(card.getByRole("button", { name: /Pair another device/ })).toBeVisible();
+
+  // And ending that session is one tap from the confirmation itself.
+  await card.getByTestId("remote-revoke-paired").click();
+  expect(await invokedCommands(page)).toContain("webui_device_revoke");
+});
