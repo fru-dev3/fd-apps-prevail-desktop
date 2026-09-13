@@ -339,7 +339,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
       <CollapsibleSection icon={InfinityIcon} title="How loops work" summary="agentic · goal-driven · guardrailed">
         <div className="space-y-4">
           <p className="text-[13px] leading-relaxed text-text-secondary">
-            A loop is a <span className="font-semibold text-text-primary">standing agent</span> for this domain. It learns from its own run history, so it doesn't repeat itself and escalates when a gap stalls.
+            A loop is a <span className="font-semibold text-text-primary">Standing agent</span> for this domain. It learns from its own run history, so it doesn't repeat itself and escalates when a gap stalls.
           </p>
           {/* The cadence → gap → act mini-flow, as three steps, not prose. */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -417,7 +417,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[11px] text-text-muted"><span className="text-accent">Execute</span> does it now via your connectors; <span className="text-text-secondary">task</span> files it for later; dismiss drops it. Loops keep running other steps automatically.</p>
+          <p className="mt-2 text-[11px] text-text-muted"><span className="text-accent">Execute</span> does it now via your connectors; <span className="text-text-secondary">Task</span> files it for later; dismiss drops it. Loops keep running other steps automatically.</p>
           {execReport && (
             <div className="mt-2 rounded-lg border border-border-subtle bg-background px-3 py-2">
               <div className="text-[11px] text-text-muted">Executed: {execReport.action}</div>
@@ -539,7 +539,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
         </section>
       )}
 
-      {savedAt > 0 && <div className="text-right text-[11px] text-text-muted/60">saved</div>}
+      {savedAt > 0 && <div className="text-right text-[11px] text-text-muted/60">Saved</div>}
     </div>
   );
 }
@@ -683,7 +683,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent" title="Built-in briefing loop: synthesizes + delivers a digest of this domain"><Mail className="h-2.5 w-2.5" /> briefing</span>
           ) : loop.type === "open"
             ? <span className="inline-flex items-center gap-1 rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted" title="Open loop: never ends"><InfinityIcon className="h-2.5 w-2.5" /> open</span>
-            : <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted" title="Closed loop: finishes when its condition is met">closed</span>}
+            : <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted" title="Closed loop: finishes when its condition is met">Closed</span>}
           <span className="shrink-0 text-[11px] text-text-muted/70">{CADENCE_LABEL[loop.cadence]}</span>
           {isBriefing
             ? <span className="shrink-0 rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-secondary" title="Delivery channel">{loop.channel ?? "gmail"}</span>

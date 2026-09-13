@@ -44,7 +44,7 @@ export function GatewayLogsCard({ vaultPath }: { vaultPath: string }) {
         <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} />
         <span className="font-display text-sm font-semibold tracking-tight">Gateway logs</span>
         <span className="rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-secondary">{lines.length}</span>
-        <span className="ml-auto text-[11px] text-text-muted">kept on disk</span>
+        <span className="ml-auto text-[11px] text-text-muted">Kept on disk</span>
       </button>
       {open && (
         <div className="border-t border-border-subtle p-3">
@@ -307,7 +307,7 @@ export function TelegramCard() {
             <label className="block">
               <div className="flex items-center gap-2 text-[11px] text-text-muted">
                 Bot token
-                {tokenSaved && <span className="rounded-full bg-accent-soft px-1.5 py-0 font-mono text-[10px] tracking-wider text-accent">in keychain</span>}
+                {tokenSaved && <span className="rounded-full bg-accent-soft px-1.5 py-0 font-mono text-[10px] tracking-wider text-accent">In keychain</span>}
               </div>
               <input type="password" value={token} onChange={(e) => setToken(e.target.value)}
                 placeholder={tokenSaved ? "•••••••• (type to replace)" : "123456:ABC-XYZ…"}
@@ -595,7 +595,7 @@ export function NativeBridgeCard({ platform, label, icon, mono, urlLabel, urlPla
           <div className="flex items-center gap-2">
             <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={tokenSaved ? "saved · replace…" : "access token"} disabled={running}
               className="flex-1 rounded-md border border-border bg-background px-2 py-1 focus:border-accent-border focus:outline-none disabled:opacity-60" />
-            {tokenSaved && <span className="font-mono text-[11px] text-ok">stored</span>}
+            {tokenSaved && <span className="font-mono text-[11px] text-ok">Stored</span>}
           </div>
         </>}
         <span className="text-text-muted">Model</span>
@@ -673,7 +673,7 @@ export function DiscordCard() {
       </div>
       <div className="mt-3 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-xs">
         <span className="text-text-muted">Bot token</span>
-        <div className="flex items-center gap-2"><input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={saved ? "saved · replace…" : "bot token"} disabled={running} className={`flex-1 ${FIELD}`} />{saved && <span className="font-mono text-[11px] text-ok">stored</span>}</div>
+        <div className="flex items-center gap-2"><input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={saved ? "saved · replace…" : "bot token"} disabled={running} className={`flex-1 ${FIELD}`} />{saved && <span className="font-mono text-[11px] text-ok">Stored</span>}</div>
         <span className="text-text-muted">Channel ID</span>
         <input value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="123456789012345678" disabled={running} className={`font-mono ${FIELD}`} />
         <span className="text-text-muted">Model</span>
@@ -719,9 +719,9 @@ export function SlackCard() {
       </div>
       <div className="mt-3 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-xs">
         <span className="text-text-muted">App token</span>
-        <div className="flex items-center gap-2"><input type="password" value={appTok} onChange={(e) => setAppTok(e.target.value)} placeholder={appSaved ? "saved · replace…" : "xapp-…"} disabled={running} className={`flex-1 ${FIELD}`} />{appSaved && <span className="font-mono text-[11px] text-ok">stored</span>}</div>
+        <div className="flex items-center gap-2"><input type="password" value={appTok} onChange={(e) => setAppTok(e.target.value)} placeholder={appSaved ? "saved · replace…" : "xapp-…"} disabled={running} className={`flex-1 ${FIELD}`} />{appSaved && <span className="font-mono text-[11px] text-ok">Stored</span>}</div>
         <span className="text-text-muted">Bot token</span>
-        <div className="flex items-center gap-2"><input type="password" value={botTok} onChange={(e) => setBotTok(e.target.value)} placeholder={botSaved ? "saved · replace…" : "xoxb-…"} disabled={running} className={`flex-1 ${FIELD}`} />{botSaved && <span className="font-mono text-[11px] text-ok">stored</span>}</div>
+        <div className="flex items-center gap-2"><input type="password" value={botTok} onChange={(e) => setBotTok(e.target.value)} placeholder={botSaved ? "saved · replace…" : "xoxb-…"} disabled={running} className={`flex-1 ${FIELD}`} />{botSaved && <span className="font-mono text-[11px] text-ok">Stored</span>}</div>
         <span className="text-text-muted">Channel ID</span>
         <input value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="C0123456789" disabled={running} className={`font-mono ${FIELD}`} />
         <span className="text-text-muted">Model</span>
@@ -774,7 +774,7 @@ export function EmailCard() {
         <span className="text-text-muted">Username</span><input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="you@gmail.com" disabled={running} className={FIELD} />
         <span className="text-text-muted">From address</span><input value={fromAddr} onChange={(e) => setFromAddr(e.target.value)} placeholder="you@gmail.com" disabled={running} className={FIELD} />
         <span className="text-text-muted">Password</span>
-        <div className="flex items-center gap-2"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={pwSaved ? "saved · replace…" : "app password"} disabled={running} className={`flex-1 ${FIELD}`} />{pwSaved && <span className="font-mono text-[11px] text-ok">stored</span>}</div>
+        <div className="flex items-center gap-2"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={pwSaved ? "saved · replace…" : "app password"} disabled={running} className={`flex-1 ${FIELD}`} />{pwSaved && <span className="font-mono text-[11px] text-ok">Stored</span>}</div>
         <span className="text-text-muted">Model</span><CliSelect cli={cli} setCli={setCli} routable={routable} disabled={running} />
       </div>
       <BridgeFooter bridge={bridge} status={status} />
@@ -793,7 +793,7 @@ export function McpCard() {
         </div>
         <div>
           <h3 className="font-semibold">
-            MCP server <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">preview</span>
+            MCP server <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">Preview</span>
           </h3>
           <p className="text-xs text-text-muted">Expose your vault to Claude Desktop or any MCP client over localhost.</p>
         </div>
@@ -1291,7 +1291,7 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
               {upToDate ? `latest (${latest})` : newer ? `update ready: ${latest}` : `latest: ${latest}`}
             </span>
           ) : (
-            <span className="font-mono text-[10px] text-text-muted">in-place updates</span>
+            <span className="font-mono text-[10px] text-text-muted">In-place updates</span>
           )}
         </div>
         {/* In-place download progress bar. */}

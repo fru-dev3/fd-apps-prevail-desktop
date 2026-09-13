@@ -181,7 +181,7 @@ export function ConnectorRunPanel({
                   {ev.phase === "download" && <span className="text-ok">downloaded {ev.name}</span>}
                   {ev.phase === "blocked" && <span className="text-warning">blocked: {ev.reason}</span>}
                   {ev.phase === "await_user" && <span className="text-accent">waiting for you ({ev.reason})</span>}
-                  {ev.phase === "user_resumed" && <span className="text-text-muted">resumed</span>}
+                  {ev.phase === "user_resumed" && <span className="text-text-muted">Resumed</span>}
                   {ev.phase === "started" && <span className="text-text-muted">starting…</span>}
                   {ev.phase === "browser_open" && <span className="text-text-muted">opening your Chrome…</span>}
                   {ev.phase === "chromium_download" && <span className="text-text-muted">{ev.message ?? "preparing the browser…"}</span>}

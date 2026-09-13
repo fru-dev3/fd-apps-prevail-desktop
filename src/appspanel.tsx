@@ -803,8 +803,8 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><Plug className="h-4 w-4" /></span>
             <h2 className="font-display text-2xl font-bold tracking-tight">Apps</h2>
           </div>
-          <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-            Services that feed your vault. Connect each one once - mail, calendar, repos, docs, payments, and more - and it's available to any domain's context, no duplicates.
+          <p className="mt-2 text-sm text-text-muted">
+            Connect a service once, use it in every domain.
           </p>
         </div>
       </div>
@@ -3567,7 +3567,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                 <div key={pt.runtime} className="flex items-center gap-3 rounded-xl border border-accent-border bg-accent-soft/30 px-3.5 py-2.5">
                   <span className={`h-2 w-2 shrink-0 rounded-full ${pt.connected ? "bg-ok" : "bg-warn"}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">{rt} · MCP {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">{rt} · MCP {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">Default</span>}</div>
                     <div className="font-mono text-[10.5px] text-text-muted">{pt.health === "degraded" ? "connected but unhealthy (tools fetch failed) - re-authorize" : pt.connected ? "already authorized · zero setup" : "set up here, but needs re-authorization"} · Prevail passes it through</div>
                   </div>
                   {!pt.connected && <button onClick={() => void openUrl(authUrl)} className="shrink-0 rounded-md border border-warn/50 px-2 py-1 text-[11px] text-warn hover:bg-warn/10">Re-authorize</button>}
@@ -3593,7 +3593,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                 <div key={gw} className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 ${inUse ? "border-accent-border bg-accent-soft/20" : "border-border bg-surface"}`}>
                   <span className={`h-2 w-2 shrink-0 rounded-full ${inUse ? "bg-ok" : "bg-text-muted"}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">{gw.charAt(0).toUpperCase() + gw.slice(1)} {inUse && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">{gw.charAt(0).toUpperCase() + gw.slice(1)} {inUse && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">Default</span>}</div>
                     <div className="font-mono text-[10.5px] text-text-muted">{inUse ? `this app is fronted by your ${gw} gateway` : `connect ${app.title || app.id} through your ${gw} gateway (one OAuth for many apps)`}</div>
                   </div>
                   {inUse
@@ -3608,7 +3608,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                 <div className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 ${isDefault ? "border-accent-border bg-accent-soft/20" : "border-border bg-surface"}`}>
                   <span className={`h-2 w-2 shrink-0 rounded-full ${notConnected ? "bg-text-muted" : "bg-ok"}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">Prevail {m === "cli" ? "CLI" : "MCP"} {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">Prevail {m === "cli" ? "CLI" : "MCP"} {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">Default</span>}</div>
                     <div className="font-mono text-[10.5px] text-text-muted">a server Prevail runs itself, vault-scoped · authorize once</div>
                   </div>
                   {!isDefault && (
@@ -3625,7 +3625,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
               <div className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 ${isDefault ? "border-accent-border bg-accent-soft/20" : "border-border bg-surface"}`}>
                 <span className="h-2 w-2 shrink-0 rounded-full bg-text-muted" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">Browser automation {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
+                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">Browser automation {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">Default</span>}</div>
                   <div className="font-mono text-[10.5px] text-text-muted">open a browser, log in once, Prevail learns the steps</div>
                 </div>
                 {!isDefault && <button onClick={() => setDefaultMethod("browser")} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Make default</button>}
@@ -3651,7 +3651,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
               <div className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 ${isDefault ? "border-accent-border bg-accent-soft/20" : "border-border bg-surface"}`}>
                 <span className="h-2 w-2 shrink-0 rounded-full bg-text-muted" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">API key {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
+                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">API key {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">Default</span>}</div>
                   <div className="font-mono text-[10.5px] text-text-muted">paste a token for direct access</div>
                 </div>
                 {!isDefault && <button onClick={() => setDefaultMethod("api")} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Make default</button>}
@@ -3705,7 +3705,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                   <div className="flex flex-wrap gap-1.5">
                     {(app.domains ?? []).length ? (app.domains).map((d) => (
                       <button key={d} onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: d }))} className="rounded-full border border-border bg-surface px-2.5 py-0.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">{titleCase(d)}</button>
-                    )) : <span className="text-[12px] text-text-muted">none yet</span>}
+                    )) : <span className="text-[12px] text-text-muted">None yet</span>}
                   </div>
                 ) : (
                   <div>
@@ -3776,7 +3776,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
         {notConnected ? null : confirmDelete ? (
           <span className="flex items-center gap-2">
             <button onClick={removeApp} disabled={deleting} className="inline-flex items-center gap-1.5 rounded-md border border-err/50 bg-err/10 px-2.5 py-1.5 text-[11px] text-err hover:bg-err/20 disabled:opacity-50">{deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />} Delete {app.title} for good</button>
-            <button onClick={() => { setConfirmDelete(false); setDeleteErr(null); }} className="text-[11px] text-text-muted hover:text-text-secondary">cancel</button>
+            <button onClick={() => { setConfirmDelete(false); setDeleteErr(null); }} className="text-[11px] text-text-muted hover:text-text-secondary">Cancel</button>
             {deleteErr && <span className="text-[11px] text-err">{deleteErr}</span>}
           </span>
         ) : (
@@ -3809,7 +3809,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
               )}
               {schedMode === "weekly" && (
                 <select value={schedOn} onChange={(e) => setSchedOn(e.target.value)} className="rounded-md border border-border bg-surface px-2 py-1 text-xs focus:border-accent-border focus:outline-none">
-                  <option value="">any day</option>{["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
+                  <option value="">Any day</option>{["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
                 </select>
               )}
             </div>

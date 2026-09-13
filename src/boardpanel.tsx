@@ -511,9 +511,9 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-5 font-mono text-[10px]">
           <span className="rounded-full px-1.5 py-px font-semibold" style={{ color: domainColor(t.domain), backgroundColor: `${domainColor(t.domain)}1f` }}>{titleCase(t.domain)}</span>
           {t.due && <span className={`${dueTone(t.due)} ${overdue ? "font-bold" : ""}`}>{t.due}</span>}
-          {overdue && <span className="rounded-full bg-err/15 px-1.5 py-px font-bold tracking-wide text-err">overdue</span>}
-          {t.priority === "critical" && <span className="text-err">critical</span>}
-          {t.priority === "high" && <span className="text-warn">important</span>}
+          {overdue && <span className="rounded-full bg-err/15 px-1.5 py-px font-bold tracking-wide text-err">Overdue</span>}
+          {t.priority === "critical" && <span className="text-err">Critical</span>}
+          {t.priority === "high" && <span className="text-warn">Important</span>}
           {blocked && <span className="text-warn">⏸ needs decision</span>}
         </div>
         <div className="mt-1.5 flex items-center gap-1.5 pl-5">
@@ -555,7 +555,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
         )}
         <span className="hidden shrink-0 rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-muted sm:inline">{titleCase(t.domain)}</span>
         {blocked && <span className="shrink-0 text-[11px] text-warn">⏸ decision</span>}
-        {overdue && <span className="shrink-0 rounded-full bg-err/15 px-1.5 py-px text-[11px] font-bold tracking-wide text-err">overdue</span>}
+        {overdue && <span className="shrink-0 rounded-full bg-err/15 px-1.5 py-px text-[11px] font-bold tracking-wide text-err">Overdue</span>}
         <span className={`hidden w-20 shrink-0 text-right font-mono text-[10px] md:inline ${dueTone(t.due)} ${overdue ? "font-bold" : ""}`}>{t.due || ""}</span>
         <button onClick={() => cyclePriority(t)} title={`Priority: ${t.priority || "normal"} - click to change`} disabled={busy === `pr:${t.id}`}
           className={`shrink-0 transition-colors ${t.priority === "critical" ? "text-err" : t.priority === "high" ? "text-warn" : "text-text-muted/30 hover:text-text-muted"}`}>

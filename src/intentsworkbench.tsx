@@ -217,7 +217,7 @@ export function IntentsWorkbench({ vaultPath, intents, themes = [] }: { vaultPat
         <div className="inline-flex overflow-hidden rounded-lg border border-border">
           {RANGES.map((r) => <button key={r.id} onClick={() => setRange(r.id)} className={`px-2.5 py-1.5 text-xs ${range === r.id ? "bg-accent-soft text-accent" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}>{r.label}</button>)}
         </div>
-        {activeFilters > 0 && <button onClick={() => { setQ(""); setDomain("all"); setSurface("all"); setRange("all"); }} className="text-[11px] text-text-muted underline underline-offset-2 hover:text-accent">clear</button>}
+        {activeFilters > 0 && <button onClick={() => { setQ(""); setDomain("all"); setSurface("all"); setRange("all"); }} className="text-[11px] text-text-muted underline underline-offset-2 hover:text-accent">Clear</button>}
       </div>
 
       {/* Pinned reuse library */}
@@ -237,7 +237,7 @@ export function IntentsWorkbench({ vaultPath, intents, themes = [] }: { vaultPat
 
       {/* Zoom ladder: highest (fewest, coarsest) -> lowest (every question). */}
       <div className="flex items-center gap-2">
-        <span className="hidden text-[11px] tracking-wide text-text-muted sm:inline">zoom</span>
+        <span className="hidden text-[11px] tracking-wide text-text-muted sm:inline">Zoom</span>
         <div className="inline-flex overflow-hidden rounded-lg border border-border">
           <button onClick={() => setView("tree")} title="Nested: domain > theme > recurring > question" className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${view === "tree" ? "bg-accent text-background" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}><Boxes className="h-3.5 w-3.5" /> Tree</button>
           <button onClick={() => setView("recurring")} title="Mid level: recurring themes" className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${view === "recurring" ? "bg-accent text-background" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}><Repeat2 className="h-3.5 w-3.5" /> Recurring</button>
@@ -247,7 +247,7 @@ export function IntentsWorkbench({ vaultPath, intents, themes = [] }: { vaultPat
           <div className="ml-auto flex items-center gap-1.5 text-[11px] text-text-muted">
             <Layers3 className="h-3.5 w-3.5" /> group
             <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as typeof groupBy)} className="rounded-md border border-border bg-surface px-1.5 py-1 text-xs text-text-primary">
-              <option value="none">none</option><option value="domain">domain</option><option value="surface">activity</option><option value="day">day</option>
+              <option value="none">None</option><option value="domain">Domain</option><option value="surface">Activity</option><option value="day">Day</option>
             </select>
           </div>
         )}

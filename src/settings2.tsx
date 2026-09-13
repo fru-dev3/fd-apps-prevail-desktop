@@ -30,7 +30,7 @@ function DaemonDot({ running, enabled = true }: { running: boolean; enabled?: bo
     : enabled
       ? "bg-warn"
       : "bg-text-muted/40";
-  const title = running ? "running" : enabled ? "idle" : "off";
+  const title = running ? "running" : enabled ? "Idle" : "Off";
   return <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} title={title} />;
 }
 
@@ -405,7 +405,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
         title="Intent distillation"
         running={!!intentSt?.running}
         enabled={intentEnabled}
-        summary={intentSt?.last_intent_count ? `${intentSt.last_intent_count} intents` : intentEnabled ? "auto" : "off"}
+        summary={intentSt?.last_intent_count ? `${intentSt.last_intent_count} intents` : intentEnabled ? "Auto" : "Off"}
       >
         {/* Like the other routines: when it last ran + when it runs next. */}
         {(() => {
@@ -416,7 +416,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
             <div className="mb-2 flex items-center gap-2 px-1 font-mono text-[10px] text-text-muted">
               <DaemonDot running={!!intentSt?.running} enabled={intentEnabled} />
               <span>
-                {intentSt?.running ? "running" : "idle"}
+                {intentSt?.running ? "Running" : "Idle"}
                 {last ? ` · last pass ${formatFreshness(Math.max(0, Date.now() / 1000 - last))}` : ""}
                 {nextSec ? ` · next ~${fmt(nextSec)}` : ""}
               </span>
@@ -802,7 +802,7 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
         <Brain className="h-3.5 w-3.5 shrink-0 text-accent" />
         <span className="font-mono text-[11px] text-text-secondary">Distiller</span>
         <span className="font-mono text-[11px] text-text-muted">
-          {status?.running ? "running" : "idle"}
+          {status?.running ? "Running" : "Idle"}
           {/* B2-19: last_run_ts is in SECONDS (treating it as ms gave "20601 days");
               formatFreshness already returns "... ago" (don't append a second one). */}
           {status?.last_run_ts ? ` · last pass ${formatFreshness(Math.max(0, Date.now() / 1000 - status.last_run_ts))}` : ""}
@@ -1089,7 +1089,7 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
                               {(() => {
                                 const u = usageOf(s);
                                 if (!u) return null;
-                                if (u.verdict === "unused") return <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] text-warn">never used</span>;
+                                if (u.verdict === "unused") return <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] text-warn">Never used</span>;
                                 const days = u.lastTs ? Math.max(0, Math.floor((Date.now() - u.lastTs) / 86_400_000)) : null;
                                 const rel = days === null ? "" : days === 0 ? " · today" : ` · ${days}d ago`;
                                 return <span className={`rounded-md px-1.5 py-0.5 text-[11px] ${u.verdict === "dormant" ? "bg-warn/10 text-warn" : "bg-surface-warm text-text-muted"}`}>{u.uses} use{u.uses === 1 ? "" : "s"}{rel}{u.verdict === "dormant" ? " · dormant" : ""}</span>;

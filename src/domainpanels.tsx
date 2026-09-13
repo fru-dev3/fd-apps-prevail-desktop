@@ -1097,7 +1097,7 @@ export function DomainPrefsPanel({
                     {c.label}
                   </span>
                   {disabled && (
-                    <span className="font-mono text-[11px] text-text-muted">not installed</span>
+                    <span className="font-mono text-[11px] text-text-muted">Not installed</span>
                   )}
                   {picked && (
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-background">
@@ -1305,8 +1305,8 @@ export function DomainPrefsPanel({
             }}
             className="rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-accent-border focus:outline-none"
           >
-            <option value="open">open</option>
-            <option value="locked">locked</option>
+            <option value="open">Open</option>
+            <option value="locked">Locked</option>
           </select>
         </div>
       </PrefSection>
@@ -1364,7 +1364,7 @@ export function DomainPrefsPanel({
           <span className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft px-2.5 py-1 font-mono text-xs text-accent" title="Always matched: the domain name is a built-in keyword">
             <Pin className="h-3 w-3" /> {domain.toLowerCase()}
           </span>
-          <span className="font-mono text-[10px] text-text-muted">always on</span>
+          <span className="font-mono text-[10px] text-text-muted">Always on</span>
         </div>
         <input
           defaultValue={keywordsRaw}

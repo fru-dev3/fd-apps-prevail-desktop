@@ -408,7 +408,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
             <div className="text-2xl font-semibold text-text-primary">{relTime(app.lastSuccessTs)}</div>
             <div className="mt-0.5 text-[11px] text-text-muted">{app.lastSuccessTs ? "last successful refresh" : "this app has never run"}</div>
             {app.lastError && (
-              <div className="mt-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn"><span className="font-mono tracking-wider">last error</span> · {app.lastError}</div>
+              <div className="mt-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn"><span className="font-mono tracking-wider">Last error</span> · {app.lastError}</div>
             )}
             {note && <div className="mt-3 rounded-lg bg-surface-warm px-3 py-1.5 text-[11px] text-text-secondary">{note}</div>}
           </AppCard>
@@ -783,7 +783,7 @@ export function VaultWizard({ onPick }: { onPick: () => void }) {
         </motion.div>
 
         <motion.p variants={item} className="mx-auto mt-5 max-w-2xl text-balance text-[15px] text-text-secondary">
-          Your life in <span className="font-medium text-text-primary">domains</span>: scored, private, <span className="font-medium text-accent">local-first</span>.
+          Your life in <span className="font-medium text-text-primary">Domains</span>: scored, private, <span className="font-medium text-accent">Local-first</span>.
         </motion.p>
 
         {/* feature pills */}

@@ -148,7 +148,7 @@ export function IntegrationsPanel({ vaultPath }: { vaultPath: string; clis: CliI
                       <Check className="h-3 w-3" /> registered
                     </span>
                   )}
-                  {!present && <span className="text-[10px] text-text-muted">not installed</span>}
+                  {!present && <span className="text-[10px] text-text-muted">Not installed</span>}
                 </div>
                 <button
                   onClick={() => installClientMcp(id)}

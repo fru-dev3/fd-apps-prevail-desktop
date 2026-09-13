@@ -246,7 +246,7 @@ function DirectProviderRow({ id, label, hint, onActivated }: {
         <span className="flex-1 text-sm font-semibold text-text-primary">{label}</span>
         {configured
           ? <span className="inline-flex items-center gap-1 text-[11px] text-ok"><Check className="h-3 w-3" /> key set</span>
-          : <span className="font-mono text-[11px] text-text-muted">no key</span>}
+          : <span className="font-mono text-[11px] text-text-muted">No key</span>}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <input
@@ -276,7 +276,7 @@ function DirectProviderRow({ id, label, hint, onActivated }: {
 export function DirectProvidersSection({ onActivated }: { onActivated?: () => Promise<CliInfo[]> }) {
   return (
     <div className="space-y-2">
-      <p className="mb-1 text-xs text-text-muted">Paste your API key for any vendor. Stored in the OS Keychain, never in plaintext. Once saved, the provider's models appear in every picker.</p>
+      <p className="mb-1 text-xs text-text-muted">Keys are stored in the OS Keychain, never in plaintext.</p>
       {DIRECT_PROVIDERS_UI.map((p) => (
         <DirectProviderRow key={p.id} id={p.id} label={p.label} hint={p.hint} onActivated={onActivated} />
       ))}
@@ -411,7 +411,6 @@ export function ModelsSection({
       )}
       {tab === "direct" && (
         <>
-          <p className="mb-4 text-xs text-text-muted">Anthropic, OpenAI, xAI, Kimi, DeepSeek, Google: paste your own key per vendor. Stored in the OS Keychain, never in plaintext.</p>
           <DirectProvidersSection onActivated={onActivated} />
         </>
       )}

@@ -1075,7 +1075,7 @@ export function CouncilPanel({
                   <span className="text-accent">
                     {chairSlotObj ? `${chairSlotObj.cliLabel.toLowerCase()} · ${chairSlotObj.modelLabel}` : "-"}
                   </span>
-                  {" "}· best for <span className="text-accent">why</span> / <span className="text-accent">should-I</span> decisions, not quick lookups.
+                  {" "}· best for <span className="text-accent">Why</span> / <span className="text-accent">should-I</span> decisions, not quick lookups.
                 </>
               )}
             </p>
@@ -1152,10 +1152,10 @@ export function CouncilPanel({
                         <span className="text-text-muted">· {s.modelLabel}</span>
                       </span>
                       <span className="text-text-muted">
-                        {skipped ? <span className="text-text-muted">skipped</span> : (
+                        {skipped ? <span className="text-text-muted">Skipped</span> : (
                           <>
                             {!r && "queued"}
-                            {r?.streaming && <span className="pulse-soft text-accent">streaming</span>}
+                            {r?.streaming && <span className="pulse-soft text-accent">Streaming</span>}
                             {r && !r.streaming && !cardErrored && <span className="text-ok">✓ done</span>}
                             {cardErrored && <span className="text-warn">⚠ no output</span>}
                           </>
@@ -1198,7 +1198,7 @@ export function CouncilPanel({
                     verdict · synthesized by{" "}
                     {chairSlotObj ? `${chairSlotObj.cliLabel.toLowerCase()} · ${chairSlotObj.modelLabel}` : "-"}
                   </span>
-                  {phase === "synthesizing" && <span className="pulse-soft">streaming</span>}
+                  {phase === "synthesizing" && <span className="pulse-soft">Streaming</span>}
                 </summary>
               <div className="px-6 pb-6">
                 <div>
@@ -1548,7 +1548,7 @@ export function CouncilPanel({
                               {c.label}
                             </span>
                             {!c.available && (
-                              <span className="ml-auto text-[11px] text-text-muted">not installed</span>
+                              <span className="ml-auto text-[11px] text-text-muted">Not installed</span>
                             )}
                           </div>
                           {searchable && c.available && (
