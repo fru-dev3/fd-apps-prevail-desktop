@@ -255,7 +255,7 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
                   {DIMS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
                 </select>
                 <button onClick={() => setSortDesc((v) => !v)} className="rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text-muted hover:text-accent">
-                  {sortDesc ? "high → low" : "low → high"}
+                  {sortDesc ? "High to low" : "Low to high"}
                 </button>
               </div>
             }>

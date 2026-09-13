@@ -2,6 +2,7 @@
 // auth-error detection, section-header / ideal-state icon pickers, the MCP engine
 // path resolver, and the skill-avatar color palette + hash picker.
 import type { ReactNode } from "react";
+import { useIsPhone } from "./useisphone";
 import { Activity, Award, Brain, Briefcase, Coins, Compass, Folder, Github, Globe, GraduationCap, Heart, Home, Layers, Lightbulb, MessagesSquare, Monitor, Plug, Scale, Settings as SettingsIcon, Shield, ShieldCheck, Sparkles, Target, Users, Wrench } from "lucide-react";
 
 export const CLI_LOGIN_CMD: Record<string, string> = {
@@ -107,6 +108,18 @@ export function pickSkillColor(name: string): { bg: string; fg: string } {
 // one isn't supplied.
 export function SettingsHeader({ title, subtitle, icon, right }: { title: string; subtitle?: string; icon?: typeof Folder; right?: ReactNode }) {
   const Icon = icon ?? settingsHeaderIcon(title);
+  const phone = useIsPhone();
+  // On a phone the shell already puts this page's name in the header bar with
+  // the back button, so rendering the big title again printed it twice, one
+  // under the other. Keep the one line that adds something.
+  if (phone) {
+    return subtitle || right ? (
+      <div className="mb-3 flex items-center gap-2 border-b border-border-subtle pb-3">
+        {subtitle && <p className="min-w-0 flex-1 text-[13px] text-text-muted">{subtitle}</p>}
+        {right && <div className="shrink-0">{right}</div>}
+      </div>
+    ) : null;
+  }
   return (
     <div className="relative mb-4 overflow-hidden border-b border-border-subtle pb-4">
       {/* Purely decorative right-side flourish: a soft gradient wash plus a large
