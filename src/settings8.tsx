@@ -13,6 +13,7 @@ import { LS, lsGet, lsSet } from "./storage";
 import { Toggle } from "./ui";
 import { PaletteCard } from "./panels3";
 import { useAppearance } from "./hooks";
+import { ObsidianCard } from "./settings4";
 import { SettingsHeader } from "./sectionutil";
 import { VaultHygieneCard } from "./vaulthygiene";
 import { BACKUP_CFG, backupFreqMs, backupVaultNow } from "./backup";
@@ -588,7 +589,8 @@ function VaultRebuildCard({ vaultPath }: { vaultPath: string }) {
 export function WorkspaceSection({ vaultPath, onSetupDomains, onVaultMoved }: { vaultPath: string; onSetupDomains?: () => void; onVaultMoved?: (path: string) => void }) {
   return (
     <>
-      <SettingsHeader icon={FolderTree} title="Workspace" subtitle="Where your data lives and how you set it up: your vault, the demo vault, and backups." />
+      <SettingsHeader icon={FolderTree} title="Workspace" subtitle="Where your data lives and how you set it up: your vault, the demo vault, backups, and outside sources like Obsidian." />
+      <ObsidianCard />
       {/* ONE Vault section = the Your/Demo vault cards (inline change+open icons and
           a per-vault backup toggle), plus a copy-safe filename normalizer. */}
       <div>
