@@ -152,6 +152,33 @@ function qSuggestNotify() {
 // Subscribe hook: re-renders on prevail:qsuggest-changed and returns the current
 // jobs. Mirrors useBenchBatches (which re-renders through benchSubs); here the
 // window event is the notification channel so any mounted panel stays in sync.
+/// Pull the DIAGNOSIS out of the engine's output.
+///
+/// The engine prints the useful line first and a summary last:
+///
+///     failed: career: nothing to draft from (no state, goals, config, ...)
+///     no questions drafted
+///
+/// and this used to take the LAST line, so every failure reported "no
+/// questions drafted" — a message that tells you to fix something without
+/// saying what. The reason was computed, printed, and thrown away one line
+/// from the end.
+export function suggestFailureReason(output: string): string {
+  const lines = output.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+  // The engine's per-domain diagnosis, newest last. "failed: <domain>: <why>"
+  // — drop the prefix and the domain, which the UI already names.
+  const failed = lines.filter((l) => l.toLowerCase().startsWith("failed:")).pop();
+  if (failed) {
+    const rest = failed.slice("failed:".length).trim();
+    const colon = rest.indexOf(":");
+    return (colon > 0 ? rest.slice(colon + 1).trim() : rest) || rest;
+  }
+  // Otherwise the last line that is not the summary, which says nothing.
+  const summaries = ["no questions drafted"];
+  const last = lines.filter((l) => !summaries.includes(l.toLowerCase())).pop();
+  return last || "the drafting model returned nothing usable (check the model is installed and signed in)";
+}
+
 export function useQuestionSuggest(): QSuggestJob[] {
   const [, force] = useState(0);
   useEffect(() => {
@@ -227,12 +254,8 @@ export async function startQuestionSuggest({
       job.status = "done";
       job.added = added > 0 ? added : 0;
     } else {
-      // Surface WHY it failed: the engine prints a reason on the last line;
-      // fall back to a plain-English guess when it's empty.
-      const reason = (output.trim().split("\n").filter(Boolean).pop() || "").trim()
-        || "the drafting model returned nothing usable (check the model is installed and signed in)";
       job.status = "error";
-      job.error = reason;
+      job.error = suggestFailureReason(output);
     }
   } catch (e) {
     (chunkUn as UnlistenFn | null)?.();

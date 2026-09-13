@@ -8,6 +8,7 @@ import { PrevailLogo } from "./PrevailLogo";
 import { invoke } from "./bridge";
 import { PREF, getPref } from "./storage";
 import { APP_VERSION, APP_AUTONOMY_LABEL, APP_AUTONOMY_TINT, INTEGRATION_LABEL, STATUS_TINT } from "./constants";
+import { RELEASES_URL, useUpdateAvailable } from "./updatecheck";
 import { relTime, titleCase } from "./format";
 import { appScheduleText } from "./helpers";
 import { AppCard, AppKV, FloatingChip } from "./widgets";
@@ -465,6 +466,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
 // `compact` is the phone variant: one line at 390px (tighter type, no machine
 // role segment, no version chip), so the trust bar never wraps above the tab bar.
 export function BunkerRibbon({ enabled, compact = false }: { enabled: boolean; compact?: boolean }) {
+  const updateAvailable = useUpdateAvailable();
   // Vault Lock status, surfaced in the trust bar so the user always knows whether
   // reads/writes are confined to the vault. Defaults to ON (locked) until the
   // backend says otherwise, and refreshes when the toggle changes or on focus.
@@ -608,9 +610,28 @@ export function BunkerRibbon({ enabled, compact = false }: { enabled: boolean; c
       />
       {/* Version - inside the ribbon so it inherits the high-contrast ribbon
           text color (the old standalone pill was invisible over the dark bar). */}
-      <span className="pointer-events-none absolute right-3 select-none font-mono text-[10px] tracking-wider opacity-70">
-        v{APP_VERSION}
-      </span>
+      {/* A newer release is a fact worth a glance, not a hunt through About.
+          Green, pulsing, and it opens the release page. */}
+      {updateAvailable ? (
+        <a
+          href={RELEASES_URL}
+          target="_blank"
+          rel="noreferrer"
+          title={`Prevail ${updateAvailable} is available. You have ${APP_VERSION}. Click to download.`}
+          data-testid="update-available"
+          className="absolute right-3 inline-flex items-center gap-1.5 rounded-full bg-ok px-2.5 py-0.5 font-mono text-[10px] font-bold tracking-wider text-background hover:opacity-90"
+        >
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-background opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-background" />
+          </span>
+          v{updateAvailable} available
+        </a>
+      ) : (
+        <span className="pointer-events-none absolute right-3 select-none font-mono text-[10px] tracking-wider opacity-70">
+          v{APP_VERSION}
+        </span>
+      )}
       </>)}
     </div>
   );
