@@ -982,7 +982,7 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
     <>
       <SettingsHeader
         title="Skills"
-        subtitle="Install a skill into a domain."
+        subtitle="The recipes your AI can follow."
       />
 
       <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
