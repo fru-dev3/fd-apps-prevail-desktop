@@ -1984,12 +1984,12 @@ export function HeadlessLearnCard({ vaultPath }: { vaultPath: string }) {
   );
 }
 
-export function SettingsRowLite({ title, desc, control }: { title: string; desc: string; control: React.ReactNode }) {
+export function SettingsRowLite({ title, desc, control }: { title: string; desc?: string; control: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-6 border-b border-border-subtle py-4 last:border-0">
+    <div className="flex items-center justify-between gap-6 border-b border-border-subtle py-3.5 last:border-0">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold text-text-primary">{title}</div>
-        <div className="mt-0.5 text-xs text-text-secondary">{desc}</div>
+        {desc && <div className="mt-0.5 text-xs text-text-muted">{desc}</div>}
       </div>
       <div className="shrink-0">{control}</div>
     </div>
