@@ -115,6 +115,22 @@ const WEBUI_ALLOWED: &[&str] = &[
     // desktop-only - adding, removing, running a skill, setting its schedule,
     // domains, runtime or soul, and every gateway command that holds a key.
     "app_context", "app_data_files", "engine_apps_sync_due", "harness_connections_scan",
+
+    // Status reads the rest of the app makes. A denied one does not fail
+    // quietly: the Autonomy screen printed the raw refusal JSON at the user
+    // ("command 'engine_autonomy_status' is not permitted over the WebUI").
+    // All of these report state and change none. The policy they report is
+    // still only CHANGEABLE from the Mac - engine_autonomy_set and friends are
+    // deliberately absent.
+    "engine_autonomy_status", "engine_budget_status", "engine_lock_status", "engine_vault_status",
+    "discord_bridge_status", "email_bridge_status", "slack_bridge_status",
+    "webhook_bridge_status", "native_bridge_status",
+    "google_cli_status", "composio_status", "composio_cli_status", "nango_status",
+    "model_suggestions_read", "profile_prefs_get", "task_detail_get", "vault_backups_list",
+    "gateway_log_read",
+    // Marking a task done from the phone. tasks_set (which rewrites the whole
+    // list) is already allowed, so this is a narrower version of open ground.
+    "tasks_set_status",
 ];
 
 /// Commands that read a file by path. They are allowed over the web ONLY when
@@ -1388,6 +1404,7 @@ mod tests {
             "engine_app_set_domains", "engine_app_set_schedule", "engine_app_set_soul",
             "engine_app_set_runtime", "engine_app_set_enabled", "engine_app_sync",
             "composio_set_key", "composio_connect_app", "nango_set_key", "nango_connect",
+            "engine_autonomy_set", "engine_budget_set", "engine_lock_set", "autonomy_policy_set",
             "google_scaffold", "open_in_finder",
         ] {
             assert!(!WEBUI_ALLOWED.contains(&banned), "{banned} must not be web-invokable");
