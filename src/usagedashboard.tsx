@@ -15,6 +15,8 @@ type Entry = {
 // The dimensions the user can slice by. `label` is the human word; `get` pulls
 // the value off an entry (with a friendly fallback for missing/legacy data).
 type DimId = "model" | "domain" | "surface" | "host" | "cli";
+import { modelLabel } from "./helpers2";
+
 const DIMS: { id: DimId; label: string; get: (e: Entry) => string }[] = [
   { id: "model", label: "Model", get: (e) => e.model || "(default)" },
   { id: "domain", label: "Domain", get: (e) => e.domain || "general" },
@@ -23,6 +25,13 @@ const DIMS: { id: DimId; label: string; get: (e: Entry) => string }[] = [
   { id: "cli", label: "Runtime", get: (e) => e.cli || "unknown" },
 ];
 const dimGet = (id: DimId) => DIMS.find((d) => d.id === id)!.get;
+
+// Every dimension shows the name a person would recognise. Only "model" needs
+// translating: the ledger records the id that actually ran.
+function rowLabel(dim: DimId, key: string): string {
+  if (dim !== "model") return key;
+  return modelLabel(undefined, key) || key;
+}
 
 const RANGES: { id: string; label: string; days: number | null }[] = [
   { id: "7d", label: "7 days", days: 7 },
@@ -268,7 +277,12 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
                     className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface-warm">
                     <div className="min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[13px] text-text-primary">{r.key}</span>
+                        {/* A ledger row stores the model id it ran. Printed raw,
+                            the list mixed "claude-opus-4-7" with "Gemini 3.1
+                            Pro (High)" - the same thing named two ways in one
+                            column. modelLabel turns an id into the name the
+                            rest of the app uses; anything else passes through. */}
+                        <span className="truncate text-[13px] text-text-primary">{rowLabel(groupBy, r.key)}</span>
                         <span className="shrink-0 font-mono text-xs tabular-nums text-text-secondary">{fmtMetric(v)}</span>
                       </div>
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-strong">
