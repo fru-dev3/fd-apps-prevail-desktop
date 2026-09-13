@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Activity, Coins, Cpu, Layers, Loader2, LucideIcon, MessageSquare, MessagesSquare, RefreshCw, TrendingUp, Users } from "lucide-react";
 import { invoke } from "./bridge";
+import { modelLabel } from "./helpers2";
 import { formatFreshness, titleCase } from "./format";
 import { compactNum, fmtCost } from "./helpers";
 import { InsightsDisclosure } from "./widgets";
@@ -42,7 +43,8 @@ export function InsightsPanel({ vaultPath, domain, onSeed }: { vaultPath: string
                 >
                   <div className="line-clamp-2 text-sm text-text-primary">{String(it.message ?? "(no text)")}</div>
                   <div className="mt-0.5 font-mono text-[10px] text-text-muted">
-                    {it.cli ?? ""}{it.model ? ` · ${it.model}` : ""}{it.ts ? ` · ${formatFreshness((Date.now() - it.ts) / 1000)}` : ""}
+                    {/* The name, not the id the ledger stored. */}
+                    {it.cli ? titleCase(String(it.cli)) : ""}{it.model ? ` · ${modelLabel(String(it.cli ?? ""), String(it.model))}` : ""}{it.ts ? ` · ${formatFreshness((Date.now() - it.ts) / 1000)}` : ""}
                   </div>
                 </button>
               </li>
