@@ -106,6 +106,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     "machine_role_get", "vault_lock_status", "email_policy_get", "egress_guard_get",
     "get_auto_council", "google_profiles", "engine_discover_models", "provider_key_exists",
     "ingestion_cli_providers", "ingestion_cli_probe",
+    // An app's own description, and the connectors a runtime advertises. Both
+    // read; both are what the Apps detail pane shows.
+    "engine_app_get_soul", "discover_runtime_connectors",
 ];
 
 /// Commands that read a file by path. They are allowed over the web ONLY when
