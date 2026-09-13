@@ -589,6 +589,14 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
         .some((s) => String(s).toLowerCase().includes(iq)),
     );
   const pagedIntents = visibleIntentPairs.slice(0, intentsShown);
+  // When every intent on screen came from the same place, saying so on every
+  // card is a column of identical badges. The chip appears only when the list
+  // actually has more than one source to distinguish.
+  const allOneSource = (() => {
+    const seen = new Set<string>();
+    for (const [it] of visibleIntentPairs) for (const src of it.sources ?? []) seen.add(String(src));
+    return seen.size <= 1;
+  })();
   // Captured rows carry a tool slug as their `domain`; keep those out of the
   // life-domain filter so the dropdown stays meaningful (you filter them by
   // surface badge instead).
@@ -656,7 +664,12 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
                       {typeof it.confidence === "number" && <span className="font-mono text-[10px] text-text-muted">{Math.round(it.confidence * 100)}%</span>}
                     </div>
                     {it.goal && <div className="mt-0.5 text-sm text-text-secondary">{it.goal}</div>}
-                    {(it.sources ?? []).length > 0 && (
+                    {/* Provenance earns a row only when it differs. Every
+                        intent drawn from the same one CLI printed the same
+                        "From Claude Code" chip on every card - a column of
+                        identical badges saying what the header could say once.
+                        `allOneSource` is computed over the whole list. */}
+                    {(it.sources ?? []).length > 0 && !allOneSource && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1">
                         <span className="text-[11px] text-text-muted">From</span>
                         {(it.sources ?? []).map((s) => (
