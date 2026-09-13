@@ -108,7 +108,13 @@ const WEBUI_ALLOWED: &[&str] = &[
     "ingestion_cli_providers", "ingestion_cli_probe",
     // An app's own description, and the connectors a runtime advertises. Both
     // read; both are what the Apps detail pane shows.
-    "engine_app_get_soul", "discover_runtime_connectors",
+    "engine_app_get_soul", "discover_runtime_connectors", "engine_app_skills",
+    // The rest of what an app's detail tabs READ: its context bundle, the files
+    // it has pulled, which apps are due a sync, and which of your runtimes
+    // already carry it as a connector. Everything that CHANGES an app stays
+    // desktop-only - adding, removing, running a skill, setting its schedule,
+    // domains, runtime or soul, and every gateway command that holds a key.
+    "app_context", "app_data_files", "engine_apps_sync_due", "harness_connections_scan",
 ];
 
 /// Commands that read a file by path. They are allowed over the web ONLY when
@@ -1378,6 +1384,11 @@ mod tests {
             "write_text_file", "write_file", "open_in_terminal", "app_uninstall",
             "bunker_set", "vault_lock_set", "engine_acts_approve", "engine_gws_approve",
             "engine_agent_run", "read_file", "read_text_file",
+            "engine_app_add", "engine_app_remove", "engine_app_run_skill",
+            "engine_app_set_domains", "engine_app_set_schedule", "engine_app_set_soul",
+            "engine_app_set_runtime", "engine_app_set_enabled", "engine_app_sync",
+            "composio_set_key", "composio_connect_app", "nango_set_key", "nango_connect",
+            "google_scaffold", "open_in_finder",
         ] {
             assert!(!WEBUI_ALLOWED.contains(&banned), "{banned} must not be web-invokable");
         }
