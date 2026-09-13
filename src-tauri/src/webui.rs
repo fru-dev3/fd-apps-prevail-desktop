@@ -50,7 +50,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_appmode_get",
     "decision_append", "decisions_read", "decision_feedback",
     // proactive surface + per-domain tasks/goals (read vault + model + checklist)
-    "domain_surface", "tasks_read", "tasks_set", "tasks_add", "read_memory_md",
+    "domain_surface", "tasks_read", "tasks_set", "tasks_add",
     // scores (read)
     "engine_score", "engine_score_all", "engine_score_history", "engine_manifest_get",
     // benchmark (read)
@@ -71,7 +71,125 @@ const WEBUI_ALLOWED: &[&str] = &[
     // never a path the client picks), and file the transcript as a voice note
     // in the current domain. Both run on this Mac, never a cloud service.
     "transcribe_audio", "voice_note_capture",
+
+    // ── Read-only surfaces the phone needs to be the same app ─────────────
+    // Every entry below RETURNS data and changes nothing. Without them the
+    // phone rendered empty or broken panels on screens the desktop fills in,
+    // which is what "not all the features are there on mobile" was.
+    // Work: the board, its counts, insights, spark, calendar and the approval
+    // queues. Reading what needs attention is safe; APPROVING is deliberately
+    // not here, so an act that leaves this Mac still takes the Mac.
+    "tasks_read_all", "work_count", "engine_recommendations", "spark_archive_read",
+    "decisions_pending", "engine_gws_pending_list", "engine_acts_pending",
+    // Context: ideals, omega, their version history, and the alignment read.
+    "read_ideal_state", "read_domain_ideal", "read_omega",
+    "ideal_state_versions", "omega_versions", "engine_alignment",
+    // Intents + prompt capture (the self-learning ledger, read side).
+    "intents_read_all", "intents_distilled_read", "capture_prompts_read", "capture_status",
+    // Apps / connectors: the list, its logos, per-domain import counts, and the
+    // read-only audit trail. app_favicon fetches one host's /favicon.ico so app
+    // rows carry real brand marks instead of letter tiles.
+    "engine_apps_list", "app_favicon", "ingestion_connector_catalog", "ingestion_connector_logos",
+    "ingestion_domain_stats", "ingestion_list_artifacts", "ingestion_status",
+    "ingestion_audit_tail", "ingestion_mcp_list", "mcp_install_status",
+    // Daemons + activity: status readouts and the activity feed.
+    "distill_status", "taskgen_status", "skillgen_status", "intent_daemon_status",
+    "reminders_daemon_status", "headless_learn_status", "activity_read",
+    "engine_skills_report", "telegram_bridge_status", "hooks_read",
+    // Usage + retrospect analytics (the same numbers the desktop shows).
+    "usage_entries", "retrospect_rollup",
+    // Settings the phone displays read-only: which machine this is, whether the
+    // vault lock and the two egress guardrails are on, the auto-council setting,
+    // the Google profiles' connection health, and the live model catalog.
+    // provider_key_exists answers a BOOLEAN ("is a key set for this vendor") and
+    // never returns key material; provider_key_get/set/del stay desktop-only.
+    "machine_role_get", "vault_lock_status", "email_policy_get", "egress_guard_get",
+    "get_auto_council", "google_profiles", "engine_discover_models", "provider_key_exists",
+    "ingestion_cli_providers", "ingestion_cli_probe",
 ];
+
+/// Commands that read a file by path. They are allowed over the web ONLY when
+/// the path resolves inside the Mac's active vault, which is checked here at
+/// the boundary rather than trusted from the client. Without the check these
+/// would be an arbitrary-read hole (a phone asking for ~/.ssh/id_rsa); without
+/// allowing them at all, notes, loops, domain files and imported documents are
+/// blank on the phone.
+const WEBUI_VAULT_SCOPED_READ: &[&str] = &["read_file", "read_text_file"];
+
+/// Commands that WRITE a file by path. A vault-wide write would be an
+/// escalation, not a convenience: the vault holds `_loops.json` automations and
+/// skill bodies that this Mac later executes on its own, so a phone able to
+/// write anywhere in it could schedule work rather than just record it. These
+/// are therefore pinned to exact vault-relative files the phone genuinely
+/// edits, nothing else.
+const WEBUI_VAULT_SCOPED_WRITE: &[&str] = &["write_text_file"];
+/// The only paths a web client may write, relative to the vault root.
+const WEBUI_WRITABLE_VAULT_FILES: &[&str] = &["build/notes.json"];
+
+/// True when `args.path` points inside the active vault. The existing part of
+/// the path is canonicalized, so `..` is rejected outright and a symlink that
+/// leaves the vault is refused rather than followed. A path that does not exist
+/// yet still resolves (its nearest real ancestor is what gets checked), so a
+/// domain without a `_loops.json` reads as "no such file" rather than as a
+/// permission error.
+fn vault_scoped_read_ok(args: &serde_json::Value) -> bool {
+    vault_path_arg(args).is_some()
+}
+
+/// The same containment check, plus: the file must be one of the few the phone
+/// is allowed to write.
+fn vault_scoped_write_ok(args: &serde_json::Value) -> bool {
+    let Some((root, target)) = vault_path_arg(args) else { return false };
+    WEBUI_WRITABLE_VAULT_FILES.iter().any(|rel| root.join(rel) == target)
+}
+
+/// Resolve `args.path` against the vault, returning (vault root, resolved path)
+/// only when the result is inside the vault.
+fn vault_path_arg(args: &serde_json::Value) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    let raw = args.get("path").and_then(|v| v.as_str())?;
+    let vault = crate::appcmds::bootstrap_vault()?;
+    let root = std::fs::canonicalize(&vault).ok()?;
+    let target = resolve_existing_prefix(std::path::Path::new(raw))?;
+    if path_inside(&root, &target) { Some((root, target)) } else { None }
+}
+
+/// Canonicalize as much of `p` as exists and re-append the rest. Any `..`
+/// component makes this refuse outright, which is what keeps re-appending the
+/// non-existent tail sound.
+fn resolve_existing_prefix(p: &std::path::Path) -> Option<std::path::PathBuf> {
+    use std::path::Component;
+    if !p.is_absolute() || p.components().any(|c| matches!(c, Component::ParentDir)) {
+        return None;
+    }
+    let mut base = p;
+    let mut tail: Vec<&std::ffi::OsStr> = Vec::new();
+    loop {
+        if let Ok(real) = std::fs::canonicalize(base) {
+            let mut out = real;
+            for t in tail.iter().rev() {
+                out.push(t);
+            }
+            return Some(out);
+        }
+        tail.push(base.file_name()?);
+        base = base.parent()?;
+    }
+}
+
+/// Containment test on already-canonical paths. Compares whole components, so
+/// "/vault-evil" is not treated as living inside "/vault".
+fn path_inside(root: &std::path::Path, target: &std::path::Path) -> bool {
+    let mut r = root.components();
+    let mut t = target.components();
+    loop {
+        match (r.next(), t.next()) {
+            (None, _) => return true,          // ran out of root → target is deeper
+            (Some(_), None) => return false,   // target is shorter than root
+            (Some(a), Some(b)) if a == b => continue,
+            _ => return false,
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct WebuiState {
@@ -106,9 +224,12 @@ struct Inner {
     stop: Option<Arc<std::net::TcpListener>>, // kept to unblock accept on stop
 }
 
-// How long a QR pairing code stays good. Long enough to walk to your phone and
-// find the camera, short enough that a code left on screen goes stale.
-const PAIR_TTL: Duration = Duration::from_secs(600);
+// How long a QR pairing code stays good. Scanning a code that is on the screen
+// in front of you takes seconds, so this is deliberately short: the window in
+// which a photograph of the screen (or a glance across a room) is still worth
+// anything is two minutes, not ten. The Phone screen mints a fresh code
+// whenever the old one lapses, so the QR on screen is always scannable.
+const PAIR_TTL: Duration = Duration::from_secs(120);
 
 // A one-shot credential carried in the QR code, so a phone never has to type
 // the password on a touch keyboard. It is NOT the password: it is a random
@@ -310,6 +431,15 @@ fn random_token() -> String {
     let mut h = Sha256::new();
     h.update(format!("{:?}", std::time::SystemTime::now()).as_bytes());
     format!("{:x}", h.finalize())
+}
+
+// How long a signed-in device stays signed in without being heard from. Long
+// enough that a phone used every few days never asks again; short enough that
+// a token on a device that was lost or replaced expires on its own.
+const SESSION_IDLE_MAX_MS: u64 = 30 * 24 * 60 * 60 * 1000;
+
+fn session_live(last_seen_ms: u64, now_ms: u64) -> bool {
+    now_ms.saturating_sub(last_seen_ms) <= SESSION_IDLE_MAX_MS
 }
 
 // Constant-time string comparison (avoids timing oracles on the token).
@@ -760,9 +890,13 @@ fn handle(
     let authed = || -> bool {
         if offered.is_empty() { return false; }
         let mut list = sessions.lock().unwrap_or_else(|e| e.into_inner());
+        let now = now_ms();
+        // A device that has not been heard from in a month is signed out on its
+        // own, so a phone lost months ago does not stay a key to this Mac.
+        list.retain(|s| session_live(s.last_seen_ms, now));
         for sess in list.iter_mut() {
             if ct_eq(&offered, &sess.token) {
-                sess.last_seen_ms = now_ms();
+                sess.last_seen_ms = now;
                 return true;
             }
         }
@@ -857,7 +991,15 @@ fn handle(
             Err(e) => { let _ = req.respond(json_response(400, &serde_json::json!({ "error": format!("bad request: {e}") }))); return; }
         };
         // Deny-by-default: only allowlisted commands may be proxied from the web.
-        if !WEBUI_ALLOWED.contains(&r.cmd.as_str()) {
+        // The vault-scoped readers are allowed only for a path inside the vault.
+        let allowed = if WEBUI_VAULT_SCOPED_READ.contains(&r.cmd.as_str()) {
+            vault_scoped_read_ok(&r.args)
+        } else if WEBUI_VAULT_SCOPED_WRITE.contains(&r.cmd.as_str()) {
+            vault_scoped_write_ok(&r.args)
+        } else {
+            WEBUI_ALLOWED.contains(&r.cmd.as_str())
+        };
+        if !allowed {
             let _ = req.respond(json_response(403, &serde_json::json!({ "error": format!("command '{}' is not permitted over the WebUI", r.cmd) })));
             return;
         }
@@ -908,16 +1050,46 @@ fn handle(
     }
 
     // ── SSE events ──
+    // The stream owns its socket. tiny_http's Response::with_data(reader, None)
+    // buffers the whole body before anything reaches the wire, so a stream that
+    // never ends sent NOTHING — not even the headers. Every live update on a
+    // phone (a chat reply streaming in, a finished benchmark, an approval
+    // landing) died there: the turn ran on the Mac and the phone sat on
+    // "Thinking…" forever. Taking the writer and flushing each frame is what
+    // makes the events actually arrive.
     if path == "/api/events" {
         let (tx, rx) = channel::<String>();
         sse.lock().unwrap_or_else(|e| e.into_inner()).push(tx);
-        let reader = SseReader { rx, buf: Vec::new() };
-        let response = tiny_http::Response::empty(200)
-            .with_header(header("Content-Type", "text/event-stream"))
-            .with_header(header("Cache-Control", "no-cache"))
-            .with_header(header("Connection", "keep-alive"))
-            .with_data(reader, None);
-        let _ = req.respond(response);
+        let mut w = req.into_writer();
+        let head = "HTTP/1.1 200 OK\r\n\
+                    Content-Type: text/event-stream\r\n\
+                    Cache-Control: no-cache, no-transform\r\n\
+                    Connection: close\r\n\
+                    X-Accel-Buffering: no\r\n\
+                    \r\n";
+        if w.write_all(head.as_bytes()).is_err() || w.flush().is_err() {
+            return;
+        }
+        // A first comment frame proves the stream is live to the client (and to
+        // any proxy in between) before a single event exists.
+        if w.write_all(b": open\n\n").is_err() || w.flush().is_err() {
+            return;
+        }
+        loop {
+            let frame = match rx.recv_timeout(Duration::from_secs(20)) {
+                Ok(f) => f,
+                // Keepalive: proxies and phone radios drop an idle connection.
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ": keepalive\n\n".to_string(),
+                // The sender was dropped (the bridge stopped): close cleanly.
+                Err(_) => break,
+            };
+            // A write error means the phone went away. The broadcast side
+            // reaps the sender when its channel closes, which happens as this
+            // receiver drops on return.
+            if w.write_all(frame.as_bytes()).is_err() || w.flush().is_err() {
+                break;
+            }
+        }
         return;
     }
 
@@ -1003,28 +1175,6 @@ fn header(k: &str, v: &str) -> tiny_http::Header {
 }
 fn json_response(code: u16, v: &serde_json::Value) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
     tiny_http::Response::from_string(v.to_string()).with_status_code(code).with_header(header("Content-Type", "application/json"))
-}
-
-// Blocking SSE body: tiny_http calls read() repeatedly; we pull formatted
-// frames from the channel. A periodic keepalive keeps proxies from closing.
-struct SseReader {
-    rx: Receiver<String>,
-    buf: Vec<u8>,
-}
-impl Read for SseReader {
-    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
-        if self.buf.is_empty() {
-            match self.rx.recv_timeout(Duration::from_secs(20)) {
-                Ok(frame) => self.buf.extend_from_slice(frame.as_bytes()),
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => self.buf.extend_from_slice(b": keepalive\n\n"),
-                Err(_) => return Ok(0), // sender dropped → close
-            }
-        }
-        let n = out.len().min(self.buf.len());
-        out[..n].copy_from_slice(&self.buf[..n]);
-        self.buf.drain(..n);
-        Ok(n)
-    }
 }
 
 // ── Tauri commands ──
@@ -1153,6 +1303,99 @@ mod tests {
 
         // Nothing outstanding: nothing to accept.
         assert_eq!(check_pair(None, "abc123").1, false);
+    }
+
+    #[test]
+    fn a_pairing_code_is_short_lived() {
+        // Two minutes, not ten: the window in which a photograph of the screen
+        // is worth anything is what this bounds.
+        assert!(PAIR_TTL <= Duration::from_secs(180), "pair codes must expire quickly");
+        assert!(PAIR_TTL >= Duration::from_secs(60), "but long enough to actually scan");
+    }
+
+    #[test]
+    fn a_device_that_goes_quiet_for_a_month_is_signed_out() {
+        let now = 1_800_000_000_000u64;
+        assert!(session_live(now, now), "a device heard from right now is live");
+        assert!(session_live(now - 29 * 24 * 60 * 60 * 1000, now), "29 days is still live");
+        assert!(!session_live(now - 31 * 24 * 60 * 60 * 1000, now), "31 days is signed out");
+        // A clock that jumped backwards must not sign everyone out.
+        assert!(session_live(now + 5_000, now));
+    }
+
+    #[test]
+    fn a_vault_scoped_read_cannot_escape_the_vault() {
+        // Whole-component containment: a sibling directory whose name merely
+        // starts with the vault's name is outside it.
+        let root = std::path::Path::new("/Users/x/Vault");
+        assert!(path_inside(root, std::path::Path::new("/Users/x/Vault")));
+        assert!(path_inside(root, std::path::Path::new("/Users/x/Vault/data/notes.md")));
+        assert!(!path_inside(root, std::path::Path::new("/Users/x/Vault-evil/secrets")));
+        assert!(!path_inside(root, std::path::Path::new("/Users/x/.ssh/id_rsa")));
+        assert!(!path_inside(root, std::path::Path::new("/Users/x")));
+        assert!(!path_inside(root, std::path::Path::new("/")));
+    }
+
+    #[test]
+    fn a_path_that_does_not_exist_yet_still_resolves_inside_the_vault() {
+        // A domain with no _loops.json must read as "no such file", not as a
+        // permission error, so the containment check resolves the existing
+        // prefix and re-appends the rest.
+        let tmp = std::env::temp_dir();
+        let real = std::fs::canonicalize(&tmp).expect("temp dir");
+        let missing = tmp.join("prevail-does-not-exist-xyz/child.json");
+        let resolved = resolve_existing_prefix(&missing).expect("resolves");
+        assert!(path_inside(&real, &resolved));
+        // `..` is refused outright rather than normalized.
+        assert!(resolve_existing_prefix(std::path::Path::new("/tmp/../etc/passwd")).is_none());
+        // So is a relative path.
+        assert!(resolve_existing_prefix(std::path::Path::new("notes.json")).is_none());
+    }
+
+    #[test]
+    fn a_vault_scoped_read_needs_a_real_path_argument() {
+        // No path, a non-string path, or a path that does not exist: refused
+        // before the command is ever proxied.
+        assert!(!vault_scoped_read_ok(&serde_json::json!({})));
+        assert!(!vault_scoped_read_ok(&serde_json::json!({ "path": 7 })));
+        assert!(!vault_scoped_read_ok(&serde_json::json!({ "path": "relative/path.md" })));
+        assert!(!vault_scoped_read_ok(&serde_json::json!({ "path": "/etc/../etc/passwd" })));
+    }
+
+    #[test]
+    fn the_web_allowlist_never_exposes_secrets_or_arbitrary_writes() {
+        // A regression guard with teeth: these must never appear in the list,
+        // however it is edited. Reading or setting the bridge password from a
+        // phone would hand over every future session; arbitrary file I/O would
+        // make a session a shell.
+        for banned in [
+            "webui_secret_get", "webui_secret_set", "webui_start", "webui_stop",
+            "webui_tunnel_start", "webui_pair_code", "webui_device_revoke",
+            "provider_key_get", "provider_key_set", "provider_key_del",
+            "write_text_file", "write_file", "open_in_terminal", "app_uninstall",
+            "bunker_set", "vault_lock_set", "engine_acts_approve", "engine_gws_approve",
+            "engine_agent_run", "read_file", "read_text_file",
+        ] {
+            assert!(!WEBUI_ALLOWED.contains(&banned), "{banned} must not be web-invokable");
+        }
+        // The two file readers are reachable only through the vault-scoped gate,
+        // and the one writer only for an explicit, non-executable data file.
+        assert_eq!(WEBUI_VAULT_SCOPED_READ, &["read_file", "read_text_file"]);
+        assert_eq!(WEBUI_VAULT_SCOPED_WRITE, &["write_text_file"]);
+        assert!(!WEBUI_ALLOWED.contains(&"write_text_file"));
+        for f in WEBUI_WRITABLE_VAULT_FILES {
+            // Nothing this Mac later EXECUTES may be web-writable: not a loop
+            // definition, not a skill body, not a manifest.
+            assert!(!f.contains("_loops"), "{f} would let a phone schedule work");
+            assert!(!f.to_lowercase().contains("skill"), "{f} would let a phone plant a skill");
+            assert!(f.ends_with(".json"), "{f} should be a plain data file");
+        }
+        // And the allowlist itself has no duplicates, so an entry is never
+        // "removed" while a forgotten copy keeps it alive.
+        let mut seen = std::collections::HashSet::new();
+        for c in WEBUI_ALLOWED {
+            assert!(seen.insert(*c), "{c} is listed twice");
+        }
     }
 
     #[test]

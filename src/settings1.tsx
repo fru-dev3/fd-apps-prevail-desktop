@@ -3,7 +3,7 @@
 // the SettingsHeader; none close over App root state.
 import { Fragment, useEffect, useState } from "react";
 import { Aperture, ArrowRight, Diamond, Globe, MessageSquare } from "lucide-react";
-import { invoke, listen } from "./bridge";
+import { invoke, isBrowser, listen } from "./bridge";
 import { FRAMEWORKS, LENSES } from "./constants";
 import { PREF, getPref, setPref } from "./storage";
 import { Toggle } from "./ui";
@@ -171,6 +171,11 @@ export function RemoteSection() {
   const [showPass, setShowPass] = useState(false);
   const [err, setErr] = useState("");
   useEffect(() => {
+    // The bridge password is a desktop-only secret: a phone that is already
+    // signed in must never be able to read it (that would hand over every
+    // future session) or change it. The server refuses both commands, so
+    // asking from a browser only produces 403 noise - don't ask.
+    if (isBrowser()) return;
     invoke<{ running: boolean }>("webui_status").then((s) => setRunning(!!s.running)).catch(() => {});
     (async () => {
       let p = "";

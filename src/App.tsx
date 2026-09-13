@@ -1,6 +1,6 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode, type UnlistenFn } from "./bridge";
-import { useIsPhone } from "./useisphone";
+import { useIsPhone, useVisualViewportHeight } from "./useisphone";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { titleCase } from "./format";
@@ -266,6 +266,16 @@ export default function App() {
     });
     return () => { alive = false; };
   }, [pairing]);
+  // A stored token goes stale whenever the Mac's bridge restarts. Until now the
+  // phone kept showing the app while every request failed with 401, which
+  // looked like "send does nothing". The bridge clears the token and raises
+  // this event; the sign-in screen comes back with an explanation.
+  useEffect(() => {
+    if (!isBrowser()) return;
+    const onUnauth = () => setWebAuthed(false);
+    window.addEventListener("prevail:web-unauthorized", onUnauth);
+    return () => window.removeEventListener("prevail:web-unauthorized", onUnauth);
+  }, []);
   // Desktop app lock (F4 Phase 0). If a passcode is set we gate the whole app
   // behind a lock screen until it's entered this session. Browser sessions use
   // the WebUI login instead, so the lock only applies on the desktop.
@@ -550,6 +560,13 @@ export default function App() {
   //   first-launch.
   useEffect(() => {
     if (isBrowser()) {
+      // Every one of these calls needs a session. Running them before sign-in
+      // made each 401, left webVaultTried true with no vault, and parked the
+      // phone on "Your Mac has no vault yet" with nothing but a Try again
+      // button - the app looked broken and half its features looked missing.
+      // The webAuthed dep re-runs this the moment sign-in (or QR pairing)
+      // completes.
+      if (!webAuthed) return;
       const pull = async () => {
         try {
           const bp = await invoke<string | null>("bootstrap_vault");
@@ -629,7 +646,7 @@ export default function App() {
       } catch { /* fall through to the VaultWizard if setup fails */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [webAuthed]);
   // Keep the desktop's remembered vault (bootstrap-vault.txt) in lockstep with
   // whatever vault is actually active, so the WebUI - which inherits via
   // bootstrap_vault - always mirrors what's open on the desktop, not a stale
@@ -1356,6 +1373,9 @@ export default function App() {
   // Phone layout: below PHONE_MAX_PX the desktop cockpit is replaced by the
   // PhoneShell (bottom tab bar + one full-width surface, see phoneshell.tsx).
   const phone = useIsPhone();
+  // With the keyboard up, size the shell to what is visible so the composer
+  // sits on the keyboard and nothing scrolls out from under the header.
+  const visibleHeight = useVisualViewportHeight(phone);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
     () => lsGet("prevail.sidebarCollapsed") === "1",
   );
@@ -1800,7 +1820,10 @@ export default function App() {
   );
 
   return (
-    <div className={`relative flex ${phone ? "h-full" : "h-screen"} flex-col overflow-hidden bg-background text-text-primary`}>
+    <div
+      className={`relative flex ${phone ? "h-full" : "h-screen"} flex-col overflow-hidden bg-background text-text-primary`}
+      style={phone && visibleHeight ? { height: visibleHeight } : undefined}
+    >
       {/* O1 (Monday feedback): first-run onboarding tour (dismissible, replayable). */}
       <OnboardingTour />
       {/* C4: first-run encrypt-at-rest prompt (default-ON). Only for a fresh,
@@ -1867,8 +1890,11 @@ export default function App() {
             decisionsCount={decisionsCount}
             onOpenSettingsAt={openSettingsAt}
             settingsJump={settingsJump}
+            onOpenWorkAt={openWorkAt}
+            workJump={workJump}
             conversation={conversationCenter}
             settings={editorCenter}
+            work={workCenter}
             footer={ribbons}
           />
         </Suspense>

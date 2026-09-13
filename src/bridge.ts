@@ -79,6 +79,19 @@ export async function redeemPairCode(): Promise<boolean> {
   }
 }
 
+// The bridge answered 401: the stored token is no longer a session (the Mac's
+// bridge restarted, or this device was disconnected from the Mac). Forget it
+// and tell the app, which drops back to the sign-in screen. Without this the
+// phone kept the dead token and every tap failed silently.
+function signedOut(): void {
+  // Nothing to forget when no token was offered: a 401 on a call that ran
+  // before sign-in is expected and must not bounce a user who is signing in.
+  if (!token()) return;
+  clearWebToken();
+  if (es) { es.close(); es = null; }
+  try { window.dispatchEvent(new Event("prevail:web-unauthorized")); } catch { /* no window */ }
+}
+
 export async function invoke<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (isTauri) return tauriInvoke<T>(cmd, args);
   const res = await fetch("/api/invoke", {
@@ -86,7 +99,7 @@ export async function invoke<T = unknown>(cmd: string, args?: Record<string, unk
     headers: { "content-type": "application/json", authorization: token() },
     body: JSON.stringify({ cmd, args: args ?? {} }),
   });
-  if (res.status === 401) throw new Error("unauthorized, sign in again");
+  if (res.status === 401) { signedOut(); throw new Error("unauthorized, sign in again"); }
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
   const j = (await res.json()) as { data?: T; error?: string };
   if (j && j.error) throw new Error(j.error);
@@ -103,7 +116,7 @@ export async function uploadAudio(blob: Blob): Promise<string> {
     headers: { "content-type": blob.type || "audio/webm", authorization: token() },
     body: blob,
   });
-  if (res.status === 401) throw new Error("unauthorized, sign in again");
+  if (res.status === 401) { signedOut(); throw new Error("unauthorized, sign in again"); }
   const j = (await res.json().catch(() => ({}))) as { path?: string; error?: string };
   if (!res.ok || j.error || !j.path) throw new Error(j.error || `upload failed (HTTP ${res.status})`);
   return j.path;
