@@ -77,20 +77,55 @@ function loopsPath(domainPath: string): string {
   return `${domainPath.replace(/\/+$/, "")}/_loops.json`;
 }
 
+// A short read-through cache, keyed by domain path.
+//
+// The sidebar's badge counts loops across EVERY domain, so on a 30-domain vault
+// one navigation read thirty files - and it re-ran whenever the selected domain
+// changed. On the desktop that is thirty cheap IPC calls; over the phone bridge
+// it is thirty HTTP round-trips before the screen you asked for gets its turn,
+// which is why opening a panel on a phone could sit on a spinner. Loop
+// definitions change when someone edits them, and every path that edits them
+// announces it, so a few seconds of reuse is safe and is invalidated on the
+// spot by writeLoops and by the loops-changed events.
+const LOOPS_TTL_MS = 5000;
+const loopsCache = new Map<string, { at: number; doc: LoopsDoc }>();
+
+export function clearLoopsCache(domainPath?: string): void {
+  if (domainPath) loopsCache.delete(loopsPath(domainPath));
+  else loopsCache.clear();
+}
+
+if (typeof window !== "undefined") {
+  for (const evt of ["prevail:loops-changed", "prevail:loops-advanced", "prevail:domains-changed"]) {
+    window.addEventListener(evt, () => clearLoopsCache());
+  }
+}
+
 // Read a domain's loops. Returns an empty doc when none exist yet (first run).
 export async function readLoops(domainPath: string): Promise<LoopsDoc> {
+  const key = loopsPath(domainPath);
+  const hit = loopsCache.get(key);
+  if (hit && Date.now() - hit.at < LOOPS_TTL_MS) return hit.doc;
   try {
-    const raw = await invoke<string>("read_file", { path: loopsPath(domainPath) });
-    if (!raw || !raw.trim()) return emptyLoopsDoc();
-    const doc = JSON.parse(raw) as Partial<LoopsDoc>;
-    return {
-      schema: 1,
-      desiredState: typeof doc.desiredState === "string" ? doc.desiredState : "",
-      loops: Array.isArray(doc.loops) ? doc.loops.map(normalizeLoop) : [],
-    };
+    const raw = await invoke<string>("read_file", { path: key });
+    const parsed = !raw || !raw.trim()
+      ? emptyLoopsDoc()
+      : (() => {
+          const doc = JSON.parse(raw) as Partial<LoopsDoc>;
+          return {
+            schema: 1 as const,
+            desiredState: typeof doc.desiredState === "string" ? doc.desiredState : "",
+            loops: Array.isArray(doc.loops) ? doc.loops.map(normalizeLoop) : [],
+          };
+        })();
+    loopsCache.set(key, { at: Date.now(), doc: parsed });
+    return parsed;
   } catch {
-    // Missing file or unreadable → treat as no loops yet.
-    return emptyLoopsDoc();
+    // Missing file or unreadable → treat as no loops yet. Cached too: a domain
+    // with no loops file is the common case and must not be re-asked per render.
+    const empty = emptyLoopsDoc();
+    loopsCache.set(key, { at: Date.now(), doc: empty });
+    return empty;
   }
 }
 
@@ -101,6 +136,8 @@ export async function writeLoops(domainPath: string, doc: LoopsDoc): Promise<voi
     path: loopsPath(domainPath),
     contents: JSON.stringify({ ...doc, schema: 1 }, null, 2),
   });
+  // Never serve the pre-write copy back to the screen that just saved.
+  clearLoopsCache(domainPath);
 }
 
 // Defensive normalization so a hand-edited or older file never crashes the UI.
