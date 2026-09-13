@@ -1267,7 +1267,7 @@ export function IngestionTierCard({
                     disabled={busy === `cli:${p.id}` || installed === false}
                     className="shrink-0 rounded border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
                   >
-                    {busy === `cli:${p.id}` ? "pulling" : "pull"}
+                    {busy === `cli:${p.id}` ? "Pulling" : "Pull"}
                   </button>
                 </div>
               );

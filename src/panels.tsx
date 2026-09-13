@@ -962,7 +962,7 @@ export function SurfacePanel({ vaultPath, domain, onPick, onAddTask }: { vaultPa
         {freshMeta && <span className="font-mono text-[11px] text-text-muted">{freshMeta}</span>}
         <button onClick={() => void load(true)} disabled={loading}
           className="ml-auto text-[11px] text-text-muted hover:text-accent disabled:opacity-40">
-          {loading ? "thinking…" : "refresh"}
+          {loading ? "Thinking…" : "Refresh"}
         </button>
       </div>
       {err && <div className="text-xs text-text-muted">{/Bunker/i.test(err)
