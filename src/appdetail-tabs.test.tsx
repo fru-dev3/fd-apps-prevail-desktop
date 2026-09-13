@@ -67,14 +67,16 @@ describe("AppDetail - unified app-detail surface (the two surfaces merged into o
     }
     expect(screen.queryByRole("button", { name: /^Welcome$/i })).not.toBeInTheDocument();
     // Operational facets ported from AppFacetPanel - the heart of the unification.
-    for (const label of ["Runs", "Loops", "Settings", "Domains"]) {
+    // Runs and Loops are one destination now: Activity shows what the app has
+    // done and what it is set to do, in that order.
+    for (const label of ["Activity", "Settings", "Domains"]) {
       expect(screen.getByRole("button", { name: new RegExp(`^${label}$`, "i") })).toBeInTheDocument();
     }
   });
 
   it("mounts the embedded AppFacetPanel for each operational tab without crashing", async () => {
     renderDetail();
-    for (const label of ["Runs", "Settings", "Domains", "Loops"]) {
+    for (const label of ["Activity", "Settings", "Domains"]) {
       fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${label}$`, "i") }));
       // If the embedded AppFacetPanel threw on mount, the tree would unmount and
       // this query would throw. Surviving == that facet rendered.

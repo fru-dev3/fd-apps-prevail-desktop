@@ -5,7 +5,7 @@
 // Connecting a new app is a single goal sentence (the Connection Agent figures
 // out the method) - not a wall of forms. See docs/APPS-REDESIGN.md.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, ArrowUpRight, Boxes, Check, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, FileText, FolderOpen, Globe, HelpCircle, Layers, Link2, Loader2, MessageSquare, MoreVertical, Pencil, Play, Plug, Plus, RefreshCw, Repeat, Search, Settings, ShieldCheck, Sparkles, Star, Tag, Terminal, Trash2, X, Zap } from "lucide-react";
+import { Activity, ArrowUpRight, Boxes, Check, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, FileText, FolderOpen, Globe, HelpCircle, Layers, Link2, Loader2, MessageSquare, MoreVertical, Pencil, Play, Plug, Plus, RefreshCw, Search, Settings, ShieldCheck, Sparkles, Star, Tag, Terminal, Trash2, X, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { MasterDetail } from "./masterdetail";
 import { ConnectorRunPanel, type ConnectorRunMode } from "./connectorrun";
@@ -3351,8 +3351,10 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
             // place with two halves.
             ...(!notConnected ? [
               { id: "__rule" as const, label: "", icon: Plug },
-              { id: "runs" as const, label: "Runs", icon: RefreshCw },
-              { id: "loops" as const, label: "Loops", icon: Repeat },
+              // Runs and Loops answer one question - what has this app been
+              // doing, and what is it set to do - so they are one destination
+              // with two sections rather than two tabs you toggle between.
+              { id: "runs" as const, label: "Activity", icon: RefreshCw },
               { id: "settings" as const, label: "Settings", icon: Settings },
               { id: "domains" as const, label: "Domains", icon: Layers },
             ] : []),
@@ -3755,14 +3757,30 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
             AppFacetPanel by rendering it directly (its handlers + JSX are reused
             unchanged), so this stays the single canonical app-detail surface. */}
         {!notConnected && (tab === "runs" || tab === "settings" || tab === "domains" || tab === "loops") && (
-          <AppFacetPanel
-            app={app}
-            vaultPath={vaultPath}
-            domains={vaultDomains}
-            appTab={tab}
-            onOpenDomain={(d) => window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: d }))}
-            onChanged={() => { void onReload(); }}
-          />
+          <>
+            <AppFacetPanel
+              app={app}
+              vaultPath={vaultPath}
+              domains={vaultDomains}
+              appTab={tab}
+              onOpenDomain={(d) => window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: d }))}
+              onChanged={() => { void onReload(); }}
+            />
+            {/* Activity is both halves: what it has done, then what it is set
+                to do. One destination, in the order you ask the question. */}
+            {tab === "runs" && (
+              <div className="mt-5 border-t border-border-subtle pt-5">
+                <AppFacetPanel
+                  app={app}
+                  vaultPath={vaultPath}
+                  domains={vaultDomains}
+                  appTab="loops"
+                  onOpenDomain={(d) => window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: d }))}
+                  onChanged={() => { void onReload(); }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
       </div>
