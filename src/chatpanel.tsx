@@ -101,7 +101,7 @@ export function ChatPanel({
   vaultPath,
   clis,
   fwLens,
-  onSwitchToCouncil,
+  onSwitchToCouncil: _onSwitchToCouncil,
   activeThreadPath,
   chatViewNonce,
   onActiveThreadChange,
@@ -143,6 +143,7 @@ export function ChatPanel({
   vaultPath: string;
   clis: CliInfo[];
   fwLens: ReturnType<typeof useFrameworkLens>;
+  /** Kept on the contract: callers still route into Council from elsewhere. */
   onSwitchToCouncil: () => void;
   activeThreadPath: string | null;
   chatViewNonce: number;
@@ -2067,9 +2068,11 @@ export function ChatPanel({
   // onPickPrompt continues to receive prompts.
   void buildQuickActions;
 
+  // Falling back to the raw id printed "claude" in the composer's most visible
+  // control while the runtime list was still loading. A name, title-cased.
   const selectedCliLabel = selectedCli
-    ? (clis.find((c) => c.id === selectedCli)?.label ?? selectedCli)
-    : "no model";
+    ? (clis.find((c) => c.id === selectedCli)?.label ?? titleCase(selectedCli))
+    : "No model";
   const selectedModelLabel = selectedModel
     ? (MODELS[selectedCli ?? ""]?.find((m) => m.id === selectedModel)?.label ?? selectedModel)
     : "";
@@ -3149,7 +3152,11 @@ export function ChatPanel({
                 }
               }
             }}
-            placeholder={phone ? "Ask anything" : history.length > 0 ? "ask anything · enter to send · ↑ history · / skills · $ context" : "ask anything · enter to send · / skills · $ context · shift+enter for newline"}
+            /* One invitation, not a cheat sheet. Enter-to-send, up-arrow
+               history, /skills and $context are all still there; a permanent
+               five-part legend inside the field is the noisiest way to teach
+               them, and it is on screen for the life of the app. */
+            placeholder="Ask anything"
             rows={2}
             className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
           />
@@ -3359,14 +3366,14 @@ export function ChatPanel({
                 title="Pick runtime (model + how it runs)"
               >
                 {selectedCli && <ProviderMark vendor={selectedCli} size={18} />}
-                <span className={`truncate font-mono text-xs text-text-primary ${phone ? "max-w-[7rem]" : "max-w-[9rem]"}`}>
+                <span className={`truncate text-xs font-medium text-text-primary ${phone ? "max-w-[7rem]" : "max-w-[9rem]"}`}>
                   {/* One pill, so it has to say the useful half: the model when
                       one is actually pinned, otherwise who is answering.
                       "Auto" alone tells you nothing. */}
                   {phone ? (selectedModelLabel && selectedModelLabel.toLowerCase() !== "auto" ? selectedModelLabel : selectedCliLabel) : selectedCliLabel}
                 </span>
                 {!phone && selectedModelLabel && (
-                  <span className="font-mono text-xs text-text-muted">· {selectedModelLabel}</span>
+                  <span className="text-xs text-text-muted">· {selectedModelLabel}</span>
                 )}
                 <svg className="h-3 w-3 text-text-muted" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.5}>
                   <path d="M3 4.5L6 7.5L9 4.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -3475,16 +3482,12 @@ export function ChatPanel({
 
             {phoneMic}
 
-            {/* Phone already has a Chat | Council toggle in its header, so this
-                pill would be the same trip twice. */}
-            {!phone && <button
-              onClick={onSwitchToCouncil}
-              title="Switch to Council mode"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 font-mono text-xs text-text-secondary hover:border-accent-border hover:bg-accent-soft hover:text-accent"
-            >
-              <Scale className="h-3.5 w-3.5" />
-              Council
-            </button>}
+            {/* No Council pill here. Every surface that shows this composer
+                already carries a Chat | Council switch in its header - the
+                phone in its own header, the desktop in the tab strip above the
+                transcript - so a third way to make the same move was one more
+                button in the row you look at most. onSwitchToCouncil stays on
+                the props so callers that route into Council still can. */}
 
             {(() => {
               const last = messages[messages.length - 1];
