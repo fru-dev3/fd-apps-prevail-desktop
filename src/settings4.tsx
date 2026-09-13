@@ -410,7 +410,7 @@ export function ObsidianCard() {
           <h3 className="text-sm font-semibold text-text-primary">Obsidian vault</h3>
         </div>
         <p className="mb-3 text-[12px] leading-relaxed text-text-muted">
-          Point Prevail at your Obsidian vault folder. Its notes are imported as AI-readable source (wikilinks and embeds converted, tags and frontmatter kept). One-way: Prevail never writes to your Obsidian files.
+          Imports your notes as AI-readable source. One-way: Prevail never writes to Obsidian.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => void pickObsidian()} className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-left text-sm text-text-secondary transition-colors hover:border-accent-border">

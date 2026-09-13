@@ -569,7 +569,7 @@ function VaultRebuildCard({ vaultPath }: { vaultPath: string }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-text-primary"><FolderCog className="h-4 w-4 text-accent" /> Rebuild structure</div>
           <div className="mt-0.5 text-xs text-text-secondary">
-            Scan this vault and normalize every domain into the clean layout: your material in source/, AI-derived memory in memory/, plumbing in .system/. Idempotent and non-destructive: clean domains are skipped and originals are archived, never deleted.
+            Normalizes every domain into the clean layout. Originals are archived, never deleted.
           </div>
         </div>
         <button
