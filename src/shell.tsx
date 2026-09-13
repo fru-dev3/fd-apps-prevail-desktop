@@ -1,9 +1,9 @@
 // App-shell pieces extracted from App.tsx: AppFacetPanel (the open-app detail
 // view), BunkerRibbon (the always-on trust bar), and VaultWizard (first-run vault
 // setup).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
-import { Activity, Archive, ArrowRight, Briefcase, Clock, Cloud, Cpu, Folder, FolderLock, FolderOpen, Ghost, Globe, Heart, Home, KeyRound, Laptop, Layers, Lock, Plus, Receipt, RefreshCw, Server, Shield, ShieldCheck, Sparkles, TrendingUp, Users, Wallet, X, Zap } from "lucide-react";
+import { Activity, Archive, ArrowRight, Briefcase, Clock, Cloud, Cpu, Folder, FolderOpen, Ghost, Globe, Heart, Home, KeyRound, Laptop, Layers, Lock, Plus, Receipt, RefreshCw, Server, Shield, ShieldCheck, Sparkles, TrendingUp, Users, Wallet, X, Zap } from "lucide-react";
 import { PrevailLogo } from "./PrevailLogo";
 import { invoke } from "./bridge";
 import { PREF, getPref } from "./storage";
@@ -549,51 +549,58 @@ export function BunkerRibbon({ enabled, compact = false }: { enabled: boolean; c
           : "border-black/30 bg-[#141416] text-white/90"
       }`}
     >
-      {/* 1. Network posture */}
-      <Seg
-        Icon={enabled ? ShieldCheck : Cloud}
-        label={enabled ? "Bunker mode" : "Cloud connected"}
-        on
-        onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" }))}
-        tip={enabled
-          ? "Bunker Mode: nothing leaves this device. Only local models run; cloud models and web access are blocked."
-          : "Cloud Connected: cloud models and web access are enabled. Requests may leave this device. Switch to Bunker Mode for local-only."}
-      />
-      {divider}
-      {/* 2. Vault filesystem scope */}
-      <Seg
-        Icon={vaultLocked ? FolderLock : FolderOpen}
-        label={vaultLocked ? "Vault locked" : "Vault unlocked"}
-        on={vaultLocked}
-        onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" }))}
-        tip={vaultLocked
-          ? "Vault Locked: the assistant only reads and writes inside your vault folder."
-          : "Vault Unlocked: the assistant may reach files outside your vault folder."}
-      />
-      {divider}
-      {/* 3. Outbound Guardrail - can anything reach another party without you? */}
-      <Seg
-        Icon={guardrail ? ShieldCheck : Shield}
-        label={guardrail ? "Guardrail on" : "Guardrail off"}
-        on={guardrail}
-        onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" }))}
-        tip={guardrail
-          ? "Outbound Guardrail ON: email to anyone but you only drafts, and sensitive details (PII, figures, health, legal, salary, plans) are held at the boundary until you release them."
-          : "Outbound Guardrail OFF: approved sends go out exactly as addressed, unscanned."}
-      />
-      {/* 4. Incognito - only present when the global master is on. */}
-      {incognito && (
-        <>
-          {divider}
-          <Seg
-            Icon={Ghost}
-            label="Incognito"
-            on
-            onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" }))}
-            tip="Global Incognito is ON: prompts aren't logged and nothing is written to memory, everywhere in the app."
-          />
-        </>
-      )}
+      {/* What this bar says depends on whether there is anything to say.
+          Three segments permanently reading "locked, on, connected" is three
+          ways of describing the ordinary state, on every screen, forever - and
+          it buries the one line that matters on the day something is open.
+          So: when every axis is in its protective state the bar carries ONE
+          quiet segment naming that fact, with the detail on hover. The moment
+          an axis is NOT protective it is named on its own, in warning weight.
+          Bunker Mode and Incognito are deliberate postures rather than
+          defaults, so they are always named when on. */}
+      {(() => {
+        const openAxes = [
+          !vaultLocked && {
+            Icon: FolderOpen,
+            label: "Vault unlocked",
+            tip: "Vault Unlocked: the assistant may reach files outside your vault folder.",
+          },
+          !guardrail && {
+            Icon: Shield,
+            label: "Guardrail off",
+            tip: "Outbound Guardrail OFF: approved sends go out exactly as addressed, unscanned.",
+          },
+        ].filter(Boolean) as { Icon: typeof Cloud; label: string; tip: string }[];
+        const openPrivacy = () => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" }));
+        const parts: ReactNode[] = [];
+        if (enabled) {
+          parts.push(
+            <Seg key="bunker" Icon={ShieldCheck} label="Bunker mode" on onClick={openPrivacy}
+              tip="Bunker Mode: nothing leaves this device. Only local models run; cloud models and web access are blocked." />,
+          );
+        }
+        if (incognito) {
+          parts.push(
+            <Seg key="incognito" Icon={Ghost} label="Incognito" on onClick={openPrivacy}
+              tip="Global Incognito is ON: prompts aren't logged and nothing is written to memory, everywhere in the app." />,
+          );
+        }
+        for (const a of openAxes) {
+          parts.push(<Seg key={a.label} Icon={a.Icon} label={a.label} on={false} onClick={openPrivacy} tip={a.tip} />);
+        }
+        if (parts.length === 0) {
+          parts.push(
+            <Seg key="protected" Icon={ShieldCheck} label="Protected" on onClick={openPrivacy}
+              tip="Vault Locked (files stay inside your vault) and Outbound Guardrail ON (nothing reaches another party without you). Cloud models and web access are available; switch to Bunker Mode for local-only." />,
+          );
+        }
+        return parts.map((p, i) => (
+          <Fragment key={i}>
+            {i > 0 && divider}
+            {p}
+          </Fragment>
+        ));
+      })()}
       {/* 4. Machine role - which Mac this is for a shared vault. Distinct icon
           (server tower for the hub, laptop for a client) so it's obvious at a
           glance. Always shown; hub is the default single-machine state. */}
