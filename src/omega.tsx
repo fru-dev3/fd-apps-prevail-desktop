@@ -141,7 +141,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
             <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "intents" }))} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs hover:border-accent-border hover:text-accent"><Lightbulb className="h-3.5 w-3.5" /> Intents</button>
             <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "recommendations" }))} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs hover:border-accent-border hover:text-accent"><FileText className="h-3.5 w-3.5" /> Recommendations</button>
           </div>
-          <p className="text-[11px] text-text-muted">Ideal State = what you WANT (authored, wins conflicts). Omega = what we've LEARNED (distilled). Both inject into every turn.</p>
+          <p className="text-[11px] text-text-muted">Ideals are what you want and win any conflict. Omega is what Prevail learned. Both ride every turn.</p>
         </div>
       </CollapsibleSection>
 
