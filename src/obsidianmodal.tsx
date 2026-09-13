@@ -91,14 +91,14 @@ export function ObsidianImportModal({ vaultPath, domains, onClose, onDone }: {
               Point Prevail at your existing Obsidian vault folder. Its notes are copied in as markdown (wikilinks and embeds converted, tags and frontmatter kept) so your AI can read and ground on them.
             </p>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Obsidian vault folder</label>
+              <label className="mb-1 block text-[11px] text-text-muted">Obsidian vault folder</label>
               <button onClick={() => void pick()} className="flex w-full items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-left text-sm text-text-secondary hover:border-accent-border">
                 <FolderOpen className="h-4 w-4 shrink-0 text-text-muted" />
                 <span className="truncate">{from || "Choose folder..."}</span>
               </button>
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Import into domain</label>
+              <label className="mb-1 block text-[11px] text-text-muted">Import into domain</label>
               <select value={domain} onChange={(e) => setDomain(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary">
                 {domainOptions.map(([slug, label]) => <option key={slug} value={slug}>{label}</option>)}
               </select>

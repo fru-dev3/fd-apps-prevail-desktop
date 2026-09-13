@@ -97,7 +97,7 @@ export function IntegrationsPanel({ vaultPath }: { vaultPath: string; clis: CliI
       <SettingsHeader
         title="MCP"
         icon={Plug}
-        subtitle="Register Prevail as an MCP server in the AI tools you already use, so they can call into your vault."
+        subtitle="Let the AI tools you already use call into your vault."
       />
 
       {/* USE PREVAIL FROM YOUR TOOLS (MCP) - one-click OR manual, tabbed ------ */}
@@ -144,16 +144,16 @@ export function IntegrationsPanel({ vaultPath }: { vaultPath: string; clis: CliI
                   <span className={`inline-block h-1.5 w-1.5 rounded-full ${present ? "bg-ok" : "bg-border"}`} />
                   <span>{LABELS[id] ?? id}</span>
                   {registered && (
-                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-ok">
+                    <span className="inline-flex items-center gap-1 text-[11px] text-ok">
                       <Check className="h-3 w-3" /> registered
                     </span>
                   )}
-                  {!present && <span className="text-[10px] uppercase tracking-wider text-text-muted">not installed</span>}
+                  {!present && <span className="text-[10px] text-text-muted">not installed</span>}
                 </div>
                 <button
                   onClick={() => installClientMcp(id)}
                   disabled={busyThis || mcpBusyClient !== ""}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
                 >
                   {busyThis ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                   {registered ? "Re-install" : "Install"}
@@ -166,7 +166,7 @@ export function IntegrationsPanel({ vaultPath }: { vaultPath: string; clis: CliI
           <button
             onClick={testMcp}
             disabled={mcpBusy}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
           >
             {mcpBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Test handshake
           </button>

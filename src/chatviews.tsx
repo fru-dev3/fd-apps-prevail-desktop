@@ -90,7 +90,7 @@ function RouteChip({ route, onRerun }: { route: RouteInfo; onRerun?: () => void 
       <button
         onClick={pin}
         title={pinned ? "Pinned as this runtime's default" : `Always use ${route.model} on ${route.cli}`}
-        className="ml-0.5 rounded px-1 text-[9px] uppercase tracking-wider transition-colors hover:bg-accent hover:text-background"
+        className="ml-0.5 rounded px-1 text-[11px] transition-colors hover:bg-accent hover:text-background"
       >
         {pinned ? "pinned" : "pin"}
       </button>
@@ -100,7 +100,7 @@ function RouteChip({ route, onRerun }: { route: RouteInfo; onRerun?: () => void 
           title="Pick a different model and re-run this turn"
           aria-label="Pick a different model"
           aria-expanded={menuOpen}
-          className="flex items-center rounded px-0.5 text-[9px] uppercase tracking-wider transition-colors hover:bg-accent hover:text-background"
+          className="flex items-center rounded px-0.5 text-[11px] transition-colors hover:bg-accent hover:text-background"
         >
           <SlidersHorizontal className="h-2.5 w-2.5" />
         </button>
@@ -115,7 +115,7 @@ function RouteChip({ route, onRerun }: { route: RouteInfo; onRerun?: () => void 
             className="fixed inset-0 z-10 cursor-default"
           />
           <div className="absolute left-0 top-full z-20 mt-1 min-w-[9rem] overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-lg">
-            <div className="px-2 py-1 text-[9px] uppercase tracking-wider text-text-muted">Re-run with</div>
+            <div className="px-2 py-1 text-[11px] text-text-muted">Re-run with</div>
             {alternatives.map((m) => (
               <button
                 key={m.id}
@@ -173,7 +173,7 @@ function StepChecklist({ msg, accent }: { msg: ChatMessage; accent: string }) {
         onClick={toggleCollapsed}
         aria-expanded={!collapsed}
         title={collapsed ? "Show the full step list" : "Collapse to one line"}
-        className="flex items-center gap-1.5 text-left font-mono text-[9px] uppercase tracking-[0.16em] text-text-muted hover:text-text-secondary"
+        className="flex items-center gap-1.5 text-left text-[11px] text-text-muted hover:text-text-secondary"
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         {running ? "Working" : "Steps · verified"} · {steps.length}{failed > 0 ? ` · ${failed} failed` : ""}
@@ -189,7 +189,7 @@ function StepChecklist({ msg, accent }: { msg: ChatMessage; accent: string }) {
       </button>
       {!collapsed && plan.length > 0 && (
         <div className="mb-1 flex flex-col gap-0.5">
-          <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-text-muted">Plan</div>
+          <div className="font-mono text-[11px] text-text-muted">Plan</div>
           <ol className="flex flex-col gap-0.5">
             {plan.map((p, i) => (
               <li key={i} className="font-mono text-[11px] leading-relaxed text-text-secondary">{i + 1}. {p}</li>
@@ -204,7 +204,7 @@ function StepChecklist({ msg, accent }: { msg: ChatMessage; accent: string }) {
               const dur = elapsedLabel((s.endedAt ?? now) - s.startedAt);
               return (
                 <div key={s.id} className="flex flex-col">
-                  <div className="flex items-center gap-2 font-mono text-[11px] leading-relaxed">
+                  <div className="flex items-center gap-2 text-[11px] leading-relaxed">
                     <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                       {s.status === "running" ? (
                         <span className="pulse-soft inline-block h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
@@ -291,7 +291,7 @@ export function ChatBubble({
     <button
       onClick={onClick}
       title={title}
-      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
     >
       {icon}
       {label && <span>{label}</span>}
@@ -387,22 +387,22 @@ export function ChatBubble({
               is self-describing, not a mystery. */}
           {msg.role === "assistant" && msg.route && <RouteChip route={msg.route} onRerun={onRetry} />}
           {msg.role === "assistant" && msg.model && !msg.route && (
-            <span className="font-mono text-[10px] lowercase text-text-muted" title={`Model: ${msg.model}`}>{modelLabel(msg.cli, msg.model)}</span>
+            <span className="font-mono text-[11px] lowercase text-text-muted" title={`Model: ${msg.model}`}>{modelLabel(msg.cli, msg.model)}</span>
           )}
           {/* "none" is the id of the no-framework and no-lens options, so these
               were rendering a NONE chip on almost every turn: two badges that
               only ever said "nothing was applied". Show them when something
               actually was. Never on a phone, where the row has no room. */}
           {!phone && msg.role === "assistant" && hasPreamble(msg.framework) && (
-            <span className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted" title="Reasoning framework in effect">{msg.framework}</span>
+            <span className="rounded bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted" title="Reasoning framework in effect">{msg.framework}</span>
           )}
           {!phone && msg.role === "assistant" && hasPreamble(msg.lens) && (
-            <span className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted" title="Lens in effect">{msg.lens}</span>
+            <span className="rounded bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted" title="Lens in effect">{msg.lens}</span>
           )}
           {/* BP3: timestamp on the assistant turn. */}
-          {stamp && <span className="whitespace-nowrap font-mono text-[10px] text-text-muted/70">· {phone ? shortStamp(stamp) : stamp}</span>}
+          {stamp && <span className="whitespace-nowrap text-[11px] text-text-muted/70">· {phone ? shortStamp(stamp) : stamp}</span>}
           {msg.streaming && (
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider" style={{ color: accent, background: tint }}>
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] tracking-wider" style={{ color: accent, background: tint }}>
               {/* Radiating ping (core dot + expanding ring): unambiguous
                   "actively working", where a lone blink read as maybe-stalled. */}
               <span className="relative inline-flex h-1.5 w-1.5">
@@ -425,7 +425,7 @@ export function ChatBubble({
           {/* Back-compat: legacy persisted turns that only carried a flat toolLog. */}
           {(!msg.steps || msg.steps.length === 0) && msg.toolLog && msg.toolLog.length > 0 && (
             <div className="mb-2.5 flex flex-col gap-0.5 rounded-lg border border-border-subtle bg-background/40 px-3 py-2">
-              <div className="mb-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-text-muted">Tools used · verified</div>
+              <div className="mb-0.5 text-[11px] text-text-muted">Tools used · verified</div>
               {msg.toolLog.map((t, i) => (
                 <div key={i} className="font-mono text-[11px] leading-relaxed text-text-secondary">{t}</div>
               ))}
@@ -451,7 +451,7 @@ export function ChatBubble({
             // dead "(empty reply)" text.
             <div className="flex items-start gap-3">
               <div className="flex-1">
-                <div className="font-mono text-[11px] uppercase tracking-wider text-warn">
+                <div className="font-mono text-[11px] text-warn">
                   No output
                 </div>
                 {cliError ? (
@@ -459,7 +459,7 @@ export function ChatBubble({
                     <p className="mt-1 text-sm text-text-secondary">
                       {vendorName} returned an error instead of a reply:
                     </p>
-                    <pre className="mt-1.5 whitespace-pre-wrap rounded-md bg-warn/10 px-2 py-1.5 font-mono text-[11px] leading-snug text-warn">
+                    <pre className="mt-1.5 whitespace-pre-wrap rounded-md bg-warn/10 px-2 py-1.5 text-[11px] leading-snug text-warn">
                       {cliError}
                     </pre>
                   </>
@@ -472,7 +472,7 @@ export function ChatBubble({
                 {onRetry && (
                   <button
                     onClick={onRetry}
-                    className="mt-2 inline-flex items-center gap-1 rounded-md border border-accent-border bg-accent-soft px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background"
+                    className="mt-2 inline-flex items-center gap-1 rounded-md border border-accent-border bg-accent-soft px-2 py-1 text-[11px] text-accent hover:bg-accent hover:text-background"
                   >
                     Retry
                   </button>
@@ -564,7 +564,7 @@ export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMak
         <div className="mb-4 flex justify-center">
           <button
             onClick={() => setLimit((l) => l + MESSAGE_WINDOW)}
-            className="rounded-full border border-border bg-surface px-4 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
+            className="rounded-full border border-border bg-surface px-4 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
           >
             Show earlier messages ({start} hidden)
           </button>
@@ -761,7 +761,7 @@ export function DomainStatusBar({
           <button
             onClick={() => setModesOpen((v) => !v)}
             title="Modes: web access, save history, serendipity, auto-council"
-            className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors ${
               modesOpen
                 ? "border-accent-border bg-accent-soft text-accent"
                 : "border-border bg-surface text-text-muted hover:bg-surface-warm hover:text-text-secondary"
@@ -774,7 +774,7 @@ export function DomainStatusBar({
           </button>
           {modesOpen && (
             <div className="absolute bottom-full left-0 z-50 mb-2 w-80 rounded-xl border border-border bg-surface p-1.5 shadow-xl">
-              <div className="px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-text-muted">Modes</div>
+              <div className="px-2.5 py-1.5 text-[11px] font-bold text-text-muted">Modes</div>
               <ModeRow label="Act mode" on={act} onClick={() => flip("act", act, setAct)}
                 desc="Let this domain actually do things: create skills and loops in your vault, and queue emails for your approval. You see a verified list of exactly what ran." />
               <ModeRow label="Web access" on={webShown} disabled={bunker}
@@ -790,7 +790,7 @@ export function DomainStatusBar({
                 desc={globalIncognito ? "Forced on in Privacy settings." : "Plain model: none of your context is sent."} />
               {auto && (
                 <div className="flex items-center justify-between gap-2 px-3 py-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Trigger</span>
+                  <span className="text-[11px] text-text-muted">Trigger</span>
                   <select
                     value={autoMode}
                     onChange={(e) => { setAutoMode(e.target.value); setPref(`prevail.domain.${domain}.autoMode`, e.target.value); }}
@@ -818,7 +818,7 @@ export function DomainStatusBar({
               title={gProfiles.length > 1 && gSelected.length === 0 && !googleBound
                 ? "Multiple Google accounts are connected - pick which one(s) this conversation acts as"
                 : "Choose which Google account(s) this domain uses"}
-              className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors ${
                 gOpen
                   ? "border-accent-border bg-accent-soft text-accent"
                   : gProfiles.length > 1 && gSelected.length === 0 && !googleBound
@@ -843,7 +843,7 @@ export function DomainStatusBar({
             </button>
             {gOpen && (
               <div className="absolute bottom-full left-0 z-50 mb-2 w-72 rounded-xl border border-border bg-surface p-1.5 shadow-xl">
-                <div className="px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-text-muted">Active Google accounts</div>
+                <div className="px-2.5 py-1.5 text-[11px] font-bold text-text-muted">Active Google accounts</div>
                 <div className="mb-1 px-2.5 text-[11px] leading-snug text-text-muted">Check the account(s) to keep active in this conversation. Check more than one to work across inboxes at once.</div>
                 <div className="flex flex-col gap-1 p-1">
                   {gProfiles.map((p) => {
@@ -956,7 +956,7 @@ export function DomainHome({
               <div className="w-full">
                 {starterPrompts.length > 0 && (
                   <div className="mb-3 rounded-xl border border-accent-border bg-accent-soft p-3">
-                    <div className="mb-1.5 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+                    <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-accent">
                       <Sparkles className="h-3 w-3" /> Start a conversation
                     </div>
                     <div className="flex flex-col gap-1">
@@ -988,8 +988,8 @@ export function DomainHome({
                         : onPickPrompt(q.prompt)}
                       className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-left transition-colors hover:border-accent-border hover:bg-surface-warm"
                     >
-                      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-accent"><span className="mr-1">{q.glyph}</span>{q.label}</span>
-                      {q.council && <span className="shrink-0 rounded-full border border-accent-border bg-accent-soft px-1.5 py-0 font-mono text-[10px] uppercase tracking-wider text-accent">→ Council</span>}
+                      <span className="shrink-0 text-[11px] text-accent"><span className="mr-1">{q.glyph}</span>{q.label}</span>
+                      {q.council && <span className="shrink-0 rounded-full border border-accent-border bg-accent-soft px-1.5 py-0 text-[11px] text-accent">→ Council</span>}
                       <span className="min-w-0 flex-1 truncate text-xs text-text-muted">{q.prompt}</span>
                     </button>
                   </li>
@@ -1080,7 +1080,7 @@ export function DomainHome({
               onClick={() => onPickPrompt(q.prompt)}
               className="rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-accent-border hover:bg-surface-warm"
             >
-              <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-accent">
+              <div className="flex items-center gap-2 text-xs text-accent">
                 <span>{q.glyph}</span> {q.label}
               </div>
               <div className="mt-1 line-clamp-2 text-sm text-text-secondary">

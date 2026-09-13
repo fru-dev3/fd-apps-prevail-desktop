@@ -63,7 +63,7 @@ export function SafetySection({ vaultPath }: { vaultPath: string }) {
   const [checkpoints, setCheckpoints] = useState(() => getPref(PREF.fileCheckpoints, "0") === "1");
   return (
     <>
-      <SettingsHeader icon={ShieldCheck} title="Safety" subtitle="Guardrails for what the agent can do and what gets stored. Redact secrets is enforced here; approval, allowlist, and checkpoints are honored by the engine." />
+      <SettingsHeader icon={ShieldCheck} title="Safety" subtitle="What the agent may do, and what gets stored." />
       <SafetyGroup icon={Lock} label="Access protection" desc="Lock the app · encrypt the vault at rest">
         {/* D3: two compact columns instead of two tall stacked blocks. */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -114,7 +114,7 @@ export function TelemetrySettings() {
           and the collapsed "what we collect" list. Anonymous, on by default, opt-out. */}
       <div className="mb-2 flex items-baseline justify-between">
         <h3 className="font-display text-sm font-semibold tracking-tight text-text-primary">Telemetry</h3>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">anonymous · on by default · one-tap opt-out</span>
+        <span className="font-mono text-[11px] text-text-muted">anonymous · on by default · one-tap opt-out</span>
       </div>
       <p className="mb-3 text-xs text-text-secondary">Never includes your prompts, vault, the names you created, or any personal data. On by default so Prevail learns what to improve; turn it off any time and it stops instantly. Bunker Mode always blocks it regardless.</p>
       <div className="mb-3 rounded-lg border border-border bg-surface px-5">
@@ -142,7 +142,7 @@ export function TelemetrySettings() {
             ["crash reports", "error type + scrubbed stack trace + app version"],
           ] as [string, string][]).map(([name, desc], i) => (
             <div key={name} className={`flex items-baseline gap-3 px-3 py-2 ${i > 0 ? "border-t border-border-subtle" : ""}`}>
-              <span className="w-40 shrink-0 font-mono text-[11px] text-text-primary">{name}</span>
+              <span className="w-40 shrink-0 text-[11px] text-text-primary">{name}</span>
               <span className="flex-1 text-[11px] leading-snug text-text-secondary">{desc}</span>
             </div>
           ))}
@@ -152,18 +152,18 @@ export function TelemetrySettings() {
         </div>
         <div className="mt-3 flex items-center gap-2">
           <button onClick={() => setShowLog((s) => !s)}
-            className="rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent">
+            className="rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
             {showLog ? "Hide" : "View"} local log · {log.length}
           </button>
           {log.length > 0 && (
             <button onClick={() => { clearTelemetryLog(); force((n) => n + 1); }}
-              className="rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-err hover:text-err">
+              className="rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:border-err hover:text-err">
               Clear log
             </button>
           )}
         </div>
         {showLog && (
-          <div className="mt-2 max-h-48 overflow-auto rounded-md border border-border-subtle bg-background p-2 font-mono text-[10px] text-text-secondary">
+          <div className="mt-2 max-h-48 overflow-auto rounded-md border border-border-subtle bg-background p-2 text-[11px] text-text-secondary">
             {log.length === 0 ? <div className="text-text-muted">No events recorded.</div> : log.slice().reverse().map((e, i) => (
               <div key={i} className="border-b border-border-subtle/40 py-0.5 last:border-0">
                 <span className={e.sent ? "text-accent" : "text-text-muted"}>{e.sent ? "sent" : "local"}</span>{" "}
@@ -237,12 +237,12 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
         <SettingsHeader
           title="Ideal State"
           icon={Compass}
-          subtitle="The vision and values everything optimizes for. Every chat, council, recommendation, plan, and background routine reads this first and aligns to it. Saved to vault/ideal-state.md the moment you hit Save."
+          subtitle="The vision everything here optimizes for."
         />
       )}
       <AlignmentCard vaultPath={vaultPath} />
       <div className="mb-4 flex items-center justify-between gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+        <span className="font-mono text-[11px] text-text-muted">
           {editing
             ? "Editing markdown"
             : parsed.sections.length > 0
@@ -251,12 +251,12 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
         </span>
         <div className="flex items-center gap-2">
           {savedAt && !editing && (
-            <span className="font-mono text-[10px] text-ok">✓ saved</span>
+            <span className="font-mono text-[11px] text-ok">✓ saved</span>
           )}
           {loaded && (
             <button
               onClick={() => setEditing((e) => !e)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 font-mono text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
             >
               {editing ? <Eye className="h-3.5 w-3.5" /> : <PenLine className="h-3.5 w-3.5" />}
               {editing ? "View" : "Edit"}
@@ -271,10 +271,10 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
             onChange={(e) => setBody(e.target.value)}
             placeholder={"# Operating Vision\n\n## Values\n\n- What every decision should honor\n\n## Wealth\n\n- The position you are building toward"}
             rows={24}
-            className="w-full resize-y rounded-lg bg-transparent p-4 font-mono text-sm leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none"
+            className="w-full resize-y rounded-lg bg-transparent p-4 text-sm leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none"
           />
           <div className="flex items-center justify-between gap-2 border-t border-border-subtle px-4 py-2">
-            <span className="font-mono text-[10px] text-text-muted">
+            <span className="font-mono text-[11px] text-text-muted">
               {body.length.toLocaleString()} chars · sections start with ## headings
             </span>
             <button
@@ -308,7 +308,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
         <div>
           <div className="rounded-2xl border border-border bg-gradient-to-b from-accent-soft/40 to-surface px-6 py-7">
             {!headerless && (
-              <div className="font-mono text-[10px] font-bold uppercase tracking-[0.28em] text-accent">My constitution</div>
+              <div className="font-mono text-[11px] font-bold text-accent">My constitution</div>
             )}
             {parsed.title && (
               <h2 className={`font-display font-extrabold leading-tight tracking-tight text-text-primary ${headerless ? "text-lg" : "mt-2 text-3xl"}`}>{parsed.title}</h2>
@@ -357,7 +357,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
               <div className="flex flex-col gap-1">
                 {versions.map((v) => (
                   <div key={v.path} className="flex items-center gap-2 py-1">
-                    <span className="flex-1 font-mono text-[11px] text-text-secondary">{v.name.replace("_", " · ")}</span>
+                    <span className="flex-1 text-[11px] text-text-secondary">{v.name.replace("_", " · ")}</span>
                     <button
                       onClick={async () => {
                         try {
@@ -370,7 +370,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
                           }
                         } catch (e) { console.error("restore ideal state", e); }
                       }}
-                      className="rounded-md border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
+                      className="rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
                     >
                       Restore
                     </button>
@@ -610,7 +610,7 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
       {/* Budget meter */}
       <div className="mt-4 rounded-lg border border-border bg-surface px-5 py-4">
         <div className="mb-2 flex items-center justify-between">
-          <div className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-text-primary">Budget this month</div>
+          <div className="font-mono text-[11px] font-bold text-text-primary">Budget this month</div>
           <div className="font-mono text-xs text-text-secondary">
             ${budgetSpent.toFixed(2)}{hasCap ? ` / $${capNum.toFixed(2)}` : " spent"}
           </div>

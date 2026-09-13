@@ -296,7 +296,7 @@ export function RemotePairCard({ port }: { port: string }) {
                 ["Keep it on your home screen", "iPhone: Share, then Add to Home Screen. Android: menu, then Install app."],
               ].map(([title, sub], i) => (
                 <li key={title} className="flex gap-3">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft font-mono text-[11px] font-bold text-accent ring-1 ring-accent-border">{i + 1}</span>
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent ring-1 ring-accent-border">{i + 1}</span>
                   <div className="min-w-0">
                     <div className="text-sm font-medium leading-snug text-text-primary">{title}</div>
                     <div className="text-xs leading-snug text-text-muted">{sub}</div>
@@ -307,7 +307,7 @@ export function RemotePairCard({ port }: { port: string }) {
               </>
             )}
             <div className="mt-3 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-text-primary" data-testid="remote-primary-url">{url}</code>
+              <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-2 py-1 text-xs text-text-primary" data-testid="remote-primary-url">{url}</code>
               <CopyButton text={url} />
             </div>
             <div className="mt-1.5 text-[11px] text-text-muted">
@@ -328,7 +328,7 @@ export function RemotePairCard({ port }: { port: string }) {
 
       {/* Ways in, as a table with one obvious state per row. */}
       <div className="border-t border-border-subtle px-5 py-4">
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">Ways to reach it</div>
+        <div className="mb-2 text-[11px] font-semibold text-text-muted">Ways to reach it</div>
         <div className="divide-y divide-border-subtle">
           <ReachRow icon={Wifi} label="Same Wi-Fi" value={status?.lan_url} active={!!status?.lan_url && url === status?.lan_url} testid="remote-lan"
             empty="Not on a network this Mac can share." />
@@ -339,7 +339,7 @@ export function RemotePairCard({ port }: { port: string }) {
             <span className="w-24 shrink-0 text-sm font-medium text-text-primary">Internet</span>
             {tunnelOn ? (
               <>
-                <code className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary" data-testid="remote-tunnel-url">{status!.tunnel_url}</code>
+                <code className="min-w-0 flex-1 truncate text-xs text-text-secondary" data-testid="remote-tunnel-url">{status!.tunnel_url}</code>
                 {primaryIsTunnel && <ActiveChip />}
                 <CopyButton text={status!.tunnel_url} />
                 <button onClick={() => void stopShare()} className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-text-muted hover:text-warn">Stop sharing</button>
@@ -347,7 +347,7 @@ export function RemotePairCard({ port }: { port: string }) {
             ) : status && !status.cloudflared_installed ? (
               <>
                 <span className="min-w-0 flex-1 text-xs text-text-muted">Needs cloudflared</span>
-                <code className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px]">{BREW_CLOUDFLARED}</code>
+                <code className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[11px]">{BREW_CLOUDFLARED}</code>
                 <CopyButton text={BREW_CLOUDFLARED} label="Copy command" />
               </>
             ) : (
@@ -390,7 +390,7 @@ function DeviceList({ devices, onChanged }: { devices: Device[]; onChanged: (s: 
   return (
     <div className="border-t border-border-subtle px-5 py-4" data-testid="remote-devices">
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+        <div className="text-[11px] font-semibold text-text-muted">
           Connected phones{devices.length > 0 ? ` (${devices.filter(isLive).length} of ${devices.length} live)` : ""}
         </div>
         {devices.length > 0 && (
@@ -432,7 +432,7 @@ function DeviceList({ devices, onChanged }: { devices: Device[]; onChanged: (s: 
 }
 
 function ActiveChip() {
-  return <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-accent ring-1 ring-accent-border">In the QR</span>;
+  return <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent ring-1 ring-accent-border">In the QR</span>;
 }
 
 // One way in: icon, name, address, and whether it is the one the QR points at.
@@ -501,7 +501,7 @@ export function PhoneSection() {
     <>
       <SettingsHeader
         title="Phone"
-        subtitle="Use Prevail from your phone. It stays on your Mac: the phone is a window onto it, so your vault and your models never leave this machine."
+        subtitle="Your phone, as a window onto this Mac."
         icon={Smartphone}
       />
       <DesktopOnly feature="Phone setup">

@@ -994,9 +994,9 @@ export function CouncilPanel({
       <div className="relative flex min-w-0 flex-1 flex-col">
       {dragOver && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-accent-soft/80 backdrop-blur-sm">
-          <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-center font-mono text-sm uppercase tracking-wider text-accent shadow-xl">
+          <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-center text-sm text-accent shadow-xl">
             ⊕ drop to add as context
-            <div className="mt-1 text-[10px] normal-case tracking-normal text-accent/70">state summary · ⇧ full context · ⌥ entire folder</div>
+            <div className="mt-1 text-[11px] normal-case tracking-normal text-accent/70">state summary · ⇧ full context · ⌥ entire folder</div>
           </div>
         </div>
       )}
@@ -1014,7 +1014,7 @@ export function CouncilPanel({
               <button
                 onClick={onOpenInFinder}
                 title="Open in Finder"
-                className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-surface px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:bg-surface-warm hover:text-accent"
+                className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-surface px-1.5 py-0.5 text-[11px] text-text-muted hover:bg-surface-warm hover:text-accent"
               >
                 <Folder className="h-3 w-3" />
                 Finder
@@ -1022,12 +1022,12 @@ export function CouncilPanel({
             )}
           </>
         ) : (
-          <span className="font-mono text-xs uppercase tracking-[0.2em] text-text-muted">Council</span>
+          <span className="font-mono text-xs text-text-muted">Council</span>
         )}
         <div className="flex-1" />
         {/* Context is a collapse/expand sidebar (right edge), never a labeled
             button: see the rail at the end of this panel. */}
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+        <span className="font-mono text-[11px] text-text-muted">
           {panelistSlots.length} on panel
         </span>
       </div>
@@ -1040,13 +1040,13 @@ export function CouncilPanel({
           <div className="mx-auto max-w-3xl space-y-4 px-6 pt-6">
             {councilTurns.map((t, i) =>
               t.role === "user" ? (
-                <div key={i} className="rounded-2xl border border-border-subtle bg-surface px-4 py-3 font-mono text-sm text-text-primary">
+                <div key={i} className="rounded-2xl border border-border-subtle bg-surface px-4 py-3 text-sm text-text-primary">
                   <span className="text-accent">$ </span>
                   {t.content}
                 </div>
               ) : t.content.startsWith("### Council verdict") ? (
                 <div key={i} className="rounded-2xl border border-accent-border bg-accent-soft px-4 py-3">
-                  <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-accent">Council verdict</div>
+                  <div className="mb-1.5 text-[11px] text-accent">Council verdict</div>
                   <div className="text-sm leading-relaxed text-text-secondary">
                     <Markdown source={t.content.replace(/^### Council verdict\n\n/, "")} />
                   </div>
@@ -1054,7 +1054,7 @@ export function CouncilPanel({
               ) : null,
             )}
             {phase !== "idle" && (
-              <div className="pb-1 pt-1 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+              <div className="pb-1 pt-1 text-center text-[11px] text-text-muted">
                 continuing…
               </div>
             )}
@@ -1091,7 +1091,7 @@ export function CouncilPanel({
                     title={q.prompt}
                     className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface px-4 py-2.5 text-left transition-colors hover:border-accent-border hover:bg-surface-warm"
                   >
-                    <span className="shrink-0 font-mono text-[11px] uppercase tracking-wider text-accent">{q.glyph} {q.label}</span>
+                    <span className="shrink-0 text-[11px] text-accent">{q.glyph} {q.label}</span>
                     <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">{q.blurb}</span>
                     <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted" />
                   </button>
@@ -1103,7 +1103,7 @@ export function CouncilPanel({
 
         {phase !== "idle" && (
           <div className="px-6 py-6" ref={liveConveneRef}>
-            <div className="mb-6 rounded-lg border border-border bg-surface px-4 py-3 font-mono text-sm">
+            <div className="mb-6 rounded-lg border border-border bg-surface px-4 py-3 text-sm">
               <span className="text-accent">$</span> {submittedPrompt || prompt}
             </div>
 
@@ -1144,7 +1144,7 @@ export function CouncilPanel({
                     className="group overflow-hidden rounded-lg border border-border bg-surface"
                     style={{ borderLeftColor: cardAccent.accent, borderLeftWidth: 3 }}
                   >
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border-subtle bg-surface-warm px-4 py-2 font-mono text-xs [&::-webkit-details-marker]:hidden">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border-subtle bg-surface-warm px-4 py-2 text-xs [&::-webkit-details-marker]:hidden">
                       <span className="flex items-center gap-2">
                         <ChevronRight className="h-3.5 w-3.5 text-text-muted transition-transform group-open:rotate-90" />
                         <ProviderMark vendor={s.cli} size={18} />
@@ -1173,7 +1173,7 @@ export function CouncilPanel({
                         <p className="text-sm text-text-muted">Didn't respond in time. Left out of the verdict.</p>
                       ) : cardErrored ? (
                         cardError ? (
-                          <pre className="whitespace-pre-wrap rounded-md bg-warn/10 px-2 py-1.5 font-mono text-[11px] leading-snug text-warn">{cardError}</pre>
+                          <pre className="whitespace-pre-wrap rounded-md bg-warn/10 px-2 py-1.5 text-[11px] leading-snug text-warn">{cardError}</pre>
                         ) : (
                           <p className="text-sm text-text-secondary">{s.cliLabel} produced no output (model rejected the prompt, hit a quota, or errored).</p>
                         )
@@ -1191,7 +1191,7 @@ export function CouncilPanel({
               const showThinking = getPref(PREF.showThinking, "1") === "1";
               return (
               <details open className="group mt-8 overflow-hidden rounded-lg border border-accent-border bg-accent-soft">
-                <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-4 font-mono text-xs uppercase tracking-[0.2em] text-accent [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-4 text-xs text-accent [&::-webkit-details-marker]:hidden">
                   <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
                   <Crown className="h-3.5 w-3.5" />
                   <span>
@@ -1257,7 +1257,7 @@ export function CouncilPanel({
             the Modes menu above. */}
         <div className="relative">
         {(incognito || globalIncognito) && (
-          <span className="absolute -top-2 left-3 z-10 inline-flex items-center gap-1 rounded-full border border-accent-border bg-surface px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-accent shadow-sm">
+          <span className="absolute -top-2 left-3 z-10 inline-flex items-center gap-1 rounded-full border border-accent-border bg-surface px-2 py-0.5 text-[11px] font-semibold text-accent shadow-sm">
             <Ghost className="h-3 w-3" /> Incognito
           </span>
         )}
@@ -1265,7 +1265,7 @@ export function CouncilPanel({
             `/` is typed - including an empty state - so it never looks broken. */}
         {slashMatch && (
           <div className="absolute bottom-full left-3 z-40 mb-1 w-80 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-            <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">Skills · enter to insert</div>
+            <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[11px] text-text-muted">Skills · enter to insert</div>
             {slashCandidates.length === 0 ? (
               <div className="px-3 py-2 text-[11px] text-text-muted">No skills in this vault yet. Add one in a domain's <span className="font-mono">_skills/</span> folder.</div>
             ) : slashCandidates.map((s, i) => (
@@ -1283,7 +1283,7 @@ export function CouncilPanel({
         {/* Context-mention popover for `$<domain|app>` (parity with Chat) */}
         {dollarMatch && dollarCandidates.length > 0 && (
           <div className="absolute bottom-full left-3 z-40 mb-1 w-80 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-            <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">Add context · enter to attach</div>
+            <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[11px] text-text-muted">Add context · enter to attach</div>
             {dollarCandidates.map((c, i) => (
               <button key={`${c.kind}:${c.id}`} onMouseDown={(e) => { e.preventDefault(); applyDollarCompletion(c); }}
                 className={`flex w-full items-start gap-2 px-3 py-1.5 text-left ${i === dollarIdx ? "bg-accent-soft" : "hover:bg-surface-warm"}`}>
@@ -1483,13 +1483,13 @@ export function CouncilPanel({
                 <button
                   onClick={() => setCouncilMenuOpen((v) => !v)}
                   title="Convene a saved council"
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 font-mono text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
                 >
                   <Crown className="h-3 w-3" /> council
                 </button>
                 {councilMenuOpen && (
                   <div className="absolute bottom-full left-0 z-40 mb-1 w-72 overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
-                    <div className="flex items-center gap-1.5 border-b border-border-subtle bg-surface-warm/50 px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                    <div className="flex items-center gap-1.5 border-b border-border-subtle bg-surface-warm/50 px-3 py-2 text-[11px] text-text-muted">
                       <Scale className="h-3 w-3 text-accent" /> Convene a council
                     </div>
                     <div className="max-h-80 overflow-y-auto p-1.5">
@@ -1506,7 +1506,7 @@ export function CouncilPanel({
                             <Crown className="h-3.5 w-3.5" />
                           </span>
                           <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{c.name}</span>
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-muted">
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-muted">
                             <Layers className="h-3 w-3" /> {c.models.length}
                           </span>
                         </button>
@@ -1521,13 +1521,13 @@ export function CouncilPanel({
             <div className="relative" ref={addMenuRef}>
               <button
                 onClick={() => setAddMenuOpen((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 font-mono text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
               >
                 <Plus className="h-3 w-3" /> add
               </button>
               {addMenuOpen && (
                 <div className="absolute bottom-full left-0 z-40 mb-1 w-72 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-                  <div className="border-b border-border-subtle px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                  <div className="border-b border-border-subtle px-3 py-1.5 text-[11px] text-text-muted">
                     Add panelist
                   </div>
                   <div className="max-h-80 overflow-y-auto">
@@ -1544,11 +1544,11 @@ export function CouncilPanel({
                         <div key={c.id} className={c.available ? "" : "opacity-40"}>
                           <div className="flex items-center gap-2 bg-surface-warm/60 px-3 py-1">
                             <ProviderMark vendor={c.id} size={14} />
-                            <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                            <span className="font-mono text-[11px] text-text-muted">
                               {c.label}
                             </span>
                             {!c.available && (
-                              <span className="ml-auto font-mono text-[10px] text-text-muted">not installed</span>
+                              <span className="ml-auto text-[11px] text-text-muted">not installed</span>
                             )}
                           </div>
                           {searchable && c.available && (
@@ -1617,7 +1617,7 @@ export function CouncilPanel({
               </button>
               {chairMenuOpen && (
                 <div className="absolute bottom-full right-0 z-40 mb-1 w-72 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-                  <div className="border-b border-border-subtle px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                  <div className="border-b border-border-subtle px-3 py-1.5 text-[11px] text-text-muted">
                     Chair
                   </div>
                   <div className="max-h-80 overflow-y-auto">
@@ -1634,7 +1634,7 @@ export function CouncilPanel({
                         <div key={c.id} className={c.available ? "" : "opacity-40"}>
                           <div className="flex items-center gap-2 bg-surface-warm/60 px-3 py-1">
                             <ProviderMark vendor={c.id} size={14} />
-                            <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                            <span className="font-mono text-[11px] text-text-muted">
                               {c.label}
                             </span>
                           </div>

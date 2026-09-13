@@ -106,7 +106,7 @@ export function SettingsPanel({
               <SettingsHeader
                 title="Arena"
                 icon={Target}
-                subtitle="Your personal eval suite. Run any model against your own questions across every domain, see who leads where, and manage the question set: write, AI-draft from your data, import, export."
+                subtitle="Your own eval suite. See who leads where."
                 right={
                   <div className="flex items-center -space-x-2">
                     {["claude", "codex", "antigravity", "openrouter", "ollama", "lmstudio"].map((v) => (
@@ -130,7 +130,7 @@ export function SettingsPanel({
               <SettingsHeader
                 title="Ideals"
                 icon={Compass}
-                subtitle="The vision and values everything optimizes for. Every chat, council, insight, plan, and routine reads these first and aligns to them."
+                subtitle="The vision everything here optimizes for."
               />
               <CollapsibleSection
                 large

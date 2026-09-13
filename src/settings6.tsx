@@ -25,9 +25,9 @@ import type { CliInfo, ModelVerifyStatus, UsageSummary } from "./types";
 // each grouping reads on its own.
 function PrivacyGroupHead({ title, blurb }: { title: string; blurb: string }) {
   return (
-    <div className="mb-3">
+    <div className="mb-3 flex flex-wrap items-baseline gap-x-3">
       <h3 className="font-display text-lg font-semibold tracking-tight text-text-primary">{title}</h3>
-      <p className="mt-1 max-w-2xl text-sm text-text-secondary">{blurb}</p>
+      <p className="text-sm text-text-muted">{blurb}</p>
     </div>
   );
 }
@@ -36,17 +36,23 @@ function PrivacyGroupHead({ title, blurb }: { title: string; blurb: string }) {
 // each card has the same granularity. `good` = the protective/active state
 // (highlighted cyan); otherwise muted. Sits inside the card under a divider.
 type StatusChip = { Icon: LucideIcon; label: string; state: string; good: boolean };
-function StatusChips({ items }: { items: StatusChip[] }) {
+function StatusChips({ items, expected }: { items: StatusChip[]; expected: boolean }) {
+  // Only a channel that DISAGREES with the headline earns a chip. With the
+  // control on and everything it governs actually closed, four chips reading
+  // "blocked" are four more ways of saying what the switch already says; the
+  // one that matters is the channel that did not comply.
+  const shown = expected ? items.filter((t) => !t.good) : [];
+  if (shown.length === 0) return null;
   return (
     <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-subtle pt-3">
-      {items.map((t) => (
+      {shown.map((t) => (
         <span
           key={t.label}
           className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] ${t.good ? "border-ai/30 bg-ai/5 text-text-primary" : "border-border bg-surface text-text-muted"}`}
         >
           <t.Icon className={`h-3.5 w-3.5 ${t.good ? "text-ai" : "text-text-muted"}`} />
           {t.label}
-          <span className="font-mono uppercase tracking-wide opacity-70">{t.state}</span>
+          <span className="font-mono tracking-wide opacity-70">{t.state}</span>
         </span>
       ))}
     </div>
@@ -75,12 +81,12 @@ function GlobalIncognitoToggle() {
           <div className="mt-0.5 text-xs text-text-secondary">
             {on
               ? "Chat and council run as a plain model with no profile, ideal state, omega, or memory."
-              : "Chat and council see your profile, ideal state, omega, and memory. You can still go incognito per-surface from each composer."}
+              : "Chat and council see your profile, ideals, omega and memory."}
           </div>
         </div>
         <Toggle on={on} onChange={(v) => { setOn(v); setPref(PREF.incognito, v ? "1" : "0"); }} label="Incognito everywhere" />
       </div>
-      <StatusChips items={chips} />
+      <StatusChips items={chips} expected={on} />
     </div>
   );
 }
@@ -121,13 +127,13 @@ function VaultLockToggle() {
           <div className="text-sm font-semibold text-text-primary">{on ? "On - vault only" : "Off - whole machine"}</div>
           <div className="mt-0.5 text-xs text-text-secondary">
             {on
-              ? "The assistant may only read and write files inside your vault. The rest of your machine is off-limits - no scanning other folders, no outside files, no tools that reach beyond the vault."
+              ? "Only your vault. The rest of this Mac is off-limits."
               : "Full local-machine access. The assistant can scan any directory and use local tools across your computer."}
           </div>
         </div>
         <Toggle on={on} disabled={busy} onChange={toggle} label="Vault Lock" />
       </div>
-      <StatusChips items={chips} />
+      <StatusChips items={chips} expected={on} />
     </div>
   );
 }
@@ -179,13 +185,13 @@ function OutboundGuardrailToggle() {
           <div className="text-sm font-semibold text-text-primary">{on ? "On - nothing reaches another party without you" : "Off - approved actions run as addressed"}</div>
           <div className="mt-0.5 text-xs text-text-secondary">
             {on
-              ? "Email to anyone but you becomes a Gmail draft you send yourself, and sensitive details (SSN, figures, health, legal, salary, plans, quotes) are held at the boundary until you release them. Content sent to yourself is never restricted."
-              : "Approved sends go out exactly as addressed, unscanned. Only the approval queue stands between your details and the outside."}
+              ? "Email to anyone but you waits as a draft, and sensitive details are held until you release them."
+              : "Approved sends go out as addressed, unscanned."}
           </div>
         </div>
         <Toggle on={on} disabled={busy} onChange={toggle} label="Outbound guardrail" />
       </div>
-      <StatusChips items={chips} />
+      <StatusChips items={chips} expected={on} />
     </div>
   );
 }
@@ -254,14 +260,14 @@ export function PrivacyConnectivitySection({ enabled, onChange }: { enabled: boo
     <>
       <SettingsHeader
         title="Privacy"
-        subtitle="Four independent controls, each answering a different question. They work in any combination."
+        subtitle="Four independent controls. Any combination works."
       />
 
       {/* ── SECTION 1 - BUNKER MODE: where your data can go ─────────────────── */}
       <section>
         <PrivacyGroupHead
           title="Bunker Mode"
-          blurb="Where your data can go. On = nothing leaves this device: local models only, no network, no cloud AI, no web search."
+          blurb="Where your data can go."
         />
 
         {/* Control card - SAME shape/weight as Vault Lock and Incognito so no one
@@ -277,14 +283,14 @@ export function PrivacyConnectivitySection({ enabled, onChange }: { enabled: boo
               <div className="mt-0.5 text-xs text-text-secondary">
                 {enabled
                   ? "Everything stays on this device. Nothing leaves your machine."
-                  : "Cloud AI, web search, and network access are available and may transmit data."}
+                  : "Cloud AI, web search and network access are available."}
               </div>
             </div>
             <Toggle on={enabled} disabled={busy} onChange={onToggle} label="Bunker Mode" />
           </div>
 
           {/* Compact live status - what's blocked vs open right now. */}
-          <StatusChips items={tiles} />
+          <StatusChips items={tiles} expected={enabled} />
           {!status?.local_available && enabled && (
             <a href="https://ollama.com/download" target="_blank" rel="noreferrer"
               className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent hover:underline">
@@ -338,7 +344,7 @@ export function PrivacyConnectivitySection({ enabled, onChange }: { enabled: boo
       <section className="mt-6 border-t border-border-subtle pt-6">
         <PrivacyGroupHead
           title="Vault Lock"
-          blurb="What files the assistant can touch on your machine. On = your vault only; the rest of your computer is off-limits. Independent of Bunker Mode."
+          blurb="What files the assistant can touch."
         />
         <VaultLockToggle />
       </section>
@@ -347,7 +353,7 @@ export function PrivacyConnectivitySection({ enabled, onChange }: { enabled: boo
       <section className="mt-6 border-t border-border-subtle pt-6">
         <PrivacyGroupHead
           title="Incognito"
-          blurb="How much of you the model sees. On = a blank model with none of your context. You can also go incognito per-surface from each composer."
+          blurb="How much of you the model sees."
         />
         <GlobalIncognitoToggle />
       </section>
@@ -356,7 +362,7 @@ export function PrivacyConnectivitySection({ enabled, onChange }: { enabled: boo
       <section className="mt-6 border-t border-border-subtle pt-6">
         <PrivacyGroupHead
           title="Outbound Guardrail"
-          blurb="Whether anything can reach another party without you. On = email to others waits as a draft you send yourself, and sensitive details are held at the boundary. On by default."
+          blurb="Whether anything can reach another party without you."
         />
         <OutboundGuardrailToggle />
       </section>
@@ -419,7 +425,7 @@ function CouncilCircle({ members, chair, clis }: { members: string[]; chair: str
         {/* Center emblem: the panel size at a glance. */}
         <div className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-border bg-background">
           <span className="font-display text-base font-bold leading-none text-text-primary">{members.length}</span>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">panel</span>
+          <span className="font-mono text-[11px] text-text-muted">panel</span>
         </div>
         {ordered.map((key, i) => {
           const a = -Math.PI / 2 + i * ((2 * Math.PI) / n);
@@ -538,17 +544,17 @@ function CouncilStats({ members, clis }: { members: string[]; clis: CliInfo[] })
 
   return (
     <div className="flex h-full flex-col gap-3 p-4">
-      <div className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-text-primary">Panel stats</div>
+      <div className="font-mono text-[11px] font-bold text-text-primary">Panel stats</div>
 
       {/* Number cards: panel size + providers. */}
       <div className="grid grid-cols-2 gap-2.5">
         <div className="rounded-lg border border-border-subtle bg-background p-3">
           <div className="font-display text-2xl font-bold leading-none text-text-primary">{stats.total}</div>
-          <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Panel size</div>
+          <div className="mt-1 text-[11px] text-text-muted">Panel size</div>
         </div>
         <div className="rounded-lg border border-border-subtle bg-background p-3">
           <div className="font-display text-2xl font-bold leading-none text-text-primary">{stats.vendors.length}</div>
-          <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Provider{stats.vendors.length === 1 ? "" : "s"}</div>
+          <div className="mt-1 text-[11px] text-text-muted">Provider{stats.vendors.length === 1 ? "" : "s"}</div>
         </div>
       </div>
 
@@ -579,8 +585,8 @@ function CouncilStats({ members, clis }: { members: string[]; clis: CliInfo[] })
       {/* Estimated dollar cost for one full panel run (every seat answers once). */}
       <div className="mt-auto rounded-lg border border-border-subtle bg-background p-3">
         <div className="flex items-baseline justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Est. cost / panel run</span>
-          <span className="font-display text-lg font-bold text-accent">{fmtUsd(stats.costUsd)} <span className="font-mono text-[10px] font-normal text-text-muted">{stats.burnTier}</span></span>
+          <span className="font-mono text-[11px] text-text-muted">Est. cost / panel run</span>
+          <span className="font-display text-lg font-bold text-accent">{fmtUsd(stats.costUsd)} <span className="font-mono text-[11px] font-normal text-text-muted">{stats.burnTier}</span></span>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-warm">
           <div className="h-full bg-accent" style={{ width: `${stats.burnPct}%` }} />
@@ -665,9 +671,9 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
 
   return (
     <>
-      <SettingsHeader title="Council" subtitle="Convene several models on one question: each answers independently, then a chair writes the verdict. Pick the exact models on your default panel (you can add several from the same provider)." />
+      <SettingsHeader title="Council" subtitle="Several models answer, a chair writes the verdict." />
       {/* G3 (Monday feedback): make it explicit that the panel saves as you edit. */}
-      <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-warm px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+      <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-warm px-2.5 py-0.5 text-[11px] text-text-muted">
         <Check className="h-3 w-3 text-ok" /> Changes save automatically
       </div>
       {/* One seamless panel: the round table on the left (prominent, centered),
@@ -734,8 +740,8 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
                 <ChevronRight className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${isExp ? "rotate-90" : ""}`} strokeWidth={2.5} />
                 <ProviderMark vendor={c.id} size={26} />
                 <span className="flex-1 font-display text-sm font-semibold text-text-primary">{c.label}</span>
-                {picked > 0 && <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-background">{picked} on panel</span>}
-                <span className="shrink-0 font-mono text-[10px] text-text-muted">{isAggregator ? `${live.length} models, search` : `${models.length} model${models.length === 1 ? "" : "s"}`}</span>
+                {picked > 0 && <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[11px] text-background">{picked} on panel</span>}
+                <span className="shrink-0 text-[11px] text-text-muted">{isAggregator ? `${live.length} models, search` : `${models.length} model${models.length === 1 ? "" : "s"}`}</span>
               </button>
               {isExp && (
                 <div className="space-y-1.5 border-t border-border-subtle bg-background/40 p-3">
@@ -772,7 +778,7 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
                           <button
                             onClick={() => setChair(key)}
                             title={isChair ? "Chairs the council (writes the verdict)" : "Make this model the chair"}
-                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider ${
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] ${
                               isChair ? "bg-accent text-background" : "border border-border text-text-muted hover:border-accent-border hover:text-accent"
                             }`}
                           >
@@ -1465,7 +1471,7 @@ export function AgentsSection({
       {!embedded && (
         <SettingsHeader
           title="Runtimes"
-          subtitle="CLIs Prevail can route prompts to. Each runtime is detected from your machine. Prevail doesn't install or update them."
+          subtitle="The runtimes detected on this Mac."
         />
       )}
       <MasterDetail title="Runtimes" storageKey="prevail.runtimes.listCollapsed" list={listEl} rail={railEl} detail={detailEl} />

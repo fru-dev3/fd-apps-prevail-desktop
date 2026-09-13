@@ -369,7 +369,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
           onClick={() => setAgentPickerFor(open ? null : t.id!)}
           disabled={runningThis}
           title="Run with agent: hand this task to Prevail's agent (or an installed harness like Hermes, Pi, OpenCode). It works in safe mode and posts its result as a comment."
-          className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-text-muted transition-colors hover:border-accent-border hover:text-accent disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-1 text-[11px] font-semibold tracking-wide text-text-muted transition-colors hover:border-accent-border hover:text-accent disabled:opacity-50"
         >
           {runningThis ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
         </button>
@@ -488,7 +488,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
         onDragEnd={() => { setDragId(null); setDragCol(null); }}
         className={`rounded-lg border px-2.5 py-2 transition-opacity ${overdue ? "border-l-2 border-l-err border-err/40 bg-err/5" : blocked ? "border-warn/40 bg-surface" : "border-border bg-surface"} ${dragId === t.id ? "opacity-40" : ""} ${editing ? "" : "cursor-grab active:cursor-grabbing"}`}>
         <div className="flex items-start gap-1.5">
-          <span title={ai ? "Owned by the agent" : "Owned by you"} className={`mt-0.5 inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 font-mono text-[10px] font-bold uppercase tracking-wide ${ai ? "bg-accent text-background" : "bg-surface-warm text-text-muted"}`}>
+          <span title={ai ? "Owned by the agent" : "Owned by you"} className={`mt-0.5 inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] font-bold tracking-wide ${ai ? "bg-accent text-background" : "bg-surface-warm text-text-muted"}`}>
             {ai ? <Bot className="h-3 w-3" /> : <User className="h-3 w-3" />}{ai ? "Agent" : "Me"}
           </span>
           {editing ? (
@@ -511,7 +511,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-5 font-mono text-[10px]">
           <span className="rounded-full px-1.5 py-px font-semibold" style={{ color: domainColor(t.domain), backgroundColor: `${domainColor(t.domain)}1f` }}>{titleCase(t.domain)}</span>
           {t.due && <span className={`${dueTone(t.due)} ${overdue ? "font-bold" : ""}`}>{t.due}</span>}
-          {overdue && <span className="rounded-full bg-err/15 px-1.5 py-px font-bold uppercase tracking-wide text-err">overdue</span>}
+          {overdue && <span className="rounded-full bg-err/15 px-1.5 py-px font-bold tracking-wide text-err">overdue</span>}
           {t.priority === "critical" && <span className="text-err">critical</span>}
           {t.priority === "high" && <span className="text-warn">important</span>}
           {blocked && <span className="text-warn">⏸ needs decision</span>}
@@ -524,7 +524,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
           {agentButton(t)}
           <button onClick={() => toggleOwner(t)} disabled={busy === `o:${t.id}`}
             title={ai ? "Take it back from the agent (hand to me)" : "Hand to the agent to run as a workflow"}
-            className={`inline-flex items-center gap-1 rounded border px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-50 ${ai ? "border-border text-text-muted hover:border-accent-border hover:text-text-primary" : "border-accent-border text-accent hover:bg-accent hover:text-background"}`}>
+            className={`inline-flex items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-semibold tracking-wide transition-colors disabled:opacity-50 ${ai ? "border-border text-text-muted hover:border-accent-border hover:text-text-primary" : "border-accent-border text-accent hover:bg-accent hover:text-background"}`}>
             {ai ? <CornerUpLeft className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
           </button>
         </div>
@@ -541,7 +541,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
     return (
       <div key={`row:${t.domain}:${t.id ?? t.text}`}
         className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${overdue ? "border-l-2 border-l-err border-err/40 bg-err/5" : blocked ? "border-warn/40 bg-surface" : "border-border bg-surface"}`}>
-        <span title={ai ? "Owned by the agent" : "Owned by you"} className={`inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 font-mono text-[10px] font-bold uppercase tracking-wide ${ai ? "bg-accent text-background" : "bg-surface-warm text-text-muted"}`}>
+        <span title={ai ? "Owned by the agent" : "Owned by you"} className={`inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] font-bold tracking-wide ${ai ? "bg-accent text-background" : "bg-surface-warm text-text-muted"}`}>
           {ai ? <Bot className="h-3 w-3" /> : <User className="h-3 w-3" />}{ai ? "Agent" : "Me"}
         </span>
         {editing ? (
@@ -553,9 +553,9 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
           <button type="button" onClick={() => t.id && setOpenId(t.id)} title="Open task"
             className={`min-w-0 flex-1 cursor-pointer truncate bg-transparent text-left text-[13px] hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${t.status === "done" ? "text-text-muted line-through" : "text-text-primary"}`}>{t.text}</button>
         )}
-        <span className="hidden shrink-0 rounded-full bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-muted sm:inline">{titleCase(t.domain)}</span>
-        {blocked && <span className="shrink-0 font-mono text-[10px] text-warn">⏸ decision</span>}
-        {overdue && <span className="shrink-0 rounded-full bg-err/15 px-1.5 py-px font-mono text-[10px] font-bold uppercase tracking-wide text-err">overdue</span>}
+        <span className="hidden shrink-0 rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-muted sm:inline">{titleCase(t.domain)}</span>
+        {blocked && <span className="shrink-0 text-[11px] text-warn">⏸ decision</span>}
+        {overdue && <span className="shrink-0 rounded-full bg-err/15 px-1.5 py-px text-[11px] font-bold tracking-wide text-err">overdue</span>}
         <span className={`hidden w-20 shrink-0 text-right font-mono text-[10px] md:inline ${dueTone(t.due)} ${overdue ? "font-bold" : ""}`}>{t.due || ""}</span>
         <button onClick={() => cyclePriority(t)} title={`Priority: ${t.priority || "normal"} - click to change`} disabled={busy === `pr:${t.id}`}
           className={`shrink-0 transition-colors ${t.priority === "critical" ? "text-err" : t.priority === "high" ? "text-warn" : "text-text-muted/30 hover:text-text-muted"}`}>
@@ -568,7 +568,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
         {agentButton(t)}
         <button onClick={() => toggleOwner(t)} disabled={busy === `o:${t.id}`}
           title={ai ? "Take it back from the agent (hand to me)" : "Hand to the agent to run as a workflow"}
-          className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-50 ${ai ? "border-border text-text-muted hover:border-accent-border hover:text-text-primary" : "border-accent-border text-accent hover:bg-accent hover:text-background"}`}>
+          className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-semibold tracking-wide transition-colors disabled:opacity-50 ${ai ? "border-border text-text-muted hover:border-accent-border hover:text-text-primary" : "border-accent-border text-accent hover:bg-accent hover:text-background"}`}>
           {ai ? <CornerUpLeft className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
         </button>
         <button onClick={() => del(t)} title="Delete task" disabled={busy === `d:${t.id}`} className="shrink-0 text-text-muted/40 transition-colors hover:text-err">
@@ -629,7 +629,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
           backdrop goes edge-to-edge and flush to the top. */}
       <div className="sticky top-0 z-20 -mx-8 -mt-10 border-b border-border-subtle bg-background px-8 pb-3 pt-8">
       <SettingsHeader title="Work Board" icon={Briefcase}
-        subtitle="Your tasks as a board - owned by you or handed to AI. AI-owned tasks run as workflows and ask you to decide anything consequential in the Decision Inbox." />
+        subtitle="Your tasks, yours or handed to AI." />
 
       {/* AI workflow status strip - only when AI is involved or something waits on you */}
       {(flow.inFlight + flow.queued + flow.waiting > 0 || running) && (
@@ -723,7 +723,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
               className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition-colors ${view === "icebox" ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:bg-surface-warm"}`}>
               <Snowflake className="h-3.5 w-3.5" /> Icebox
               {iceboxed.length > 0 && (
-                <span className="inline-flex min-w-[16px] items-center justify-center rounded-full bg-surface-warm px-1 font-mono text-[10px] font-bold text-text-secondary">{iceboxed.length}</span>
+                <span className="inline-flex min-w-[16px] items-center justify-center rounded-full bg-surface-warm px-1 text-[11px] font-bold text-text-secondary">{iceboxed.length}</span>
               )}
             </button>
           </>
@@ -739,7 +739,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh]" onClick={() => setAddModalOpen(false)}>
           <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
-              <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-text-primary">Add a task</span>
+              <span className="font-mono text-[11px] font-bold text-text-primary">Add a task</span>
               <button onClick={() => setAddModalOpen(false)} className="rounded p-1 text-text-muted hover:bg-surface-warm hover:text-text-primary"><X className="h-4 w-4" /></button>
             </div>
             <input autoFocus value={addText} onChange={(e) => { setAddText(e.target.value); if (addErr) setAddErr(null); }} onKeyDown={(e) => { if (e.key === "Enter") addTask(); }}
@@ -797,11 +797,11 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
               <span className="shrink-0 rounded-full bg-surface-warm px-1.5 py-px font-mono text-[10px] text-text-muted">{titleCase(t.domain)}</span>
               {t.trashed && <span className="shrink-0 font-mono text-[10px] text-text-muted/60">deleted {t.trashed}</span>}
               <button onClick={() => restore(t)} disabled={busy === `r:${t.id}`} title="Restore to board"
-                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
                 <RotateCcw className="h-3 w-3" /> Restore
               </button>
               <button onClick={() => purge(t)} disabled={busy === `p:${t.id}`} title="Delete permanently (cannot be undone)"
-                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-err hover:text-err disabled:opacity-50">
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-err hover:text-err disabled:opacity-50">
                 <Trash2 className="h-3 w-3" /> Delete
               </button>
             </div>
@@ -845,7 +845,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
             const tone = isOverdueBucket ? "text-err" : h.key === "today" ? "text-warn" : "text-text-muted";
             return (
               <section key={h.key}>
-                <div className={`mb-2 flex items-center gap-2 px-1 font-mono text-[10px] uppercase tracking-[0.16em] ${tone} ${isOverdueBucket ? "font-bold" : ""}`}>
+                <div className={`mb-2 flex items-center gap-2 px-1 text-[11px] ${tone} ${isOverdueBucket ? "font-bold" : ""}`}>
                   {isOverdueBucket && <Flag className="h-3 w-3" fill="currentColor" />}
                   {h.label}<span className="opacity-50">· {items.length}</span>
                 </div>
@@ -885,7 +885,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
                   title={`${col.label} (${items.length}) - click to expand`}
                   className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border p-2 transition-colors hover:bg-surface-warm sm:w-10 sm:flex-col ${tone}`}>
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-                  <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted sm:mt-1 sm:[writing-mode:vertical-rl]">
+                  <div className="flex items-center gap-1.5 text-[11px] text-text-muted sm:mt-1 sm:[writing-mode:vertical-rl]">
                     {isIcebox && <Snowflake className="h-3 w-3" />}
                     {col.label}<span className="text-text-muted/50">· {items.length}</span>
                   </div>
@@ -900,7 +900,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
                 className={`rounded-xl border p-2 transition-colors sm:min-w-[200px] sm:flex-1 ${tone}`}>
                 {(() => { const limit = colLimits[col.key] ?? PAGE; const more = items.length - limit; return (
                 <>
-                <div className="mb-2 flex items-center gap-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
+                <div className="mb-2 flex items-center gap-1.5 px-1 text-[11px] text-text-muted">
                   {isIcebox && <Snowflake className="h-3 w-3" />}
                   {col.label}<span className="text-text-muted/50">· {Math.min(items.length, limit)}{items.length > limit ? "+" : ""}</span>
                   <button onClick={() => toggleCol(col.key)} title="Collapse column"
@@ -913,7 +913,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
                   {items.length === 0 && <div className="px-1 py-3 text-center text-[11px] text-text-muted/50">{over ? "drop here" : "-"}</div>}
                   {more > 0 && (
                     <button onClick={() => showMore(col.key)}
-                      className="mt-0.5 rounded-md border border-dashed border-border-subtle px-2 py-1.5 text-center font-mono text-[10px] uppercase tracking-wider text-text-muted transition-colors hover:border-accent-border hover:text-accent">
+                      className="mt-0.5 rounded-md border border-dashed border-border-subtle px-2 py-1.5 text-center text-[11px] text-text-muted transition-colors hover:border-accent-border hover:text-accent">
                       Show {Math.min(PAGE, more)} more
                     </button>
                   )}
@@ -929,7 +929,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
           {listed.slice(0, listLimit).map(renderRow)}
           {listed.length > listLimit && (
             <button onClick={() => setListLimit((n) => n + PAGE)}
-              className="mt-0.5 rounded-md border border-dashed border-border-subtle px-2 py-2 text-center font-mono text-[10px] uppercase tracking-wider text-text-muted transition-colors hover:border-accent-border hover:text-accent">
+              className="mt-0.5 rounded-md border border-dashed border-border-subtle px-2 py-2 text-center text-[11px] text-text-muted transition-colors hover:border-accent-border hover:text-accent">
               Show {Math.min(PAGE, listed.length - listLimit)} more ({listed.length - listLimit} not shown)
             </button>
           )}
@@ -945,7 +945,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
       {maybeMore && (
         <div className="mt-3 flex justify-center">
           <button onClick={() => setTaskLimit((n) => n + TASK_PAGE)}
-            className="rounded-lg border border-dashed border-border-subtle px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted transition-colors hover:border-accent-border hover:text-accent">
+            className="rounded-lg border border-dashed border-border-subtle px-3 py-1.5 text-[11px] text-text-muted transition-colors hover:border-accent-border hover:text-accent">
             Load more tasks
           </button>
         </div>

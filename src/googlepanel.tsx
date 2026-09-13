@@ -429,9 +429,9 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[17px] font-semibold tracking-tight text-text-primary">Google Workspace</span>
-            {cliVersion && <span className="rounded-md border border-border-subtle bg-surface px-1.5 py-px font-mono text-[10px] uppercase tracking-wider text-text-muted">gws {cliVersion}</span>}
+            {cliVersion && <span className="rounded-md border border-border-subtle bg-surface px-1.5 py-px text-[11px] text-text-muted">gws {cliVersion}</span>}
             {connectedCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-ok/40 bg-ok/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ok">
+              <span className="inline-flex items-center gap-1 rounded-full border border-ok/40 bg-ok/10 px-2 py-0.5 text-[11px] text-ok">
                 <Check className="h-2.5 w-2.5" /> {connectedCount} connected
               </span>
             )}
@@ -487,7 +487,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
 
             {/* Step 1. Install. */}
             {setupStep === 1 && (
-              <StepCard icon={Download} title="Install the Google Workspace helper" subtitle="One click. No terminal. Prevail installs the small command-line helper it uses to talk to Google (via Homebrew, or a direct download).">
+              <StepCard icon={Download} title="Install the Google Workspace helper" subtitle="Prevail installs the helper it uses to talk to Google.">
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <button onClick={() => void runInstall()} disabled={installing}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-xs font-semibold text-background shadow-sm transition-colors hover:bg-accent-hover disabled:opacity-50">
@@ -498,14 +498,14 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                 </div>
                 <StreamLog lines={installLog} busy={installing} idle="Starting the installer…" />
                 {!installing && installLog.length > 0 && (
-                  <p className="mt-2 text-[11px] text-text-muted">Prefer to do it yourself? <code className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] text-text-primary">brew install googleworkspace-cli</code></p>
+                  <p className="mt-2 text-[11px] text-text-muted">Prefer to do it yourself? <code className="rounded bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-primary">brew install googleworkspace-cli</code></p>
                 )}
               </StepCard>
             )}
 
             {/* Step 2. Connect via the browser. */}
             {setupStep === 2 && (
-              <StepCard icon={Link2} title="Connect your Google account" subtitle="This opens your browser so you can choose your account and approve access. Come back here when you are done.">
+              <StepCard icon={Link2} title="Connect your Google account" subtitle="Choose your account in the browser, then come back.">
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <button onClick={() => void runConnect(null)} disabled={authing}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-xs font-semibold text-background shadow-sm transition-colors hover:bg-accent-hover disabled:opacity-50">
@@ -537,14 +537,14 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   {/* Left: the connected accounts, each named clearly (#41). */}
                   <div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">Connected account{connectedCount === 1 ? "" : "s"}</div>
+                    <div className="font-mono text-[11px] text-text-muted">Connected account{connectedCount === 1 ? "" : "s"}</div>
                     <div className="mt-2 space-y-1.5">
                       {connectedProfiles.map((p) => (
                         <div key={p.configDir} className="flex items-center gap-2 rounded-lg border border-ok/30 bg-surface px-2.5 py-1.5">
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
                           <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-text-primary">{p.email || p.label}</span>
                           {p.email && p.label && p.label !== p.email && (
-                            <span className="shrink-0 rounded-md border border-border-subtle bg-background px-1.5 py-px font-mono text-[10px] uppercase tracking-wider text-text-muted">{p.label}</span>
+                            <span className="shrink-0 rounded-md border border-border-subtle bg-background px-1.5 py-px text-[11px] text-text-muted">{p.label}</span>
                           )}
                         </div>
                       ))}
@@ -552,7 +552,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                   </div>
                   {/* Right: what the agent can reach + a re-sync action. */}
                   <div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">Available services</div>
+                    <div className="font-mono text-[11px] text-text-muted">Available services</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {SERVICES.map((name) => (
                         <span key={name} className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-2 py-1 text-[11px] font-medium text-text-secondary">
@@ -572,7 +572,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
             {/* Profiles - one Google account each (shown once the CLI is installed). */}
             {cli?.installed && (
               <div className="space-y-1.5">
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">Accounts</div>
+                <div className="font-mono text-[11px] text-text-muted">Accounts</div>
                 {profiles.length === 0 ? (
                   <div className="text-[12px] text-text-muted">No accounts yet. Add one to sign in.</div>
                 ) : profiles.map((p) => {
@@ -643,7 +643,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
             {/* What the agent can do, and the read vs write model - shown visually. */}
             {cli?.installed && (
               <div className="rounded-xl border border-border-subtle bg-background p-4">
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">Available to your agent</div>
+                <div className="font-mono text-[11px] text-text-muted">Available to your agent</div>
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {SERVICES.map((name) => (
                     <span key={name} className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-[11px] font-medium text-text-secondary">
@@ -678,7 +678,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
         {tab === "skills" && (
           <div className="max-w-2xl">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Sparkles className="h-4 w-4 text-accent" /> Skills{skills.length > 0 && <span className="rounded-full bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-muted">{skills.length}</span>}</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Sparkles className="h-4 w-4 text-accent" /> Skills{skills.length > 0 && <span className="rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-muted">{skills.length}</span>}</div>
               {!learnMode && !composing && (
                 <button onClick={() => { setGoalText(""); setComposing(true); }}
                   className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/10">
@@ -749,7 +749,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                 {skills.length === 0 ? (
                   <div className="mt-3 rounded-lg border border-dashed border-border bg-surface/40 px-4 py-4 text-center">
                     <div className="text-[13px] text-text-secondary">No skills yet.</div>
-                    <div className="mt-0.5 text-[12px] text-text-muted">Click <span className="text-accent">Learn New Skill</span> and say what to do; saved in <code className="rounded bg-surface-warm px-1 font-mono text-[11px]">vault/apps/google/skills/</code>.</div>
+                    <div className="mt-0.5 text-[12px] text-text-muted">Click <span className="text-accent">Learn New Skill</span> and say what to do; saved in <code className="rounded bg-surface-warm px-1 text-[11px]">vault/apps/google/skills/</code>.</div>
                   </div>
                 ) : (
                   <ul className="mt-3 space-y-2">
@@ -763,8 +763,8 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <span className="truncate text-[13px] font-medium text-text-primary">{s.name || humanizeSkill(s.id)}</span>
-                              {primary && <span className="rounded-full border border-accent-border bg-accent-soft px-1.5 py-px font-mono text-[10px] uppercase tracking-wider text-accent">Primary</span>}
-                              <span className="rounded-md border border-border-subtle bg-surface px-1.5 py-px font-mono text-[10px] uppercase tracking-wider text-text-muted">{skillMethod(s)}</span>
+                              {primary && <span className="rounded-full border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">Primary</span>}
+                              <span className="rounded-md border border-border-subtle bg-surface px-1.5 py-px text-[11px] text-text-muted">{skillMethod(s)}</span>
                             </div>
                             {s.summary && <div className="mt-0.5 truncate text-[11px] text-text-muted">{s.summary}</div>}
                           </div>
@@ -809,7 +809,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                     <div className="mt-2 flex items-center gap-2">
                       <button onClick={saveSoul} disabled={soulBusy} className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-background hover:bg-accent-hover disabled:opacity-50">{soulBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Save</button>
                       <button onClick={() => setEditSoul(false)} className="rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:text-text-secondary">Cancel</button>
-                      <span className="ml-auto font-mono text-[10px] text-text-muted/70">apps/google/soul.md</span>
+                      <span className="ml-auto text-[11px] text-text-muted/70">apps/google/soul.md</span>
                     </div>
                   </div>
                 ) : soulText.trim() ? (
@@ -873,7 +873,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                       <span className="h-2 w-2 shrink-0 rounded-full bg-ok" />
                       <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-text-primary">{p.email || p.label}</span>
                       {p.email && p.label && p.label !== p.email && (
-                        <span className="shrink-0 rounded-md border border-border-subtle bg-background px-1.5 py-px font-mono text-[10px] uppercase tracking-wider text-text-muted">{p.label}</span>
+                        <span className="shrink-0 rounded-md border border-border-subtle bg-background px-1.5 py-px text-[11px] text-text-muted">{p.label}</span>
                       )}
                       <span className="shrink-0 text-[11px] text-ok">Connected</span>
                     </div>
@@ -937,7 +937,7 @@ function SetupStepper({ step }: { step: 1 | 2 | 3 }) {
               }`}>
                 <Icon className="h-4 w-4" />
               </span>
-              <span className={`text-[10px] font-semibold uppercase tracking-wider ${done ? "text-ok" : active ? "text-accent" : "text-text-muted"}`}>{s.label}</span>
+              <span className={`text-[11px] font-semibold ${done ? "text-ok" : active ? "text-accent" : "text-text-muted"}`}>{s.label}</span>
             </div>
             {i < steps.length - 1 && <span className={`mx-1.5 mb-5 h-0.5 flex-1 rounded-full transition-colors ${step > n ? "bg-ok" : "bg-border"}`} />}
           </Fragment>
@@ -1064,7 +1064,7 @@ function StreamLog({ lines, busy, idle }: { lines: string[]; busy: boolean; idle
         <span className="h-2 w-2 rounded-full bg-white/15" />
         <span className="h-2 w-2 rounded-full bg-white/15" />
         <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="ml-1 font-mono text-[10px] uppercase tracking-wider text-white/30">setup log</span>
+        <span className="ml-1 text-[11px] text-white/30">setup log</span>
         {busy && <Loader2 className="ml-auto h-3 w-3 animate-spin text-white/40" />}
       </div>
       <div ref={ref} className="max-h-44 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-white/70">

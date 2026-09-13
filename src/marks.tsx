@@ -115,7 +115,7 @@ export function ProviderMark({ vendor, size = 28 }: { vendor: string; size?: num
       // Every other known family (opencode/openclaw/hermes): a clean first-letter
       // monogram on the brand tile. The row always shows the full name beside it.
       inner = (
-        <span className="font-mono font-semibold uppercase text-white" style={{ fontSize: Math.round(size * 0.4) }}>
+        <span className="font-semibold text-white" style={{ fontSize: Math.round(size * 0.4) }}>
           {(v.name && v.name !== "-" ? v.name[0] : vendor[0] || "·")}
         </span>
       );

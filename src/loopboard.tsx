@@ -248,7 +248,7 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
   return (
     <>
       <SettingsHeader icon={Repeat} title="Loop Board"
-        subtitle="Every standing loop across your domains - the mirror of the Work Board for tasks. See what's running, when each runs next, run one now, or jump into its domain to edit." />
+        subtitle="Every standing loop, and when each runs next." />
       {/* Toolbar: a compact searchable domain filter (scales to any count) + sort
           + grouping + refresh, all on one line. */}
       <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
@@ -273,14 +273,14 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-surface-warm">
                       <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-accent">{domainFilter === o.name && <Check className="h-3 w-3" strokeWidth={3} />}</span>
                       <span className="flex-1 truncate text-text-primary">{o.name === "all" ? "All domains" : titleCase(o.name)}</span>
-                      <span className="shrink-0 font-mono text-[10px] text-text-muted">{o.count}</span>
+                      <span className="shrink-0 text-[11px] text-text-muted">{o.count}</span>
                     </button>
                   ))}
               </div>
             </div>
           )}
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Sort</span>
+        <span className="font-mono text-[11px] text-text-muted">Sort</span>
         <div className="flex items-center overflow-hidden rounded-lg border border-border">
           {([["schedule", "Next run", CalendarClock], ["name", "Name", ArrowDownAZ], ["domain", "Domain", Layers]] as const).map(([k, lbl, Icon], i) => (
             <button key={k} onClick={() => pickSort(k)} aria-pressed={sort === k}
@@ -297,7 +297,7 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
         </button>
         <span className="font-mono text-[11px] text-text-muted">{shown.length} loop{shown.length === 1 ? "" : "s"} · {activeCount} active</span>
         <button onClick={load} disabled={loading} title="Refresh"
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
@@ -314,7 +314,7 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
             return (
               <section key={d}>
                 <div className="mb-1.5 flex items-baseline gap-2 px-1">
-                  <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-secondary">{titleCase(d)}</span>
+                  <span className="text-[11px] font-semibold text-text-secondary">{titleCase(d)}</span>
                   <span className="font-mono text-[10px] text-text-muted">{items.length}</span>
                 </div>
                 <div className="overflow-hidden rounded-xl border border-border-subtle divide-y divide-border-subtle">

@@ -216,14 +216,14 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
     const sensitive = (a.categories?.length ?? 0) > 0;
     return (
       <div key={a.id} className="rounded-xl border border-border bg-surface px-3.5 py-3">
-        <div className="mb-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+        <div className="mb-1 flex items-center gap-2 text-[11px] text-text-muted">
           <span className="text-warn"><Play className="h-3 w-3" /></span>
           {titleCase(a.domain || "general")}
           <span className="text-text-muted/50">· connector</span>
           {a.ts ? <span className="text-text-muted/50">· queued {relTime(a.ts)}</span> : null}
         </div>
         <div className="text-[13px] leading-snug text-text-primary">{a.summary}</div>
-        {a.argsJson && <div className="mt-0.5 break-all font-mono text-[11px] text-text-muted">{a.argsJson.slice(0, 400)}</div>}
+        {a.argsJson && <div className="mt-0.5 break-all text-[11px] text-text-muted">{a.argsJson.slice(0, 400)}</div>}
         {sensitive && (
           <div className="mt-1.5 rounded-md border border-warn/40 bg-warn/5 px-2 py-1.5 text-[11px] leading-snug text-text-secondary">
             Carries {a.categories!.join("; ")}. Nothing has been sent. Release it only if you are sure.
@@ -251,7 +251,7 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
     const cmd = Array.isArray(g.args) ? g.args.join(" ") : "";
     return (
       <div key={g.id} className="rounded-xl border border-border bg-surface px-3.5 py-3">
-        <div className="mb-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+        <div className="mb-1 flex items-center gap-2 text-[11px] text-text-muted">
           <span className="text-warn"><Play className="h-3 w-3" /></span>
           {titleCase(g.domain || "google")}
           <span className="text-text-muted/50">· google</span>
@@ -297,7 +297,7 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
     const asleep = (snoozed[it.id] ?? 0) > now;
     return (
       <div key={it.id} className="rounded-xl border border-border bg-surface px-3.5 py-3">
-        <div className="mb-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+        <div className="mb-1 flex items-center gap-2 text-[11px] text-text-muted">
           <span className={isReview ? "text-accent" : "text-warn"}>{isReview ? <Bot className="h-3 w-3" /> : <Play className="h-3 w-3" />}</span>
           {titleCase(it.domain)}
           <span className="text-text-muted/50">· {isReview ? "review" : "approval"}</span>
@@ -341,7 +341,7 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
   return (
     <div className="w-full">
       {/* Section header matches the board's column headers (compact mono caps). */}
-      <div className="mb-2 flex items-center gap-2 px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
+      <div className="mb-2 flex items-center gap-2 px-1 text-[11px] text-text-muted">
         <Inbox className="h-3 w-3" /> Needs you
         <span className="text-text-muted/50">· {active.length + gwsVisible.length + acts.length || "0"}</span>
         {sleeping.length > 0 && (
@@ -364,14 +364,14 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
 
       {showSnoozed && sleeping.length > 0 && (
         <div className="mt-5">
-          <div className="mb-2 px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">Snoozed</div>
+          <div className="mb-2 px-1 text-[11px] text-text-muted">Snoozed</div>
           <div className="flex flex-col gap-2.5 opacity-70">{sleeping.map(card)}</div>
         </div>
       )}
 
       {report && (
         <div className="mt-5 rounded-xl border border-border bg-surface/60 px-3.5 py-3">
-          <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">Result · {report.text}</div>
+          <div className="mb-1 text-[11px] text-text-muted">Result · {report.text}</div>
           <div className="whitespace-pre-wrap text-[11px] leading-relaxed text-text-secondary">{report.report}</div>
         </div>
       )}

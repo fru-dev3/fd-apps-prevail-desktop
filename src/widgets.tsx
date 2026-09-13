@@ -43,7 +43,7 @@ export function AppCard({ icon: Icon, label, children, action }: { icon: LucideI
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-2.5 flex items-center gap-2">
         <Icon className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-text-muted">{label}</span>
+        <span className="text-[11px] font-bold text-text-muted">{label}</span>
         {action && <span className="ml-auto">{action}</span>}
       </div>
       {children}
@@ -141,7 +141,7 @@ export function DemoRibbon({ onSwitch }: { onSwitch: () => void }) {
   return (
     <div className="flex shrink-0 items-center justify-center gap-2.5 border-t border-accent-border bg-accent px-4 py-1.5 text-xs text-background">
       <Sparkles className="h-3.5 w-3.5 shrink-0" />
-      <span className="font-mono font-bold uppercase tracking-[0.2em]">Sandbox</span>
+      <span className="font-bold">Sandbox</span>
       <span className="opacity-90">You're exploring sample data</span>
       <button onClick={onSwitch} className="font-semibold underline underline-offset-2 hover:opacity-80">
         Set up my own vault →
@@ -168,7 +168,7 @@ export function BridgeStatusChips() {
   const Chip = ({ Icon, label, title }: { Icon: LucideIcon; label: string; title: string }) => (
     <span
       title={title}
-      className="inline-flex items-center gap-1.5 rounded-full border border-ok/30 bg-ok/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ok"
+      className="inline-flex items-center gap-1.5 rounded-full border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] text-ok"
     >
       <span className="pulse-soft inline-block h-1.5 w-1.5 rounded-full bg-ok" />
       <Icon className="h-3 w-3" />
@@ -192,7 +192,7 @@ export function InsightsDisclosure({
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 text-left">
         <span className="text-accent">{open ? "▾" : "▸"}</span>
         <Icon className="h-3 w-3 text-text-muted" />
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-secondary">{title}</span>
+        <span className="text-[11px] text-text-secondary">{title}</span>
         <span className="font-mono text-[10px] text-text-muted">· {count}</span>
         {meta && <span className="ml-auto font-mono text-[10px] text-text-muted">{meta}</span>}
       </button>

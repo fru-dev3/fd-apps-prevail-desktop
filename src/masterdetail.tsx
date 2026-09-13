@@ -66,7 +66,7 @@ export function MasterDetail({
       ) : (
         <aside className="flex w-full shrink-0 flex-col border-b border-border-subtle bg-surface-warm lg:w-72 lg:max-w-xs lg:border-b-0 lg:border-r">
           <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-3 py-2.5">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-text-primary">{title}</span>
+            <span className="text-[11px] font-bold text-text-primary">{title}</span>
             <button
               onClick={toggle}
               title="Collapse"

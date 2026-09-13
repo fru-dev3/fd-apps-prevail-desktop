@@ -31,15 +31,15 @@ function MarkdownCode(props: React.HTMLAttributes<HTMLElement> & { className?: s
   return (
     <div className="my-3 overflow-hidden rounded-lg border border-border-subtle bg-background">
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle bg-surface-warm px-3 py-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">{lang}</span>
+        <span className="font-mono text-[11px] text-text-muted">{lang}</span>
         <button
           onClick={() => { void navigator.clipboard.writeText(text); }}
-          className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted transition-colors hover:border-accent-border hover:text-accent"
+          className="rounded border border-border bg-background px-1.5 py-0.5 text-[11px] text-text-muted transition-colors hover:border-accent-border hover:text-accent"
         >
           copy
         </button>
       </div>
-      <pre className="overflow-x-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-text-primary">
+      <pre className="overflow-x-auto px-3 py-2 text-[11px] leading-relaxed text-text-primary">
         <code className={className}>{children}</code>
       </pre>
     </div>

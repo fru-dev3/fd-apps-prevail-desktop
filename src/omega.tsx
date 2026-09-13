@@ -111,7 +111,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
         <SettingsHeader
           title="Omega"
           icon={Sigma}
-          subtitle="What Prevail has learned across your domains: durable lessons and patterns, injected into every chat just below your Ideal State. Distilled automatically; editable by hand."
+          subtitle="What Prevail has learned across your domains."
         />
       )}
 
@@ -147,11 +147,11 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
 
       {/* Action bar: distill + edit/view. */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+        <span className="text-[11px] text-text-muted">
           {editing ? "Editing markdown" : "App-wide · highest precedence after the Ideal State"}
         </span>
         <div className="flex items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted" title="Auto-distill Omega across your domains on a slow cadence (default daily)">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-text-muted" title="Auto-distill Omega across your domains on a slow cadence (default daily)">
             <Toggle on={auto} onChange={(v) => { setAuto(v); setPref(PREF.omegaAuto, v ? "1" : "0"); }} label="Auto-distill Omega" />
             Auto
           </label>
@@ -159,7 +159,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
           <button
             onClick={distill}
             disabled={distilling}
-            className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 font-mono text-[11px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
           >
             {distilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             {distilling ? "Distilling…" : "Distill now"}
@@ -249,7 +249,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
                           }
                         } catch (e) { console.error("restore omega", e); }
                       }}
-                      className="rounded-md border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
+                      className="rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
                     >
                       Restore
                     </button>

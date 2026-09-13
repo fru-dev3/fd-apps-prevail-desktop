@@ -74,7 +74,7 @@ export function CollapsibleSection({
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-2">
           {summary != null && summary !== "" && (
-            <span className="truncate font-mono text-[10px] uppercase tracking-wider text-text-muted">{summary}</span>
+            <span className="truncate text-[11px] text-text-muted">{summary}</span>
           )}
           {status !== undefined && (
             <span className={`h-1.5 w-1.5 rounded-full ${status ? "bg-accent" : "bg-text-muted/40"}`} title={status ? "active" : "idle"} />

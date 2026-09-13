@@ -110,7 +110,7 @@ export function AddAppModal({ vaultPath, domainSlug, domainLabel, onClose, onAdd
                 <AppRowLogo app={{ title: c.name, id: c.id }} logos={logos} size={22} fallback="letter" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] text-text-primary">{c.name}</div>
-                  <div className="font-mono text-[10px] uppercase tracking-wide text-text-muted">{c.owned ? "in your apps" : "add new"}</div>
+                  <div className="text-[11px] tracking-wide text-text-muted">{c.owned ? "in your apps" : "add new"}</div>
                 </div>
                 <button disabled={busyId === c.id} onClick={() => void add(c)} className="flex shrink-0 items-center gap-1 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-accent hover:text-background disabled:opacity-60">
                   {busyId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Add

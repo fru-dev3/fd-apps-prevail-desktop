@@ -116,7 +116,7 @@ export function ContextMeter({
                   onClick={() => { onCompact(); }}
                   disabled={compacting}
                   title="Summarize the conversation so far into a compact gist, freeing space. Memory + domain context carry over."
-                  className="font-mono text-[11px] uppercase tracking-wider text-accent transition-colors hover:text-accent-hover disabled:opacity-50"
+                  className="text-[11px] text-accent transition-colors hover:text-accent-hover disabled:opacity-50"
                 >
                   {compacting ? "Compacting…" : "Compact"}
                 </button>
@@ -124,7 +124,7 @@ export function ContextMeter({
               <button
                 onClick={() => { onReset(); setOpen(false); }}
                 title="Clear the conversation and start over. Long-term memory + domain context still carry over."
-                className="font-mono text-[11px] uppercase tracking-wider text-text-muted transition-colors hover:text-accent"
+                className="text-[11px] text-text-muted transition-colors hover:text-accent"
               >
                 Start fresh
               </button>

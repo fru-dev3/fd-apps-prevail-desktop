@@ -49,7 +49,7 @@ function StatTile({ icon: Icon, label, value, hint, onClick }: {
       onClick={onClick}
       className="group flex flex-col items-start gap-1 rounded-xl border border-border-subtle bg-surface/50 p-4 text-left transition-colors hover:border-accent-border hover:bg-surface-warm/50"
     >
-      <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+      <span className="flex items-center gap-1.5 text-[11px] text-text-muted">
         <Icon className="h-3.5 w-3.5 text-accent" /> {label}
       </span>
       <span className="text-2xl font-bold leading-none text-text-primary">{value}</span>
@@ -2304,9 +2304,9 @@ export function ChatPanel({
       <div className="relative flex min-w-0 flex-1 flex-col">
       {dragOver && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-accent-soft/80 backdrop-blur-sm">
-          <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-center font-mono text-sm uppercase tracking-wider text-accent shadow-xl">
+          <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-center text-sm text-accent shadow-xl">
             ⊕ drop to add as context
-            <div className="mt-1 text-[10px] normal-case tracking-normal text-accent/70">state summary · ⇧ full context · ⌥ entire folder</div>
+            <div className="mt-1 text-[11px] normal-case tracking-normal text-accent/70">state summary · ⇧ full context · ⌥ entire folder</div>
           </div>
         </div>
       )}
@@ -2335,7 +2335,7 @@ export function ChatPanel({
       {activeThreadPath && threadTitle && (
         <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-surface-warm/40 px-4 py-1.5">
           <FileText className="h-3 w-3 shrink-0 text-text-muted" />
-          <span className="truncate font-mono text-[11px] text-text-secondary" title={threadTitle}>{threadTitle}</span>
+          <span className="truncate text-[11px] text-text-secondary" title={threadTitle}>{threadTitle}</span>
         </div>
       )}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
@@ -2359,7 +2359,7 @@ export function ChatPanel({
                 style={{ borderColor: scoreColor(lifeReadiness.life_readiness) }}
                 title={`Life Readiness · average context score across ${lifeReadiness.domains.length} domain${lifeReadiness.domains.length === 1 ? "" : "s"}`}
               >
-                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-text-primary">
+                <span className="font-mono text-[11px] font-bold text-text-primary">
                   Life Readiness
                 </span>
                 <span
@@ -2476,9 +2476,9 @@ export function ChatPanel({
                           </div>
                         </div>
                         <div className="text-left">
-                          <div className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">Context score</div>
+                          <div className="font-mono text-[11px] font-bold text-text-muted">Context score</div>
                           <div className="text-[13px] font-semibold text-text-primary">{score != null ? (score >= 80 ? "Strong" : score >= 60 ? "Solid" : score >= 40 ? "Thin" : "Sparse") : (ctxScoreLoading ? "Scoring…" : "Not scored")}</div>
-                          <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-text-muted opacity-0 transition-opacity group-hover:opacity-100">View breakdown <ArrowUpRight className="h-3 w-3" /></div>
+                          <div className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] text-text-muted opacity-0 transition-opacity group-hover:opacity-100">View breakdown <ArrowUpRight className="h-3 w-3" /></div>
                         </div>
                       </button>
                       <button
@@ -2515,7 +2515,7 @@ export function ChatPanel({
                       <p className="mt-2 text-[13px] leading-relaxed text-text-secondary">{dblurb}</p>
                       {idealFirstLine ? (
                         <div className="mt-3 rounded-lg border border-border-subtle bg-background/50 p-3">
-                          <div className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Ideal state</div>
+                          <div className="font-mono text-[11px] text-text-muted">Ideal state</div>
                           <p className="mt-1 line-clamp-3 text-[12px] leading-relaxed text-text-secondary">{idealFirstLine}</p>
                         </div>
                       ) : (
@@ -2546,7 +2546,7 @@ export function ChatPanel({
                       )}
                       {missing.length > 0 && (
                         <div className="mt-4">
-                          <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">What to improve</div>
+                          <div className="mb-1.5 text-[11px] text-text-muted">What to improve</div>
                           <ul className="space-y-1">
                             {missing.slice(0, 3).map((m, i) => (
                               <li key={i} className="flex items-start gap-1.5 text-[12px] text-text-secondary">
@@ -2566,7 +2566,7 @@ export function ChatPanel({
                       onClick={() => setDomainTab("loops")}
                       className="group flex flex-col rounded-2xl border border-border-subtle bg-surface/50 p-5 text-left transition-colors hover:border-accent-border hover:bg-surface-warm/40"
                     >
-                      <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Repeat className="h-4 w-4 text-accent" /> Active loops{loopsActive.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] text-text-muted">{loopsActive.length}</span>}</h3>
+                      <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Repeat className="h-4 w-4 text-accent" /> Active loops{loopsActive.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{loopsActive.length}</span>}</h3>
                       {loopsActive.length > 0 ? (
                         <ul className="mt-3 space-y-2">
                           {loopsActive.slice(0, 4).map((l) => (
@@ -2594,7 +2594,7 @@ export function ChatPanel({
                             <li key={l.path} className="rounded-lg border border-border-subtle bg-background/50 px-3 py-2">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="truncate text-[13px] font-medium text-text-primary">{l.name.replace(/\.md$/, "")}</span>
-                                <span className="shrink-0 font-mono text-[10px] text-text-muted">{relTime(l.mtime_secs * 1000)}</span>
+                                <span className="shrink-0 text-[11px] text-text-muted">{relTime(l.mtime_secs * 1000)}</span>
                               </div>
                               {l.preview && <div className="mt-0.5 line-clamp-1 text-[11px] text-text-muted">{l.preview}</div>}
                             </li>
@@ -2611,7 +2611,7 @@ export function ChatPanel({
                       onClick={() => setDomainTab("apps")}
                       className="group flex flex-col rounded-2xl border border-border-subtle bg-surface/50 p-5 text-left transition-colors hover:border-accent-border hover:bg-surface-warm/40"
                     >
-                      <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Plug className="h-4 w-4 text-accent" /> Apps feeding this{appsFeeding.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] text-text-muted">{appsFeeding.length}</span>}</h3>
+                      <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Plug className="h-4 w-4 text-accent" /> Apps feeding this{appsFeeding.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{appsFeeding.length}</span>}</h3>
                       {appsFeeding.length > 0 ? (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {appsFeeding.slice(0, 8).map((a) => (
@@ -2728,7 +2728,7 @@ export function ChatPanel({
                 />
                 {/* Usage folded into Insights: queries, tokens, and cost for this domain. */}
                 <div>
-                  <div className="mb-3 flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-text-secondary"><Activity className="h-3.5 w-3.5 text-accent" /> Usage</div>
+                  <div className="mb-3 flex items-center gap-2 text-[11px] text-text-secondary"><Activity className="h-3.5 w-3.5 text-accent" /> Usage</div>
                   <UsageDashboard vault={vaultPath} domain={domain ?? null} nonce={chatViewNonce} />
                 </div>
               </div>
@@ -2754,24 +2754,24 @@ export function ChatPanel({
             {domainCtx && domainTab === "journal" && (
               <div className="space-y-6">
                 <div>
-                  <div className="mb-2 flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-text-secondary"><BookOpen className="h-3.5 w-3.5 text-accent" /> Journal</div>
+                  <div className="mb-2 flex items-center gap-2 text-[11px] text-text-secondary"><BookOpen className="h-3.5 w-3.5 text-accent" /> Journal</div>
                   {domainCtx.journal ? <Markdown source={domainCtx.journal} compact /> : <div className="rounded-lg border border-dashed border-border bg-surface p-6 text-sm text-text-muted">no journal entries yet.</div>}
                 </div>
                 {domainCtx.state && (
                   <div>
-                    <div className="mb-2 flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-text-secondary"><Layers className="h-3.5 w-3.5 text-accent" /> State</div>
+                    <div className="mb-2 flex items-center gap-2 text-[11px] text-text-secondary"><Layers className="h-3.5 w-3.5 text-accent" /> State</div>
                     <Markdown source={domainCtx.state} compact />
                   </div>
                 )}
                 {domainCtx.decisions && (
                   <div>
-                    <div className="mb-2 flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-text-secondary"><Scale className="h-3.5 w-3.5 text-accent" /> Decisions</div>
+                    <div className="mb-2 flex items-center gap-2 text-[11px] text-text-secondary"><Scale className="h-3.5 w-3.5 text-accent" /> Decisions</div>
                     <Markdown source={domainCtx.decisions} compact />
                   </div>
                 )}
                 {domainCtx.recent_logs.length > 0 && (
                   <div>
-                    <div className="mb-2 flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-text-secondary"><FileText className="h-3.5 w-3.5 text-accent" /> Recent sessions</div>
+                    <div className="mb-2 flex items-center gap-2 text-[11px] text-text-secondary"><FileText className="h-3.5 w-3.5 text-accent" /> Recent sessions</div>
                     <ul className="flex flex-col gap-2">
                       {domainCtx.recent_logs.map((l) => (
                         <li key={l.path}>
@@ -2880,7 +2880,7 @@ export function ChatPanel({
           {/* Incognito affordance: a ghost badge over the top-left edge + the glow
               above, so it's unmistakable the turn sends none of your context. */}
           {(incognito || globalIncognito) && (
-            <span className="absolute -top-2.5 left-3 z-10 inline-flex items-center gap-1 rounded-full border border-accent bg-surface px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-accent shadow-sm">
+            <span className="absolute -top-2.5 left-3 z-10 inline-flex items-center gap-1 rounded-full border border-accent bg-surface px-2 py-0.5 text-[11px] font-semibold text-accent shadow-sm">
               <Ghost className="h-3 w-3" /> Incognito
             </span>
           )}
@@ -2894,7 +2894,7 @@ export function ChatPanel({
               {primedContext.map((c, i) => (
                 <span
                   key={c.label}
-                  className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft py-0.5 pl-2 pr-1 font-mono text-[11px] text-accent"
+                  className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft py-0.5 pl-2 pr-1 text-[11px] text-accent"
                   title={c.body.slice(0, 200)}
                 >
                   {ctxChipIcon(c.label)}
@@ -2914,7 +2914,7 @@ export function ChatPanel({
                 <button
                   onClick={toggleAppAutoSkill}
                   title={appAutoSkill ? "This app's skill is auto-attached as context. Click to stop auto-attaching it." : "Auto-attach this app's skill as context so the model knows how to use it."}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${appAutoSkill ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-accent"}`}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${appAutoSkill ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-accent"}`}
                 >
                   <Sparkles className="h-3 w-3" /> {appAutoSkill ? "App skill on" : "App skill off"}
                 </button>
@@ -2929,7 +2929,7 @@ export function ChatPanel({
                     key={s.id}
                     onClick={() => toggleSkillAttach(s)}
                     title={s.summary ? `${s.summary}\n\nClick to attach as context.` : `Attach ${s.name} as context`}
-                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted transition-colors hover:border-accent-border hover:text-accent"
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] text-text-muted transition-colors hover:border-accent-border hover:text-accent"
                   >
                     <BookOpen className="h-3 w-3" /> + {s.name}
                   </button>
@@ -2937,7 +2937,7 @@ export function ChatPanel({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {(autoCompacted || compacting) && (
-                <span className="font-mono text-[10px] text-accent">{compacting ? "compacting…" : "auto-compacted ✓"}</span>
+                <span className="font-mono text-[11px] text-accent">{compacting ? "compacting…" : "auto-compacted ✓"}</span>
               )}
               <ContextMeter
                 conversationTokens={conversationTokens}
@@ -2963,7 +2963,7 @@ export function ChatPanel({
               including an empty state — so it never looks broken. */}
           {slashMatch && (
             <div className="absolute bottom-full left-3 z-40 mb-1 w-80 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-              <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+              <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[11px] text-text-muted">
                 Skills · enter to insert
               </div>
               {slashCandidates.length === 0 ? (
@@ -2990,7 +2990,7 @@ export function ChatPanel({
           {/* Context-mention popover for `$<domain|app>` */}
           {dollarMatch && dollarCandidates.length > 0 && (
             <div className="absolute bottom-full left-3 z-40 mb-1 w-80 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-              <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+              <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[11px] text-text-muted">
                 Add context · enter to attach
               </div>
               {dollarCandidates.map((c, i) => (
@@ -3158,7 +3158,7 @@ export function ChatPanel({
               when the domain changes. */}
           {domainImports.length > 0 && (
             <div className="mt-1 flex flex-wrap items-center gap-1.5 px-2">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+              <span className="font-mono text-[11px] text-text-muted">
                 imports
               </span>
               {domainImports.slice(0, 8).map((it) => {
@@ -3232,13 +3232,13 @@ export function ChatPanel({
             if (matches.length === 0) return null;
             return (
               <div className="mt-1 flex flex-wrap items-center gap-1.5 px-2">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">suggested</span>
+                <span className="font-mono text-[11px] text-text-muted">suggested</span>
                 {matches.map((s) => (
                   <button
                     key={s.name}
                     onClick={() => insertSkillSlash(s.name)}
                     title={s.description ?? `Attach /${s.name}`}
-                    className="inline-flex items-center gap-1 rounded-md border border-dashed border-border bg-background py-0.5 pl-1.5 pr-2 font-mono text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
+                    className="inline-flex items-center gap-1 rounded-md border border-dashed border-border bg-background py-0.5 pl-1.5 pr-2 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
                   >
                     <Sparkles className="h-3 w-3" />
                     /{s.name}
@@ -3253,7 +3253,7 @@ export function ChatPanel({
               {attachments.map((p, i) => {
                 const isImage = /\.(png|jpe?g|gif|webp)$/i.test(p);
                 return (
-                <span key={i} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background py-0.5 pl-2 pr-1 font-mono text-[11px] text-text-secondary">
+                <span key={i} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background py-0.5 pl-2 pr-1 text-[11px] text-text-secondary">
                   {isImage ? <ImageIcon className="h-3 w-3 text-ai" /> : <Folder className="h-3 w-3 text-text-muted" />}
                   {p.split("/").pop()}
                   <button
@@ -3308,7 +3308,7 @@ export function ChatPanel({
                       Save prompt as skill
                     </button>
                   )}
-                  <div className="border-t border-border-subtle px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                  <div className="border-t border-border-subtle px-3 py-1 text-[11px] text-text-muted">
                     Skills · {skillsCache.length}
                   </div>
                   {skillsCache.length === 0 && (
@@ -3325,9 +3325,9 @@ export function ChatPanel({
                       >
                         <Sparkles className="h-3.5 w-3.5 shrink-0 text-text-muted" />
                         <div className="min-w-0">
-                          <div className="truncate font-mono text-xs text-text-primary">/{s.name}</div>
+                          <div className="truncate text-xs text-text-primary">/{s.name}</div>
                           {s.description && (
-                            <div className="truncate text-[10px] text-text-muted">{s.description}</div>
+                            <div className="truncate text-[11px] text-text-muted">{s.description}</div>
                           )}
                         </div>
                       </button>
@@ -3344,7 +3344,7 @@ export function ChatPanel({
               onClick={() => setPlanMode((v) => !v)}
               title={planMode ? "Plan mode on: the AI will propose a plan and wait before acting" : "Plan mode: get an editable plan before the AI acts"}
               aria-pressed={planMode}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${planMode ? "border-accent bg-accent font-semibold text-background shadow-sm" : "border-border bg-background text-text-muted hover:text-accent"}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${planMode ? "border-accent bg-accent font-semibold text-background shadow-sm" : "border-border bg-background text-text-muted hover:text-accent"}`}
             >
               <ListChecks className="h-3.5 w-3.5" /> {planMode ? "Plan on" : "Plan"}
             </button>}
@@ -3378,7 +3378,7 @@ export function ChatPanel({
                 // screen. (right-0 ran it off the window's left edge at
                 // non-maximized widths, hiding the left-aligned model names.)
                 <div className="absolute bottom-full left-0 z-40 mb-1 w-72 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-                  <div className="border-b border-border-subtle px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                  <div className="border-b border-border-subtle px-3 py-1.5 text-[11px] text-text-muted">
                     Runtime
                   </div>
                   <div className="max-h-80 overflow-y-auto">
@@ -3395,11 +3395,11 @@ export function ChatPanel({
                         <div key={c.id} className={c.available ? "" : "opacity-40"}>
                           <div className="flex items-center gap-2 bg-surface-warm/60 px-3 py-1">
                             <ProviderMark vendor={c.id} size={14} />
-                            <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                            <span className="font-mono text-[11px] text-text-muted">
                               {c.label}
                             </span>
                             {!c.available && (
-                              <span className="ml-auto font-mono text-[10px] text-text-muted">not installed</span>
+                              <span className="ml-auto text-[11px] text-text-muted">not installed</span>
                             )}
                           </div>
                           {searchable && c.available && (
