@@ -11,10 +11,16 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("1 · home renders: headline, composer, trust ribbon with the guardrail segment", async ({ page }) => {
+test("1 · home renders: headline, composer, and a trust ribbon that says only what matters", async ({ page }) => {
   await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/Guardrail on/i)).toBeVisible();
-  await expect(page.getByText(/Vault locked/i)).toBeVisible();
+  // Everything is in its protective state in the fixtures, so the ribbon says
+  // so once rather than printing three segments that each describe the
+  // ordinary state. The detail is on the segment.
+  const protectedSeg = page.getByText(/^Protected$/);
+  await expect(protectedSeg).toBeVisible();
+  await expect(protectedSeg).toHaveAttribute("title", /Vault Locked.*Guardrail ON/is);
+  await expect(page.getByText(/Guardrail on/i)).toHaveCount(0);
+  await expect(page.getByText(/Vault locked/i)).toHaveCount(0);
   // Self-hosted fonts must actually load (no runtime Google fetch, no silent
   // fallback). Confirm the bundled Inter face is available.
   const interLoaded = await page.evaluate(() => (document as unknown as { fonts: { check: (f: string) => boolean } }).fonts.check("16px Inter"));
@@ -249,4 +255,18 @@ test("10 · a spent pairing code names the device that used it and offers to cut
   // And ending that session is one tap from the confirmation itself.
   await card.getByTestId("remote-revoke-paired").click();
   expect(await invokedCommands(page)).toContain("webui_device_revoke");
+});
+
+
+// The point of collapsing the ribbon is that an exception stands out. When an
+// axis is open, it must be named there, in its own right, rather than hidden
+// behind a word that claims everything is fine.
+test("11 · the trust ribbon names an axis that is not protective", async ({ page }) => {
+  await mockTauri(page, { vault_lock_status: { enabled: false }, egress_guard_get: { mode: "off" } });
+  await page.goto("/");
+  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^Vault unlocked$/)).toBeVisible();
+  await expect(page.getByText(/^Guardrail off$/)).toBeVisible();
+  // And it does not also claim to be protected.
+  await expect(page.getByText(/^Protected$/)).toHaveCount(0);
 });
