@@ -702,7 +702,7 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${autoCouncil ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}><Scale className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-text-primary">Auto-convene on high-stakes questions</div>
-          <div className="mt-0.5 text-xs text-text-secondary">When on, a high-stakes judgment call - asked in the Prevail chat or through any AI tool over MCP - is automatically escalated to this council and the verdict is saved, in whichever domain it lands. Routine questions stay single-model. Per-domain overrides still apply.</div>
+          <div className="mt-0.5 text-xs text-text-secondary">Judgment calls go to this council automatically and the verdict is saved. Routine questions stay single-model.</div>
         </div>
         <Toggle on={autoCouncil} disabled={autoCouncilBusy} onChange={toggleAutoCouncil} label="Auto-convene the council on high-stakes questions" />
       </div>

@@ -412,7 +412,7 @@ export function ConnectAppFlow({ vaultPath, onDone, onCancel, presetName, preset
             <div className="rounded-lg border border-accent-border bg-accent-soft/40 p-3">
               <div className="text-[11px] text-accent">One step only - then Prevail does the rest</div>
               <p className="mt-1 text-sm text-text-primary">{plan.auth_step!.instruction}</p>
-              <p className="mt-1 text-[11px] text-text-muted">This is the one thing only you can do (a secret/login). Do it, then mark done - Prevail tests it and syncs on schedule from then on.</p>
+              <p className="mt-1 text-[11px] text-text-muted">The one step only you can do. Mark it done and Prevail takes it from there.</p>
             </div>
           ) : result.verified == null ? (
             <div className="rounded-lg border border-ok/30 bg-ok/5 px-3 py-2 text-xs text-ok">No authorization needed - it's ready to sync.</div>

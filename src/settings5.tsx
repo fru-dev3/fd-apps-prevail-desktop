@@ -891,7 +891,7 @@ export function McpSection({ vaultPath }: { vaultPath: string }) {
       </div>
       <div className="rounded-lg border border-border bg-surface p-5">
         <div className="mb-1 text-[11px] font-bold text-text-primary">Expose Prevail to your agent</div>
-        <div className="mb-3 text-xs text-text-secondary">Pick your tool, copy the config (the engine path is filled in), paste it, restart the tool. Then Test handshake to confirm it answers.</div>
+        <div className="mb-3 text-xs text-text-secondary">Copy the config into your tool and restart it, then test the handshake.</div>
         {mcpPathUnstable && (
           <div className="mb-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-[11px] text-warn">
             <div className="mb-2 font-medium">Prevail is not in your Applications folder.</div>

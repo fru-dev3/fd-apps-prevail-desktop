@@ -257,7 +257,7 @@ export function IntentsWorkbench({ vaultPath, intents, themes = [] }: { vaultPat
       {view === "tree" && (
         tree.length === 0 ? <Empty text={intents.length ? "Nothing matches the current filters." : "No intents captured yet."} /> : (
           <div className="flex flex-col gap-2">
-            <p className="text-[11px] text-text-muted">The full hierarchy: each domain rolls up its themes; each theme its recurring questions; each cluster its individual prompts. Expand to drill down. Themes nest their prompts exactly when the distiller has stamped them, else by best-effort match.</p>
+            <p className="text-[11px] text-text-muted">Domains roll up themes, themes roll up the questions you keep asking. Expand to drill down.</p>
             {tree.map((d) => {
               const dk = `d:${d.domain}`; const dOpen = expanded.has(dk);
               return (

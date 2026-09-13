@@ -442,7 +442,7 @@ function MatrixInsights({ matrix, allDomains }: { matrix: MatrixRow[]; allDomain
               );
             })}
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-text-muted">A wide gap means model choice matters a lot in that domain; a narrow gap means most models perform similarly.</p>
+          <p className="mt-2 text-[11px] leading-relaxed text-text-muted">A wide gap means the model you pick matters here.</p>
         </div>
       )}
     </ArenaRightRail>
@@ -2122,7 +2122,7 @@ export function BenchRunConfig({
                   {`Run ${selCount} model${selCount === 1 ? "" : "s"}`}
                 </button>
               </div>
-              <p className="mt-2 text-center font-mono text-[10px] leading-relaxed text-text-muted">Different CLIs enter the arena in parallel · auto-scored. Runs launch concurrently and appear in the monitor above. Review results in History.</p>
+              <p className="mt-2 text-center font-mono text-[10px] leading-relaxed text-text-muted">Every runtime runs at once, scored as each finishes.</p>
             </div>
           </div>
         </div>

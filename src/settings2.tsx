@@ -744,7 +744,7 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
       {/* The raw "what you asked" ledger, made usable: recurring rollup, grouping,
           filters, pinning, and reuse. Intents above are the semantic distillation. */}
       <div className="mb-1 text-sm font-semibold text-text-primary">What you asked · reuse &amp; recurring</div>
-      <div className="mb-3 text-xs text-text-secondary">Your questions across every thread and tool. Repeats surface as reuse and automation candidates; pin the ones you want to keep; reuse any with one click.</div>
+      <div className="mb-3 text-xs text-text-secondary">Your questions across every thread and tool. Repeats are automation candidates.</div>
       <IntentsWorkbench vaultPath={vaultPath} intents={intents} themes={distilled.intents} />
     </>
   );

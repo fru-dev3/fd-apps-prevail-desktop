@@ -127,7 +127,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
           {loading ? (
             <div className="font-mono text-[12px] text-text-muted">reading your intents…</div>
           ) : !sel ? (
-            <div className="max-w-md text-sm text-text-muted">Nothing to look back on yet. As you chat day to day, Retrospect shows where your attention went — by day, week, month, and year.</div>
+            <div className="max-w-md text-sm text-text-muted">Nothing to look back on yet. Retrospect fills in as you use Prevail.</div>
           ) : (
             <>
               <div className="font-display text-2xl font-semibold text-text-primary" style={{ textWrap: "balance" } as React.CSSProperties}>
