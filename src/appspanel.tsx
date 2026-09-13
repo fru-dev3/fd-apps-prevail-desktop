@@ -3223,7 +3223,13 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
   const humanizeSkill = (sid: string) => sid.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const domainsLine = (app.domains ?? []).map(titleCase).join(", ");
   const card = "rounded-xl border border-border-subtle bg-background/50 p-5";
-  const notConnected = !!connect;
+  // Whether this app is connected has ONE source: the status the chip shows.
+  // It used to mean "a Set up button happened to render", which can be false
+  // while the chip reads Not connected - so an unconnected app claimed to be
+  // "connected and feeding your vault" AND grew the four operational tabs
+  // (Context, Runs, Loops, Settings) that only have data once it really is
+  // connected. Ten tabs, four of them empty.
+  const notConnected = status === "disconnected" || !!connect;
   // #49: the old "Connect" button was confusing - skills run without it, and the
   // Skills tab itself says "no Connect step required". Its one real job is to
   // scaffold the catalog app into your vault (so you can configure it / teach
@@ -3366,7 +3372,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
           <div className="space-y-4">
             <div className={card}>
               <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Plug className="h-4 w-4 text-accent" /> What connecting {app.title || app.id} does</h3>
-              <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-text-secondary">{welcomeText(app, status === "disconnected" || notConnected)}</p>
+              <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-text-secondary">{welcomeText(app, notConnected)}</p>
               <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
                 {!gatewayProvider && !learnedLane && <CatalogField label="Connection">{methodLabel(app.integration)}</CatalogField>}
                 {gatewayProvider && <CatalogField label="Connection">{`Via ${titleCase(gatewayProvider)}`}</CatalogField>}
