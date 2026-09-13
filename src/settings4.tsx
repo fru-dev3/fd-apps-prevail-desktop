@@ -472,13 +472,16 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
   const pct = hasCap ? Math.min(100, Math.round((budgetSpent / capNum) * 100)) : 0;
   const meterColor = pct >= 90 ? "var(--color-err, #d24b4b)" : pct >= 70 ? "var(--color-warn, #c98a2b)" : "var(--color-ok, #2e9e5b)";
 
+  // `desc` is optional on purpose: a switch whose name already says what it
+  // does ("Sound effects", "Start on boot") gets no second line, and the row
+  // tightens up rather than leaving a gap where the sentence used to be.
   const Row = ({
     title, desc, control,
-  }: { title: string; desc: string; control: React.ReactNode }) => (
-    <div className="flex items-start justify-between gap-6 border-b border-border-subtle py-4 last:border-0">
+  }: { title: string; desc?: string; control: React.ReactNode }) => (
+    <div className="flex items-center justify-between gap-6 border-b border-border-subtle py-3.5 last:border-0">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold text-text-primary">{title}</div>
-        <div className="mt-0.5 text-xs text-text-secondary">{desc}</div>
+        {desc && <div className="mt-0.5 text-xs text-text-muted">{desc}</div>}
       </div>
       <div className="shrink-0">{control}</div>
     </div>
@@ -508,27 +511,26 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
       <div className="rounded-lg border border-border bg-surface px-5">
         <Row
           title="Start on boot"
-          desc="Launch Prevail automatically when you sign in to this Mac."
           control={<Switch on={startOnBoot} onChange={async (v) => { try { if (v) await autostartEnable(); else await autostartDisable(); setStartOnBoot(v); } catch (e) { console.error("autostart", e); } }} />}
         />
         <Row
           title="Show Briefing on home"
-          desc="Show the proactive Briefing (top recommendations + what Prevail learned) on the home screen. Off keeps the landing minimal."
+          desc="Top recommendations and what Prevail learned, on the home screen."
           control={<Switch on={showBriefing} onChange={(v) => { setShowBriefing(v); setPref(PREF.showHomeBriefing, v ? "1" : "0"); }} />}
         />
         <Row
           title="Show Quick Capture"
-          desc="Show the floating Quick Capture mic widget pinned to the right edge for jotting a note or recording a voice memo from anywhere. Off keeps it hidden."
+          desc="A mic pinned to the edge of the screen, for a note from anywhere."
           control={<Switch on={showQuickCapture} onChange={(v) => { setShowQuickCapture(v); setPref(PREF.quickCaptureEnabled, v ? "1" : "0"); window.dispatchEvent(new Event("prevail:quickcapture-changed")); }} />}
         />
         <Row
           title="Close to tray"
-          desc="Keep Prevail running in the menu bar when you close the window. Quit from the tray icon or ⌘Q."
+          desc="Closing the window leaves Prevail in the menu bar."
           control={<Switch on={closeToTray} onChange={(v) => { setCloseToTray(v); setPref(PREF.closeToTray, v ? "1" : "0"); }} />}
         />
         <Row
           title="Send messages with"
-          desc="Choose which key combination sends messages. Use Shift+Enter for new lines either way."
+          desc="Shift+Enter makes a new line either way."
           control={
             <select
               value={sendKey}
@@ -542,37 +544,35 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
         />
         <Row
           title="Desktop notifications"
-          desc="Get notified when a CLI finishes streaming a reply (Chat and Council)."
           control={<Switch on={desktopNotif} onChange={(v) => { setDesktopNotif(v); setPref(PREF.desktopNotif, v ? "1" : "0"); }} />}
         />
         <Row
           title="Proactive check-ins"
-          desc="During waking hours, Prevail nudges you when approvals or overdue work are waiting, instead of only surfacing them when you open it."
+          desc="Prevail nudges you when approvals or overdue work are waiting."
           control={<Switch on={heartbeat} onChange={(v) => { setHeartbeat(v); setPref(PREF.heartbeatEnabled, v ? "1" : "0"); }} />}
         />
         <Row
           title="Sound effects"
-          desc="Play a soft chime when a reply finishes."
           control={<Switch on={soundDone} onChange={(v) => { setSoundDone(v); setPref(PREF.soundOnDone, v ? "1" : "0"); }} />}
         />
         <Row
           title="Auto-convert long paste"
-          desc="When you paste more than 5000 characters, treat it as a file attachment instead of inline prompt text."
+          desc="A paste over 5000 characters becomes an attachment."
           control={<Switch on={autoConvert} onChange={(v) => { setAutoConvert(v); setPref(PREF.autoConvertLongPaste, v ? "1" : "0"); }} />}
         />
         <Row
           title={`Strip "You're absolutely right!" sycophancy`}
-          desc="Filters fluff openers from streamed replies before they hit the screen. Has no effect on saved logs."
+          desc="Filters fluff openers out of replies as they stream."
           control={<Switch on={stripSyc} onChange={(v) => { setStripSyc(v); setPref(PREF.stripSycophancy, v ? "1" : "0"); }} />}
         />
         <Row
           title="Show model thinking"
-          desc="When a model exposes its reasoning, show it in a collapsible 'Thinking' block above the answer (Chat and Council). Turn off to hide reasoning entirely."
+          desc="Reasoning appears in a collapsible block above the answer."
           control={<Switch on={showThinking} onChange={(v) => { setShowThinking(v); setPref(PREF.showThinking, v ? "1" : "0"); }} />}
         />
         <Row
           title="LLM prompt timeout"
-          desc="Hard cap on a single CLI call. The child process gets killed and the reply is finalized if it runs longer."
+          desc="A single call is killed after this long."
           control={
             <div className="flex items-center gap-1.5">
               <input
@@ -589,7 +589,7 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
         />
         <Row
           title="Monthly budget cap"
-          desc="A soft USD cap for model spend. The meter below tracks estimated spend against it. Leave blank for no cap."
+          desc="A soft cap for model spend. Blank means none."
           control={
             <div className="flex items-center gap-1.5">
               <span className="font-mono text-xs text-text-muted">$</span>
