@@ -129,11 +129,15 @@ export function Toggle({
 
 // Tiny inline trend line for score history etc. Returns null for <2 points.
 export function Sparkline({ values, width = 72, height = 20 }: { values: number[]; width?: number; height?: number }) {
-  if (values.length < 2) return null;
-  const pts = values
-    .map((v, i) => `${((i / (values.length - 1)) * (width - 4) + 2).toFixed(1)},${(height - 2 - (Math.max(0, Math.min(10, v)) / 10) * (height - 4)).toFixed(1)}`)
+  // A history with a missing or non-numeric entry used to reach the DOM as
+  // cy="undefined", which the SVG parser rejects and logs. Drop what cannot be
+  // plotted, then decide whether there is still a line to draw.
+  const pts2 = values.filter((v) => typeof v === "number" && Number.isFinite(v));
+  if (pts2.length < 2) return null;
+  const pts = pts2
+    .map((v, i) => `${((i / (pts2.length - 1)) * (width - 4) + 2).toFixed(1)},${(height - 2 - (Math.max(0, Math.min(10, v)) / 10) * (height - 4)).toFixed(1)}`)
     .join(" ");
-  const up = values[values.length - 1] >= values[0];
+  const up = pts2[pts2.length - 1] >= pts2[0];
   const [lx, ly] = pts.split(" ").pop()!.split(",");
   return (
     <svg width={width} height={height} className="shrink-0" aria-hidden>

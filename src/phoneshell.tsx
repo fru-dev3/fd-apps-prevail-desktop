@@ -1,11 +1,18 @@
 // Phone shell: the layout App.tsx renders instead of the desktop cockpit when
 // the viewport is phone-width (useIsPhone). Same panels, different frame: a
-// big legible header, one full-width surface, and a fixed bottom tab bar with
-// four destinations (Chat, Domains, Needs you, Settings). The desktop `tab`
-// state stays the source of truth for WHAT the conversation surface shows
-// (chat / council / arena ...); this shell only decides WHICH screen is up.
+// big legible header, one full-width surface, and a bottom tab bar with four
+// destinations (Chat, Domains, Work, Settings). The desktop `tab` state stays
+// the source of truth for WHAT the conversation surface shows (chat / council
+// / arena ...); this shell only decides WHICH screen is up.
+//
+// Everything the desktop has is reachable here: Work opens the same board,
+// insights, spark, automations, calendar and notes panels full-width, with the
+// approval inbox ("Needs you") at the top of that list; Settings opens every
+// Editor section. Nothing in this shell is allowed to reflow the conversation
+// when it opens: the tab bar expands as an overlay, sheets float.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  Briefcase,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -26,18 +33,36 @@ import { domainBlurb } from "./helpers";
 import { domainIcon } from "./icons";
 import { modelLabel } from "./helpers2";
 import { LS, lsGet } from "./storage";
-import { EDITOR_NAV } from "./navdefs";
+import { EDITOR_NAV, WORK_NAV } from "./navdefs";
 import { DecisionInbox } from "./decisioninbox";
 import type { CliInfo, Domain, DomainTab, LifeReadiness, TabId, ThreadMeta } from "./types";
 
-export type PhoneScreen = "chat" | "domains" | "needs" | "settings";
+export type PhoneScreen = "chat" | "domains" | "work" | "settings";
 
 const PHONE_TABS: { id: PhoneScreen; label: string; icon: LucideIcon }[] = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "domains", label: "Domains", icon: LayoutGrid },
-  { id: "needs", label: "Needs you", icon: Inbox },
+  { id: "work", label: "Work", icon: Briefcase },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
+
+// A tappable row in a grouped list (Work and Settings): icon, label, chevron.
+function ListRow({ icon: Icon, label, badge, first, onClick }: { icon: LucideIcon; label: string; badge?: string; first?: boolean; onClick: () => void }) {
+  return (
+    <li className={first ? "" : "border-t border-border-subtle"}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-h-[52px] w-full items-center gap-3 px-4 text-left active:bg-surface-warm"
+      >
+        <Icon className="h-5 w-5 shrink-0 text-text-secondary" />
+        <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-text-primary">{label}</span>
+        {badge && <span className="inline-flex h-6 min-w-[24px] items-center justify-center rounded-full bg-accent px-2 font-mono text-[11px] font-bold text-on-accent">{badge}</span>}
+        <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
+      </button>
+    </li>
+  );
+}
 
 const cap9 = (n: number): string => (n > 9 ? "9+" : String(n));
 
@@ -120,8 +145,11 @@ export function PhoneShell({
   decisionsCount,
   onOpenSettingsAt,
   settingsJump,
+  onOpenWorkAt,
+  workJump,
   conversation,
   settings,
+  work,
   footer,
 }: {
   vaultPath: string;
@@ -145,15 +173,20 @@ export function PhoneShell({
   decisionsCount: number;
   onOpenSettingsAt: (section: string) => void;
   settingsJump: { section: string; n: number } | null;
+  onOpenWorkAt: (section: string) => void;
+  workJump: { section: string; n: number } | null;
   // The desktop's center surfaces, rendered full-width here.
   conversation: ReactNode;
   settings: ReactNode;
+  work: ReactNode;
   footer?: ReactNode;
 }) {
   const [screen, setScreen] = useState<PhoneScreen>("chat");
-  // Settings opens on the section list; a deep link (or a tap on a row) shows
-  // the section itself with a back button to the list.
+  // Settings and Work open on their section list; a deep link (or a tap on a
+  // row) shows the section itself with a back button to the list. "needs" is
+  // the approval inbox, a Work destination of its own.
   const [settingsList, setSettingsList] = useState(true);
+  const [workView, setWorkView] = useState<"list" | "section" | "needs">("list");
   const [threadsOpen, setThreadsOpen] = useState(false);
   const [newDomainOpen, setNewDomainOpen] = useState(false);
   // Collapsed by default: the conversation is why you opened this.
@@ -162,13 +195,18 @@ export function PhoneShell({
   // Follow the desktop tab state whenever something else navigates (a deep link
   // event, a domain pick, a council seed): the matching phone screen comes up.
   useEffect(() => {
-    if (tab === "work") setScreen("needs");
+    if (tab === "work") { setScreen("work"); setWorkView("section"); }
     else if (tab === "settings") { setScreen("settings"); setSettingsList(false); }
     else setScreen("chat");
   }, [tab]);
   useEffect(() => {
     if (settingsJump) { setScreen("settings"); setSettingsList(false); }
   }, [settingsJump?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (workJump) { setScreen("work"); setWorkView("section"); }
+  }, [workJump?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The nav overlay never outlives a screen change.
+  useEffect(() => { setNavOpen(false); }, [screen]);
 
   // Readiness scores for the domain cards (a dot per domain when data exists).
   const [scores, setScores] = useState<Record<string, number>>({});
@@ -198,13 +236,17 @@ export function PhoneShell({
     } else if (id === "settings") {
       setSettingsList(true);
       setScreen("settings");
+    } else if (id === "work") {
+      setWorkView("list");
+      setScreen("work");
     } else {
       setScreen(id);
     }
   };
+  const workSectionLabel = WORK_NAV.flatMap((g) => g.items).find((it) => it.id === workJump?.section)?.label ?? "Work";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background text-text-primary">
+    <div className="relative flex min-h-0 flex-1 flex-col bg-background text-text-primary">
       {/* ── Chat / Council ─────────────────────────────────────────────── */}
       {screen === "chat" && (
         <>
@@ -305,15 +347,47 @@ export function PhoneShell({
         </>
       )}
 
-      {/* ── Needs you ──────────────────────────────────────────────────── */}
-      {screen === "needs" && (
+      {/* ── Work ───────────────────────────────────────────────────────── */}
+      {screen === "work" && workView === "list" && (
+        <>
+          <Header title="Work" />
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <section className="mb-5">
+              <ul className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
+                <ListRow icon={Inbox} label="Needs you" badge={decisionsCount > 0 ? cap9(decisionsCount) : undefined} first onClick={() => setWorkView("needs")} />
+              </ul>
+            </section>
+            {WORK_NAV.map((grp) => (
+              <section key={grp.heading} className="mb-5">
+                <h2 className="mb-2 px-1 text-[13px] font-semibold text-text-muted">{grp.heading}</h2>
+                <ul className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
+                  {grp.items.map((it, i) => (
+                    <ListRow key={it.id} icon={it.icon} label={it.label} first={i === 0} onClick={() => { setWorkView("section"); onOpenWorkAt(it.id); }} />
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </>
+      )}
+      {screen === "work" && workView === "needs" && (
         <>
           <Header
             title="Needs you"
+            back={() => setWorkView("list")}
             right={decisionsCount > 0 ? <span className="inline-flex h-7 min-w-[28px] items-center justify-center rounded-full bg-accent px-2 font-mono text-[12px] font-bold text-on-accent">{cap9(decisionsCount)}</span> : undefined}
           />
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <DecisionInbox vaultPath={vaultPath} />
+          </div>
+        </>
+      )}
+      {screen === "work" && workView === "section" && (
+        <>
+          <Header title={workSectionLabel} back={() => setWorkView("list")} />
+          {/* WorkPanel pads for a wide pane; pull that in for the phone. */}
+          <div className="flex min-h-0 flex-1 flex-col [&_.px-8]:px-4 [&_.py-10]:py-5">
+            {work}
           </div>
         </>
       )}
@@ -327,22 +401,9 @@ export function PhoneShell({
               <section key={grp.heading} className="mb-5">
                 <h2 className="mb-2 px-1 text-[13px] font-semibold text-text-muted">{grp.heading}</h2>
                 <ul className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
-                  {grp.items.map((it, i) => {
-                    const Icon = it.icon;
-                    return (
-                      <li key={it.id} className={i > 0 ? "border-t border-border-subtle" : ""}>
-                        <button
-                          type="button"
-                          onClick={() => { setSettingsList(false); onOpenSettingsAt(it.id); }}
-                          className="flex min-h-[52px] w-full items-center gap-3 px-4 text-left active:bg-surface-warm"
-                        >
-                          <Icon className="h-5 w-5 shrink-0 text-text-secondary" />
-                          <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-text-primary">{it.label}</span>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
-                        </button>
-                      </li>
-                    );
-                  })}
+                  {grp.items.map((it, i) => (
+                    <ListRow key={it.id} icon={it.icon} label={it.label} first={i === 0} onClick={() => { setSettingsList(false); onOpenSettingsAt(it.id); }} />
+                  ))}
                 </ul>
               </section>
             ))}
@@ -366,12 +427,22 @@ export function PhoneShell({
 
       {/* ── Bottom tab bar ─────────────────────────────────────────────── */}
       {/* The tab bar is 58px plus the home indicator, permanently, on a screen
-          that is mostly conversation. Collapsed by default it is a 30px handle
-          naming where you are; the chevron brings the full bar up, and picking
-          a destination puts it away again. */}
-      <nav aria-label="Primary" className="shrink-0 border-t border-border-subtle bg-surface pb-[env(safe-area-inset-bottom)]">
-        {navOpen ? (
-          <ul className="grid grid-cols-4">
+          that is mostly conversation. Collapsed by default it is a 34px handle
+          naming where you are. The chevron brings the full bar up AS AN
+          OVERLAY above the handle: the conversation and composer never move,
+          which is what made "things shift around" go away. Picking a
+          destination, or tapping anywhere else, puts it away again. */}
+      {navOpen && (
+        <button
+          type="button"
+          aria-label="Hide navigation"
+          onClick={() => setNavOpen(false)}
+          className="absolute inset-0 z-30 bg-black/30"
+        />
+      )}
+      <nav aria-label="Primary" className="relative z-40 shrink-0 border-t border-border-subtle bg-surface pb-[env(safe-area-inset-bottom)]">
+        {navOpen && (
+          <ul className="absolute inset-x-0 bottom-full grid grid-cols-4 rounded-t-2xl border-t border-border-subtle bg-surface shadow-[0_-12px_32px_rgba(0,0,0,0.35)]">
             {PHONE_TABS.map((t) => {
               const active = screen === t.id;
               const Icon = t.icon;
@@ -385,7 +456,7 @@ export function PhoneShell({
                   >
                     <Icon className="h-6 w-6" strokeWidth={active ? 2.25 : 1.75} />
                     <span className="text-[11px] font-semibold leading-none">{t.label}</span>
-                    {t.id === "needs" && decisionsCount > 0 && (
+                    {t.id === "work" && decisionsCount > 0 && (
                       <span className="absolute left-1/2 top-2 ml-2 inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-bold leading-none text-on-accent">{cap9(decisionsCount)}</span>
                     )}
                   </button>
@@ -393,22 +464,21 @@ export function PhoneShell({
               );
             })}
           </ul>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setNavOpen(true)}
-            aria-expanded={false}
-            aria-label="Show navigation"
-            data-testid="phone-nav-handle"
-            className="flex min-h-[34px] w-full items-center justify-center gap-2 text-text-muted active:bg-surface-warm"
-          >
-            <ChevronUp className="h-4 w-4" />
-            <span className="text-[12px] font-semibold">{PHONE_TABS.find((t) => t.id === screen)?.label ?? "Menu"}</span>
-            {decisionsCount > 0 && (
-              <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-bold leading-none text-on-accent">{cap9(decisionsCount)}</span>
-            )}
-          </button>
         )}
+        <button
+          type="button"
+          onClick={() => setNavOpen((v) => !v)}
+          aria-expanded={navOpen}
+          aria-label={navOpen ? "Hide navigation" : "Show navigation"}
+          data-testid="phone-nav-handle"
+          className="flex min-h-[34px] w-full items-center justify-center gap-2 text-text-muted active:bg-surface-warm"
+        >
+          <ChevronUp className={`h-4 w-4 transition-transform ${navOpen ? "rotate-180" : ""}`} />
+          <span className="text-[12px] font-semibold">{PHONE_TABS.find((t) => t.id === screen)?.label ?? "Menu"}</span>
+          {decisionsCount > 0 && (
+            <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-bold leading-none text-on-accent">{cap9(decisionsCount)}</span>
+          )}
+        </button>
       </nav>
 
       {threadsOpen && (

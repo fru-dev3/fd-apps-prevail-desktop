@@ -77,15 +77,24 @@ test("bottom tab bar: collapsed by default, four tabs once opened", async ({ pag
   await handle.click();
   const nav = tabBar(page);
   await expect(nav).toBeVisible();
-  for (const label of ["Chat", "Domains", "Needs you", "Settings"]) {
+  for (const label of ["Chat", "Domains", "Work", "Settings"]) {
     await expect(nav.getByRole("button", { name: label })).toBeVisible();
   }
   await expect(nav.getByRole("button", { name: "Chat" })).toHaveAttribute("aria-current", "page");
   // Every tab is a real touch target.
-  for (const label of ["Chat", "Domains", "Needs you", "Settings"]) {
+  for (const label of ["Chat", "Domains", "Work", "Settings"]) {
     const box = await nav.getByRole("button", { name: label }).boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
+  // Opening the bar must not move the conversation: it overlays the surface.
+  await page.getByTestId("phone-nav-handle").click(); // close again
+  const composerClosed = await page.locator("[data-tour=composer]").boundingBox();
+  await page.getByTestId("phone-nav-handle").click();
+  const composerOpen = await page.locator("[data-tour=composer]").boundingBox();
+  expect(Math.abs((composerOpen?.y ?? 0) - (composerClosed?.y ?? 0))).toBeLessThanOrEqual(1);
+  // Tapping outside the bar puts it away.
+  await page.getByRole("button", { name: "Hide navigation" }).first().click();
+  await expect(nav.getByRole("button", { name: "Domains" })).toHaveCount(0);
   // The desktop chrome must not be present at phone width.
   await expect(page.getByRole("button", { name: "Open navigation" })).toHaveCount(0);
   await expect(page.getByText("Work board")).toBeHidden();
@@ -217,8 +226,37 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
   await expect(page.locator("[data-tour=composer] textarea")).toHaveValue("");
 });
 
+test("Work lists every desktop Work section; Notes opens full-width with a back button", async ({ page }) => {
+  await goTab(page, "Work");
+  await expect(page.locator("h1", { hasText: "Work" })).toBeVisible();
+  for (const label of ["Needs you", "Work board", "Insights", "Spark", "Automations", "Calendar", "Notes"]) {
+    await expect(page.getByRole("button", { name: label })).toBeVisible();
+  }
+  await page.screenshot({ path: `${SHOTS}/phone-work.png`, fullPage: false });
+  await noHorizontalScroll(page, "work list");
+  await fitsTheScreen(page, "work list");
+
+  await page.getByRole("button", { name: "Notes" }).click();
+  await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+  await page.waitForTimeout(600);
+  await expect(page.getByText("This section didn't load")).toHaveCount(0);
+  await page.screenshot({ path: `${SHOTS}/phone-notes.png`, fullPage: false });
+  await noHorizontalScroll(page, "notes");
+  await fitsTheScreen(page, "notes");
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByRole("button", { name: "Work board" })).toBeVisible();
+
+  // The board itself (tasks) renders too.
+  await page.getByRole("button", { name: "Work board" }).click();
+  await page.waitForTimeout(600);
+  await expect(page.getByText("This section didn't load")).toHaveCount(0);
+  await noHorizontalScroll(page, "work board");
+  await fitsTheScreen(page, "work board");
+});
+
 test("Needs you shows the approval queues", async ({ page }) => {
-  await goTab(page, "Needs you");
+  await goTab(page, "Work");
+  await page.getByRole("button", { name: "Needs you" }).click();
   await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible();
   await expect(page.getByText("PayPal: create_invoice")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("Gmail: send")).toBeVisible();

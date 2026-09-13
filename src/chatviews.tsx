@@ -372,7 +372,7 @@ export function ChatBubble({
     ? {}
     : { borderLeftColor: accent, borderLeftWidth: 3, background: tint };
   return (
-    <div className="group mb-8 flex items-start gap-3">
+    <div data-role="assistant" className="group mb-8 flex items-start gap-3">
       {/* BP3 (clarified): the Prevail logo is the assistant identity; the provider
           mark + model/lens/framework still appear as metadata in the header. */}
       <img src="/logo.png" alt="Prevail" className="h-8 w-8 shrink-0 rounded-lg shadow-sm" />
