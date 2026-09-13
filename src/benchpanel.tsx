@@ -3565,16 +3565,21 @@ export function BenchmarkPanel({
     { id: "scout", label: "Model Scout", icon: BrainCircuit },
     { id: "schedule", label: "Schedule", icon: CalendarClock },
   ];
+  // The page already says what the Arena is. A section subtitle here repeated
+  // it in different words directly underneath ("Your own eval suite. See who
+  // leads where." over "Compare model performance across domains and find your
+  // top performers."), so each section says only what IT is, and the four that
+  // a person can read off the screen say nothing.
   const HEAD: Record<typeof view, { title: string; subtitle: string }> = {
-    run: { title: "New Run", subtitle: "Configure your benchmark to compare models across domains and questions." },
-    presets: { title: "Presets", subtitle: "Reusable model bundles: run, apply, save, or schedule them in one click." },
-    board: { title: "Leaderboard", subtitle: "Compare model performance across domains and find your top performers." },
-    frontier: { title: "Chart", subtitle: "Visual analytics. Explore model performance across intelligence, cost, and speed." },
-    history: { title: "History", subtitle: "Review and analyze past benchmark runs and model performance." },
-    matrix: { title: "Model × domain", subtitle: "Compare model performance across domains to spot strengths, weaknesses, and opportunities." },
-    questions: { title: "Questions", subtitle: "Curate, evaluate, and manage your benchmark question bank." },
-    scout: { title: "Model Scout", subtitle: "Discover and evaluate the best models for your use cases." },
-    schedule: { title: "Schedule", subtitle: "Plan and automate benchmark runs with confidence." },
+    run: { title: "New Run", subtitle: "Pick the models, domains and questions." },
+    presets: { title: "Presets", subtitle: "Reusable model bundles." },
+    board: { title: "Leaderboard", subtitle: "" },
+    frontier: { title: "Chart", subtitle: "Intelligence against cost and speed." },
+    history: { title: "History", subtitle: "" },
+    matrix: { title: "Model × domain", subtitle: "Where each model is strong." },
+    questions: { title: "Questions", subtitle: "" },
+    scout: { title: "Model Scout", subtitle: "Models worth trying for your work." },
+    schedule: { title: "Schedule", subtitle: "" },
   };
   const showDomains = !initialDomain && allDomains.length > 0 && (view === "board" || view === "history");
   return (
