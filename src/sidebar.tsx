@@ -174,14 +174,46 @@ export function Sidebar({
   // Track which section is active for highlighting, kept in sync with the events
   // the content panels listen to.
   const [editorActive, setEditorActive] = useState("general");
+  // Editor nav groups fold away, and the choice is remembered, so twenty-seven
+  // destinations can be cut down to the few you actually use. They start OPEN:
+  // Phone was deliberately promoted to a top-level section because nobody goes
+  // looking for mobile access inside a network panel, and defaulting every
+  // group closed would re-hide it and six others behind a heading. A group
+  // holding the active section always opens, whatever was stored, so you never
+  // lose sight of where you are.
+  const NAV_GROUPS_LS = "prevail.editorNav.closed";
+  const [closedNavGroups, setClosedNavGroups] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(NAV_GROUPS_LS) || "[]") as string[]); }
+    catch { return new Set(); }
+  });
+  const toggleNavGroup = (heading: string) => setClosedNavGroups((prev) => {
+    const next = new Set(prev);
+    if (next.has(heading)) next.delete(heading); else next.add(heading);
+    try { localStorage.setItem(NAV_GROUPS_LS, JSON.stringify([...next])); } catch { /* ignore */ }
+    return next;
+  });
   const [workActive, setWorkActive] = useState("tasks");
   useEffect(() => {
     const onEd = (e: Event) => { const d = (e as CustomEvent<string>).detail || "general"; setEditorActive(d.split(":")[0]); };
     const onWk = (e: Event) => { const d = (e as CustomEvent<string>).detail || "tasks"; setWorkActive(d); };
     window.addEventListener("prevail:settings-section", onEd as EventListener);
+    // Deep links inside the app ("Set up a model", a Tools row, the trust
+    // ribbon) dispatch open-settings, which App routes to the right mode. The
+    // rail listened only to settings-section, so after one of those the
+    // highlight still named the previous page - and now that a group folds
+    // away unless it holds the active section, a stale highlight also opens
+    // the wrong group. WORK_SECTIONS go to the Work rail instead.
+    const onOpen = (e: Event) => {
+      const d = ((e as CustomEvent<string>).detail || "").split(":")[0];
+      if (!d) return;
+      if (WORK_NAV.some((g) => g.items.some((i) => i.id === d)) || d === "loopboard") setWorkActive(d === "loopboard" ? "automations" : d);
+      else setEditorActive(d);
+    };
+    window.addEventListener("prevail:open-settings", onOpen as EventListener);
     window.addEventListener("prevail:work-section", onWk as EventListener);
     return () => {
       window.removeEventListener("prevail:settings-section", onEd as EventListener);
+      window.removeEventListener("prevail:open-settings", onOpen as EventListener);
       window.removeEventListener("prevail:work-section", onWk as EventListener);
     };
   }, []);
@@ -662,12 +694,29 @@ export function Sidebar({
             second column). Selecting an item drives the content panel via event. */}
         {tab === "settings" && (
           <div className={`pt-2 ${collapsed ? "px-1.5" : "px-2"}`}>
-            {EDITOR_NAV.map((group) => (
+            {EDITOR_NAV.map((group) => {
+              // Twenty-seven destinations in one column do not fit a laptop
+              // screen: the last group was below the fold, and every visit
+              // meant reading past twenty rows to find one. Groups collapse,
+              // and the one holding the section you are on is open, so the
+              // list is short and where you are is always visible. The choice
+              // is remembered per group.
+              const holdsActive = group.items.some((i) => i.id === editorActive);
+              const open = collapsed || holdsActive || !closedNavGroups.has(group.heading);
+              return (
               <div key={group.heading} className="mb-1.5">
                 {!collapsed && (
-                  <div className="mb-0.5 mt-2 px-3 text-[11px] text-text-muted/70">{group.heading}</div>
+                  <button
+                    onClick={() => toggleNavGroup(group.heading)}
+                    aria-expanded={open}
+                    className="mb-0.5 mt-2 flex w-full items-center gap-1 rounded px-2 py-0.5 text-[11px] text-text-muted/70 transition-colors hover:text-text-secondary"
+                  >
+                    <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
+                    <span className="flex-1 text-left">{group.heading}</span>
+                    {!open && <span className="text-text-muted/50">{group.items.length}</span>}
+                  </button>
                 )}
-                {group.items.map((it) => {
+                {open && group.items.map((it) => {
                   const Icon = it.icon;
                   const active = editorActive === it.id;
                   return (
@@ -685,7 +734,8 @@ export function Sidebar({
                   );
                 })}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
