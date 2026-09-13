@@ -32,7 +32,7 @@ export function ArenaRightRail({ children }: { children: ReactNode }) {
           <ChevronLeft className="h-4 w-4" />
         </button>
         <span
-          className="mt-3 select-none font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted"
+          className="mt-3 select-none text-[11px] text-text-muted"
           style={{ writingMode: "vertical-rl" }}
         >
           Insights
@@ -123,7 +123,7 @@ export function ArenaStatCard({
 }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+      <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
         {Icon && <Icon className="h-3 w-3" />}
         {label}
       </div>
@@ -131,7 +131,7 @@ export function ArenaStatCard({
         <div className="flex items-baseline gap-1">
           <span className="font-display text-2xl font-bold tracking-tight text-text-primary">{value}</span>
           {unit && <span className="text-xs text-text-muted">{unit}</span>}
-          {badge && <span className={`ml-1 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ${toneSoft[badgeTone]}`}>{badge}</span>}
+          {badge && <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${toneSoft[badgeTone]}`}>{badge}</span>}
         </div>
         {series && series.length >= 2 && <Sparkline values={normalizeSeries(series)} width={64} height={22} />}
       </div>
@@ -187,7 +187,7 @@ export function ArenaMetric({ icon: Icon, label, value, hint, tone = "muted" }: 
 }) {
   return (
     <div className="rounded-xl border border-border-subtle bg-surface/60 px-3 py-2.5">
-      <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+      <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
         {Icon && <Icon className={`h-3 w-3 ${toneText[tone]}`} />}
         {label}
       </div>

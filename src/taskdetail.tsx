@@ -122,7 +122,7 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
               className="w-full bg-transparent text-[15px] font-semibold text-text-primary outline-none focus:rounded focus:bg-background focus:px-1"
             />
-            <div className="mt-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+            <div className="mt-1 flex items-center gap-2 text-[11px] text-text-muted">
               <span className="rounded-full bg-surface-warm px-1.5 py-px">{titleCase(task.domain)}</span>
               {task.trashed && <span className="text-warn">trashed</span>}
             </div>
@@ -134,30 +134,30 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
           {/* Meta controls */}
           <div className="grid grid-cols-2 gap-2.5">
             <label className="block">
-              <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Status</div>
+              <div className="mb-1 text-[11px] text-text-muted">Status</div>
               <select value={task.status} onChange={(e) => patchTask({ status: e.target.value })} disabled={busy} className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs">
                 {["todo", "doing", "review", "blocked", "done", "icebox"].map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
               </select>
             </label>
             <label className="block">
-              <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Due</div>
+              <div className="mb-1 text-[11px] text-text-muted">Due</div>
               <input type="date" value={task.due ?? ""} onChange={(e) => patchTask({ due: e.target.value || null })} disabled={busy} className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-text-secondary" />
             </label>
             <button onClick={cyclePriority} disabled={busy} className="flex items-center justify-between rounded-md border border-border bg-background px-2 py-1.5 text-left">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Priority</span>
+              <span className="font-mono text-[11px] text-text-muted">Priority</span>
               <span className={`inline-flex items-center gap-1 text-xs ${task.priority === "critical" ? "text-err" : task.priority === "high" ? "text-warn" : "text-text-muted"}`}>
                 <Flag className="h-3 w-3" fill={task.priority ? "currentColor" : "none"} /> {task.priority ?? "normal"}
               </span>
             </button>
             <button onClick={() => patchTask({ owner: task.owner === "ai" ? "me" : "ai" })} disabled={busy} className="flex items-center justify-between rounded-md border border-border bg-background px-2 py-1.5 text-left">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Owner</span>
+              <span className="text-[11px] text-text-muted">Owner</span>
               <span className="inline-flex items-center gap-1 text-xs text-text-secondary">{task.owner === "ai" ? <><Bot className="h-3 w-3" /> AI</> : <><User className="h-3 w-3" /> Me</>}</span>
             </button>
           </div>
 
           {/* Description */}
           <div className="mt-4">
-            <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Description</div>
+            <div className="mb-1 text-[11px] text-text-muted">Description</div>
             <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
@@ -170,7 +170,7 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
 
           {/* Discuss with AI + Delegate to an agent oracle */}
           <div className="relative mt-3 flex flex-wrap items-center gap-2">
-            <button onClick={discuss} className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background">
+            <button onClick={discuss} className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background">
               <Sparkles className="h-3.5 w-3.5" /> Discuss with AI
             </button>
             {onDelegate && (
@@ -178,7 +178,7 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
                 onClick={() => setPickerOpen((v) => !v)}
                 disabled={delegating}
                 title="Hand this task to an agent (Prevail, or a connected oracle like Hermes, Pi, OpenClaw). It runs the task and posts the result here."
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60"
               >
                 {delegating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />} {delegating ? "Running…" : "Delegate to agent"}
               </button>
@@ -190,11 +190,11 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
 
           {/* Comments / activity */}
           <div className="mt-5">
-            <div className="mb-2 font-mono text-[10px] uppercase tracking-wider text-text-muted">Comments · {comments.length}</div>
+            <div className="mb-2 text-[11px] text-text-muted">Comments · {comments.length}</div>
             <div className="space-y-2">
               {comments.map((c, i) => (
                 <div key={i} className="rounded-lg border border-border-subtle bg-background px-3 py-2">
-                  <div className="mb-0.5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                  <div className="mb-0.5 flex items-center gap-2 text-[11px] text-text-muted">
                     {(() => {
                       // author is "me"/"you" (the user), "ai" (generic), or an
                       // agent id like "pi"/"hermes"/"opencode"/"Prevail" when a

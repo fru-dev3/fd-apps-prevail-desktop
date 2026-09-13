@@ -116,14 +116,37 @@ fn find_in_known_paths(bin: &str) -> bool {
 
 #[tauri::command]
 pub(crate) async fn detect_clis(_app: tauri::AppHandle) -> Result<Vec<CliInfo>, String> {
+    // Probe every runtime AT ONCE. Each probe spawns `<bin> --version`, and a
+    // node-backed CLI takes the better part of a second to start; done one
+    // after another that was twelve seconds before the Runtimes screen (and,
+    // over the phone bridge, any screen that needs the runtime list) could
+    // render anything at all. They are independent, so they run together and
+    // the whole detection costs about as much as the slowest single probe.
+    let probes: Vec<_> = CLIS
+        .iter()
+        .map(|(id, label, bin)| {
+            let (id, label, bin) = (*id, *label, *bin);
+            std::thread::spawn(move || {
+                let exists = find_in_known_paths(bin);
+                // The probe is the real availability test: a binary that's on
+                // disk but can't execute (broken wrapper, missing venv) is NOT
+                // a usable runtime. Only probe when the file exists so we don't
+                // spawn a missing binary.
+                let probe = if exists { probe_cli_version(bin) } else { Ok(None) };
+                (id, label, bin, exists, probe)
+            })
+        })
+        .collect();
+
     let mut out = Vec::new();
-    for (id, label, bin) in CLIS {
-        let exists = find_in_known_paths(bin);
-        // The probe is the real availability test: a binary that's on disk but
-        // can't execute (broken wrapper, missing venv) is NOT a usable runtime.
-        // Only probe when the file exists so we don't spawn a missing binary.
-        let probe = if exists { probe_cli_version(bin) } else { Ok(None) };
-        if *id == "ollama" {
+    for h in probes {
+        // A panicking probe must not take the whole list down: treat it as a
+        // runtime that would not run.
+        let (id, label, bin, exists, probe) = match h.join() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if id == "ollama" {
             // Special-case ollama: it runs as a daemon, the `ollama` binary is
             // optional. Treat the daemon port as the source of truth — if it's
             // up, the runtime is usable even when the CLI is absent/broken.

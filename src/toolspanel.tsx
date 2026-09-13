@@ -109,7 +109,7 @@ export function ToolsPanel() {
       <SettingsHeader
         icon={Hammer}
         title="Tools"
-        subtitle="The capabilities your AI acts through, distinct from Apps (your services) and Skills (your recipes). Every tool is governed by Prevail's trust model: the autonomy brake, privacy locks, and spend caps. In an Act run you see exactly which tools ran."
+        subtitle="What your AI can act through."
       />
 
       {/* Toolbar: search + add. Full width, matching the other Editor pages. */}
@@ -123,7 +123,7 @@ export function ToolsPanel() {
             className="w-full rounded-lg border border-border bg-background py-1.5 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
           />
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">{liveCount} active</span>
+        <span className="text-[11px] text-text-muted">{liveCount} active</span>
         <button
           onClick={() => goTo("mcp")}
           title="Add a capability by connecting an MCP server or an app"
@@ -138,32 +138,40 @@ export function ToolsPanel() {
           No tools match "{q}".
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {shown.map((t) => (
-            <div key={t.name} className="flex flex-col rounded-xl border border-border bg-surface p-4">
-              <div className="flex items-center gap-3">
+        /* Uniform rows in one frame, not eight cards each carrying a paragraph,
+           a second paragraph about governance, and its own button. A row says
+           what the tool is in one line and whether it is on; the whole row is
+           the link to where you govern it, so the button disappears. How it is
+           governed is on hover, where it is read when it is wanted. */
+        <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border bg-surface">
+          {shown.map((t) => {
+            const go = t.manage ? () => goTo(t.manage!.section) : undefined;
+            return (
+              <div
+                key={t.name}
+                role={go ? "button" : undefined}
+                tabIndex={go ? 0 : undefined}
+                onClick={go}
+                onKeyDown={go ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } } : undefined}
+                title={t.governance}
+                className={`group flex items-center gap-3 px-4 py-3 text-left ${go ? "cursor-pointer transition-colors hover:bg-surface-warm" : ""}`}
+              >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-warm font-mono text-[15px] text-text-secondary">{t.glyph}</span>
-                <span className="text-[15px] font-semibold text-text-primary">{t.name}</span>
-                <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-border-subtle px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-text-muted">
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: dot(t.state) }} /> {STATE_LABEL[t.state]}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-text-primary">{t.name}</span>
+                    {t.state !== "on" && (
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-px text-[11px] text-text-muted">
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: dot(t.state) }} /> {STATE_LABEL[t.state]}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[13px] text-text-muted">{t.desc}</span>
                 </span>
+                {go && <ArrowUpRight className="h-4 w-4 shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />}
               </div>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-text-secondary">{t.desc}</p>
-              <p className="mt-1.5 text-[12px] leading-snug text-text-muted"><span className="font-mono text-[10px] uppercase tracking-wider">governance</span> · {t.governance}</p>
-              <div className="mt-auto pt-3">
-                {t.manage ? (
-                  <button
-                    onClick={() => goTo(t.manage!.section)}
-                    className="inline-flex items-center gap-1 rounded-md border border-border-subtle px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary transition-colors hover:border-accent-border hover:text-accent"
-                  >
-                    {t.manage.label} <ArrowUpRight className="h-3 w-3" />
-                  </button>
-                ) : (
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Not yet available</span>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

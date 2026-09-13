@@ -27,7 +27,7 @@ export function HarnessPicker({
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div className="absolute right-0 z-50 mt-1 w-64 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
         <div className="border-b border-border-subtle px-3 py-2">
-          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">Run with agent</div>
+          <div className="text-[11px] text-text-muted">Run with agent</div>
           <p className="mt-1 text-[10px] leading-snug text-text-muted">
             Hands this task to an agent. It runs in safe mode (it proposes, it does not take consequential actions on its own) and posts what it finds back as a comment.
           </p>

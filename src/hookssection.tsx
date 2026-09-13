@@ -92,7 +92,7 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader
         title="Hooks"
         icon={Webhook}
-        subtitle="Run your own shell command when something happens in Prevail (a task is created, a chat reply lands) or on demand. Commands run on this machine."
+        subtitle="Run your own command when something happens."
         right={!draft ? (
           <button onClick={startAdd} className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-background hover:bg-accent-hover">
             <Plus className="h-4 w-4" /> Add hook
@@ -108,25 +108,25 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
           </div>
           <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Name</label>
+              <label className="mb-1 block text-[11px] text-text-muted">Name</label>
               <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Notify on new task" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">When</label>
+              <label className="mb-1 block text-[11px] text-text-muted">When</label>
               <select value={draft.event} onChange={(e) => setDraft({ ...draft, event: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none">
                 {EVENTS.map((ev) => <option key={ev.id} value={ev.id}>{ev.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Domain <span className="text-text-muted/60">(optional, all if blank)</span></label>
+              <label className="mb-1 block text-[11px] text-text-muted">Domain <span className="text-text-muted/60">(optional, all if blank)</span></label>
               <select value={draft.domain ?? ""} onChange={(e) => setDraft({ ...draft, domain: e.target.value || null })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none">
                 <option value="">All domains</option>
                 {domains.map((d) => <option key={d.name} value={d.name}>{titleCase(d.name)}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Command</label>
-              <textarea value={draft.command} onChange={(e) => setDraft({ ...draft, command: e.target.value })} placeholder={'e.g. echo "$PREVAIL_HOOK_EVENT in $PREVAIL_HOOK_DOMAIN" >> ~/prevail-hooks.log'} rows={2} className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[13px] focus:border-accent-border focus:outline-none" />
+              <label className="mb-1 block text-[11px] text-text-muted">Command</label>
+              <textarea value={draft.command} onChange={(e) => setDraft({ ...draft, command: e.target.value })} placeholder={'e.g. echo "$PREVAIL_HOOK_EVENT in $PREVAIL_HOOK_DOMAIN" >> ~/prevail-hooks.log'} rows={2} className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-accent-border focus:outline-none" />
               <p className="mt-1 text-[11px] text-text-muted">{eventEnv}</p>
             </div>
             {err && <div className="text-xs text-err">{err}</div>}

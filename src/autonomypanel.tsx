@@ -226,7 +226,7 @@ function PlaybookRun({ playbook, onClose }: { playbook: Playbook; onClose: () =>
                 </span>
                 <span className="min-w-0 flex-1 break-words text-text-secondary">
                   <span className="text-text-primary">{s.label}</span>
-                  {badge && <span className={`ml-1.5 rounded border px-1 py-px font-mono text-[10px] uppercase tracking-wider ${badge.cls}`}>{badge.label}</span>}
+                  {badge && <span className={`ml-1.5 rounded border px-1 py-px text-[11px] ${badge.cls}`}>{badge.label}</span>}
                   {s.note && <span className="block text-[11px] text-text-muted">{s.note}</span>}
                 </span>
               </div>
@@ -274,7 +274,7 @@ function RecentActivity({ vaultPath }: { vaultPath: string }) {
   return (
     <section>
       <div className="mb-1.5 flex items-center justify-between">
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">Recent agent activity</div>
+        <div className="font-mono text-[11px] font-semibold text-text-muted">Recent agent activity</div>
         <button
           onClick={() => setOnlyPlaybooks((v) => !v)}
           className={`rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${onlyPlaybooks ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}
@@ -299,7 +299,7 @@ function RecentActivity({ vaultPath }: { vaultPath: string }) {
                   {pb ? <BookText className="h-3 w-3" /> : <Activity className="h-3 w-3" />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-text-muted">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
                     {e.type && <span className={pb ? "text-accent" : ""}>{titleCase(e.type.replace(/_/g, " "))}</span>}
                     <span>{relTime(e.ts)}</span>
                     {err && <span className="text-err">failed</span>}
@@ -418,7 +418,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader
         icon={ShieldCheck}
         title="Autonomy"
-        subtitle="Complete control over what agents do on their own. Pause everything with one switch, set what whole classes of action are allowed pre-emptively, run playbooks with a live timeline you can stop, and see everything the agents have done."
+        subtitle="What agents may do on their own, and the switch that stops them."
       />
 
       {err && (
@@ -449,7 +449,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
             <button key={m.k} onClick={() => void setMode(m.k)} disabled={busy || !status}
               className={`flex flex-col items-center rounded-md px-2 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${mode === m.k ? (m.k === "paused" ? "bg-err text-background shadow-sm" : m.k === "auto" ? "bg-accent text-background shadow-sm" : "bg-warn text-background shadow-sm") : "text-text-muted hover:text-text-secondary"}`}>
               {m.label}
-              <span className="mt-0.5 text-[10px] font-normal opacity-80">{m.hint}</span>
+              <span className="mt-0.5 text-[11px] font-normal opacity-80">{m.hint}</span>
             </button>
           ))}
         </div>
@@ -457,7 +457,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
 
       {/* Action policy */}
       <section>
-        <div className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">Action policy</div>
+        <div className="mb-2 text-[11px] font-semibold text-text-muted">Action policy</div>
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
           {POLICY_ROWS.map((row, i) => {
             const Icon = row.icon;
@@ -470,7 +470,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
                   <div className="text-xs text-text-muted">{row.desc}</div>
                 </div>
                 {(() => { const t = tierFor(row.key, value ?? "ask"); return (
-                  <span title="What actually happens with this setting (graduated brake)" className={`shrink-0 font-mono text-[10px] uppercase tracking-wider ${TIER_META[t].cls}`}>{TIER_META[t].label}</span>
+                  <span title="What actually happens with this setting (graduated brake)" className={`shrink-0 text-[11px] ${TIER_META[t].cls}`}>{TIER_META[t].label}</span>
                 ); })()}
                 <PolicySegmented value={value ?? "ask"} disabled={!status} onChange={(d) => void setPolicy(row.key, d)} />
               </div>
@@ -555,7 +555,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
           exist; the engine still runs them (and Loops can invoke one). */}
       {playbooks.length > 0 && (
       <section>
-        <div className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">Playbooks</div>
+        <div className="mb-2 text-[11px] font-semibold text-text-muted">Playbooks</div>
         {(
           <div className="space-y-2">
             {playbooks.map((pb) => {

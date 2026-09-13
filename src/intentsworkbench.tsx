@@ -223,7 +223,7 @@ export function IntentsWorkbench({ vaultPath, intents, themes = [] }: { vaultPat
       {/* Pinned reuse library */}
       {pinnedRows.length > 0 && (
         <div className="rounded-xl border border-accent-border bg-accent-soft/30 p-3">
-          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-accent"><Pin className="h-3.5 w-3.5" /> Pinned · your reuse library</div>
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-accent"><Pin className="h-3.5 w-3.5" /> Pinned · your reuse library</div>
           <div className="flex flex-col gap-1.5">
             {pinnedRows.map((row) => { const k = `pin:${normKey(String(row.message ?? ""))}`; return (
               <div key={k} className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5">
@@ -237,7 +237,7 @@ export function IntentsWorkbench({ vaultPath, intents, themes = [] }: { vaultPat
 
       {/* Zoom ladder: highest (fewest, coarsest) -> lowest (every question). */}
       <div className="flex items-center gap-2">
-        <span className="hidden font-mono text-[10px] uppercase tracking-wide text-text-muted sm:inline">zoom</span>
+        <span className="hidden text-[11px] tracking-wide text-text-muted sm:inline">zoom</span>
         <div className="inline-flex overflow-hidden rounded-lg border border-border">
           <button onClick={() => setView("tree")} title="Nested: domain > theme > recurring > question" className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${view === "tree" ? "bg-accent text-background" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}><Boxes className="h-3.5 w-3.5" /> Tree</button>
           <button onClick={() => setView("recurring")} title="Mid level: recurring themes" className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${view === "recurring" ? "bg-accent text-background" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}><Repeat2 className="h-3.5 w-3.5" /> Recurring</button>
@@ -267,13 +267,13 @@ export function IntentsWorkbench({ vaultPath, intents, themes = [] }: { vaultPat
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent"><Boxes className="h-4 w-4" /></span>
                     <span className="min-w-0 flex-1">
                       <span className="font-display text-base font-semibold tracking-tight text-text-primary">{titleCase(d.domain)}</span>
-                      <span className="ml-2 font-mono text-[11px] tabular-nums text-text-muted">{d.total} question{d.total === 1 ? "" : "s"} · {d.themes.length} {d.flat ? "group" : "theme"}{d.themes.length === 1 ? "" : "s"}</span>
+                      <span className="ml-2 text-[11px] tabular-nums text-text-muted">{d.total} question{d.total === 1 ? "" : "s"} · {d.themes.length} {d.flat ? "group" : "theme"}{d.themes.length === 1 ? "" : "s"}</span>
                     </span>
                   </button>
                   {dOpen && (
                     <div className="border-t border-border-subtle px-3 py-2 pl-9">
                       {ideals[d.domain] && idealLine(ideals[d.domain]) && (
-                        <div className="mb-2 rounded-md border border-accent-border/40 bg-accent-soft/20 px-2.5 py-1.5 text-[12px] text-text-secondary"><span className="font-mono text-[9px] uppercase tracking-wide text-accent">Aim</span> · {idealLine(ideals[d.domain])}</div>
+                        <div className="mb-2 rounded-md border border-accent-border/40 bg-accent-soft/20 px-2.5 py-1.5 text-[12px] text-text-secondary"><span className="font-mono text-[11px] tracking-wide text-accent">Aim</span> · {idealLine(ideals[d.domain])}</div>
                       )}
                       {d.themes.map((t) => {
                         const tk = `t:${d.domain}:${t.title}`; const tOpen = expanded.has(tk) || d.flat;

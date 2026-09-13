@@ -123,7 +123,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader
         title="Prompts"
         icon={Inbox}
-        subtitle="Record every prompt you write across your AI CLIs into your vault, then distill them into your intents."
+        subtitle="Every prompt you write, kept in your vault."
       />
 
       {/* PROMPT CAPTURE - record prompts from each CLI into the vault --------- */}
@@ -139,7 +139,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
               <button
                 onClick={runInstall}
                 disabled={busy !== ""}
-                className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
               >
                 {busy === "install" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                 {busy === "install" ? "Installing…" : "Install capture"}
@@ -147,7 +147,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
               <button
                 onClick={runSync}
                 disabled={busy !== ""}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
               >
                 {busy === "sync" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 {busy === "sync" ? "Syncing…" : "Sync now"}
@@ -155,7 +155,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
               <button
                 onClick={openFolder}
                 disabled={!status?.meta}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
               >
                 <FolderOpen className="h-3 w-3" /> Open folder
               </button>
@@ -165,13 +165,13 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
 
           <div className="flex shrink-0 flex-col items-center justify-center border-l border-border-subtle pl-6 text-center">
             <span className="font-mono text-5xl font-bold leading-none tabular-nums tracking-tight text-accent">{totalCaptured.toLocaleString()}</span>
-            <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">prompts captured</span>
+            <span className="mt-2 text-[11px] font-semibold text-text-muted">prompts captured</span>
           </div>
         </div>
 
         <div className="mt-4 overflow-hidden rounded-md border border-border-subtle">
           <table className="w-full text-left text-xs">
-            <thead className="bg-surface-warm/60 text-[10px] uppercase tracking-wider text-text-muted">
+            <thead className="bg-surface-warm/60 text-[11px] text-text-muted">
               <tr>
                 <th className="px-3 py-2 font-medium">Harness</th>
                 <th className="px-3 py-2 text-center font-medium">How</th>

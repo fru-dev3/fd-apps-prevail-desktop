@@ -56,11 +56,11 @@ export function ShortcutsSection() {
 
   return (
     <>
-      <SettingsHeader title="Shortcuts" subtitle="Keyboard surface for common actions. Most are global: they work even while you're typing." />
+      <SettingsHeader title="Shortcuts" subtitle="Shortcuts, most of them global." />
       <div className="space-y-6">
         {groups.map((g) => (
           <section key={g.name} className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-            <div className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-text-primary">
+            <div className="mb-3 text-[11px] font-bold text-text-primary">
               {g.name}
             </div>
             <ul className="flex flex-col divide-y divide-border-subtle">
@@ -98,7 +98,7 @@ export function FrameworksSection() {
     <>
       <SettingsHeader
         title="Frameworks & Lenses"
-        subtitle="The bracketed preamble Prevail prepends to every prompt. A framework shapes the structure of the answer; a lens shapes the perspective it comes from."
+        subtitle="How answers are shaped before you get them."
       />
 
       {/* No collapse: everything on one page. A compact "how it works" strip, then
@@ -118,7 +118,7 @@ export function FrameworksSection() {
           <div className="mb-2 flex items-baseline gap-2">
             <Diamond className="h-4 w-4 shrink-0 text-accent" />
             <h3 className="text-sm font-semibold text-text-primary">Frameworks</h3>
-            <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-text-muted">{activeFramework?.label ?? "Off"}</span>
+            <span className="ml-auto text-[11px] text-text-muted">{activeFramework?.label ?? "Off"}</span>
           </div>
           <div className="mb-2 text-[11px] text-text-muted">Structure: how the answer is shaped.</div>
           <PreambleColumn headerless glyph="◆" title="Frameworks" options={FRAMEWORKS}
@@ -128,7 +128,7 @@ export function FrameworksSection() {
           <div className="mb-2 flex items-baseline gap-2">
             <Aperture className="h-4 w-4 shrink-0 text-accent" />
             <h3 className="text-sm font-semibold text-text-primary">Lenses</h3>
-            <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-text-muted">{activeLens?.label ?? "Off"}</span>
+            <span className="ml-auto text-[11px] text-text-muted">{activeLens?.label ?? "Off"}</span>
           </div>
           <div className="mb-2 text-[11px] text-text-muted">Perspective: the angle the answer comes from.</div>
           <PreambleColumn headerless glyph="◇" title="Lenses" options={LENSES}
@@ -202,7 +202,7 @@ export function RemoteSection() {
   }
   return (
     <>
-      <SettingsHeader title="Remote (WebUI)" subtitle="Serve this exact app to a browser: same UI, no rebuild. Then reach it from your phone or laptop, anywhere, via Tailscale or Cloudflare." />
+      <SettingsHeader title="Remote (WebUI)" subtitle="Reach this app from another device." />
       <DesktopOnly feature="The WebUI server">
       <div className="rounded-lg border border-border bg-surface px-5">
         <SettingsRowLite title="Enable WebUI" desc="Run the bridge server so a browser can use Prevail. This Mac must stay on."
@@ -286,7 +286,7 @@ export function IngestionSection() {
     <>
       <SettingsHeader
         title="Ingestion"
-        subtitle="Triple-tier data engine. Pull artifacts from MCP servers, the Composio gateway, or a headed browser into the right domain folder: without leaving the app."
+        subtitle="Pull your data into the right domain."
       />
       {err && (
         <div className="mb-4 rounded border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{err}</div>
@@ -371,7 +371,7 @@ export function IngestionSection() {
                   </div>
                   <button
                     onClick={() => invoke("open_in_finder", { path: a.path })}
-                    className="shrink-0 rounded border border-border bg-background px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
+                    className="shrink-0 rounded border border-border bg-background px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
                   >
                     reveal
                   </button>

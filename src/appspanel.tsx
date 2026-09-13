@@ -196,7 +196,7 @@ function MethodBadge({ method, className = "" }: { method: AppMethod; className?
   const m = METHOD_META[method];
   const Icon = m.Icon;
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider ${m.cls} ${className}`}>
+    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${m.cls} ${className}`}>
       <Icon className="h-2.5 w-2.5" /> {m.label}
     </span>
   );
@@ -938,7 +938,7 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
               <span className="text-xs font-medium text-text-secondary">Import from Obsidian</span>
             </button>
             {liveCount > 0 && (
-              <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">{liveCount} of {directApps.length} live</div>
+              <div className="mt-2 text-[11px] text-text-muted">{liveCount} of {directApps.length} live</div>
             )}
             </div>
             {/* Only this region scrolls. #47: extra bottom padding + a faint end
@@ -952,7 +952,7 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
                       Collapsible (fix #4); collapsed by default. */}
                   {pinned.count > 0 && (
                     <section className="space-y-0.5">
-                      <button onClick={toggleMyList} className="flex w-full items-center gap-1 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent transition-colors hover:text-accent-hover">
+                      <button onClick={toggleMyList} className="flex w-full items-center gap-1 px-1 text-[11px] text-accent transition-colors hover:text-accent-hover">
                         <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${myListOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
                         <Star className="h-2.5 w-2.5 fill-accent" /> My list · {pinned.count}
                       </button>
@@ -983,7 +983,7 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
                   )}
                   {groups.map((g) => (
                     <section key={g.key} className="space-y-0.5">
-                      <div className={`px-1 font-mono text-[10px] uppercase tracking-[0.2em] ${g.tint}`}>{g.label} · {g.apps.length}</div>
+                      <div className={`px-1 text-[11px] ${g.tint}`}>{g.label} · {g.apps.length}</div>
                       {g.apps.map((a) => (
                         <ConnectorRow
                           key={a.id}
@@ -1003,7 +1003,7 @@ export function AppsPanel({ vaultPath }: { vaultPath: string }) {
                       visually distinct from catalog-available. */}
                   {catalogView.shown.length > 0 && (
                     <section className="space-y-0.5">
-                      <button onClick={toggleAvail} className="flex w-full items-center gap-1 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted transition-colors hover:text-text-secondary">
+                      <button onClick={toggleAvail} className="flex w-full items-center gap-1 px-1 text-[11px] text-text-muted transition-colors hover:text-text-secondary">
                         <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${availOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
                         Available to add · {catalogView.total}
                       </button>
@@ -1532,7 +1532,7 @@ function ComposioMode({ vaultPath, expanded }: { vaultPath: string; expanded: bo
         <div className="flex items-start gap-4 px-5 py-4">
         <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          {composioMethod === "mcp" && verified === false && <span className="inline-flex items-center gap-1 rounded-full border border-err/40 bg-err/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-err">Invalid key</span>}
+          {composioMethod === "mcp" && verified === false && <span className="inline-flex items-center gap-1 rounded-full border border-err/40 bg-err/10 px-1.5 py-0.5 text-[11px] text-err">Invalid key</span>}
           {/* Connect via: CLI (default) or MCP. Small segmented control. */}
           <div className="ml-auto inline-flex rounded-md border border-border bg-background p-0.5">
             {([["cli", "CLI", Terminal], ["mcp", "MCP", Boxes]] as const).map(([m, label, Icon]) => (
@@ -1593,8 +1593,8 @@ function ComposioMode({ vaultPath, expanded }: { vaultPath: string; expanded: bo
                 {cliBusy === "login" && <p className="flex items-center gap-2 text-[11px] text-text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Finish the sign-in in your browser, then return here.</p>}
                 {cliOutput && (
                   <details className="rounded-md border border-border bg-background">
-                    <summary className="cursor-pointer px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Install / sign-in log</summary>
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap px-2 py-1.5 font-mono text-[10px] text-text-muted">{cliOutput}</pre>
+                    <summary className="cursor-pointer px-2 py-1 text-[11px] text-text-muted">Install / sign-in log</summary>
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap px-2 py-1.5 text-[11px] text-text-muted">{cliOutput}</pre>
                   </details>
                 )}
               </div>
@@ -1618,10 +1618,10 @@ function ComposioMode({ vaultPath, expanded }: { vaultPath: string; expanded: bo
         ) : (
           <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
             <span className="font-semibold text-accent">Key valid.</span>
-            <button onClick={verify} disabled={busy !== null} className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">{busy === "verify" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Re-verify</button>
+            <button onClick={verify} disabled={busy !== null} className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">{busy === "verify" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Re-verify</button>
             <button onClick={() => setEditingKey(true)} className="text-[10px] hover:text-accent hover:underline">Change key</button>
             <button onClick={removeKey} disabled={busy !== null} className="text-[10px] hover:text-err hover:underline">Remove key</button>
-            <button onClick={() => void openUrl("https://dashboard.composio.dev")} className="inline-flex items-center gap-1 text-[10px] text-accent hover:underline">Dashboard <ExternalLink className="h-2.5 w-2.5" /></button>
+            <button onClick={() => void openUrl("https://dashboard.composio.dev")} className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline">Dashboard <ExternalLink className="h-2.5 w-2.5" /></button>
           </div>
         )}
         </div>
@@ -1659,14 +1659,14 @@ function ComposioMode({ vaultPath, expanded }: { vaultPath: string; expanded: bo
           <div className="space-y-4">
             {connectedApps.length > 0 && (
               <section className="space-y-0.5">
-                <div className="px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent">Connected · {connectedApps.length}</div>
+                <div className="px-1 text-[11px] text-accent">Connected · {connectedApps.length}</div>
                 {connectedApps.map((a) => (
                   <GatewayRow key={a.slug} title={a.name} sub={a.cat} logoId={a.slug} logos={logos} connected active={selectedSlug === a.slug} onSelect={() => setSelectedSlug(a.slug)} fav={gatewayFav(a.slug, a.name)} />
                 ))}
               </section>
             )}
             <section className="space-y-0.5">
-              <div className="px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">Available to connect · {availableApps.length}</div>
+              <div className="px-1 text-[11px] text-text-muted">Available to connect · {availableApps.length}</div>
               {availableApps.map((a) => (
                 <GatewayRow key={a.slug} title={a.name} sub={a.cat} logoId={a.slug} logos={logos} active={selectedSlug === a.slug} onSelect={() => setSelectedSlug(a.slug)} />
               ))}
@@ -1822,10 +1822,10 @@ function NangoMode({ vaultPath, expanded }: { vaultPath: string; expanded: boole
         ) : (
           <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
             <span className="font-semibold text-accent">Key valid.</span>
-            <button onClick={verify} disabled={busy !== null} className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">{busy === "verify" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Re-verify</button>
+            <button onClick={verify} disabled={busy !== null} className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">{busy === "verify" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Re-verify</button>
             <button onClick={() => setEditingKey(true)} className="text-[10px] hover:text-accent hover:underline">Change key</button>
             <button onClick={removeKey} disabled={busy !== null} className="text-[10px] hover:text-err hover:underline">Remove key</button>
-            <button onClick={() => void openUrl("https://app.nango.dev")} className="inline-flex items-center gap-1 text-[10px] text-accent hover:underline">Dashboard <ExternalLink className="h-2.5 w-2.5" /></button>
+            <button onClick={() => void openUrl("https://app.nango.dev")} className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline">Dashboard <ExternalLink className="h-2.5 w-2.5" /></button>
           </div>
         )}
         </div>
@@ -1868,14 +1868,14 @@ function NangoMode({ vaultPath, expanded }: { vaultPath: string; expanded: boole
             <div className="space-y-4">
               {connectedApps.length > 0 && (
                 <section className="space-y-0.5">
-                  <div className="px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent">Connected · {connectedApps.length}</div>
+                  <div className="px-1 text-[11px] text-accent">Connected · {connectedApps.length}</div>
                   {connectedApps.map((i) => (
                     <GatewayRow key={i.unique_key} title={i.display_name} sub={i.provider || i.unique_key} logoId={i.provider || i.unique_key} logos={logos} connected active={selectedKey === i.unique_key} onSelect={() => setSelectedKey(i.unique_key)} fav={gatewayFav(i.unique_key, i.display_name)} />
                   ))}
                 </section>
               )}
               <section className="space-y-0.5">
-                <div className="px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">Available to connect · {availableApps.length}</div>
+                <div className="px-1 text-[11px] text-text-muted">Available to connect · {availableApps.length}</div>
                 {availableApps.map((i) => (
                   <GatewayRow key={i.unique_key} title={i.display_name} sub={i.provider || i.unique_key} logoId={i.provider || i.unique_key} logos={logos} active={selectedKey === i.unique_key} onSelect={() => setSelectedKey(i.unique_key)} />
                 ))}
@@ -2003,7 +2003,7 @@ function GatewayRow({ title, sub, logoId, logos, connected, active, onSelect, fa
         <AppRowLogo app={{ title, id: logoId }} logos={logos} size={28} fallback="letter" />
         <span className="min-w-0 flex-1">
           <span className={`block truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>{title}</span>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">{sub}</span>
+          <span className="font-mono text-[11px] text-text-muted">{sub}</span>
         </span>
       </button>
       {connected && fav && (
@@ -2044,7 +2044,7 @@ function GatewayConnectDetail({ title, sub, logoId, logos, method, connecting, o
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-lg font-semibold text-text-primary">{title}</span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted"><Globe className="h-2.5 w-2.5" /> Available to connect</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-text-muted"><Globe className="h-2.5 w-2.5" /> Available to connect</span>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-text-muted">
             <span>{titleCase(sub)}</span>
@@ -2138,7 +2138,7 @@ function RowKebab({ method, category, statusLabel, statusDot, actions, visible }
               <span className={`h-2 w-2 shrink-0 rounded-full ${statusDot}`} />
               <span className="font-medium text-text-secondary">{statusLabel}</span>
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-text-muted">
               <span className="rounded border border-border-subtle bg-surface-warm px-1.5 py-0.5">{method}</span>
               {category && <span className="max-w-[7rem] truncate rounded border border-border-subtle bg-surface-warm px-1.5 py-0.5">{category}</span>}
             </div>
@@ -2161,7 +2161,7 @@ function RowKebab({ method, category, statusLabel, statusDot, actions, visible }
 // row never reflows when it fades in; stays visible while the row is active.
 function RowMeta({ method, category, active }: { method: string; category?: string; active: boolean }) {
   return (
-    <span className={`mt-0.5 block h-3 truncate font-mono text-[10px] uppercase tracking-wider transition-opacity group-hover:opacity-100 ${active ? "text-background/70 opacity-100" : "text-text-muted opacity-0"}`}>
+    <span className={`mt-0.5 block h-3 truncate text-[11px] transition-opacity group-hover:opacity-100 ${active ? "text-background/70 opacity-100" : "text-text-muted opacity-0"}`}>
       {method}{category ? ` · ${category}` : ""}
     </span>
   );
@@ -2247,7 +2247,7 @@ function CatalogRow({ app, logos, active, onSelect, isFav, onToggleFav }: {
             <span className={`truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>{app.name}</span>
             {needsTeaching && (
               <span title="No starter skills yet. Connect opens the browser-learn flow so Prevail can be taught what to fetch."
-                className={`shrink-0 rounded border px-1 py-px font-mono text-[9px] uppercase tracking-wider ${active ? "border-background/40 text-background/80" : "border-border text-text-muted"}`}>Teach by browser</span>
+                className={`shrink-0 rounded border px-1 py-px text-[11px] ${active ? "border-background/40 text-background/80" : "border-border text-text-muted"}`}>Teach by browser</span>
             )}
           </span>
           <RowMeta method={method} category={category} active={active} />
@@ -2292,7 +2292,7 @@ function hintToIntegration(method?: string): string {
 function CatalogField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-mono text-[10px] uppercase tracking-wider text-text-muted">{label}</dt>
+      <dt className="font-mono text-[11px] text-text-muted">{label}</dt>
       <dd className="mt-0.5 text-[13px] text-text-secondary">{children}</dd>
     </div>
   );
@@ -2596,7 +2596,7 @@ function SkillRow({ s, label, method, primary, disabled, running, onRun }: {
         <div className="text-[11px] text-text-muted">{s.source === "starter" ? "Starter" : "Learned"} · {primary ? "Primary" : "Fallback"}{s.trigger ? ` · ${s.trigger}` : ""}</div>
         {s.summary && <div className="truncate text-[11px] text-text-muted/80">{s.summary}</div>}
       </div>
-      <span className="inline-flex shrink-0 items-center rounded-full border border-border-subtle bg-surface-warm px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">{method}</span>
+      <span className="inline-flex shrink-0 items-center rounded-full border border-border-subtle bg-surface-warm px-2 py-0.5 text-[11px] text-text-muted">{method}</span>
       <button onClick={onRun} disabled={disabled}
         className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
         {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />} {running ? "Running…" : "Run"}
@@ -3244,13 +3244,13 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
             <h2 className="truncate text-2xl font-bold tracking-tight text-text-primary">{app.title || app.id}</h2>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${meta.ring} ${meta.tint}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] ${meta.ring} ${meta.tint}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${meta.dot} ${status === "connecting" ? "animate-pulse" : ""}`} />
               {meta.label}
             </span>
             <MethodBadge method={methodOf(app)} className="text-[10px]" />
             {gatewayProvider && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent">
+              <span className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft px-2 py-0.5 text-[11px] text-accent">
                 <Check className="h-2.5 w-2.5" /> via {titleCase(gatewayProvider)}
               </span>
             )}
@@ -3567,10 +3567,10 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                 <div key={pt.runtime} className="flex items-center gap-3 rounded-xl border border-accent-border bg-accent-soft/30 px-3.5 py-2.5">
                   <span className={`h-2 w-2 shrink-0 rounded-full ${pt.connected ? "bg-ok" : "bg-warn"}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">{rt} · MCP {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-accent">default</span>}</div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">{rt} · MCP {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
                     <div className="font-mono text-[10.5px] text-text-muted">{pt.health === "degraded" ? "connected but unhealthy (tools fetch failed) - re-authorize" : pt.connected ? "already authorized · zero setup" : "set up here, but needs re-authorization"} · Prevail passes it through</div>
                   </div>
-                  {!pt.connected && <button onClick={() => void openUrl(authUrl)} className="shrink-0 rounded-md border border-warn/50 px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-warn hover:bg-warn/10">Re-authorize</button>}
+                  {!pt.connected && <button onClick={() => void openUrl(authUrl)} className="shrink-0 rounded-md border border-warn/50 px-2 py-1 text-[11px] text-warn hover:bg-warn/10">Re-authorize</button>}
                   <button
                     onClick={() => {
                       // Routing half of the lane: this app's chats run on THIS
@@ -3581,7 +3581,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                       setDefaultMethod("mcp");
                     }}
                     title={`Use ${app.title || app.id} through your ${rt} connection - its chats will run on ${rt}`}
-                    className="shrink-0 rounded-md border border-accent-border bg-accent px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-background hover:opacity-90"
+                    className="shrink-0 rounded-md border border-accent-border bg-accent px-2.5 py-1 text-[11px] text-background hover:opacity-90"
                   >{isDefault ? "In use" : "Use this"}</button>
                 </div>
                 ); })}
@@ -3593,12 +3593,12 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                 <div key={gw} className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 ${inUse ? "border-accent-border bg-accent-soft/20" : "border-border bg-surface"}`}>
                   <span className={`h-2 w-2 shrink-0 rounded-full ${inUse ? "bg-ok" : "bg-text-muted"}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">{gw.charAt(0).toUpperCase() + gw.slice(1)} {inUse && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-accent">default</span>}</div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">{gw.charAt(0).toUpperCase() + gw.slice(1)} {inUse && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
                     <div className="font-mono text-[10.5px] text-text-muted">{inUse ? `this app is fronted by your ${gw} gateway` : `connect ${app.title || app.id} through your ${gw} gateway (one OAuth for many apps)`}</div>
                   </div>
                   {inUse
-                    ? <span className="shrink-0 rounded-md border border-accent-border bg-accent px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-background">In use</span>
-                    : <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))} className="shrink-0 rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent">Connect</button>}
+                    ? <span className="shrink-0 rounded-md border border-accent-border bg-accent px-2.5 py-1 text-[11px] text-background">In use</span>
+                    : <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))} className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">Connect</button>}
                 </div>
                 );
               })}
@@ -3608,27 +3608,27 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                 <div className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 ${isDefault ? "border-accent-border bg-accent-soft/20" : "border-border bg-surface"}`}>
                   <span className={`h-2 w-2 shrink-0 rounded-full ${notConnected ? "bg-text-muted" : "bg-ok"}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">Prevail {m === "cli" ? "CLI" : "MCP"} {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-accent">default</span>}</div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">Prevail {m === "cli" ? "CLI" : "MCP"} {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
                     <div className="font-mono text-[10.5px] text-text-muted">a server Prevail runs itself, vault-scoped · authorize once</div>
                   </div>
                   {!isDefault && (
                     <button
                       onClick={() => { void invoke("engine_app_set_runtime", { id: app.id, runtime: "" }).then(() => void onReload()).catch(() => {}); }}
                       title="Serve this app through Prevail's own connector (clears the harness runtime pin)"
-                      className="shrink-0 rounded-md border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent"
+                      className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
                     >Make default</button>
                   )}
-                  {notConnected && connect && <button onClick={connect.onConnect} disabled={connect.connecting} className="shrink-0 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background disabled:opacity-50">Set up</button>}
+                  {notConnected && connect && <button onClick={connect.onConnect} disabled={connect.connecting} className="shrink-0 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50">Set up</button>}
                 </div>
                 ); })()}
               {(() => { const isDefault = methodOf(app) === "browser"; return (
               <div className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 ${isDefault ? "border-accent-border bg-accent-soft/20" : "border-border bg-surface"}`}>
                 <span className="h-2 w-2 shrink-0 rounded-full bg-text-muted" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">Browser automation {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-accent">default</span>}</div>
+                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">Browser automation {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
                   <div className="font-mono text-[10.5px] text-text-muted">open a browser, log in once, Prevail learns the steps</div>
                 </div>
-                {!isDefault && <button onClick={() => setDefaultMethod("browser")} className="shrink-0 rounded-md border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">Make default</button>}
+                {!isDefault && <button onClick={() => setDefaultMethod("browser")} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Make default</button>}
                 {/* One-time cookie import from the user's REAL Chrome: the site's
                     existing login lands in the dedicated profile, so browser runs
                     start signed-in - no fresh-Chrome re-login, passkeys included
@@ -3640,22 +3640,22 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                       .catch((e) => toast.error(`Import failed: ${String(e).slice(0, 160)}`));
                   }}
                   title="Copy this site's existing login from your Chrome into Prevail's browser profile (quit Chrome first)"
-                  className="shrink-0 rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent"
+                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
                 >Use my Chrome logins</button>
                 {/* Set up launches the browser-learn flow. It renders in the
                     Skills tab, so navigate there and open the compose step. */}
-                <button onClick={() => { setTab("skills"); setGoalText(""); setComposing(true); }} disabled={!!learnMode} className="shrink-0 rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">Set up</button>
+                <button onClick={() => { setTab("skills"); setGoalText(""); setComposing(true); }} disabled={!!learnMode} className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">Set up</button>
               </div>
               ); })()}
               {(() => { const isDefault = methodOf(app) === "api"; return (
               <div className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 ${isDefault ? "border-accent-border bg-accent-soft/20" : "border-border bg-surface"}`}>
                 <span className="h-2 w-2 shrink-0 rounded-full bg-text-muted" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">API key {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-accent">default</span>}</div>
+                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">API key {isDefault && <span className="rounded border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">default</span>}</div>
                   <div className="font-mono text-[10.5px] text-text-muted">paste a token for direct access</div>
                 </div>
-                {!isDefault && <button onClick={() => setDefaultMethod("api")} className="shrink-0 rounded-md border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">Make default</button>}
-                <button onClick={() => setTab("settings")} title="Set the connection method + credentials in Settings" className="shrink-0 rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent">Add key</button>
+                {!isDefault && <button onClick={() => setDefaultMethod("api")} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Make default</button>}
+                <button onClick={() => setTab("settings")} title="Set the connection method + credentials in Settings" className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">Add key</button>
               </div>
               ); })()}
             </div>
@@ -3835,7 +3835,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
 export function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3">
-      <span className="w-24 shrink-0 font-mono text-[10px] uppercase tracking-wider text-text-muted">{label}</span>
+      <span className="w-24 shrink-0 text-[11px] text-text-muted">{label}</span>
       <span className="min-w-0 flex-1 text-text-secondary">{children}</span>
     </div>
   );

@@ -154,7 +154,7 @@ export function MapPanel({ vaultPath }: { vaultPath: string }) {
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="font-mono text-lg font-semibold tabular-nums text-text-primary">{model.overallScore}%</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">agent-operable</div>
+              <div className="text-[11px] text-text-muted">agent-operable</div>
             </div>
             <button
               onClick={() => void load()}
@@ -195,7 +195,7 @@ export function MapPanel({ vaultPath }: { vaultPath: string }) {
         {/* Domains - even, expandable rows (one row per domain). */}
         <div className="mt-6 flex flex-wrap items-center gap-1.5">
           <h2 className="mr-2 text-sm font-semibold text-text-primary">Domains</h2>
-          <span className="mr-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">Filter</span>
+          <span className="mr-1 text-[11px] font-medium tracking-wide text-text-muted">Filter</span>
           {LEGEND.map((st) => {
             const active = filter === st;
             return (
@@ -254,7 +254,7 @@ export function MapPanel({ vaultPath }: { vaultPath: string }) {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3 text-[11px]">
-          <span className="font-mono uppercase tracking-[0.12em] text-text-muted">Weight</span>
+          <span className="font-mono text-text-muted">Weight</span>
           <WeightKey tone="bg-accent" weight="1" note="connected · CLI" />
           <WeightKey tone="bg-accent/60" weight="¾" note="MCP" />
           <WeightKey tone="bg-accent/30" weight="½" note="API · research" />
@@ -409,7 +409,7 @@ function DomainRow(p: RowProps) {
             <div className="space-y-1.5">
               {!filtering && (
                 <div className="flex items-center gap-2 pt-0.5">
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-text-muted">Recommended</span>
+                  <span className="font-mono text-[11px] tracking-wide text-text-muted">Recommended</span>
                   <span className="h-px flex-1 bg-border-subtle" />
                 </div>
               )}
@@ -533,7 +533,7 @@ function Chip({ tool, logos, busy, domainSlug, allDomains, onAccept, onRemove, o
           </button>
           {moveTargets.length > 0 && (
             <>
-              <div className="mt-1 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">Move to</div>
+              <div className="mt-1 px-2 py-0.5 text-[11px] text-text-muted">Move to</div>
               <div className="max-h-40 overflow-y-auto">
                 {moveTargets.map((d) => (
                   <button key={d.slug} onClick={() => { setMenu(false); onMove(d.slug); }} className="block w-full truncate rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-surface-warm hover:text-accent">

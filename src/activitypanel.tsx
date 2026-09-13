@@ -74,7 +74,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   const multiline = value.includes("\n");
   return (
     <div className="grid grid-cols-[7rem_1fr] gap-2 py-1">
-      <div className="font-mono text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
+      <div className="text-[11px] text-text-muted">{label}</div>
       {multiline ? (
         <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-text-secondary">{value}</pre>
       ) : (
@@ -114,7 +114,7 @@ function ActivityDetail({ event }: { event: ActivityEvent }) {
       {knownRows.map((r) => <DetailRow key={`k-${r.label}`} label={r.label} value={r.value} />)}
       {extraRows.length > 0 && (
         <>
-          <div className="mt-2 mb-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">Additional detail</div>
+          <div className="mt-2 mb-0.5 text-[11px] font-semibold text-text-muted">Additional detail</div>
           {extraRows.map((r) => <DetailRow key={`x-${r.label}`} label={r.label} value={r.value} />)}
         </>
       )}
@@ -262,12 +262,12 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader
         icon={Activity}
         title="Activity"
-        subtitle="Everything Prevail does on its own, across every domain: loop runs, executed approvals, tasks filed, briefings, and app syncs. Full transparency into the autonomous system."
+        subtitle="Everything Prevail did on its own."
       />
 
       {/* Running now - the live, in-flight processes (not yet in history). */}
       <section>
-        <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">Running now</div>
+        <div className="mb-1.5 text-[11px] font-semibold text-text-muted">Running now</div>
         {live.length === 0 ? (
           <div className="rounded-lg border border-border-subtle bg-surface px-3 py-2.5 text-xs text-text-muted">Nothing running right now.</div>
         ) : (
@@ -276,7 +276,7 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
               <li key={p.id} className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-soft/20 px-3 py-2">
                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />
                 <span className="flex-1 truncate text-[13px] text-text-primary">{p.label}</span>
-                <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-text-muted">{p.kind}</span>
+                <span className="shrink-0 text-[11px] text-text-muted">{p.kind}</span>
               </li>
             ))}
           </ul>
@@ -312,7 +312,7 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
 
       {/* History feed */}
       <section>
-        <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">History</div>
+        <div className="mb-1.5 text-[11px] font-semibold text-text-muted">History</div>
         {loading ? (
           <div className="text-sm text-text-muted">loading activity…</div>
         ) : shown.length === 0 ? (
@@ -337,7 +337,7 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
                       className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1 text-left">
                       <ChevronRight className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted transition-transform group-hover:text-text-secondary ${open ? "rotate-90" : ""}`} />
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-text-muted">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
                           <span className={m.tint}>{m.label}</span>
                           {e.domain && <span className="rounded bg-surface-warm px-1.5 py-0.5 text-text-secondary">{titleCase(e.domain)}</span>}
                           <span>{relTime(e.ts)}</span>
@@ -352,7 +352,7 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
                       <button type="button"
                         onClick={(ev) => { ev.stopPropagation(); void openActivitySource(e, vaultPath); }}
                         title={`${SOURCE_LABEL[e.type]} — go to the source of this event`}
-                        className="mr-1 mt-1.5 inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted opacity-60 transition-all hover:bg-surface hover:text-accent group-hover:opacity-100">
+                        className="mr-1 mt-1.5 inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] text-text-muted opacity-60 transition-all hover:bg-surface hover:text-accent group-hover:opacity-100">
                         {SOURCE_LABEL[e.type]}<ArrowUpRight className="h-3 w-3" />
                       </button>
                     )}

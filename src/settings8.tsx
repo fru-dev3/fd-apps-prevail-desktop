@@ -206,11 +206,11 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
         </div>
         {/* Where backups land — visible + changeable right here. Kept OUTSIDE the
             vault (a backup inside what it backs up is circular). */}
-        <div className="flex w-full items-center gap-1.5 text-[10px] text-text-muted">
+        <div className="flex w-full items-center gap-1.5 text-[11px] text-text-muted">
           <FolderOpen className="h-3 w-3 shrink-0" />
           <span className="min-w-0 flex-1 truncate" title={backupDir}>{backupDir || "default location"}{backupDirCustom ? "" : " · default"}</span>
-          <button onClick={changeBackupDir} className="shrink-0 uppercase tracking-wider hover:text-accent">change</button>
-          {backupDirCustom && <button onClick={resetBackupDir} className="shrink-0 uppercase tracking-wider hover:text-accent">reset</button>}
+          <button onClick={changeBackupDir} className="shrink-0 hover:text-accent">change</button>
+          {backupDirCustom && <button onClick={resetBackupDir} className="shrink-0 hover:text-accent">reset</button>}
         </div>
       </div>
     ) : null
@@ -330,7 +330,7 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
         <SettingsHeader
           icon={Sparkles}
           title="Sandbox"
-          subtitle="Explore Prevail with throwaway sample data, then set up your own vault when you're ready."
+          subtitle="Explore with sample data before using your own."
         />
       )}
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -339,12 +339,12 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
           <div className="flex items-center gap-2">
             <ShieldCheck className={`h-4 w-4 shrink-0 ${!isDemo ? "text-warn" : "text-text-muted"}`} />
             <span className="text-sm font-semibold text-text-primary">Your vault</span>
-            {!isDemo && <span className="rounded-full bg-warn px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-background">Active</span>}
+            {!isDemo && <span className="rounded-full bg-warn px-1.5 py-0.5 text-[11px] font-bold text-background">Active</span>}
             <span className="ml-auto"><Toggle on={!isDemo} disabled={switchingMode} onChange={(v) => { if (v) void switchToProduction(); else void switchToDemo(); }} label="Use my own vault" /></span>
           </div>
           {/* Path + an even, aligned row of icon actions: rescan, change folder, open. */}
           <div className="mt-2 flex items-center gap-2">
-            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary" title={prodVault || "not set up yet"}>{prodVault || (isDemo ? "not set up yet - toggle on to set up" : vaultPath)}</span>
+            <span className="min-w-0 flex-1 truncate text-[11px] text-text-secondary" title={prodVault || "not set up yet"}>{prodVault || (isDemo ? "not set up yet - toggle on to set up" : vaultPath)}</span>
             <div className="flex shrink-0 items-center gap-0.5">
               <button onClick={rescanVault} disabled={rescanning} title="Rescan the workspace for the canonical structure" className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40"><RotateCw className={`h-3.5 w-3.5 ${rescanning ? "animate-spin" : ""}`} /></button>
               <button onClick={changeVaultPath} disabled={switchingMode} title="Change vault folder" className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40"><FolderOpen className="h-3.5 w-3.5" /></button>
@@ -370,20 +370,20 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
           <div className="flex items-center gap-2">
             <Sparkles className={`h-4 w-4 ${isDemo ? "text-accent" : "text-text-muted"}`} />
             <span className="text-sm font-semibold text-text-primary">Demo vault</span>
-            {isDemo && <span className="rounded-full bg-accent px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-background">Active</span>}
+            {isDemo && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-bold text-background">Active</span>}
             <span className="ml-auto"><Toggle on={isDemo} disabled={switchingMode} onChange={(v) => { if (v) void switchToDemo(); else void switchToProduction(); }} label="Explore the demo sandbox" /></span>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary" title={isDemo ? vaultPath : "sample data"}>{isDemo ? vaultPath : "throwaway sample data"}</span>
+            <span className="min-w-0 flex-1 truncate text-[11px] text-text-secondary" title={isDemo ? vaultPath : "sample data"}>{isDemo ? vaultPath : "throwaway sample data"}</span>
             {isDemo && (
               <button onClick={() => void invoke("open_in_finder", { path: vaultPath }).catch(() => {})} title="Open in Finder" className="shrink-0 rounded p-1 text-text-muted hover:text-accent"><ExternalLink className="h-3.5 w-3.5" /></button>
             )}
           </div>
-          <div className="mt-0.5 text-[10px] text-text-muted">Sample data, re-seeded. Safe to explore; nothing here is your real data.</div>
+          <div className="mt-0.5 text-[11px] text-text-muted">Sample data, re-seeded. Safe to explore; nothing here is your real data.</div>
           {isDemo && (
             <div className="mt-2 border-t border-border-subtle/60 pt-2">
               <div className="flex items-center gap-2">
-                <span className="flex-1 text-[10px] text-text-muted">Automatic backups</span>
+                <span className="flex-1 text-[11px] text-text-muted">Automatic backups</span>
                 <Toggle on={backupOn} onChange={toggleBackup} label="Back up demo vault" />
               </div>
               <BackupStatusLine />
@@ -456,8 +456,8 @@ export function BackupAutomationCard({ vault, onChange }: { vault: string; onCha
             <div className="flex items-center gap-1">
               <input type="number" min={1} max={365} value={/^custom:(\d+)$/.exec(freq)?.[1] ?? "3"} disabled={!enabled}
                 onChange={(e) => { const v = `custom:${Math.max(1, Math.min(365, parseInt(e.target.value, 10) || 1))}`; setFreq(v); lsSet(BACKUP_CFG.freq, v); }}
-                className="w-14 rounded-md border border-border bg-background px-2 py-1 text-right font-mono text-[11px] text-text-secondary disabled:opacity-40" />
-              <span className="font-mono text-[10px] text-text-muted">days</span>
+                className="w-14 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-text-secondary disabled:opacity-40" />
+              <span className="font-mono text-[11px] text-text-muted">days</span>
             </div>
           )}
         </div>
@@ -465,7 +465,7 @@ export function BackupAutomationCard({ vault, onChange }: { vault: string; onCha
             N changes" input was the clutter the founder flagged; removed. */}
         <button onClick={async () => { setBusy(true); setNote(null); const ok = await backupVaultNow(vault); setNote(ok ? "Backup created." : "Backup failed."); setBusy(false); }}
           disabled={busy}
-          className="rounded-md border border-border px-3 py-1 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50">
+          className="rounded-md border border-border px-3 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50">
           {busy ? "…" : "Back up now"}
         </button>
         <Toggle on={enabled} onChange={(v) => { setEnabled(v); lsSet(BACKUP_CFG.enabled, v ? "1" : "0"); }} label="Automatic backups" />
@@ -476,22 +476,22 @@ export function BackupAutomationCard({ vault, onChange }: { vault: string; onCha
       <div className="mt-3 flex items-center gap-2 border-t border-border-subtle pt-2.5">
         <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-muted" />
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Backup location {dest ? "" : "· default"}</div>
-          <div className="truncate font-mono text-[11px] text-text-secondary" title={effectiveDir}>{effectiveDir || "…"}</div>
+          <div className="font-mono text-[11px] text-text-muted">Backup location {dest ? "" : "· default"}</div>
+          <div className="truncate text-[11px] text-text-secondary" title={effectiveDir}>{effectiveDir || "…"}</div>
         </div>
-        <button onClick={changeBackupDir} title="Choose a different backup folder" className="shrink-0 rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">Change</button>
-        {dest && <button onClick={resetBackupDir} title="Reset to the default location" className="shrink-0 rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">Reset</button>}
+        <button onClick={changeBackupDir} title="Choose a different backup folder" className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Change</button>
+        {dest && <button onClick={resetBackupDir} title="Reset to the default location" className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Reset</button>}
       </div>
       {backups.length > 0 && (
         <details className="mt-3 rounded-lg border border-border-subtle bg-background px-3 py-2">
-          <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
+          <summary className="cursor-pointer text-[11px] text-text-muted">
             Restore points · {backups.length}
           </summary>
           <div className="mt-2 flex flex-col gap-1">
             {backups.map((b) => (
               <div key={b.path} className="flex items-center gap-2 px-1 py-1">
-                <span className="flex-1 truncate font-mono text-[11px] text-text-secondary" title={b.path}>{b.name.replace("prevail-backup-", "").replace(".tar.gz", "")}</span>
-                <span className="shrink-0 font-mono text-[10px] text-text-muted">{bytesHuman(b.bytes)}</span>
+                <span className="flex-1 truncate text-[11px] text-text-secondary" title={b.path}>{b.name.replace("prevail-backup-", "").replace(".tar.gz", "")}</span>
+                <span className="shrink-0 text-[11px] text-text-muted">{bytesHuman(b.bytes)}</span>
                 <button
                   onClick={async () => {
                     const ok = await tauriConfirm(
@@ -510,7 +510,7 @@ export function BackupAutomationCard({ vault, onChange }: { vault: string; onCha
                     finally { setBusy(false); }
                   }}
                   disabled={busy}
-                  className="shrink-0 rounded-md border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50">
+                  className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50">
                   Restore
                 </button>
               </div>
@@ -589,7 +589,7 @@ function VaultRebuildCard({ vaultPath }: { vaultPath: string }) {
 export function WorkspaceSection({ vaultPath, onSetupDomains, onVaultMoved }: { vaultPath: string; onSetupDomains?: () => void; onVaultMoved?: (path: string) => void }) {
   return (
     <>
-      <SettingsHeader icon={FolderTree} title="Workspace" subtitle="Where your data lives and how you set it up: your vault, the demo vault, backups, and outside sources like Obsidian." />
+      <SettingsHeader icon={FolderTree} title="Workspace" subtitle="Where your data lives." />
       <ObsidianCard />
       {/* ONE Vault section = the Your/Demo vault cards (inline change+open icons and
           a per-vault backup toggle), plus a copy-safe filename normalizer. */}

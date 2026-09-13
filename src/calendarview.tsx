@@ -326,7 +326,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
     <>
       <div className="grid grid-cols-7 gap-px">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div key={d} className="px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">{d}</div>
+          <div key={d} className="px-2 py-1 text-[11px] text-text-muted">{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border-subtle bg-border-subtle">
@@ -344,7 +344,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
               <ul className="mt-1 space-y-0.5">
                 {dayEvents.slice(0, 4).map((e) => <li key={e.key}><Chip e={e} /></li>)}
                 {dayEvents.length > 4 && (
-                  <li><button onClick={() => drillToDay(key)} className="px-1 text-[10px] text-text-muted hover:text-accent">+{dayEvents.length - 4} more</button></li>
+                  <li><button onClick={() => drillToDay(key)} className="px-1 text-[11px] text-text-muted hover:text-accent">+{dayEvents.length - 4} more</button></li>
                 )}
               </ul>
             </div>
@@ -366,7 +366,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
           return (
             <div key={key} className="group/cell flex min-h-[60vh] flex-col bg-background p-1.5">
               <div className="mb-1 flex items-center justify-between">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">{d.toLocaleDateString(undefined, { weekday: "short" })}</span>
+                <span className="font-mono text-[11px] text-text-muted">{d.toLocaleDateString(undefined, { weekday: "short" })}</span>
                 <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold ${isToday ? "bg-accent text-background" : "text-text-secondary"}`}>{d.getDate()}</span>
               </div>
               <ul className="flex-1 space-y-0.5">
@@ -414,7 +414,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
                         important bit, color-coded. */}
                     <span className="flex shrink-0 items-center gap-1.5">
                       {prio && PRIORITY_CLS[prio] && (
-                        <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider ${PRIORITY_CLS[prio]}`}>{prio}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${PRIORITY_CLS[prio]}`}>{prio}</span>
                       )}
                       <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wide ${due.cls}`}>{due.label}</span>
                     </span>
@@ -470,7 +470,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
             <ul className="space-y-2">
               {Object.keys(grouped).sort().map((key) => (
                 <li key={key}>
-                  <button onClick={() => drillToDay(key)} className="mb-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:text-accent">{prettyDate(key)}</button>
+                  <button onClick={() => drillToDay(key)} className="mb-0.5 text-[11px] text-text-muted hover:text-accent">{prettyDate(key)}</button>
                   <ul className="space-y-0.5">{grouped[key].map((e) => <li key={e.key}><Chip e={e} full /></li>)}</ul>
                 </li>
               ))}
@@ -492,7 +492,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader
         title="Calendar"
         icon={CalendarDays}
-        subtitle="Everything scheduled on your system (automation loops, tasks, and your Google Calendar) in one place. Click an item to edit it; click a day to add one."
+        subtitle="Loops, tasks and your Google calendar in one place."
         right={
           <div className="flex items-center gap-1.5">
             <button onClick={() => shift(-1)} title="Previous" className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-secondary hover:bg-surface-warm hover:text-text-primary"><ChevronLeft className="h-4 w-4" /></button>
@@ -511,13 +511,13 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
             ))}
           </div>
           <h3 className="font-display text-lg font-semibold text-text-primary">{periodLabel}</h3>
-          {loading && <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">loading…</span>}
+          {loading && <span className="font-mono text-[11px] text-text-muted">loading…</span>}
         </div>
         <div className="flex items-center gap-1.5">
           <Source id="loop" label="Loops" color="color-mix(in srgb, var(--color-ai, #3CD8FF) 40%, transparent)" />
           <Source id="task" label="Tasks" color="var(--color-accent, #0d7a6e)" />
           <Source id="google" label="Google" color="#a855f7" />
-          {syncMsg && <span className="ml-1 max-w-[220px] truncate font-mono text-[10px] text-text-muted" title={syncMsg}>{syncMsg}</span>}
+          {syncMsg && <span className="ml-1 max-w-[220px] truncate text-[11px] text-text-muted" title={syncMsg}>{syncMsg}</span>}
           <button onClick={() => void syncGoogle()} disabled={syncing} title="Pull your Google Calendar events into Prevail (read-only). Requires the Google Workspace CLI (gws) to be installed and authenticated." className="ml-1 flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:bg-surface-warm hover:text-text-primary disabled:opacity-50">
             <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Sync"}
           </button>
@@ -543,17 +543,17 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
               ))}
             </div>
             <p className="mb-3 text-xs text-text-muted">{evKind === "task" ? <>A task due <span className="font-mono text-text-secondary">{composeDay}</span>, tied to a domain.</> : <>A standing automation (loop) that runs on a cadence, tied to a domain.</>}</p>
-            <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">{evKind === "task" ? "Task" : "Automation"}</label>
+            <label className="mb-1 block text-[11px] text-text-muted">{evKind === "task" ? "Task" : "Automation"}</label>
             <input autoFocus value={evText} onChange={(e) => setEvText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void saveEvent(); }} placeholder={evKind === "task" ? "e.g. Review portfolio" : "e.g. Weekly portfolio review"} className="mb-3 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
             {evKind === "automation" && (
               <>
-                <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Cadence</label>
+                <label className="mb-1 block text-[11px] text-text-muted">Cadence</label>
                 <select value={evCadence} onChange={(e) => setEvCadence(e.target.value as LoopCadence)} className="mb-3 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none">
                   {(["continuous", "daily", "weekly", "monthly"] as LoopCadence[]).map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </>
             )}
-            <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Domain</label>
+            <label className="mb-1 block text-[11px] text-text-muted">Domain</label>
             <select value={evDomain} onChange={(e) => setEvDomain(e.target.value)} className="mb-4 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none">
               {domains.length === 0 && <option value="">No domains yet</option>}
               {domains.map((d) => <option key={d.name} value={d.name}>{titleCase(d.name)}</option>)}
@@ -581,15 +581,15 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
             {edit.kind === "task" && (
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Title</label>
+                  <label className="mb-1 block text-[11px] text-text-muted">Title</label>
                   <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
                 </div>
                 <div>
-                  <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Due date</label>
+                  <label className="mb-1 block text-[11px] text-text-muted">Due date</label>
                   <input type="date" value={editDue} onChange={(e) => setEditDue(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
                 </div>
                 <div>
-                  <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Status</label>
+                  <label className="mb-1 block text-[11px] text-text-muted">Status</label>
                   <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none">
                     {["todo", "doing", "review", "done", "blocked", "icebox"].map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -602,7 +602,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
                 </div>
                 {/* Do something with this task */}
                 <div className="mt-3 border-t border-border-subtle pt-3">
-                  <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">Work on it</div>
+                  <div className="mb-1.5 text-[11px] text-text-muted">Work on it</div>
                   <div className="grid grid-cols-1 gap-1.5">
                     <button onClick={() => chatAbout(edit)} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-left text-sm text-text-secondary hover:border-accent-border hover:text-accent"><MessageSquare className="h-4 w-4 shrink-0" /> Chat about this</button>
                     <button onClick={() => void handToAgent(edit)} disabled={editBusy || !edit.task?.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-left text-sm text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50"><Bot className="h-4 w-4 shrink-0" /> Hand to an agent</button>
@@ -617,7 +617,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
                 <div className="text-sm font-semibold text-text-primary">{edit.title}</div>
                 <div className="text-[11px] text-text-muted">Domain: {titleCase(edit.domain)}</div>
                 <div>
-                  <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Cadence</label>
+                  <label className="mb-1 block text-[11px] text-text-muted">Cadence</label>
                   <select value={editCadence} onChange={(e) => setEditCadence(e.target.value as LoopCadence)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none">
                     {(["continuous", "daily", "weekly", "monthly"] as LoopCadence[]).map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>

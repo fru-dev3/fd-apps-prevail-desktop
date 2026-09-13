@@ -220,7 +220,7 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
             ].map((t) => (
               <div key={t.l} className="rounded-xl border border-border bg-surface p-3.5">
                 <div className="font-mono text-lg font-semibold tabular-nums text-text-primary">{t.v}</div>
-                <div className="mt-0.5 text-[11px] uppercase tracking-wide text-text-muted">{t.l}</div>
+                <div className="mt-0.5 text-[11px] tracking-wide text-text-muted">{t.l}</div>
               </div>
             ))}
           </div>

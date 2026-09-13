@@ -76,7 +76,7 @@ function HygieneRow({ kind, vaultPath }: { kind: Kind; vaultPath: string }) {
       </div>
       {ops && count > 0 && (
         <div className="mt-3 rounded-md border border-accent-border bg-accent-soft p-3">
-          <div className="mb-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-accent">
+          <div className="mb-1.5 text-[11px] font-bold text-accent">
             {count} {count === 1 ? "change" : "changes"} proposed
           </div>
           <ul className="max-h-40 space-y-0.5 overflow-auto">
@@ -103,7 +103,7 @@ export function VaultHygieneCard({ vaultPath }: { vaultPath: string }) {
   if (!vaultPath) return null;
   return (
     <div className="mb-7">
-      <div className="mb-2 flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-text-secondary">
+      <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-text-secondary">
         <Sparkles className="h-3.5 w-3.5" /> Vault hygiene
       </div>
       <div className="space-y-2">

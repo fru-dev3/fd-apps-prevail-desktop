@@ -179,7 +179,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
     <>
       <SettingsHeader
         title="Daemons"
-        subtitle="The background workers. Each runs continuously: distill intents into memory, fire task reminders, proactively generate tasks, and learn reusable skills from your conversations."
+        subtitle="The background workers, and what each is doing."
       />
 
       {/* Machine role picker. When a vault is shared by two Macs, only the hub
@@ -203,7 +203,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
                   type="button"
                   disabled={roleBusy}
                   onClick={() => pickRole(r)}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors disabled:opacity-40 ${
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] transition-colors disabled:opacity-40 ${
                     active ? "bg-accent text-white" : "text-text-muted hover:text-accent"
                   }`}
                 >
@@ -277,7 +277,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
               className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" /><span className="font-mono text-xs text-text-muted">s</span></div>} />
           <Row title="Distill now" desc="Run a distillation pass immediately."
             control={<button onClick={distillNow} disabled={distilling}
-              className="rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
               {distilling ? "distilling…" : "distill now"}</button>} />
           {distillMsg && <div className="pb-3 text-xs text-text-secondary">{distillMsg}</div>}
         </div>
@@ -351,7 +351,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button onClick={runTaskgenNow} disabled={running}
-            className="rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
             {running ? "generating…" : "generate tasks now"}
           </button>
           {taskgenMsg && <span className="text-xs text-text-secondary">{taskgenMsg}</span>}
@@ -393,7 +393,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button onClick={runSkillgenNow} disabled={skillgenRunning}
-            className="rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
             {skillgenRunning ? "learning…" : "learn skills now"}
           </button>
           {skillgenMsg && <span className="text-xs text-text-secondary">{skillgenMsg}</span>}
@@ -597,7 +597,7 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader
         title="Intents"
         icon={Lightbulb}
-        subtitle="Intents are the goal behind your questions, distilled from your journal (the raw record of what you asked), with recommended next actions. The journal lives below as provenance."
+        subtitle="The goal behind your questions."
       />
 
       {/* Distilled intents - the high-level layer. */}
@@ -652,13 +652,13 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-display text-base font-semibold tracking-tight text-text-primary">{it.title ?? "Intent"}</span>
-                      {it.status && <span className={`font-mono text-[10px] uppercase tracking-wider ${statusTone(it.status)}`}>{it.status}</span>}
+                      {it.status && <span className={`text-[11px] ${statusTone(it.status)}`}>{it.status}</span>}
                       {typeof it.confidence === "number" && <span className="font-mono text-[10px] text-text-muted">{Math.round(it.confidence * 100)}%</span>}
                     </div>
                     {it.goal && <div className="mt-0.5 text-sm text-text-secondary">{it.goal}</div>}
                     {(it.sources ?? []).length > 0 && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">From</span>
+                        <span className="text-[11px] text-text-muted">From</span>
                         {(it.sources ?? []).map((s) => (
                           <span key={s} className="inline-flex items-center gap-1 rounded border border-ai/30 bg-ai/5 px-1.5 py-0.5 font-mono text-[10px] text-ai" title="Surface this intent was drawn from">
                             {sourceLabel(s)}
@@ -669,7 +669,7 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
                   </div>
                   <span className="hidden shrink-0 items-center gap-1 sm:flex">
                     {(it.domains ?? []).slice(0, 3).map((d) => (
-                      <span key={d} className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">{titleCase(d)}</span>
+                      <span key={d} className="rounded bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{titleCase(d)}</span>
                     ))}
                   </span>
                 </button>
@@ -682,11 +682,11 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
                 {open && (
                   <div className="space-y-3 border-t border-border-subtle px-4 py-4 pl-[60px] text-sm">
                     {it.underlying_need && (
-                      <div><span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Underlying need</span><div className="mt-0.5 text-text-secondary">{it.underlying_need}</div></div>
+                      <div><span className="text-[11px] text-text-muted">Underlying need</span><div className="mt-0.5 text-text-secondary">{it.underlying_need}</div></div>
                     )}
                     {(it.recommendations ?? []).length > 0 && (
                       <div>
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-accent">Recommended next actions</span>
+                        <span className="text-[11px] text-accent">Recommended next actions</span>
                         <ul className="mt-1 space-y-1">
                           {it.recommendations!.map((r, j) => {
                             const key = `${i}:${j}`;
@@ -699,7 +699,7 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
                                   onClick={() => addRecAsTask(it, r, key)}
                                   disabled={added}
                                   title={added ? "Added to your tasks" : `Add as a task in ${titleCase((it.domains && it.domains[0]) || "general")}`}
-                                  className={`shrink-0 rounded-md border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${added ? "border-ok/40 text-ok" : "border-border text-text-muted hover:border-accent-border hover:text-accent"}`}
+                                  className={`shrink-0 rounded-md border px-2 py-0.5 text-[11px] transition-colors ${added ? "border-ok/40 text-ok" : "border-border text-text-muted hover:border-accent-border hover:text-accent"}`}
                                 >
                                   {added ? "added ✓" : "+ task"}
                                 </button>
@@ -711,7 +711,7 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
                     )}
                     {(it.open_questions ?? []).length > 0 && (
                       <div>
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Open questions</span>
+                        <span className="text-[11px] text-text-muted">Open questions</span>
                         <ul className="mt-1 list-disc space-y-0.5 pl-4 text-text-secondary">
                           {it.open_questions!.map((qq, j) => <li key={j}>{qq}</li>)}
                         </ul>
@@ -719,7 +719,7 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
                     )}
                     {(it.evidence ?? []).length > 0 && (
                       <div>
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Evidence ({it.evidence!.length} prompts)</span>
+                        <span className="text-[11px] text-text-muted">Evidence ({it.evidence!.length} prompts)</span>
                         <ul className="mt-1 space-y-0.5">
                           {it.evidence!.map((e, j) => <li key={j} className="border-l-2 border-border-subtle pl-2 text-text-muted">{e}</li>)}
                         </ul>
@@ -790,7 +790,7 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
       {!headerless && (
         <SettingsHeader
           title="Memory & Context"
-          subtitle="What the system has learned about you. Every chat is captured as an intent; the distiller routine compacts them into per-domain long-term memory that is fed back into future chats."
+          subtitle="What Prevail has learned about you."
         />
       )}
       {/* The distiller runs on the Daemons page; this is its outcome view. A
@@ -800,8 +800,8 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
         className="mb-4 flex w-full items-center gap-2 rounded-lg border border-border-subtle bg-surface px-4 py-2.5 text-left hover:border-accent-border"
       >
         <Brain className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-secondary">Distiller</span>
-        <span className="font-mono text-[10px] text-text-muted">
+        <span className="font-mono text-[11px] text-text-secondary">Distiller</span>
+        <span className="font-mono text-[11px] text-text-muted">
           {status?.running ? "running" : "idle"}
           {/* B2-19: last_run_ts is in SECONDS (treating it as ms gave "20601 days");
               formatFreshness already returns "... ago" (don't append a second one). */}
@@ -969,7 +969,7 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
     <>
       <SettingsHeader
         title="Skills"
-        subtitle="Upload a SKILL.md to install it into a domain, or drop a folder under a domain's _skills/ directory. The first non-empty line of SKILL.md or README.md becomes the description."
+        subtitle="Install a skill into a domain."
       />
 
       <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
@@ -1059,7 +1059,7 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
               <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${listOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
               {listOpen ? "Collapse" : `Show ${filtered.length} skill${filtered.length === 1 ? "" : "s"}`}
               {usageTotals && (usageTotals.unused > 0 || usageTotals.dormant > 0) && (
-                <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-warn">
+                <span className="ml-2 text-[11px] text-warn">
                   {usageTotals.unused > 0 ? `${usageTotals.unused} never used` : ""}{usageTotals.unused > 0 && usageTotals.dormant > 0 ? " · " : ""}{usageTotals.dormant > 0 ? `${usageTotals.dormant} dormant` : ""} - consider archiving
                 </span>
               )}
@@ -1083,16 +1083,16 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-baseline gap-2">
                               <span className="font-display text-base font-semibold tracking-tight text-text-primary">{s.name}</span>
-                              <span className="rounded-md border border-border-subtle bg-background px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                              <span className="rounded-md border border-border-subtle bg-background px-1.5 py-0.5 text-[11px] text-text-muted">
                                 {titleCase(s.domain)}
                               </span>
                               {(() => {
                                 const u = usageOf(s);
                                 if (!u) return null;
-                                if (u.verdict === "unused") return <span className="rounded-md bg-warn/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-warn">never used</span>;
+                                if (u.verdict === "unused") return <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] text-warn">never used</span>;
                                 const days = u.lastTs ? Math.max(0, Math.floor((Date.now() - u.lastTs) / 86_400_000)) : null;
                                 const rel = days === null ? "" : days === 0 ? " · today" : ` · ${days}d ago`;
-                                return <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${u.verdict === "dormant" ? "bg-warn/10 text-warn" : "bg-surface-warm text-text-muted"}`}>{u.uses} use{u.uses === 1 ? "" : "s"}{rel}{u.verdict === "dormant" ? " · dormant" : ""}</span>;
+                                return <span className={`rounded-md px-1.5 py-0.5 text-[11px] ${u.verdict === "dormant" ? "bg-warn/10 text-warn" : "bg-surface-warm text-text-muted"}`}>{u.uses} use{u.uses === 1 ? "" : "s"}{rel}{u.verdict === "dormant" ? " · dormant" : ""}</span>;
                               })()}
                             </div>
                             {cleaned && (

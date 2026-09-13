@@ -309,7 +309,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
             <button
               onClick={stopAll}
               title="Stop the whole run: the loop running now is stopped and no further loops start."
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-err/40 bg-err/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-err hover:bg-err/20"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-err/40 bg-err/10 px-3 py-1.5 text-[11px] text-err hover:bg-err/20"
             >
               <X className="h-3.5 w-3.5" /> Stop run
             </button>
@@ -317,18 +317,18 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
             <button
               onClick={runNow}
               title="Run every active loop now, one at a time: each measures the gap and refreshes its actions. Also runs in the background on each loop's cadence."
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Run loops now
             </button>
           )
         )}
         {/* X11: share automations as portable files. */}
-        <button onClick={importLoops} title="Import automations from a shared file (they arrive paused)" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">
+        <button onClick={importLoops} title="Import automations from a shared file (they arrive paused)" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">
           <Download className="h-3.5 w-3.5" /> Import
         </button>
         {doc && doc.loops.length > 0 && (
-          <button onClick={exportLoops} title="Export this domain's automations to a shareable file" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">
+          <button onClick={exportLoops} title="Export this domain's automations to a shareable file" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">
             <Upload className="h-3.5 w-3.5" /> Export
           </button>
         )}
@@ -350,7 +350,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
             ].map((s) => (
               <div key={s.n} className="rounded-lg border border-border-subtle bg-background px-3 py-2.5">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft font-mono text-[10px] font-bold text-accent">{s.n}</span>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent">{s.n}</span>
                   <span className="text-sm font-semibold text-text-primary">{s.h}</span>
                 </div>
                 <div className="mt-1 text-xs leading-relaxed text-text-muted">{s.b}</div>
@@ -359,7 +359,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
           </div>
           {/* Guardrail tiers as a clean two-column list with accent keys. */}
           <div>
-            <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">Each loop's guardrail · what it may DO</div>
+            <div className="mb-1.5 text-[11px] font-semibold text-text-muted">Each loop's guardrail · what it may DO</div>
             <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-subtle bg-border-subtle sm:grid-cols-2">
               {(["suggest", "tasks", "ask", "auto"] as LoopAutonomy[]).map((a) => (
                 <div key={a} className="bg-surface px-3 py-2">
@@ -381,7 +381,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
           you can make). This is the loop "asking for permission". */}
       {pending.length > 0 && (
         <section className="rounded-xl border border-accent-border bg-accent-soft/30 p-4">
-          <div className="mb-2 flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-accent">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-accent">
             <ShieldQuestion className="h-3.5 w-3.5" /> Needs your approval · {pending.length}
           </div>
           <ul className="space-y-1.5">
@@ -389,7 +389,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
               <li key={`${p.loopId}-${i}`} className="flex items-start gap-2 rounded-lg border border-border-subtle bg-background px-3 py-2">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm text-text-primary">{p.text}</div>
-                  <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">{p.loopName}{p.ts ? ` · queued ${relTime(p.ts)}` : ""}</div>
+                  <div className="mt-0.5 text-[11px] text-text-muted">{p.loopName}{p.ts ? ` · queued ${relTime(p.ts)}` : ""}</div>
                 </div>
                 {(() => {
                   const thisRunning = execBusy === p.text;
@@ -397,7 +397,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
                   return (
                     <button onClick={() => executePending(p.loopId, p.text)} disabled={execBusy !== null}
                       title={otherRunning ? "Another action is running - only one at a time" : "Execute now via your connectors (email, calendar, etc.) - the agent actually does it"}
-                      className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                      className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] transition-colors ${
                         otherRunning
                           ? "cursor-not-allowed border-border-subtle bg-surface-warm text-text-muted/60"
                           : "border-accent-border bg-accent text-background hover:opacity-90"
@@ -407,11 +407,11 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
                   );
                 })()}
                 <button onClick={() => resolvePending(p.loopId, p.text, true)} disabled={execBusy !== null} title="Approve: file it as a task to do later"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
                   <Check className="h-3 w-3" /> task
                 </button>
                 <button onClick={() => resolvePending(p.loopId, p.text, false)} disabled={execBusy !== null} title="Dismiss this proposal"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-warn hover:text-warn disabled:opacity-50">
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-warn hover:text-warn disabled:opacity-50">
                   <X className="h-3 w-3" />
                 </button>
               </li>
@@ -420,7 +420,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
           <p className="mt-2 text-[11px] text-text-muted"><span className="text-accent">Execute</span> does it now via your connectors; <span className="text-text-secondary">task</span> files it for later; dismiss drops it. Loops keep running other steps automatically.</p>
           {execReport && (
             <div className="mt-2 rounded-lg border border-border-subtle bg-background px-3 py-2">
-              <div className="font-mono text-[10px] uppercase tracking-wider text-text-muted">Executed: {execReport.action}</div>
+              <div className="text-[11px] text-text-muted">Executed: {execReport.action}</div>
               <div className="mt-1 whitespace-pre-wrap text-xs text-text-secondary">{execReport.report}</div>
             </div>
           )}
@@ -447,7 +447,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
           <p className="text-sm text-text-secondary">No steward loops yet for {titleCase(domain)} - just the built-in briefing.</p>
           <button
             onClick={() => persist(ensureBriefingLoop(seedLoopsFor(domain), domain).doc)}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-accent hover:bg-accent hover:text-background"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background"
           >
             <Plus className="h-3.5 w-3.5" /> Generate starter loops
           </button>
@@ -497,20 +497,20 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
             />
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <label className="block">
-                <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Kind</div>
+                <div className="mb-1 text-[11px] text-text-muted">Kind</div>
                 <select value={newType} onChange={(e) => setNewType(e.target.value as LoopType)} className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs">
                   <option value="open">Open (never ends)</option>
                   <option value="closed">Closed (has a finish line)</option>
                 </select>
               </label>
               <label className="block">
-                <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Checks</div>
+                <div className="mb-1 text-[11px] text-text-muted">Checks</div>
                 <select value={newCadence} onChange={(e) => setNewCadence(e.target.value as LoopCadence)} className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs">
                   {CADENCES.map((c) => <option key={c} value={c}>{CADENCE_LABEL[c]}</option>)}
                 </select>
               </label>
               <label className="block">
-                <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">Guardrail</div>
+                <div className="mb-1 text-[11px] text-text-muted">Guardrail</div>
                 <select value={newAutonomy} onChange={(e) => setNewAutonomy(e.target.value as LoopAutonomy)} className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs" title={AUTONOMY_BLURB[newAutonomy]}>
                   {(["suggest", "tasks", "ask", "auto"] as LoopAutonomy[]).map((a) => <option key={a} value={a}>{LOOP_AUTONOMY_LABEL[a]}</option>)}
                 </select>
@@ -518,12 +518,12 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
             </div>
             <div className="mt-1 text-[11px] text-text-muted">{AUTONOMY_BLURB[newAutonomy]}</div>
             <div className="mt-2 flex items-center gap-2">
-              <button onClick={addLoop} disabled={!newName.trim()} className="rounded-md border border-accent-border bg-accent px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-background hover:opacity-90 disabled:opacity-40">Add loop</button>
-              <button onClick={() => { setAdding(false); setNewName(""); setNewPurpose(""); }} className="rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:text-text-primary">Cancel</button>
+              <button onClick={addLoop} disabled={!newName.trim()} className="rounded-md border border-accent-border bg-accent px-3 py-1 text-[11px] text-background hover:opacity-90 disabled:opacity-40">Add loop</button>
+              <button onClick={() => { setAdding(false); setNewName(""); setNewPurpose(""); }} className="rounded-md px-2 py-1 text-[11px] text-text-muted hover:text-text-primary">Cancel</button>
             </div>
           </div>
         ) : (
-          <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">
+          <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">
             <Plus className="h-3.5 w-3.5" /> add loop
           </button>
         )
@@ -532,14 +532,14 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
       {/* Completed (closed) loops, collapsed at the bottom */}
       {done.length > 0 && (
         <section className="space-y-2 pt-2">
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">Completed · {done.length}</div>
+          <div className="font-mono text-[11px] text-text-muted">Completed · {done.length}</div>
           {done.map((l) => (
             <LoopCard key={l.id} loop={l} rt={runtime.loops[l.id]} open={openIds.has(l.id)} onToggleOpen={() => toggleOpen(l.id)} onChange={(patch) => mutateLoop(l.id, patch)} onRemove={() => removeLoop(l.id)} vaultPath={vaultPath} domain={domain} />
           ))}
         </section>
       )}
 
-      {savedAt > 0 && <div className="text-right font-mono text-[10px] text-text-muted/60">saved</div>}
+      {savedAt > 0 && <div className="text-right text-[11px] text-text-muted/60">saved</div>}
     </div>
   );
 }
@@ -678,16 +678,16 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
             ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
             : <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dot }} />}
           <span className={`truncate text-sm font-semibold ${done ? "text-text-muted line-through" : "text-text-primary"}`}>{loop.name}</span>
-          {running && <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-accent">running…</span>}
+          {running && <span className="shrink-0 text-[11px] text-accent">running…</span>}
           {isBriefing ? (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent" title="Built-in briefing loop: synthesizes + delivers a digest of this domain"><Mail className="h-2.5 w-2.5" /> briefing</span>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent" title="Built-in briefing loop: synthesizes + delivers a digest of this domain"><Mail className="h-2.5 w-2.5" /> briefing</span>
           ) : loop.type === "open"
-            ? <span className="inline-flex items-center gap-1 rounded-full bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted" title="Open loop: never ends"><InfinityIcon className="h-2.5 w-2.5" /> open</span>
-            : <span className="rounded-full bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted" title="Closed loop: finishes when its condition is met">closed</span>}
-          <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-text-muted/70">{CADENCE_LABEL[loop.cadence]}</span>
+            ? <span className="inline-flex items-center gap-1 rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted" title="Open loop: never ends"><InfinityIcon className="h-2.5 w-2.5" /> open</span>
+            : <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted" title="Closed loop: finishes when its condition is met">closed</span>}
+          <span className="shrink-0 text-[11px] text-text-muted/70">{CADENCE_LABEL[loop.cadence]}</span>
           {isBriefing
-            ? <span className="shrink-0 rounded-full bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-secondary" title="Delivery channel">{loop.channel ?? "gmail"}</span>
-            : <span className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent" title={AUTONOMY_BLURB[autonomy]}>{LOOP_AUTONOMY_LABEL[autonomy]}</span>}
+            ? <span className="shrink-0 rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-secondary" title="Delivery channel">{loop.channel ?? "gmail"}</span>
+            : <span className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent" title={AUTONOMY_BLURB[autonomy]}>{LOOP_AUTONOMY_LABEL[autonomy]}</span>}
         </button>
         {!done && (
           <Toggle on={loop.enabled} onChange={(v) => onChange({ enabled: v })} label={`${loop.name} enabled`} />
@@ -703,13 +703,13 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
               {loop.signals.length > 0 && (
                 <Field label="Watches">
                   <div className="flex flex-wrap gap-1.5">
-                    {loop.signals.map((s, i) => <span key={i} className="rounded-md border border-border-subtle bg-background px-2 py-0.5 font-mono text-[10px] text-text-secondary">{s}</span>)}
+                    {loop.signals.map((s, i) => <span key={i} className="rounded-md border border-border-subtle bg-background px-2 py-0.5 text-[11px] text-text-secondary">{s}</span>)}
                   </div>
                 </Field>
               )}
               {loop.condition && (
                 <Field label="Closes when">
-                  <span className="inline-block rounded-md bg-surface-warm px-2 py-0.5 font-mono text-[11px] text-text-secondary">{loop.condition}</span>
+                  <span className="inline-block rounded-md bg-surface-warm px-2 py-0.5 text-[11px] text-text-secondary">{loop.condition}</span>
                 </Field>
               )}
             </div>
@@ -718,7 +718,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
           {/* The target - highlighted, since the whole loop exists to reach it. */}
           {loop.evaluation && (
             <div className="rounded-lg border-l-2 border-accent bg-accent-soft/20 py-2 pl-3 pr-3">
-              <div className="mb-0.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-accent"><Target className="h-3 w-3" /> What good looks like</div>
+              <div className="mb-0.5 flex items-center gap-1.5 text-[11px] text-accent"><Target className="h-3 w-3" /> What good looks like</div>
               <div className="leading-relaxed text-text-secondary">{loop.evaluation}</div>
             </div>
           )}
@@ -744,7 +744,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
                 {history.slice(0, 8).map((r, i) => (
                   <li key={i} className="relative pb-3 last:pb-0">
                     <span className={`absolute -left-[21px] top-1 h-2 w-2 rounded-full ring-2 ring-surface ${r.done ? "bg-ok" : "bg-accent"}`} />
-                    <div className="flex items-center gap-2 font-mono text-[10px] text-text-muted">
+                    <div className="flex items-center gap-2 text-[11px] text-text-muted">
                       <span className={r.done ? "text-ok" : "text-accent"}>{r.done ? "closed" : "ran"}</span>
                       <span>{new Date(r.ts).toLocaleString()}</span>
                       {r.tasksCreated?.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 text-text-secondary">{r.tasksCreated.length} task{r.tasksCreated.length === 1 ? "" : "s"}</span>}
@@ -760,10 +760,10 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
           {running && (
             <div className="rounded-lg border border-accent-border bg-accent-soft/20 px-3 py-2.5">
               <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-accent">
+                <div className="flex items-center gap-1.5 text-[11px] text-accent">
                   <Loader2 className="h-3 w-3 animate-spin" /> Running
                 </div>
-                <span className="font-mono text-[10px] tabular-nums text-text-muted">{elapsed}s</span>
+                <span className="font-mono text-[11px] tabular-nums text-text-muted">{elapsed}s</span>
               </div>
               <div className="flex items-stretch gap-1">
                 {RUN_PHASES.map((p, i) => {
@@ -785,7 +785,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
             <div className={`rounded-lg border px-3 py-2.5 ${result.ok ? "border-accent-border bg-accent-soft/30" : "border-err/40 bg-err/10"}`}>
               {result.ok ? (
                 <>
-                  <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-accent">{result.briefing ? <Mail className="h-3 w-3" /> : <Play className="h-3 w-3" />} {result.briefing ? "Briefing ready" : "Ran just now"}</div>
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-accent">{result.briefing ? <Mail className="h-3 w-3" /> : <Play className="h-3 w-3" />} {result.briefing ? "Briefing ready" : "Ran just now"}</div>
                   {result.note && <div className="mb-2 text-[11px] leading-relaxed text-text-secondary">{result.note}</div>}
                   {result.briefing ? (
                     <div className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md border border-border-subtle bg-background px-3 py-2 text-[11px] leading-relaxed text-text-secondary">{result.briefing}</div>
@@ -793,7 +793,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
                     <ul className="space-y-1">
                       {result.actions.map((a, i) => (
                         <li key={i} className="flex items-start gap-2 text-[11px] text-text-secondary">
-                          <span className={`mt-0.5 inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0 font-mono text-[10px] uppercase tracking-wider ${a.disposition === "done" ? "bg-ok/15 text-ok" : a.disposition === "task" ? "bg-accent-soft text-accent" : a.disposition === "approval" ? "bg-warn/15 text-warn" : "bg-surface-warm text-text-muted"}`}>
+                          <span className={`mt-0.5 inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0 text-[11px] ${a.disposition === "done" ? "bg-ok/15 text-ok" : a.disposition === "task" ? "bg-accent-soft text-accent" : a.disposition === "approval" ? "bg-warn/15 text-warn" : "bg-surface-warm text-text-muted"}`}>
                             {a.disposition === "done" ? <><Check className="h-2.5 w-2.5" /> done</> : a.disposition === "task" ? <><ListPlus className="h-2.5 w-2.5" /> task</> : a.disposition === "approval" ? <><ShieldQuestion className="h-2.5 w-2.5" /> approval</> : "idea"}
                           </span>
                           <span>{a.text}</span>
@@ -876,7 +876,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
+      <div className="mb-1 text-[11px] text-text-muted">{label}</div>
       {children}
     </div>
   );

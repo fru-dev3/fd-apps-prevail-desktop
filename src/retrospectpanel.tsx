@@ -71,12 +71,12 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
         {domains.length > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <button onClick={() => setFilter(null)}
-              className={`rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${!filter ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}>
+              className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${!filter ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}>
               All domains
             </button>
             {domains.slice(0, 6).map((d) => (
               <button key={d.domain} onClick={() => setFilter(filter === d.domain ? null : d.domain)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${filter === d.domain ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}>
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${filter === d.domain ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}>
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: domColor(d.domain) }} /> {titleCase(d.domain)}
               </button>
             ))}
@@ -96,7 +96,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
         ) : (
         <div className="w-56 shrink-0 overflow-y-auto border-r border-border bg-surface/40 p-2">
           <div className="flex items-center justify-between px-2.5 pb-2 pt-1">
-            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-muted">{vantage === "year" ? "years" : `${vantage}s`}</span>
+            <span className="text-[11px] text-text-muted">{vantage === "year" ? "years" : `${vantage}s`}</span>
             <button onClick={() => setSpineCollapsed(true)} title="Collapse" aria-label="Collapse periods"
               className="rounded p-0.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-text-secondary">
               <PanelLeftClose className="h-3.5 w-3.5" />
@@ -143,18 +143,18 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
                   ) : null}
                 </div>
               )}
-              <div className="mt-1.5 font-mono text-[11px] text-text-muted">{sel.total} prompt{sel.total === 1 ? "" : "s"} · {domains.length} domain{domains.length === 1 ? "" : "s"} touched</div>
+              <div className="mt-1.5 text-[11px] text-text-muted">{sel.total} prompt{sel.total === 1 ? "" : "s"} · {domains.length} domain{domains.length === 1 ? "" : "s"} touched</div>
 
               {/* Attention bars */}
               <div className="mt-6">
-                <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">Where your attention went</div>
+                <div className="mb-3 text-[11px] text-text-muted">Where your attention went</div>
                 {shownDomains.map((d) => {
                   const pct = Math.round((d.count / domTotal) * 100);
                   return (
                     <div key={d.domain} className="mb-2 flex items-center gap-3">
                       <span className="w-28 shrink-0 truncate text-right text-[13px] text-text-secondary">{titleCase(d.domain)}</span>
                       <div className="h-5 flex-1 overflow-hidden rounded-md bg-surface">
-                        <div className="flex h-full items-center rounded-md pl-2 font-mono text-[10px] font-bold text-background" style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: domColor(d.domain) }}>{d.count}</div>
+                        <div className="flex h-full items-center rounded-md pl-2 text-[11px] font-bold text-background" style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: domColor(d.domain) }}>{d.count}</div>
                       </div>
                       <span className="w-12 shrink-0 text-right font-mono text-[11px] text-text-muted">{pct}%</span>
                     </div>
@@ -164,7 +164,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
 
               {/* Threads */}
               <div className="mt-7">
-                <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">The threads · most-worked first</div>
+                <div className="mb-2 text-[11px] text-text-muted">The threads · most-worked first</div>
                 {shownThreads.length === 0 ? (
                   <div className="py-2 text-[13px] text-text-muted">No threads for this filter.</div>
                 ) : shownThreads.map((t, i) => (

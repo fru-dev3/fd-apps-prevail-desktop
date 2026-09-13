@@ -424,7 +424,7 @@ export function Sidebar({
               <span className="truncate text-sm">{app.title}</span>
               {disabled && (
                 <span
-                  className={`inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0 font-mono text-[10px] uppercase tracking-wider ${active ? "bg-background/20 text-background" : "bg-surface-warm text-text-muted"}`}
+                  className={`inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0 text-[11px] ${active ? "bg-background/20 text-background" : "bg-surface-warm text-text-muted"}`}
                   title="This app is turned off and won't be synced"
                 >
                   <PowerOff className="h-2.5 w-2.5" /> Off
@@ -501,7 +501,7 @@ export function Sidebar({
       <button
         onClick={() => set(!open)}
         title={`${open ? "Collapse" : "Expand"} ${label}`}
-        className="group/h flex w-full items-center gap-1.5 rounded-md py-1.5 pl-4 pr-2 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:text-text-secondary"
+        className="group/h flex w-full items-center gap-1.5 rounded-md py-1.5 pl-4 pr-2 text-left text-[11px] font-semibold text-text-muted transition-colors hover:text-text-secondary"
       >
         <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
         <span>{label}</span>
@@ -665,7 +665,7 @@ export function Sidebar({
             {EDITOR_NAV.map((group) => (
               <div key={group.heading} className="mb-1.5">
                 {!collapsed && (
-                  <div className="mb-0.5 mt-2 px-3 font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted/70">{group.heading}</div>
+                  <div className="mb-0.5 mt-2 px-3 text-[11px] text-text-muted/70">{group.heading}</div>
                 )}
                 {group.items.map((it) => {
                   const Icon = it.icon;
@@ -726,7 +726,7 @@ export function Sidebar({
         {!collapsed && (
           <button
             onClick={() => setWorkOpen((v) => !v)}
-            className="group/h mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted hover:text-text-secondary transition-colors"
+            className="group/h mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-text-muted hover:text-text-secondary transition-colors"
           >
             <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${workOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
             <Briefcase className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
@@ -757,7 +757,7 @@ export function Sidebar({
         )}
 
         {!collapsed && (
-          <div data-tour="domains" className="group/h mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+          <div data-tour="domains" className="group/h mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-semibold text-text-muted">
             <button
               onClick={() => setDomainsOpen((v) => !v)}
               className="flex flex-1 items-center gap-1.5 text-left transition-colors hover:text-text-secondary"
@@ -811,7 +811,7 @@ export function Sidebar({
                 <button
                   onClick={() => set(!open)}
                   title={`${open ? "Collapse" : "Expand"} ${label}`}
-                  className="group/h flex w-full items-center gap-1.5 rounded-md py-1.5 pl-4 pr-2 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:text-text-secondary"
+                  className="group/h flex w-full items-center gap-1.5 rounded-md py-1.5 pl-4 pr-2 text-left text-[11px] font-semibold text-text-muted transition-colors hover:text-text-secondary"
                 >
                   <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
                   <span>{label}</span>
@@ -1004,20 +1004,20 @@ export function Sidebar({
                     if (e.key === "Escape") { setAdding(false); setNewName(""); setAddError(null); }
                   }}
                   placeholder="e.g. travel"
-                  className="w-full bg-transparent px-1 py-0.5 font-mono text-xs focus:outline-none"
+                  className="w-full bg-transparent px-1 py-0.5 text-xs focus:outline-none"
                 />
-                {addError && <div className="mt-1 text-[10px] text-err">{addError}</div>}
+                {addError && <div className="mt-1 text-[11px] text-err">{addError}</div>}
                 <div className="mt-1.5 flex gap-1">
                   <button
                     onClick={createDomain}
                     disabled={!newName.trim()}
-                    className="rounded bg-accent px-2 py-0.5 font-mono text-[10px] text-background hover:bg-accent-hover disabled:bg-surface-strong disabled:text-text-muted"
+                    className="rounded bg-accent px-2 py-0.5 text-[11px] text-background hover:bg-accent-hover disabled:bg-surface-strong disabled:text-text-muted"
                   >
                     create
                   </button>
                   <button
                     onClick={() => { setAdding(false); setNewName(""); setAddError(null); }}
-                    className="rounded border border-border px-2 py-0.5 font-mono text-[10px] text-text-muted hover:bg-surface-warm"
+                    className="rounded border border-border px-2 py-0.5 text-[11px] text-text-muted hover:bg-surface-warm"
                   >
                     cancel
                   </button>
@@ -1044,12 +1044,12 @@ export function Sidebar({
           <div className="mt-2 px-2">
             <button
               onClick={() => setArchivedOpen((v) => !v)}
-              className="flex w-full items-center gap-1.5 rounded px-1 py-1 pl-4 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:text-text-secondary"
+              className="flex w-full items-center gap-1.5 rounded px-1 py-1 pl-4 text-[11px] text-text-muted hover:text-text-secondary"
             >
               {archivedOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
               <Archive className="h-3 w-3" />
               Archived
-              <span className="ml-auto rounded-full bg-surface-strong px-1.5 text-[10px] text-text-muted">{archived.length}</span>
+              <span className="ml-auto rounded-full bg-surface-strong px-1.5 text-[11px] text-text-muted">{archived.length}</span>
             </button>
             {archivedOpen && (
               <ul className="mt-1 space-y-0.5">
@@ -1064,7 +1064,7 @@ export function Sidebar({
                       onClick={() => restoreDomain(name)}
                       disabled={restoring === name}
                       title={`Restore ${titleCase(name)}`}
-                      className="flex shrink-0 items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted opacity-0 hover:border-accent-border hover:text-accent group-hover:opacity-100 disabled:opacity-100"
+                      className="flex shrink-0 items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[11px] text-text-muted opacity-0 hover:border-accent-border hover:text-accent group-hover:opacity-100 disabled:opacity-100"
                     >
                       {restoring === name ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
                       restore
@@ -1089,8 +1089,8 @@ export function Sidebar({
           <Waypoints className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
           {!collapsed && (
             <>
-              <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-[0.16em]">Source Map</span>
-              {mapScore !== null && <span className="font-mono text-[10px] tabular-nums opacity-70">{mapScore}%</span>}
+              <span className="flex-1 text-left text-[11px] font-semibold tracking-[0.16em]">Source Map</span>
+              {mapScore !== null && <span className="font-mono text-[11px] tabular-nums opacity-70">{mapScore}%</span>}
             </>
           )}
         </button>
@@ -1100,7 +1100,7 @@ export function Sidebar({
             list stays collapsed so a long catalog never floods the rail. */}
         {!collapsed && (
           <div className="mt-3">
-            <div className="group/h flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+            <div className="group/h flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-semibold text-text-muted">
               <button
                 onClick={() => setAppsOpen((v) => !v)}
                 className="flex flex-1 items-center gap-1.5 text-left transition-colors hover:text-text-secondary"
@@ -1179,13 +1179,13 @@ export function Sidebar({
                 strokeDasharray={`${(lifeScore.value / 100) * 94.2} 94.2`}
               />
             </svg>
-            <span className="absolute font-mono text-[10px] font-semibold" style={{ color: scoreColor(lifeScore.value) }}>
+            <span className="absolute text-[11px] font-semibold" style={{ color: scoreColor(lifeScore.value) }}>
               {lifeScore.value}
             </span>
           </span>
           {!collapsed && (
             <span className="flex min-w-0 flex-col items-start leading-tight">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">Life readiness</span>
+              <span className="font-mono text-[11px] text-text-muted">Life readiness</span>
               <span className="text-xs text-text-secondary">{lifeScore.count} domain{lifeScore.count === 1 ? "" : "s"} scored</span>
             </span>
           )}
@@ -1265,7 +1265,7 @@ export function Sidebar({
             target="_blank"
             rel="noreferrer"
             title="Beta: Prevail is a beta release, provided as-is with no warranty: use at your own risk. Click to send feedback or report a bug."
-            className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent hover:text-background"
+            className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent transition-colors hover:bg-accent hover:text-background"
           >
             <span className="text-[10px] leading-none">◆</span> Beta
           </a>
@@ -1276,7 +1276,7 @@ export function Sidebar({
             className="group/ob flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
           >
             <ObsidianLogo className="h-3.5 w-3.5" />
-            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[10px] font-medium opacity-0 transition-all group-hover/ob:max-w-[64px] group-hover/ob:opacity-100">Obsidian</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-medium opacity-0 transition-all group-hover/ob:max-w-[64px] group-hover/ob:opacity-100">Obsidian</span>
           </button>
           <div className="flex-1" />
           <button

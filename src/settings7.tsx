@@ -76,7 +76,7 @@ export function ProvidersSection({ onActivated, embedded }: { onActivated?: () =
   }
   return (
     <>
-      {!embedded && <SettingsHeader title="Providers" subtitle="Bring your own models. OpenRouter is one key for 200+ models (Claude, GPT, Gemini, Grok, DeepSeek, Qwen…). Direct providers are coming next." />}
+      {!embedded && <SettingsHeader title="Providers" subtitle="Bring your own key, and the models it opens." />}
       <CollapsibleSection
         icon={Layers}
         title="OpenRouter"
@@ -88,7 +88,7 @@ export function ProvidersSection({ onActivated, embedded }: { onActivated?: () =
         <div className="mb-3 text-xs text-text-secondary">One API key unlocks every model. Used by the engine inside any domain. <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-accent hover:underline">Get a key ›</a></div>
         <div className="flex items-center gap-2">
           <input type="password" value={key} placeholder={configured ? "•••••••• (replace)" : "sk-or-v1-…"} onChange={(e) => setKey(e.target.value)}
-            className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-sm focus:border-accent-border focus:outline-none" />
+            className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-accent-border focus:outline-none" />
           <button onClick={save} disabled={!key.trim()} className="rounded-md bg-text-primary px-3 py-1.5 text-sm font-medium text-background hover:opacity-90 disabled:opacity-40">{saved ? "Saved" : "Save"}</button>
           {configured && (
             <button
@@ -127,7 +127,7 @@ export function ProvidersSection({ onActivated, embedded }: { onActivated?: () =
         {/* Pure search over the full live catalog — every model is available;
             there's no curated/highlighted subset to maintain. */}
         <div className="mt-4 border-t border-border-subtle pt-3">
-          <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-secondary">
+          <div className="mb-2 flex items-center gap-2 text-[11px] text-text-secondary">
             <Layers className="h-3 w-3 text-accent" /> Model catalog
             {orLive.length > 0 && <span className="text-text-muted normal-case tracking-normal">· {orLive.length} live models, search to browse</span>}
           </div>
@@ -245,8 +245,8 @@ function DirectProviderRow({ id, label, hint, onActivated }: {
       <div className="flex items-center gap-2">
         <span className="flex-1 text-sm font-semibold text-text-primary">{label}</span>
         {configured
-          ? <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-ok"><Check className="h-3 w-3" /> key set</span>
-          : <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">no key</span>}
+          ? <span className="inline-flex items-center gap-1 text-[11px] text-ok"><Check className="h-3 w-3" /> key set</span>
+          : <span className="font-mono text-[11px] text-text-muted">no key</span>}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <input
@@ -257,12 +257,12 @@ function DirectProviderRow({ id, label, hint, onActivated }: {
           className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-accent-border focus:outline-none"
         />
         <button onClick={save} disabled={busy || !key.trim()}
-          className="rounded-md bg-accent px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-background hover:opacity-90 disabled:opacity-50">
+          className="rounded-md bg-accent px-2.5 py-1 text-[11px] text-background hover:opacity-90 disabled:opacity-50">
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : "save"}
         </button>
         {configured && (
           <button onClick={remove} disabled={busy}
-            className="rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-err hover:text-err disabled:opacity-50">
+            className="rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-err hover:text-err disabled:opacity-50">
             remove
           </button>
         )}
@@ -354,7 +354,7 @@ export function ModelsSection({
         </span>
       ))}
       {overflowLogos > 0 && (
-        <span className="flex h-[26px] items-center justify-center rounded-md bg-surface-warm px-1.5 font-mono text-[10px] font-semibold text-text-muted ring-1 ring-border-subtle">
+        <span className="flex h-[26px] items-center justify-center rounded-md bg-surface-warm px-1.5 text-[11px] font-semibold text-text-muted ring-1 ring-border-subtle">
           +{overflowLogos}
         </span>
       )}
@@ -366,7 +366,7 @@ export function ModelsSection({
       <SettingsHeader
         title="Models"
         icon={Layers}
-        subtitle="A runtime is a model plus a way to run it: a local CLI, a direct vendor key, or an aggregator. The same model can run several ways, each with its own cost, speed, and privacy. Validated at launch with a real call; pick a category below, then expand one to test individual models and set the default new chats open with."
+        subtitle="A model plus a way to run it."
         right={logoCluster}
       />
       {/* Category tab bar (segmented control, Arena-consistent styling): selecting

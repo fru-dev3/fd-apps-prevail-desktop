@@ -174,7 +174,7 @@ export function ProfilesSection() {
       <SettingsHeader
         title="Profiles"
         icon={UserRound}
-        subtitle="Separate, fully-isolated identities, each with its own vault, context, domains, and history. Switch profiles to switch everything. Pin a default to choose which one opens on startup. An optional passcode gates a profile before you can open it."
+        subtitle="Separate identities, each with its own vault."
         right={
           !draft ? (
             <button onClick={startAdd} className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-background hover:bg-accent-hover">
@@ -193,7 +193,7 @@ export function ProfilesSection() {
           </div>
           <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Picture</label>
+              <label className="mb-1 block text-[11px] text-text-muted">Picture</label>
               <div className="flex items-center gap-3">
                 <Avatar p={{ label: draft.label, email: draft.email, color: draft.color, image: draft.image }} size={48} />
                 <label className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-strong hover:text-text-primary">
@@ -207,15 +207,15 @@ export function ProfilesSection() {
               <p className="mt-1 text-[11px] text-text-muted">Optional. Falls back to a colored initial if no image is set.</p>
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Name</label>
+              <label className="mb-1 block text-[11px] text-text-muted">Name</label>
               <input value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="e.g. Personal" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Email <span className="text-text-muted/60">(optional label)</span></label>
+              <label className="mb-1 block text-[11px] text-text-muted">Email <span className="text-text-muted/60">(optional label)</span></label>
               <input value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} placeholder="you@example.com" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Vault folder</label>
+              <label className="mb-1 block text-[11px] text-text-muted">Vault folder</label>
               <div className="flex items-center gap-2">
                 <input value={draft.vaultPath} readOnly placeholder="Choose a folder…" className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-3 py-2 text-sm text-text-secondary" />
                 <button onClick={() => void pickFolder()} className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm text-text-secondary hover:bg-surface-strong hover:text-text-primary"><FolderOpen className="h-4 w-4" /> Browse</button>
@@ -228,7 +228,7 @@ export function ProfilesSection() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Passcode <span className="text-text-muted/60">(optional)</span></label>
+              <label className="mb-1 block text-[11px] text-text-muted">Passcode <span className="text-text-muted/60">(optional)</span></label>
               <input type="password" value={draft.passcode} onChange={(e) => setDraft({ ...draft, passcode: e.target.value })} placeholder={draft.hadPass ? "•••••• (set, type to change)" : "Set a passcode to gate this profile"} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
               {draft.hadPass && (
                 <button onClick={clearPasscode} className="mt-1 text-[11px] text-text-muted underline hover:text-err">Remove passcode</button>
@@ -236,7 +236,7 @@ export function ProfilesSection() {
               <p className="mt-1 text-[11px] text-text-muted">A soft gate before opening. For true at-rest protection, also encrypt this profile's vault.</p>
             </div>
             <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-text-muted">Color</label>
+              <label className="mb-1 block text-[11px] text-text-muted">Color</label>
               <div className="flex gap-1.5">
                 {PROFILE_COLORS.map((c) => (
                   <button key={c} onClick={() => setDraft({ ...draft, color: c })} className={`h-6 w-6 rounded-full ring-2 ring-offset-2 ring-offset-surface-warm ${draft.color === c ? "ring-accent" : "ring-transparent"}`} style={{ background: c }} title={c} />
@@ -287,10 +287,10 @@ export function ProfilesSection() {
                   {p.email && <span className="block truncate text-xs text-text-muted">{p.email}</span>}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1">
                     {isActive && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-background">Active</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-background">Active</span>
                     )}
                     {isDefault && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-warn/15 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-warn">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-warn/15 px-2 py-0.5 text-[11px] font-bold text-warn">
                         <Star className="h-2.5 w-2.5 fill-current" /> Default
                       </span>
                     )}
@@ -302,7 +302,7 @@ export function ProfilesSection() {
               <div className="mt-3 space-y-1.5 rounded-lg border border-border-subtle bg-background px-2.5 py-2">
                 <div className="flex items-center gap-1.5">
                   <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-                  <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-text-secondary" title={p.vaultPath}>{p.vaultPath}</span>
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-text-secondary" title={p.vaultPath}>{p.vaultPath}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5 shrink-0 text-text-muted" />

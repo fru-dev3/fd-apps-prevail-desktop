@@ -114,7 +114,7 @@ export function NotesPanel({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader
         title="Notes"
         icon={FileText}
-        subtitle="Quick brain-dumps, ideas, and logs, searchable, saved to your vault. Everything here lives in build/notes.json inside your vault folder."
+        subtitle="Quick notes, searchable, saved to your vault."
         right={
           <button onClick={createNote} className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-background hover:bg-accent-hover">
             <Plus className="h-4 w-4" /> New note
@@ -189,7 +189,7 @@ export function NotesPanel({ vaultPath }: { vaultPath: string }) {
                 placeholder="Start writing… ideas, logs, brain-dumps."
                 className="min-h-0 flex-1 resize-none bg-transparent text-[15px] leading-relaxed text-text-secondary placeholder:text-text-muted/50 focus:outline-none"
               />
-              <div className={`mt-2 border-t border-border-subtle pt-2 font-mono text-[10px] uppercase tracking-wider ${saveState === "error" ? "text-err" : "text-text-muted"}`}>
+              <div className={`mt-2 border-t border-border-subtle pt-2 text-[11px] ${saveState === "error" ? "text-err" : "text-text-muted"}`}>
                 {saveState === "error"
                   ? "Not saved — check that your vault is unlocked, then edit again to retry"
                   : saveState === "saving"

@@ -234,7 +234,7 @@ export function ConnectAppFlow({ vaultPath, onDone, onCancel, presetName, preset
 
       {claudeConnected.length > 0 && (
         <div className="mb-3 rounded-lg border border-border-subtle bg-background/40 p-3">
-          <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] text-text-muted">
             <Sparkles className="h-3 w-3 text-accent" /> Already connected in your AI tools
           </div>
           <div className="mb-2 text-[11px] leading-snug text-text-muted">
@@ -245,7 +245,7 @@ export function ConnectAppFlow({ vaultPath, onDone, onCancel, presetName, preset
               <div key={`${c.runtime}-${c.source}-${c.id}`} className="flex items-center gap-2.5 rounded-lg border border-border-subtle bg-surface px-2.5 py-1.5">
                 <AppRowLogo app={{ title: c.name, id: c.id }} logos={logos} size={22} fallback="letter" />
                 <span className="min-w-0 flex-1 truncate text-[13px] text-text-primary">{c.name}</span>
-                <span className="shrink-0 rounded-full border border-accent-border bg-accent-soft px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-accent">via {c.runtime === "claude" ? "Claude Code" : c.runtime.charAt(0).toUpperCase() + c.runtime.slice(1)}</span>
+                <span className="shrink-0 rounded-full border border-accent-border bg-accent-soft px-2 py-0.5 text-[11px] text-accent">via {c.runtime === "claude" ? "Claude Code" : c.runtime.charAt(0).toUpperCase() + c.runtime.slice(1)}</span>
               </div>
             ))}
           </div>
@@ -350,7 +350,7 @@ export function ConnectAppFlow({ vaultPath, onDone, onCancel, presetName, preset
               <AppRowLogo app={{ title: plan.title || name, id: plan.app_id }} logos={logos} size={28} fallback="letter" />
               <span className="text-sm font-semibold text-text-primary">{plan.title || name}</span>
               <Check className="h-4 w-4 text-ok" />
-              <span className="rounded border border-border-subtle px-1.5 py-px font-mono text-[10px] uppercase tracking-wider text-text-muted">{METHOD_LABEL[plan.integration ?? "manual"] ?? plan.integration}</span>
+              <span className="rounded border border-border-subtle px-1.5 py-px text-[11px] text-text-muted">{METHOD_LABEL[plan.integration ?? "manual"] ?? plan.integration}</span>
             </div>
             {plan.why && <p className="mt-1.5 text-xs text-text-secondary">{plan.why}</p>}
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-text-muted">
@@ -410,7 +410,7 @@ export function ConnectAppFlow({ vaultPath, onDone, onCancel, presetName, preset
 
           {authNeeded ? (
             <div className="rounded-lg border border-accent-border bg-accent-soft/40 p-3">
-              <div className="font-mono text-[10px] uppercase tracking-wider text-accent">One step only - then Prevail does the rest</div>
+              <div className="text-[11px] text-accent">One step only - then Prevail does the rest</div>
               <p className="mt-1 text-sm text-text-primary">{plan.auth_step!.instruction}</p>
               <p className="mt-1 text-[11px] text-text-muted">This is the one thing only you can do (a secret/login). Do it, then mark done - Prevail tests it and syncs on schedule from then on.</p>
             </div>

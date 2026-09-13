@@ -161,13 +161,13 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
             A real browser opens; you log in once (and do 2FA). The agent learns the steps and records them, then later syncs replay fast with no AI.
           </p>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setRun("learn")} className="inline-flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent/10">
+            <button onClick={() => setRun("learn")} className="inline-flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1 text-[11px] text-accent hover:bg-accent/10">
               <Sparkles className="h-3 w-3" /> Connect &amp; learn
             </button>
-            <button onClick={() => setRun("replay")} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent">
+            <button onClick={() => setRun("replay")} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
               <RefreshCw className="h-3 w-3" /> Sync now (replay)
             </button>
-            <button onClick={() => setRun("relearn")} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent">
+            <button onClick={() => setRun("relearn")} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
               Re-learn
             </button>
           </div>
@@ -177,7 +177,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
   ) : null;
 
   const domainEditor = (
-    <AppCard icon={Layers} label="Domains this app refreshes" action={savingDoms ? <span className="font-mono text-[10px] text-text-muted/60">saving…</span> : undefined}>
+    <AppCard icon={Layers} label="Domains this app refreshes" action={savingDoms ? <span className="font-mono text-[11px] text-text-muted/60">saving…</span> : undefined}>
       <p className="mb-2 text-[11px] text-text-muted">Many-to-many. Click a domain to open it and chat there; remove or add bindings here.</p>
       {doms.length === 0 ? (
         <div className="text-[11px] text-text-muted">Not bound to any domain yet. Add one below to start refreshing it.</div>
@@ -229,7 +229,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
                         >
                           {I ? <I className="h-4 w-4 shrink-0 text-accent" /> : <span className="text-accent">◆</span>}
                           <span className="text-sm font-medium text-text-primary">{titleCase(n)}</span>
-                          <span className="ml-auto font-mono text-[10px] text-text-muted/60">vault/{n}/</span>
+                          <span className="ml-auto text-[11px] text-text-muted/60">vault/{n}/</span>
                           <Plus className="h-3.5 w-3.5 shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />
                         </button>
                       </li>
@@ -258,7 +258,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
             );
           })()
         ) : (
-          <button onClick={() => setAddOpen(true)} disabled={savingDoms} className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40"><Plus className="h-3.5 w-3.5" /> add domain</button>
+          <button onClick={() => setAddOpen(true)} disabled={savingDoms} className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40"><Plus className="h-3.5 w-3.5" /> add domain</button>
         )}
       </div>
     </AppCard>
@@ -270,7 +270,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
         <>
           <AppCard icon={KeyRound} label="Connection" action={
             app.integration === "manual" ? undefined :
-            <button onClick={test} disabled={busy === "test"} className="rounded-lg border border-border bg-background px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">{busy === "test" ? "testing…" : "test"}</button>
+            <button onClick={test} disabled={busy === "test"} className="rounded-lg border border-border bg-background px-3 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">{busy === "test" ? "testing…" : "test"}</button>
           }>
             <AppKV k="Status"><span className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: tint }} />{app.status}</span></AppKV>
             <AppKV k="Method">{INTEGRATION_LABEL[app.integration] ?? app.integration}</AppKV>
@@ -287,13 +287,13 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
               // is a dead end (the probe just reports there's no auth_check).
               // Tell the user what actually makes this app work instead.
               <div className="mt-2 rounded-lg border border-accent-border bg-accent-soft/40 px-3 py-2.5">
-                <div className="font-mono text-[10px] uppercase tracking-wider text-accent">No connection step needed</div>
+                <div className="font-mono text-[11px] text-accent">No connection step needed</div>
                 <p className="mt-1 text-[12px] leading-relaxed text-text-primary">This app has no login or key to verify. Add its exports or files under its folder, or just run a skill: it works without a connection step. There is nothing to test here.</p>
               </div>
             )}
             {app.status === "not-configured" && app.integration !== "manual" && (
               <div className="mt-2 rounded-lg border border-accent-border bg-accent-soft/40 px-3 py-2.5">
-                <div className="font-mono text-[10px] uppercase tracking-wider text-accent">Not connected yet - here's how</div>
+                <div className="font-mono text-[11px] text-accent">Not connected yet - here's how</div>
                 <p className="mt-1 text-[11px] leading-relaxed text-text-primary">{connectHelp(app.integration)}</p>
                 <div className="mt-2 flex items-center gap-2">
                   <button
@@ -311,7 +311,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
                 as a quiet reference (the prominent version above covers setup). */}
             {app.status !== "not-configured" && (
               <div className="mt-2 rounded-lg border border-border-subtle bg-background px-3 py-2 text-[11px] leading-relaxed text-text-secondary">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">How to connect</span>
+                <span className="font-mono text-[11px] text-text-muted">How to connect</span>
                 <p className="mt-1">{connectHelp(app.integration)}</p>
               </div>
             )}
@@ -320,7 +320,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
                 You're in the <span className="font-semibold">Sandbox</span>, so this is a sample app and won't make a real connection. Switch to your own vault (Settings → Workspace) to connect real accounts.
               </div>
             )}
-            {note && <div className="mt-2 rounded-lg bg-surface-warm px-3 py-1.5 font-mono text-[11px] text-text-secondary">{note}</div>}
+            {note && <div className="mt-2 rounded-lg bg-surface-warm px-3 py-1.5 text-[11px] text-text-secondary">{note}</div>}
           </AppCard>
           {/* Per-app Privacy (local-only) — the same pin domains have: keeps this
               app's data processing on a local model. */}
@@ -345,9 +345,9 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
                 onChange={(e) => setModelDraft(e.target.value)}
                 onBlur={() => { if ((modelDraft.trim() || "") !== (app.model ?? "")) void saveModel(modelDraft.trim()); }}
                 placeholder="Global default (leave empty)"
-                className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
+                className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
               />
-              {modelDraft && <button onClick={() => { setModelDraft(""); void saveModel(""); }} className="shrink-0 rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">Clear</button>}
+              {modelDraft && <button onClick={() => { setModelDraft(""); void saveModel(""); }} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Clear</button>}
             </div>
             <div className="mt-1.5 text-[12px] text-text-muted">Which model runs this app's skills and syncs. Leave empty to use your global default.</div>
           </AppCard>
@@ -361,9 +361,9 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
                 onChange={(e) => setAccountDraft(e.target.value)}
                 onBlur={() => { if ((accountDraft.trim() || "") !== (app.account?.label ?? "")) void saveAccount(accountDraft.trim()); }}
                 placeholder="Unbound (e.g. a connected profile label)"
-                className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
+                className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
               />
-              {accountDraft && <button onClick={() => { setAccountDraft(""); void saveAccount(""); }} className="shrink-0 rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-border hover:text-accent">Clear</button>}
+              {accountDraft && <button onClick={() => { setAccountDraft(""); void saveAccount(""); }} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Clear</button>}
             </div>
             <div className="mt-1.5 text-[12px] text-text-muted">Which account this app instance acts as when its connector has several (use the profile label you connected, e.g. under Google). Chats with this app attached authenticate as this account; a per-chat pick in Modes still overrides.</div>
           </AppCard>
@@ -379,7 +379,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
             ) : (
               <ul className="space-y-1">
                 {skills.map((s) => (
-                  <li key={s.id} className="flex items-center gap-2 text-[13px] text-text-secondary"><span className="text-accent">▸</span> <span className="font-medium text-text-primary">{s.id}</span> <span className="font-mono text-[10px] text-text-muted">{s.runner} · {s.trigger}</span></li>
+                  <li key={s.id} className="flex items-center gap-2 text-[13px] text-text-secondary"><span className="text-accent">▸</span> <span className="font-medium text-text-primary">{s.id}</span> <span className="font-mono text-[11px] text-text-muted">{s.runner} · {s.trigger}</span></li>
                 ))}
               </ul>
             )}
@@ -403,14 +403,14 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
         <>
           {browserCard}
           <AppCard icon={RefreshCw} label="Last run" action={
-            <button onClick={sync} disabled={busy === "sync"} className="inline-flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-accent hover:bg-accent/10 disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${busy === "sync" ? "animate-spin" : ""}`} />{busy === "sync" ? "syncing…" : "sync now"}</button>
+            <button onClick={sync} disabled={busy === "sync"} className="inline-flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1 text-[11px] text-accent hover:bg-accent/10 disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${busy === "sync" ? "animate-spin" : ""}`} />{busy === "sync" ? "syncing…" : "sync now"}</button>
           }>
             <div className="text-2xl font-semibold text-text-primary">{relTime(app.lastSuccessTs)}</div>
             <div className="mt-0.5 text-[11px] text-text-muted">{app.lastSuccessTs ? "last successful refresh" : "this app has never run"}</div>
             {app.lastError && (
-              <div className="mt-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn"><span className="font-mono uppercase tracking-wider">last error</span> · {app.lastError}</div>
+              <div className="mt-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn"><span className="font-mono tracking-wider">last error</span> · {app.lastError}</div>
             )}
-            {note && <div className="mt-3 rounded-lg bg-surface-warm px-3 py-1.5 font-mono text-[11px] text-text-secondary">{note}</div>}
+            {note && <div className="mt-3 rounded-lg bg-surface-warm px-3 py-1.5 text-[11px] text-text-secondary">{note}</div>}
           </AppCard>
           <AppCard icon={Clock} label="Schedule">
             <div className="text-sm text-text-primary">{appScheduleText(app)}</div>
@@ -533,7 +533,7 @@ export function BunkerRibbon({ enabled, compact = false }: { enabled: boolean; c
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
-      className={`inline-flex select-none items-center gap-1.5 font-mono font-semibold uppercase ${compact ? "text-[9px] tracking-[0.08em]" : "text-[10px] tracking-[0.16em]"} ${onClick ? "cursor-pointer underline-offset-2 hover:underline" : "cursor-default"} ${on ? "opacity-100" : "opacity-55"}`}
+      className={`inline-flex select-none items-center gap-1.5 font-semibold ${compact ? "text-[9px] tracking-[0.08em]" : "text-[10px] tracking-[0.16em]"} ${onClick ? "cursor-pointer underline-offset-2 hover:underline" : "cursor-default"} ${on ? "opacity-100" : "opacity-55"}`}
       title={onClick ? `${tip} (click to change)` : tip}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -761,7 +761,7 @@ export function VaultWizard({ onPick }: { onPick: () => void }) {
           </div>
         </motion.div>
 
-        <motion.div variants={item} className="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">◆ first launch</motion.div>
+        <motion.div variants={item} className="text-[11px] text-accent">◆ first launch</motion.div>
 
         <motion.div variants={item} className="relative mt-5 inline-block overflow-hidden px-1 py-1">
           <h1 className="font-display text-5xl font-semibold leading-[0.95] tracking-tight sm:text-6xl">

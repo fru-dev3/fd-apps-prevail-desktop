@@ -201,7 +201,7 @@ export function QuickCapture({ vaultPath }: { vaultPath: string }) {
               ))}
             </div>
             <div className="font-mono text-2xl tabular-nums text-accent">{mmss(seconds)}</div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent/80">Listening</div>
+            <div className="font-mono text-[11px] text-accent/80">Listening</div>
             {body && <p className="line-clamp-3 px-5 text-center text-[11px] leading-relaxed text-text-secondary">{body}</p>}
           </div>
         ) : (
@@ -239,7 +239,7 @@ export function QuickCapture({ vaultPath }: { vaultPath: string }) {
           )}
 
           <div className="flex min-w-0 flex-1 flex-col leading-tight">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">{recording ? "Recording…" : speechSupported ? "Tap to dictate" : mediaSupported ? "Tap to record" : "Voice unavailable"}</span>
+            <span className="font-mono text-[11px] text-text-muted">{recording ? "Recording…" : speechSupported ? "Tap to dictate" : mediaSupported ? "Tap to record" : "Voice unavailable"}</span>
             {words > 0 && <span className="text-[10px] text-text-muted/70">{words} word{words === 1 ? "" : "s"}</span>}
           </div>
 

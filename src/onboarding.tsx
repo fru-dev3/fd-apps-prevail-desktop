@@ -111,7 +111,7 @@ export function OnboardingTour() {
         {first ? (
           <PrevailLogo size={48} />
         ) : (
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">{step.eyebrow}</span>
+          <span className="font-mono text-[11px] font-semibold text-accent">{step.eyebrow}</span>
         )}
         <button onClick={done} title="Skip the tour" className="-mr-1 -mt-1 rounded p-1 text-text-muted hover:bg-surface-warm hover:text-text-primary"><X className="h-4 w-4" /></button>
       </div>

@@ -186,7 +186,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader
         title="Recommendations"
         icon={Lightbulb}
-        subtitle="What Prevail suggests next, learned from how you actually use it: domains worth creating, the model that scores best per domain, and apps that would keep a domain fresh. Updated continuously."
+        subtitle="What to do next, learned from how you work."
       />
       {/* Daemon status + force-run. Minimal: a status line and one icon button. */}
       {(() => {
@@ -251,17 +251,17 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
               {/* B2-22: click to view only saved recs (so saved items are findable). */}
               {savedCount > 0 && (
                 <button onClick={() => setShowSavedOnly((v) => !v)}
-                  className={`rounded border px-2 py-0.5 font-mono uppercase tracking-wider ${showSavedOnly ? "border-accent-border bg-accent-soft text-accent" : "border-border hover:border-accent-border hover:text-accent"}`}>
+                  className={`rounded border px-2 py-0.5 ${showSavedOnly ? "border-accent-border bg-accent-soft text-accent" : "border-border hover:border-accent-border hover:text-accent"}`}>
                   {showSavedOnly ? "Showing saved" : "Show saved"} · {savedCount}
                 </button>
               )}
               {!showSavedOnly && visible.some((r) => !dismissed.has(r.id)) && (
                 <button onClick={() => { const s = new Set(dismissed); recs.forEach((r) => s.add(r.id)); persistDismissed(s); }}
-                  className="rounded border border-border px-2 py-0.5 font-mono uppercase tracking-wider hover:border-accent-border hover:text-accent">Dismiss all</button>
+                  className="rounded border border-border px-2 py-0.5 hover:border-accent-border hover:text-accent">Dismiss all</button>
               )}
               {dismissedCount > 0 && (
                 <button onClick={() => setShowDismissed((v) => !v)}
-                  className="rounded border border-border px-2 py-0.5 font-mono uppercase tracking-wider hover:border-accent-border hover:text-accent">
+                  className="rounded border border-border px-2 py-0.5 hover:border-accent-border hover:text-accent">
                   {showDismissed ? "Hide" : "Show"} dismissed · {dismissedCount}
                 </button>
               )}
@@ -293,7 +293,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-sm font-semibold text-text-primary">{recTitle(r)}</span>
                               {recScore(r) && <span className="font-mono text-[10px] italic text-text-muted" title="Current context score">{recScore(r)}</span>}
-                              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${impact.cls}`}>{impact.label}</span>
+                              <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${impact.cls}`}>{impact.label}</span>
                             </div>
                             <p className="mt-0.5 text-xs text-text-secondary">{r.detail}</p>
                             <button onClick={() => setOpenWhy(whyOpen ? null : r.id)} className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent hover:underline">
@@ -304,7 +304,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
                                 {WHY[r.category]}
                               </div>
                             )}
-                            {accepted && <p className="mt-1.5 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-ok"><Check className="h-3 w-3" /> {accepted}</p>}
+                            {accepted && <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-ok"><Check className="h-3 w-3" /> {accepted}</p>}
                           </div>
                           <div className="flex shrink-0 items-center gap-1 self-center">
                             {!accepted && !isDismissed && (
@@ -384,10 +384,10 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
   return (
     <div className="mt-8 w-full max-w-5xl">
       <div className="mb-1.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-text-primary">
+        <div className="flex items-center gap-2 text-[11px] font-bold text-text-primary">
           <Sparkles className="h-3.5 w-3.5 text-accent" /> Briefing
         </div>
-        <span className="font-mono text-[10px] text-text-muted">what Prevail learned + suggests next</span>
+        <span className="font-mono text-[11px] text-text-muted">what Prevail learned + suggests next</span>
       </div>
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-sm">
         {top.map((r, i) => {

@@ -1302,6 +1302,14 @@ export default function App() {
   const [bunkerEnabled, setBunkerEnabled] = useState<boolean>(isBunkerOn);
   const [bunkerLocalOk, setBunkerLocalOk] = useState<boolean>(true); // assume ok until checked
   useEffect(() => {
+    // The synchronous mirror defaults to ON so that an unknown state fails
+    // closed for anything that READS it. Displaying that guess is a different
+    // matter: in a browser this ran before sign-in, 401'd into the silent
+    // catch, and left the Privacy screen and the ribbon both announcing
+    // "fully local, nothing leaves your machine" while the engine had Bunker
+    // Mode off. A safety control must never claim protection it does not have,
+    // so the backend answer is fetched again the moment sign-in completes.
+    if (isBrowser() && !webAuthed) return;
     invoke<{ enabled: boolean; local_available: boolean }>("bunker_status")
       .then((s) => {
         const on = !!s.enabled;
@@ -1310,7 +1318,7 @@ export default function App() {
         setBunkerLocalOk(!!s.local_available);
       })
       .catch(() => {});
-  }, []);
+  }, [webAuthed]);
   // Called by the Privacy & Connectivity section after a confirmed toggle.
   const applyBunker = useCallback((on: boolean) => {
     lsSet(BUNKER_LS, on ? "1" : "0");
@@ -1944,7 +1952,7 @@ export default function App() {
                 installed build. Absolutely positioned at the bottom-right corner so
                 it never pushes the first icon off the left edge. */}
             {import.meta.env.DEV && (
-              <span className="pointer-events-none absolute bottom-0.5 right-1.5 z-10 rounded bg-err px-1 py-0 font-mono text-[10px] font-bold uppercase tracking-wide text-background opacity-70">DEV</span>
+              <span className="pointer-events-none absolute bottom-0.5 right-1.5 z-10 rounded bg-err px-1 py-0 text-[11px] font-bold tracking-wide text-background opacity-70">DEV</span>
             )}
             {/* Quick visual cue: are we in an APP or a DOMAIN? An icon (no text)
                 at the far left, so the two contexts are instantly distinguishable.
