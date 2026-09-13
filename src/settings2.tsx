@@ -855,7 +855,14 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("");
   const [domainFilter, setDomainFilter] = useState<string>("all");
-  const [listOpen, setListOpen] = useState(false);
+  // The list renders every row, so with a thousand skills it had to start
+  // closed - which meant the Skills page opened showing nothing at all, on a
+  // screen whose whole job is to show you your skills. Bounded, it can start
+  // open: you land on the first page and the search box above filters the
+  // whole set, not just what is drawn.
+  const [listOpen, setListOpen] = useState(true);
+  const SKILLS_PAGE = 25;
+  const [skillsShown, setSkillsShown] = useState(SKILLS_PAGE);
   // B2-5: upload a skill — pick a SKILL.md, choose a domain, install it.
   const [allDomains, setAllDomains] = useState<string[]>([]);
   const [upload, setUpload] = useState<{ name: string; body: string } | null>(null);
@@ -1079,7 +1086,7 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
             </button>
             {listOpen && (
               <ul className="ml-4 mt-1 flex flex-col gap-1 border-l border-border-subtle pl-3">
-                {filtered.map((s) => {
+                {filtered.slice(0, skillsShown).map((s) => {
                   const cleaned = (s.description ?? "").replace(/^[>*\-\s]+/, "").trim();
                   return (
                     <li key={s.path}>
@@ -1138,6 +1145,16 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
                     </li>
                   );
                 })}
+                {filtered.length > skillsShown && (
+                  <li>
+                    <button
+                      onClick={() => setSkillsShown((n) => n + SKILLS_PAGE)}
+                      className="mt-1 w-full rounded-lg border border-dashed border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-accent-border hover:text-accent"
+                    >
+                      Show {Math.min(SKILLS_PAGE, filtered.length - skillsShown)} more · {skillsShown} of {filtered.length}
+                    </button>
+                  </li>
+                )}
               </ul>
             )}
           </>
