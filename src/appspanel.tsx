@@ -3346,14 +3346,19 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
             { id: "connections", label: "Connections", icon: Link2 },
             // Operational facets (ported from AppFacetPanel). Only meaningful once
             // the app exists in the vault, so they ride the same !notConnected gate.
+            // A rule between what the app IS and what it DOES. Nine flat
+            // entries read as a list to get through; two groups read as a
+            // place with two halves.
             ...(!notConnected ? [
+              { id: "__rule" as const, label: "", icon: Plug },
               { id: "runs" as const, label: "Runs", icon: RefreshCw },
               { id: "loops" as const, label: "Loops", icon: Repeat },
               { id: "settings" as const, label: "Settings", icon: Settings },
               { id: "domains" as const, label: "Domains", icon: Layers },
             ] : []),
             ...(!notConnected ? [{ id: "chat" as const, label: "Chat", icon: MessageSquare }] : []),
-          ] as { id: AppTab; label: string; icon: typeof Plug }[]).map((t) => {
+          ] as { id: AppTab | "__rule"; label: string; icon: typeof Plug }[]).map((t) => {
+            if (t.id === "__rule") return <div key="rule" className="my-1.5 border-t border-border-subtle" />;
             const Icon = t.icon;
             const active = tab === t.id;
             return (
@@ -3363,7 +3368,7 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
                   // Chat reuses the existing app-chat navigation (the same event
                   // the header chat button fires) instead of rendering inline.
                   if (t.id === "chat") { window.dispatchEvent(new CustomEvent("prevail:open-app", { detail: app })); return; }
-                  setTab(t.id);
+                  setTab(t.id as AppTab);
                 }}
                 className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${active ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-text-secondary"}`}
               >
