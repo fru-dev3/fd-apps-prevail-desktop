@@ -344,20 +344,33 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
                           {e.status === "error" && <span className="text-err">Failed</span>}
                           {e.status === "pending" && <span className="text-warn">Needs setup</span>}
                         </div>
-                        <div className="mt-0.5 text-[13px] leading-snug text-text-primary">{e.title}</div>
-                        {e.detail && <div className="mt-0.5 text-[11px] leading-relaxed text-text-muted">{e.detail}</div>}
+                        {/* A filed task writes its whole rationale into the
+                            title. Two lines collapsed keeps the row a row; the
+                            expansion carries the rest. */}
+                        <div className={`mt-0.5 text-[13px] leading-snug text-text-primary ${open ? "" : "line-clamp-2"}`}>{e.title}</div>
+                        {/* One line collapsed. A loop run writes a paragraph of
+                            its own reasoning, and four hundred of those stacked
+                            is not a timeline, it is a transcript you cannot
+                            scan. Expanding shows the whole thing. */}
+                        {e.detail && (
+                          <div className={`mt-0.5 text-[11px] leading-relaxed text-text-muted ${open ? "" : "line-clamp-1"}`}>{e.detail}</div>
+                        )}
                       </div>
                     </button>
-                    {SOURCE_LABEL[e.type] && (
-                      <button type="button"
-                        onClick={(ev) => { ev.stopPropagation(); void openActivitySource(e, vaultPath); }}
-                        title={`${SOURCE_LABEL[e.type]} — go to the source of this event`}
-                        className="mr-1 mt-1.5 inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] text-text-muted opacity-60 transition-all hover:bg-surface hover:text-accent group-hover:opacity-100">
-                        {SOURCE_LABEL[e.type]}<ArrowUpRight className="h-3 w-3" />
-                      </button>
-                    )}
                   </div>
-                  {open && <ActivityDetail event={e} />}
+                  {open && (
+                    <>
+                      <ActivityDetail event={e} />
+                      {SOURCE_LABEL[e.type] && (
+                        <button type="button"
+                          onClick={() => { void openActivitySource(e, vaultPath); }}
+                          title={`${SOURCE_LABEL[e.type]} — go to the source of this event`}
+                          className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary transition-colors hover:border-accent-border hover:text-accent">
+                          {SOURCE_LABEL[e.type]}<ArrowUpRight className="h-3 w-3" />
+                        </button>
+                      )}
+                    </>
+                  )}
                 </li>
               );
             })}
