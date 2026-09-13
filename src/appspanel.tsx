@@ -3230,6 +3230,13 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
   // (Context, Runs, Loops, Settings) that only have data once it really is
   // connected. Ten tabs, four of them empty.
   const notConnected = status === "disconnected" || !!connect;
+  // Welcome is not offered for a connected app, so a connected one must not
+  // land on it. AppDetail is keyed by app.id upstream, so this runs once per
+  // app rather than fighting the user's own tab choice.
+  useEffect(() => {
+    if (!notConnected && tab === "welcome") setTab("journal");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notConnected]);
   // #49: the old "Connect" button was confusing - skills run without it, and the
   // Skills tab itself says "no Connect step required". Its one real job is to
   // scaffold the catalog app into your vault (so you can configure it / teach
@@ -3326,7 +3333,10 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
       <div className="w-44 shrink-0 border-r border-border-subtle px-2.5 py-4">
         <div className="flex flex-col gap-0.5">
           {([
-            { id: "welcome", label: "Welcome", icon: Plug },
+            // Welcome answers "what does connecting this do". Once it IS
+            // connected that question is spent: the tab held one sentence plus
+            // two facts already in the header, as the default landing of ten.
+            ...(notConnected ? [{ id: "welcome" as const, label: "Welcome", icon: Plug }] : []),
             { id: "soul", label: "Ideal State", icon: Sparkles },
             // App/domain parity: a connected app keeps a journal + state + decisions
             // just like a domain. Catalog (not-yet-added) apps have no data dir, so
