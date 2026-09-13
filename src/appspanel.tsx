@@ -1547,7 +1547,7 @@ function ComposioMode({ vaultPath, expanded }: { vaultPath: string; expanded: bo
             ))}
           </div>
         </div>
-        <p className="mt-1.5 max-w-prose text-[12px] leading-relaxed text-text-secondary">One managed gateway: a single key fronts 1000+ apps. Authorize each app once in Composio, then Prevail's agent uses them through the Composio MCP endpoint - no per-app setup on this Mac. <button onClick={() => void openUrl("https://composio.dev")} className="text-accent hover:underline">What is Composio?</button></p>
+        <p className="mt-1.5 max-w-prose text-[12px] leading-relaxed text-text-secondary">One key fronts 1000+ apps. Authorize each once in Composio; nothing to set up on this Mac. <button onClick={() => void openUrl("https://composio.dev")} className="text-accent hover:underline">What is Composio?</button></p>
         {composioMethod === "cli" ? (
           (() => {
             const installed = !!cliStatus?.installed;
@@ -1803,7 +1803,7 @@ function NangoMode({ vaultPath, expanded }: { vaultPath: string; expanded: boole
       <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="flex items-start gap-4 px-5 py-4">
         <div className="min-w-0 flex-1">
-        <p className="max-w-prose text-[12px] leading-relaxed text-text-secondary">Your own Nango project, fronted by one secret key. Prevail lists the integrations you configured in Nango; connect one and Nango runs the sign-in and syncs its data for the agent to use. <button onClick={() => void openUrl("https://nango.dev")} className="text-accent hover:underline">What is Nango?</button></p>
+        <p className="max-w-prose text-[12px] leading-relaxed text-text-secondary">Your own Nango project behind one key. Connect an integration and Nango handles the sign-in and sync. <button onClick={() => void openUrl("https://nango.dev")} className="text-accent hover:underline">What is Nango?</button></p>
         {showForm ? (
           <div className="mt-3 max-w-xl space-y-2">
             <p className="text-[11px] leading-relaxed text-text-secondary">Copy your <span className="font-mono text-text-primary">Secret Key</span> from <button onClick={() => void openUrl("https://app.nango.dev/dev/getting-started")} className="text-accent hover:underline">app.nango.dev</button> (Environment Settings). Stored in your Mac's Keychain.</p>

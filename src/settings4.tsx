@@ -116,7 +116,7 @@ export function TelemetrySettings() {
         <h3 className="font-display text-sm font-semibold tracking-tight text-text-primary">Telemetry</h3>
         <span className="font-mono text-[11px] text-text-muted">anonymous · on by default · one-tap opt-out</span>
       </div>
-      <p className="mb-3 text-xs text-text-secondary">Never includes your prompts, vault, the names you created, or any personal data. On by default so Prevail learns what to improve; turn it off any time and it stops instantly. Bunker Mode always blocks it regardless.</p>
+      <p className="mb-3 text-xs text-text-secondary">Never your prompts, your vault, or anything you named. Off the moment you say so, and Bunker Mode blocks it regardless.</p>
       <div className="mb-3 rounded-lg border border-border bg-surface px-5">
         <SettingsRowLite title="Usage analytics (anonymous)" desc="Coarse, anonymous events (app opened, which features are used, OS) via PostHog. No content, ever."
           control={<Toggle on={usage} onChange={(v) => { setUsage(v); setUsageState(v); }} />} />

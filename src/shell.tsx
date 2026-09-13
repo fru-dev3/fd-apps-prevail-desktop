@@ -288,7 +288,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
               // Tell the user what actually makes this app work instead.
               <div className="mt-2 rounded-lg border border-accent-border bg-accent-soft/40 px-3 py-2.5">
                 <div className="font-mono text-[11px] text-accent">No connection step needed</div>
-                <p className="mt-1 text-[12px] leading-relaxed text-text-primary">This app has no login or key to verify. Add its exports or files under its folder, or just run a skill: it works without a connection step. There is nothing to test here.</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-text-primary">No login to verify. Drop files in its folder, or just run a skill.</p>
               </div>
             )}
             {app.status === "not-configured" && app.integration !== "manual" && (
@@ -365,7 +365,7 @@ export function AppFacetPanel({ app, vaultPath, domains, appTab, onOpenDomain, o
               />
               {accountDraft && <button onClick={() => { setAccountDraft(""); void saveAccount(""); }} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Clear</button>}
             </div>
-            <div className="mt-1.5 text-[12px] text-text-muted">Which account this app instance acts as when its connector has several (use the profile label you connected, e.g. under Google). Chats with this app attached authenticate as this account; a per-chat pick in Modes still overrides.</div>
+            <div className="mt-1.5 text-[12px] text-text-muted">Which account this app acts as. A per-chat pick in Modes still overrides it.</div>
           </AppCard>
           <AppCard icon={Clock} label="Schedule">
             <div className="text-sm text-text-primary">{appScheduleText(app)}</div>

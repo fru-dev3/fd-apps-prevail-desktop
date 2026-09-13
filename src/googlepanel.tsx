@@ -615,7 +615,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                         className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-accent-hover disabled:opacity-50"><ExternalLink className="h-3.5 w-3.5" /> Sign in</button>
                       <button onClick={() => { setAdding(false); setNewLabel(""); }} className="rounded-md border border-border px-2.5 py-1.5 text-xs text-text-secondary hover:text-text-primary">Cancel</button>
                     </div>
-                    <p className="mt-1.5 text-[11px] leading-snug text-text-muted">A separate Google account opens its own browser sign-in. Some accounts need extra Google setup the first time; if sign-in does not finish, the log will say what is needed and your main account keeps working.</p>
+                    <p className="mt-1.5 text-[11px] leading-snug text-text-muted">Each account opens its own browser sign-in. If one does not finish, the log says why and your other accounts keep working.</p>
                   </div>
                 ) : (
                   <button onClick={() => setAdding(true)} disabled={authing || busy !== null} className="inline-flex items-center gap-1 rounded-md border border-dashed border-accent-border px-2.5 py-1.5 text-xs text-accent hover:bg-accent-soft/40 disabled:opacity-50">
@@ -686,7 +686,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
                 </button>
               )}
             </div>
-            <p className="mt-1.5 text-[12px] text-text-muted">Actions Prevail can run for you across Google. Starter skills ship ready to run; you can also teach your own. Each runs by a method (Browser, MCP, or API), and your primary skill is the one Prevail runs by default.</p>
+            <p className="mt-1.5 text-[12px] text-text-muted">What Prevail can do across Google. Your primary skill is the one it runs by default.</p>
 
             {learnMode ? (
               <div className="mt-3">
@@ -849,7 +849,7 @@ export function GoogleWorkspacePanel({ vaultPath, logos }: { vaultPath: string; 
               </div>
               <div className="rounded-xl border border-border-subtle bg-background/50 p-5">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><HelpCircle className="h-4 w-4 text-accent" /> How this connection works</h3>
-                <p className="mt-2 text-[13px] leading-relaxed text-text-secondary">Google Workspace is one connection that reaches Gmail, Calendar, Drive, Docs, Sheets, Tasks and Contacts across every account you sign in. Prevail talks to Google through the local gws helper, so reading happens on this Mac and nothing leaves it unless you act. Reading is instant; sending, changing or deleting waits for your OK under Needs you.</p>
+                <p className="mt-2 text-[13px] leading-relaxed text-text-secondary">One connection for Gmail, Calendar, Drive, Docs, Sheets, Tasks and Contacts. Reading happens on this Mac; sending or changing waits for your OK.</p>
               </div>
             </div>
           </div>

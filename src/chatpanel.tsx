@@ -2669,7 +2669,7 @@ export function ChatPanel({
                     ) : (
                       <div className="mt-3 flex flex-col items-start justify-center rounded-lg border border-dashed border-border bg-background/40 px-4 py-6 text-left">
                         <span className="text-[13px] text-text-secondary">Set the ideal state for {dlabel}.</span>
-                        <span className="mt-0.5 text-[12px] text-text-muted">Describe its ideal state; your AI reads this as standing direction. Use Generate with AI to draft it from this domain's context, or write your own.</span>
+                        <span className="mt-0.5 text-[12px] text-text-muted">Describe its ideal state. Your AI reads this as standing direction.</span>
                         <div className="mt-3 flex items-center gap-2">
                           <button onClick={draftDomainSoul} disabled={soulDrafting} className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent hover:bg-accent/10 disabled:opacity-50">{soulDrafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {soulDrafting ? "Generating…" : "Generate with AI"}</button>
                           <button onClick={() => { setSoulDraft(""); setEditSoul(true); }} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text-secondary hover:border-accent-border hover:text-accent"><Pencil className="h-3.5 w-3.5" /> Write my own</button>

@@ -405,7 +405,7 @@ export function ModelsSection({
       )}
       {tab === "api" && (
         <>
-          <p className="mb-4 text-xs text-text-muted">Bring your own key, no install. OpenRouter is one key for 200+ hosted models; AWS Bedrock routes to hosted models in your account.</p>
+          <p className="mb-4 text-xs text-text-muted">One key, many models. OpenRouter or your own AWS account.</p>
           <ProvidersSection onActivated={onActivated} embedded />
         </>
       )}
