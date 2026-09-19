@@ -704,14 +704,19 @@ export async function executeBenchBatch(
       // reports scored when the runs really are.
       const unscoredInBatch = async (): Promise<number> => {
         const runs = await invoke<BenchmarkRun[]>("benchmark_runs", { vault }).catch(() => [] as BenchmarkRun[]);
-        return runs.filter((r) => (r as unknown as { batch?: string }).batch === batchId
+        return runs.filter((r) => r.batch_id === batchId
           && (r.judge_avg === null || r.judge_avg === undefined)).length;
       };
       // ~40s of judging per planned run, floored at 10 min and capped at 2 h.
       const scoreBudgetMs = Math.min(2 * 60 * 60_000, Math.max(10 * 60_000, plannedJobs.length * 40_000));
       const SCORE_ATTEMPTS = 3;
+      // A failed read must never be read as "nothing left to score" - that
+      // would skip the judge pass altogether. The first attempt always runs;
+      // the disk check only decides whether to go round again.
       let leftUnscored = await unscoredInBatch();
-      for (let attempt = 1; attempt <= SCORE_ATTEMPTS && leftUnscored > 0 && !batch.cancelled; attempt++) {
+      for (let attempt = 1;
+           attempt <= SCORE_ATTEMPTS && (attempt === 1 || leftUnscored > 0) && !batch.cancelled;
+           attempt++) {
         const scoreSession = `bench-score-${Date.now()}-${attempt}`;
         batch.sessions.push(scoreSession);
         try {
@@ -720,9 +725,10 @@ export async function executeBenchBatch(
         } catch { /* fall through to the disk check, then retry */ }
         const before = leftUnscored;
         leftUnscored = await unscoredInBatch();
+        if (leftUnscored === 0) break;
         // A pass that scored nothing at all will not do better on a third try;
         // stop and say so rather than burning the clock.
-        if (leftUnscored >= before) break;
+        if (attempt > 1 && leftUnscored >= before) break;
       }
       if (!batch.cancelled) {
         // Runs that completed move to done; a run still "running" at this point
