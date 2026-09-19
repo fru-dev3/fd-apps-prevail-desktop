@@ -959,6 +959,25 @@ pub(crate) struct BenchmarkScoreArgs {
     pub no_judge: Option<bool>,
 }
 
+/// Should the judge pass be skipped entirely?
+///
+/// Only when the caller asked for no judge, or when Bunker Mode is on AND a
+/// cloud judge was named explicitly. Bunker Mode alone is NOT a reason: the
+/// engine subprocess receives PREVAIL_BUNKER=1 and narrows the judge to local
+/// CLIs itself, falling back to keywords only when no local judge exists.
+/// Forcing the skip here as well meant the UI - which never names a judge -
+/// silently produced keyword-only scores on every batch, leaving every run
+/// reported as unscored after the answers had already been paid for.
+fn skip_judge(no_judge_requested: bool, bunker_on: bool, judge_cli: Option<&str>) -> bool {
+    if no_judge_requested {
+        return true;
+    }
+    match judge_cli {
+        Some(c) => bunker_on && !bunker::is_local_cli(c),
+        None => false,
+    }
+}
+
 #[tauri::command]
 pub(crate) async fn benchmark_score(
     app: tauri::AppHandle,
@@ -978,11 +997,15 @@ pub(crate) async fn benchmark_score(
         cli_args.push("--run".into());
         cli_args.push(r.clone());
     }
-    let judge_is_local = args.judge_cli.as_deref().map(bunker::is_local_cli).unwrap_or(false);
-    let no_judge = args.no_judge.unwrap_or(false)
-        // Bunker Mode: the judge is an LLM call too; without a local judge,
-        // degrade to the mechanical keyword pass (the engine double-checks).
-        || (bunker::bunker_enabled() && !judge_is_local);
+    // Bunker Mode used to force --no-judge here whenever no explicitly local
+    // judge was named. The UI never names one, so every scored batch silently
+    // came back keyword-only: judge_avg null, the whole run reported as
+    // unscored, and the tokens already spent. The engine subprocess gets
+    // PREVAIL_BUNKER=1 and enforces this properly on its own - it narrows the
+    // judge to local CLIs and falls back to keywords only when there is no
+    // local judge at all. Block only a judge explicitly asked for that is a
+    // cloud provider; otherwise let the engine choose.
+    let no_judge = skip_judge(args.no_judge.unwrap_or(false), bunker::bunker_enabled(), args.judge_cli.as_deref());
     if no_judge {
         cli_args.push("--no-judge".into());
     } else {
@@ -1041,4 +1064,42 @@ pub(crate) async fn benchmark_suggest(
         cli_args.push(m.clone());
     }
     spawn_prevail_streaming(app, args.session_id, cli_args, "suggest").await
+}
+
+
+#[cfg(test)]
+mod score_judge_tests {
+    use super::skip_judge;
+
+    #[test]
+    fn explicit_no_judge_always_wins() {
+        assert!(skip_judge(true, false, Some("ollama")));
+        assert!(skip_judge(true, true, None));
+    }
+
+    #[test]
+    fn bunker_alone_does_not_disable_the_judge() {
+        // The regression: the UI never names a judge, so this path decided
+        // every scored batch under Bunker Mode. Skipping here threw away the
+        // judge even when a local one was installed and running.
+        assert!(!skip_judge(false, true, None));
+    }
+
+    #[test]
+    fn bunker_blocks_an_explicitly_named_cloud_judge() {
+        assert!(skip_judge(false, true, Some("claude")));
+        assert!(skip_judge(false, true, Some("codex")));
+    }
+
+    #[test]
+    fn bunker_allows_a_local_judge() {
+        assert!(!skip_judge(false, true, Some("ollama")));
+        assert!(!skip_judge(false, true, Some("lmstudio")));
+    }
+
+    #[test]
+    fn without_bunker_any_judge_runs() {
+        assert!(!skip_judge(false, false, Some("claude")));
+        assert!(!skip_judge(false, false, None));
+    }
 }

@@ -1264,7 +1264,7 @@ export function CouncilPanel({
         {/* Slash-command popover for skills (parity with Chat). Shown whenever a
             `/` is typed - including an empty state - so it never looks broken. */}
         {slashMatch && (
-          <div className="absolute bottom-full left-3 z-40 mb-1 w-80 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
+          <div className="absolute bottom-full left-0 z-40 mb-1 w-80 max-w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
             <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[11px] text-text-muted">Skills · enter to insert</div>
             {slashCandidates.length === 0 ? (
               <div className="px-3 py-2 text-[11px] text-text-muted">No skills in this vault yet. Add one in a domain's <span className="font-mono">_skills/</span> folder.</div>
@@ -1282,7 +1282,7 @@ export function CouncilPanel({
         )}
         {/* Context-mention popover for `$<domain|app>` (parity with Chat) */}
         {dollarMatch && dollarCandidates.length > 0 && (
-          <div className="absolute bottom-full left-3 z-40 mb-1 w-80 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
+          <div className="absolute bottom-full left-0 z-40 mb-1 w-80 max-w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
             <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[11px] text-text-muted">Add context · enter to attach</div>
             {dollarCandidates.map((c, i) => (
               <button key={`${c.kind}:${c.id}`} onMouseDown={(e) => { e.preventDefault(); applyDollarCompletion(c); }}
@@ -1488,7 +1488,7 @@ export function CouncilPanel({
                   <Crown className="h-3 w-3" /> council
                 </button>
                 {councilMenuOpen && (
-                  <div className="absolute bottom-full left-0 z-40 mb-1 w-72 overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
+                  <div className="absolute bottom-full left-0 z-40 mb-1 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
                     <div className="flex items-center gap-1.5 border-b border-border-subtle bg-surface-warm/50 px-3 py-2 text-[11px] text-text-muted">
                       <Scale className="h-3 w-3 text-accent" /> Convene a council
                     </div>
@@ -1526,7 +1526,7 @@ export function CouncilPanel({
                 <Plus className="h-3 w-3" /> add
               </button>
               {addMenuOpen && (
-                <div className="absolute bottom-full left-0 z-40 mb-1 w-72 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
+                <div className="absolute bottom-full left-0 z-40 mb-1 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
                   <div className="border-b border-border-subtle px-3 py-1.5 text-[11px] text-text-muted">
                     Add panelist
                   </div>
@@ -1616,7 +1616,7 @@ export function CouncilPanel({
                 </svg>
               </button>
               {chairMenuOpen && (
-                <div className="absolute bottom-full right-0 z-40 mb-1 w-72 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
+                <div className="absolute bottom-full right-0 z-40 mb-1 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
                   <div className="border-b border-border-subtle px-3 py-1.5 text-[11px] text-text-muted">
                     Chair
                   </div>

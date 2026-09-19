@@ -692,21 +692,50 @@ export async function executeBenchBatch(
     if (!batch.cancelled) {
       // Score ONLY this batch's runs (fast) - not every historical run, which
       // would re-score dozens of old runs and stall the fresh scores from landing.
-      const scoreSession = `bench-score-${Date.now()}`;
-      batch.sessions.push(scoreSession);
-      // Scoring itself shouldn't be able to wedge the batch. If the score pass
-      // never reports done (crash, lost event), give up after 10 minutes and
-      // finalize anyway - the runs are on disk and can be re-scored from History.
-      try {
-        await invoke("benchmark_score", { args: { session_id: scoreSession, vault, batch: batchId } });
-        await benchWaitDone(batch, scoreSession, "score", 10 * 60_000);
-      } catch { /* finalize regardless - never leave the batch hung */ }
+      // Scoring used to be one attempt behind a flat ten-minute watchdog, and
+      // a timeout was swallowed and every job marked "done" regardless. A
+      // twelve-model, twenty-six-domain batch cannot judge in ten minutes, so
+      // the common outcome was exactly the expensive one: answers paid for,
+      // no scores, and a batch claiming success.
+      //
+      // Now the budget scales with the work, the pass is retried, and each
+      // attempt is checked against the runs actually on disk - so a partial
+      // judge pass resumes instead of starting over, and the batch only
+      // reports scored when the runs really are.
+      const unscoredInBatch = async (): Promise<number> => {
+        const runs = await invoke<BenchmarkRun[]>("benchmark_runs", { vault }).catch(() => [] as BenchmarkRun[]);
+        return runs.filter((r) => (r as unknown as { batch?: string }).batch === batchId
+          && (r.judge_avg === null || r.judge_avg === undefined)).length;
+      };
+      // ~40s of judging per planned run, floored at 10 min and capped at 2 h.
+      const scoreBudgetMs = Math.min(2 * 60 * 60_000, Math.max(10 * 60_000, plannedJobs.length * 40_000));
+      const SCORE_ATTEMPTS = 3;
+      let leftUnscored = await unscoredInBatch();
+      for (let attempt = 1; attempt <= SCORE_ATTEMPTS && leftUnscored > 0 && !batch.cancelled; attempt++) {
+        const scoreSession = `bench-score-${Date.now()}-${attempt}`;
+        batch.sessions.push(scoreSession);
+        try {
+          await invoke("benchmark_score", { args: { session_id: scoreSession, vault, batch: batchId } });
+          await benchWaitDone(batch, scoreSession, "score", scoreBudgetMs);
+        } catch { /* fall through to the disk check, then retry */ }
+        const before = leftUnscored;
+        leftUnscored = await unscoredInBatch();
+        // A pass that scored nothing at all will not do better on a third try;
+        // stop and say so rather than burning the clock.
+        if (leftUnscored >= before) break;
+      }
       if (!batch.cancelled) {
         // Runs that completed move to done; a run still "running" at this point
         // never reported done (timed out) - mark it errored, not stuck-scoring.
+        // When judging did not finish, say that on the job instead of "done",
+        // so the batch never claims a score it does not have.
+        const judgeIncomplete = leftUnscored > 0;
         batch.jobs = batch.jobs.map((j) =>
-          j.status === "scoring" ? { ...j, status: "done" }
-          : j.status === "running" ? { ...j, status: "error", note: j.note ?? "timed out" }
+          j.status === "scoring"
+            ? (judgeIncomplete
+                ? { ...j, status: "done" as const, note: j.note ?? `${leftUnscored} run${leftUnscored === 1 ? "" : "s"} still unscored` }
+                : { ...j, status: "done" as const })
+          : j.status === "running" ? { ...j, status: "error" as const, note: j.note ?? "timed out" }
           : j,
         );
       }
