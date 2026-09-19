@@ -58,6 +58,11 @@ fn resolve_bin_path(bin: &str) -> Option<String> {
 ///                   missing (e.g. a removed venv). A non-zero exit with no
 ///                   stdout is NOT a usable runtime — surfacing stderr here is
 ///                   what stops a broken harness from reading as "valid/ready".
+/// How long a runtime gets to answer `--version` before we call it unusable.
+/// Generous enough for a cold node-backed CLI, short enough that the Runtimes
+/// screen always renders.
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 fn probe_cli_version(bin: &str) -> Result<Option<String>, String> {
     let Some(path) = resolve_bin_path(bin) else {
         return Ok(None);
@@ -66,17 +71,48 @@ fn probe_cli_version(bin: &str) -> Result<Option<String>, String> {
     // Pass the same enriched env chat_send uses — PATH so env-node
     // shebangs resolve, USER/LOGNAME so claude finds its keychain.
     let (combined, user, logname) = build_cli_env();
-    let out = match Command::new(&path)
+    // `.output()` waits forever. A CLI that hangs on --version (a stuck
+    // update check, a login prompt, a wedged node process) then hung the
+    // whole runtime detection with it: the probes run in parallel but the
+    // join still waits on every one, so a single hanging binary left the
+    // Runtimes screen - and anything over the phone bridge that needs the
+    // runtime list - reporting zero runtimes forever, with nothing on screen
+    // to say why. Give every probe a deadline and report the timeout.
+    let mut child = match Command::new(&path)
         .arg("--version")
         .env_clear()
         .envs(scrubbed_env_pairs())
         .env("PATH", combined)
         .env("USER", user)
         .env("LOGNAME", logname)
-        .output()
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
     {
-        Ok(o) => o,
+        Ok(c) => c,
         Err(e) => return Err(format!("{bin}: {e}")),
+    };
+    let deadline = std::time::Instant::now() + PROBE_TIMEOUT;
+    let out = loop {
+        match child.try_wait() {
+            Ok(Some(_)) => match child.wait_with_output() {
+                Ok(o) => break o,
+                Err(e) => return Err(format!("{bin}: {e}")),
+            },
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!(
+                        "{bin}: no response to --version within {}s",
+                        PROBE_TIMEOUT.as_secs()
+                    ));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            Err(e) => return Err(format!("{bin}: {e}")),
+        }
     };
     let first_line = |b: &[u8]| {
         String::from_utf8_lossy(b)
@@ -126,25 +162,30 @@ pub(crate) async fn detect_clis(_app: tauri::AppHandle) -> Result<Vec<CliInfo>, 
         .iter()
         .map(|(id, label, bin)| {
             let (id, label, bin) = (*id, *label, *bin);
-            std::thread::spawn(move || {
+            // Keep the identity OUTSIDE the thread. When a probe panics its
+            // return value is gone, and a runtime that vanishes from the list
+            // is worse than one reported broken: the Runtimes screen just
+            // shows a shorter list with no hint that anything went wrong.
+            (id, label, bin, std::thread::spawn(move || {
                 let exists = find_in_known_paths(bin);
                 // The probe is the real availability test: a binary that's on
                 // disk but can't execute (broken wrapper, missing venv) is NOT
                 // a usable runtime. Only probe when the file exists so we don't
                 // spawn a missing binary.
                 let probe = if exists { probe_cli_version(bin) } else { Ok(None) };
-                (id, label, bin, exists, probe)
-            })
+                (exists, probe)
+            }))
         })
         .collect();
 
     let mut out = Vec::new();
-    for h in probes {
-        // A panicking probe must not take the whole list down: treat it as a
-        // runtime that would not run.
-        let (id, label, bin, exists, probe) = match h.join() {
+    for (id, label, bin, h) in probes {
+        // A panicking probe must not take the whole list down, and must not
+        // quietly remove the runtime either. Report it as one that would not
+        // run, and say so.
+        let (exists, probe) = match h.join() {
             Ok(v) => v,
-            Err(_) => continue,
+            Err(_) => (false, Err("detection crashed while probing this runtime".to_string())),
         };
         if id == "ollama" {
             // Special-case ollama: it runs as a daemon, the `ollama` binary is
