@@ -1,17 +1,50 @@
-# Prevail v0.3.119
+# Prevail 0.3.121
 
-Arena can draft questions again, the app tells you when a newer build exists, and Obsidian lives where file sources belong.
+Arena benchmarks now actually produce scores, and the Runtimes screen no
+longer reports zero when your runtimes are installed and working.
 
-## Fixed
+## Arena scoring
 
-- **"Suggest with AI" failed on every domain with "no questions drafted".** Two bugs stacked. The engine only looked for a domain's context under the old file names, so a current vault with `memory/state.md`, `memory/tasks.md` and `ideal-state.md` in every domain looked empty to it. And the engine printed the real reason one line before a summary, while the app showed only the summary, so the message told you to fix something without saying what. The engine reads the current layout now, and the app reports the actual reason.
-- **Obsidian was under General**, between start-on-boot and sound effects. It is a file source, so it now sits on the Workspace screen with the vault, the demo vault and backups.
+A benchmark batch could finish, cost real tokens, and still leave every run
+unscored, with no way to recover it. Five separate faults, all ending in the
+same place:
 
-## New
+- Bunker Mode disabled the judge on every scored batch. The app never names a
+  judge explicitly, and the check here treated that as a reason to skip
+  judging entirely, even with a local judge installed. The engine already
+  enforces Bunker Mode properly on its own, so only an explicitly named cloud
+  judge is blocked now.
+- A run whose judge produced nothing still wrote a score file, and the "has a
+  score file" check then skipped that run forever. Fifty two of fifty six runs
+  in one vault were stuck exactly this way. Those are picked back up now
+  whenever a judge is available.
+- One failing run abandoned every run after it in the batch. Each run now
+  stands alone, with a retry pass at the end and a named report for anything
+  that still could not be scored.
+- The judge got a single attempt, and any failure lost that question's score
+  silently. It now retries with backoff and records why it gave up.
+- The scoring pass ran once behind a flat ten minute watchdog, then marked
+  every job done regardless of the outcome. The budget now scales with the
+  size of the batch and the pass is retried.
 
-- **A green "available" badge in the bottom ribbon when a newer Prevail has shipped.** It checks GitHub Releases on launch and hourly, pulses so it reads from across the room, and opens the release page. It works without the signed updater feed, and never runs in Bunker Mode, which promises no network calls.
+A scoring pass also stops early when the judge runs out of quota, instead of
+retrying thousands of times against a judge that will not answer and writing a
+score file full of blanks.
 
-## Notes
+## Runtimes
 
-- Engine v1.9.20 is bundled, carrying the drafting fix.
-- The in-app updater feed is still not published, because the signing key on the build machine does not match the key shipped in v0.3.x. Install from the DMG; the new badge is how you will know there is one.
+Runtime detection could report zero runtimes on a Mac that has them installed.
+The version probe had no timeout, and although probes run in parallel the code
+still waited on all of them, so a single CLI that hung on startup left the
+Runtimes screen empty with nothing on screen to explain why. This also blocked
+picking models and starting benchmarks from the phone.
+
+Every probe now has a ten second deadline and reports a timeout as the reason
+it is unusable. A probe that crashes outright now appears as a broken runtime
+rather than vanishing from the list.
+
+## Under the hood
+
+The domain name guard held raw control bytes where escape sequences were
+intended. The check behaved correctly, but it made a security relevant file
+read as binary to search and review tools.
