@@ -64,56 +64,23 @@ echo "signing as: $APPLE_SIGNING_IDENTITY"
 # Updater signing key (for the in-app auto-updater feed). The build produces
 # Prevail.app.tar.gz + .sig when createUpdaterArtifacts is on; these env vars
 # let `tauri build` sign them. Key lives at ~/.prevail/updater.key.
+#
+# Whether that key matches the pubkey baked into the app CANNOT be answered
+# before the build. An rsign secret key stores its key id inside the ENCRYPTED
+# keynum section, so comparing bytes of the secret blob pits ciphertext against
+# plaintext and reports a mismatch even for a freshly generated, genuinely
+# matched pair. That false negative shipped 0.3.121 as DMG-only when the key was
+# in fact correct. The authoritative comparison is between the pubkey and the
+# key id carried in the signature the build actually produced, so it now happens
+# at the feed step below, where that signature exists.
 UPDATER_KEY="$HOME/.prevail/updater.key"
-# Does the private key on this machine actually match the public key baked into
-# the app? Minisign blobs carry a key id: bytes 2..10 of the public blob, bytes
-# 54..62 of the secret one. If they differ, every signature we produce is
-# rejected at update time, so publishing the feed is worse than not having one:
-# clients find an update they cannot verify. Skip it, and say so.
-# NOTE (2026-09-13): this byte-offset test is NOT reliable. An rsign secret key
-# stores its key id INSIDE the encrypted keynum section, so offset 54..62 is
-# ciphertext for any password-protected key - including ones generated with an
-# empty password, which is what `tauri signer generate` writes. The test
-# therefore reports "mismatch" even for a freshly generated, genuinely matched
-# pair. The authoritative check is tauri's own: `tauri build` warns
-# "The updater secret key ... does not match the public key" when they really
-# differ. Trust that line in the build log, not this one.
-UPDATER_MATCHES=0
 if [ -f "$UPDATER_KEY" ]; then
-  UPDATER_MATCHES="$(python3 - "$HERE/src-tauri/tauri.conf.json" "$UPDATER_KEY" <<'PY'
-import base64, binascii, json, sys
-def keyid(blob, lo, hi):
-    try:
-        raw = base64.b64decode(blob).decode("utf-8", "replace")
-        body = [l for l in raw.splitlines() if l and not l.startswith("untrusted comment")]
-        return binascii.hexlify(base64.b64decode(body[-1])[lo:hi]).decode()
-    except Exception:
-        return ""
-try:
-    pub = json.load(open(sys.argv[1]))["plugins"]["updater"]["pubkey"]
-    sec = open(sys.argv[2]).read().strip()
-    a, b = keyid(pub, 2, 10), keyid(sec, 54, 62)
-    print("1" if a and a == b else "0")
-except Exception:
-    print("0")
-PY
-)"
-fi
-if [ -f "$UPDATER_KEY" ]; then
-  # Always hand tauri the key when we have one. tauri.conf.json declares
-  # createUpdaterArtifacts with a pubkey, and `tauri build` ERRORS at the very
-  # end ("a public key has been found, but no private key") if the private key
-  # is absent — after the DMG is already built and signed, killing the release
-  # for nothing. Whether the resulting signature is USABLE is a separate
-  # question, answered by UPDATER_MATCHES at publish time below.
+  # tauri build ERRORS at the very end ("a public key has been found, but no
+  # private key") if a pubkey is declared and the private key is absent, after
+  # the DMG is already built and signed. Always hand it over.
   export TAURI_SIGNING_PRIVATE_KEY="$(cat "$UPDATER_KEY")"
   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
-  if [ "$UPDATER_MATCHES" = "1" ]; then
-    echo "updater artifacts will be signed and published"
-  else
-    echo "WARN: $UPDATER_KEY does NOT match the app's updater pubkey — publishing DMG only."
-    echo "      (a feed signed with it would be refused by every installed client)"
-  fi
+  echo "updater key present; the key/pubkey match is verified after the build"
 else
   echo "WARN: $UPDATER_KEY missing — auto-update artifacts will be unsigned/skipped"
 fi
@@ -246,10 +213,72 @@ MACOS_DIR="$HERE/src-tauri/target/release/bundle/macos"
 TARBALL="$MACOS_DIR/Prevail.app.tar.gz"
 SIGFILE="$TARBALL.sig"
 UPDATE_ASSETS=()
+# Two questions have to be answered before publishing a feed, and only the
+# second one actually matters to a user sitting on the previous version.
+#
+#   1. Did we sign with the key this build declares? (signature key id == the
+#      pubkey in tauri.conf.json)
+#   2. Is that the same pubkey the PREVIOUSLY RELEASED build shipped with?
+#      Installed clients verify against the key baked into the copy they are
+#      running. Rotate the key and they will fetch the update, fail to verify
+#      it, and show an error every launch. That is strictly worse than serving
+#      no feed, and it is what happened on 0.3.121: the key was rotated after
+#      0.3.120 shipped, so every installed client still trusted the old id.
+#
+# A minisign public key and a minisign signature both carry the same 8-byte
+# key id at bytes 2..10 of their decoded blob.
+UPDATER_MATCHES=0
+if [ -f "$SIGFILE" ]; then
+  UPDATER_MATCHES="$(python3 - "$HERE/src-tauri/tauri.conf.json" "$SIGFILE" "$HERE" "$TAG" <<'PY'
+import base64, binascii, json, subprocess, sys
+
+def keyid(b64blob, pick):
+    raw = base64.b64decode(b64blob).decode("utf-8", "replace")
+    body = [l for l in raw.splitlines() if l and not l.startswith("untrusted comment")]
+    return binascii.hexlify(base64.b64decode(body[pick])[2:10]).decode()
+
+def pubkey_at(repo, ref):
+    blob = subprocess.check_output(
+        ["git", "-C", repo, "show", f"{ref}:src-tauri/tauri.conf.json"],
+        text=True, stderr=subprocess.DEVNULL)
+    return json.loads(blob)["plugins"]["updater"]["pubkey"]
+
+conf, sigfile, repo, tag = sys.argv[1:5]
+try:
+    cur = keyid(json.load(open(conf))["plugins"]["updater"]["pubkey"], -1)
+    sig = keyid(open(sigfile).read().strip(), 0)
+    if not cur or cur != sig:
+        print("0:signed with a key that does not match this build's own pubkey")
+        raise SystemExit
+    # Chronological, NOT version-sorted. This repo was re-baselined from 0.8.x
+    # down to 0.1.x, so a version sort puts the long-dead v0.8.17 on top and
+    # compares against a key nobody has been running for months.
+    tags = subprocess.check_output(
+        ["git", "-C", repo, "tag", "--list", "v*", "--sort=-creatordate"],
+        text=True, stderr=subprocess.DEVNULL).split()
+    prev = next((t for t in tags if t != tag), None)
+    if prev is None:
+        print("1:first release, nothing installed to verify against")
+        raise SystemExit
+    old = keyid(pubkey_at(repo, prev), -1)
+    if old == cur:
+        print(f"1:matches the key {prev} shipped with")
+    else:
+        print(f"0:pubkey rotated since {prev} ({old} -> {cur}); installed clients would reject this update")
+except SystemExit:
+    raise
+except Exception as e:
+    print(f"0:could not verify ({type(e).__name__})")
+PY
+)"
+fi
+UPDATER_REASON="${UPDATER_MATCHES#*:}"
+UPDATER_MATCHES="${UPDATER_MATCHES%%:*}"
+[ -n "$UPDATER_REASON" ] && echo "updater feed: $UPDATER_REASON"
 if [ "$UPDATER_MATCHES" != "1" ]; then
   # A stale tarball + .sig from an earlier build would otherwise be picked up
   # and published with a signature no client can verify.
-  echo "skipped: the updater key does not match the app's pubkey (DMG-only release)"
+  echo "skipped: DMG-only release (see the reason above)"
 elif [ -f "$TARBALL" ] && [ -f "$SIGFILE" ]; then
   SIG="$(cat "$SIGFILE")"
   PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
