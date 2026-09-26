@@ -60,7 +60,7 @@ const ACTIVE_KEY = "prevail.profiles.activeId";
 const DEFAULT_KEY = "prevail.profiles.defaultId";
 
 // Distinct avatar tints, assigned round-robin as profiles are created.
-export const PROFILE_COLORS = ["#C4A35A", "#3CD8FF", "#7C8CF8", "#6FCF97", "#EB7BC0", "#F2994A"];
+export const PROFILE_COLORS = ["#008000", "#3CD8FF", "#7C8CF8", "#6FCF97", "#EB7BC0", "#F2994A"];
 
 export function loadProfiles(): Profile[] {
   try {

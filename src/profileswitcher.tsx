@@ -66,7 +66,7 @@ export function ProfileSwitcher({ collapsed }: { collapsed: boolean }) {
     ) : (
       <span
         className="flex shrink-0 items-center justify-center rounded-full font-semibold text-background"
-        style={{ width: size, height: size, fontSize: size * 0.42, background: p.color || "#C4A35A" }}
+        style={{ width: size, height: size, fontSize: size * 0.42, background: p.color || "#008000" }}
       >
         {initials(p)}
       </span>

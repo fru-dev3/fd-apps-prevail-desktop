@@ -48,7 +48,7 @@ export function useAppearance() {
   });
   const [palette, setPalette] = useState<Palette>(() => {
     const saved = lsGet(LS.palette) as Palette;
-    // D1: brand-new users open in the signature "prevail" palette (gold + cyan
+    // D1: brand-new users open in the signature "prevail" palette (office green + cyan
     // on graphite), so the app looks like the brand out of the box. Existing
     // users keep whatever they saved. Supersedes the earlier "mono" default.
     return PALETTES.some((p) => p.id === saved) ? saved : "prevail";

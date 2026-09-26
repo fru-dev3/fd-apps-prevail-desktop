@@ -709,7 +709,7 @@ export function VaultWizard({ onPick }: { onPick: () => void }) {
       <div className="pointer-events-none absolute inset-0" aria-hidden>
         <motion.div
           className="absolute -left-40 -top-40 h-[42rem] w-[42rem] rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle at center, rgba(196,163,90,0.20), transparent 60%)" }}
+          style={{ background: "radial-gradient(circle at center, rgba(0,128,0,0.20), transparent 60%)" }}
           animate={{ x: [0, 60, -20, 0], y: [0, 40, 10, 0], scale: [1, 1.1, 0.95, 1] }}
           transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
         />
@@ -721,7 +721,7 @@ export function VaultWizard({ onPick }: { onPick: () => void }) {
         />
         <motion.div
           className="absolute bottom-[-12rem] left-1/3 h-[34rem] w-[34rem] rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle at center, rgba(196,163,90,0.13), transparent 60%)" }}
+          style={{ background: "radial-gradient(circle at center, rgba(0,128,0,0.13), transparent 60%)" }}
           animate={{ x: [0, 40, -30, 0], y: [0, -30, 10, 0] }}
           transition={{ duration: 30, repeat: Infinity, ease: "easeInOut" }}
         />
@@ -752,7 +752,7 @@ export function VaultWizard({ onPick }: { onPick: () => void }) {
           <div className="relative flex items-center justify-center" style={{ width: 132, height: 132 }}>
             <motion.div
               className="absolute rounded-full"
-              style={{ inset: 16, boxShadow: "0 0 60px rgba(196,163,90,0.40)" }}
+              style={{ inset: 16, boxShadow: "0 0 60px rgba(0,128,0,0.40)" }}
               animate={{ opacity: [0.45, 0.85, 0.45], scale: [0.95, 1.06, 0.95] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             />

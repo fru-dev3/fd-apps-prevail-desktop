@@ -47,7 +47,13 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
     let alive = true;
     setLoading(true);
     invoke<Rollup>("retrospect_rollup", { vault: vaultPath, vantage, tzOffsetMinutes: new Date().getTimezoneOffset() })
-      .then((r) => { if (!alive) return; setRollup(r); setSelKey((cur) => r.periods.some((p) => p.key === cur) ? cur : (r.periods[0]?.key ?? null)); })
+      .then((raw) => {
+        if (!alive) return;
+        // An engine that answers with anything but a rollup reads as "nothing yet".
+        const r = raw && Array.isArray(raw.periods) ? raw : { vantage, periods: [] };
+        setRollup(r);
+        setSelKey((cur) => r.periods.some((p) => p.key === cur) ? cur : (r.periods[0]?.key ?? null));
+      })
       .catch(() => { if (alive) setRollup({ vantage, periods: [] }); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };

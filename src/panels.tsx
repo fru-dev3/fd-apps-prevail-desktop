@@ -2142,7 +2142,7 @@ export function AlignmentCard({ vaultPath }: { vaultPath: string }) {
   }
   useEffect(() => { void refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [vaultPath]);
   if (!rep || rep.pillars.length === 0) return null;
-  const tint = (s: number) => (s >= 70 ? "#2fb87a" : s >= 40 ? "#C4A35A" : "#e06c75");
+  const tint = (s: number) => (s >= 70 ? "#2fb87a" : s >= 40 ? "#e8913a" : "#e06c75");
   const overallTint = tint(rep.overall);
   const verdict = rep.overall >= 70 ? "On track" : rep.overall >= 40 ? "Drifting" : "Off course";
   return (

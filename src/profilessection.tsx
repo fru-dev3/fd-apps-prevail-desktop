@@ -25,7 +25,7 @@ function Avatar({ p, size }: { p: { label: string; email?: string; color?: strin
     return <img src={p.image} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />;
   }
   return (
-    <span className="flex shrink-0 items-center justify-center rounded-full font-semibold text-background" style={{ width: size, height: size, fontSize: size * 0.42, background: p.color || "#C4A35A" }}>
+    <span className="flex shrink-0 items-center justify-center rounded-full font-semibold text-background" style={{ width: size, height: size, fontSize: size * 0.42, background: p.color || "#008000" }}>
       {(p.label || p.email || "?").trim().slice(0, 1).toUpperCase()}
     </span>
   );

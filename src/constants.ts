@@ -125,7 +125,7 @@ export const APP_AUTONOMY_TINT: Record<string, string> = {
 };
 export const STATUS_TINT: Record<string, string> = { connected: "#2fb87a", expired: "#d8a657", error: "#e06c75", "not-configured": "#2fb87a" };
 export const PATTERN_LABEL: Record<string, string> = { api: "API", oauth: "OAuth", cli: "CLI", browser: "Web" };
-export const PATTERN_TINT: Record<string, string> = { api: "#2fb87a", oauth: "#C4A35A", cli: "#6b7cff", browser: "#9aa0a6" };
+export const PATTERN_TINT: Record<string, string> = { api: "#2fb87a", oauth: "#b07ce8", cli: "#6b7cff", browser: "#9aa0a6" };
 export const PATTERN_TIER: Record<string, string> = { api: "Tier A · API/MCP", oauth: "Tier B · OAuth gateway", cli: "Tier D · CLI", browser: "Tier C · browser" };
 export const LOCAL_CLI_IDS = new Set(["ollama", "lmstudio", "mlx"]);
 
@@ -281,7 +281,7 @@ export const LENSES: Lens[] = [
 ];
 
 export const PALETTES: { id: Palette; name: string; blurb: string; swatch: { bg: string; surface: string; accent: string; ai: string } }[] = [
-  { id: "prevail",   name: "Prevail",   blurb: "Signature gold and cyan on graphite",               swatch: { bg: "#0a0a0c", surface: "#141416", accent: "#c4a35a", ai: "#3cd8ff" } },
+  { id: "prevail",   name: "Prevail",   blurb: "Office green and cyan on graphite",                 swatch: { bg: "#0a0a0c", surface: "#141416", accent: "#2e9e2e", ai: "#3cd8ff" } },
   { id: "vault",     name: "Vault",     blurb: "Cream + teal, focused, calm",                       swatch: { bg: "#faf8f1", surface: "#ffffff", accent: "#0d7a6e", ai: "#60a8c0" } },
   { id: "midnight",  name: "Midnight",  blurb: "Deep blue-violet with cool accents",                  swatch: { bg: "#0a0d1f", surface: "#131730", accent: "#818cf8", ai: "#60a8c0" } },
   { id: "ember",     name: "Ember",     blurb: "Warm crimson and bronze, forge vibes",               swatch: { bg: "#1a0a06", surface: "#2a130c", accent: "#ef6c4a", ai: "#60a8c0" } },
