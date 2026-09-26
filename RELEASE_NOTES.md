@@ -1,4 +1,4 @@
-# Prevail 0.3.122
+# Prevail 0.3.123
 
 Everything you have ever typed to an AI tool, grouped by what you were
 building, with a brief a newer model can rebuild each project from. Office
@@ -54,6 +54,14 @@ slightly lighter green so text stays easy to read.
 Claude Opus 5.5 (the Opus pick), GPT-6 Sol (the new Codex default) and GPT-6
 Luna, Grok 4.7, Qwen3.8 Max Prime and GLM 5.3 Prime. Older picks you saved
 stay available.
+
+## Security
+
+- A signed-in phone can only act on the vault the Mac has open, and paths it
+  sends must stay inside that vault.
+- The Telegram bot token no longer appears in error messages, app ids must be
+  plain names, and the favicon fetch accepts plain host names and images only.
+- Two unused commands that could write or delete keychain entries are gone.
 
 ## Fixes
 
