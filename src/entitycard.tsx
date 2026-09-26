@@ -86,7 +86,7 @@ function MentionRow({ m, onDone }: { m: EntityMention; onDone: () => void }) {
             <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary">{where}</span>
             <span className="shrink-0 text-[12px] text-text-muted">{fmtDay(m.ts)}</span>
           </span>
-          {m.snippet && <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-text-secondary">{m.snippet}</span>}
+          {m.snippet && <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-text-secondary">{m.snippet}</span>}
         </span>
       </button>
     </li>
@@ -172,7 +172,7 @@ export function EntityCardView({ vaultPath, target, onClose }: { vaultPath: stri
           <h2 className="font-display text-2xl font-semibold leading-tight tracking-tight text-text-primary [overflow-wrap:anywhere]">{displayName}</h2>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[13px] text-text-muted">
             <span>{KIND_LABEL[kind] ?? kind}</span>
-            {d?.found && d.conversations > 0 && <span>· {d.conversations} {d.conversations === 1 ? "conversation" : "conversations"}</span>}
+            {d?.found && d.conversations > 0 && <><span aria-hidden>·</span><span>{d.conversations} {d.conversations === 1 ? "conversation" : "conversations"}</span></>}
             {hasPage && <span className="inline-flex items-center gap-1 text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />In your vault</span>}
           </div>
           {d?.found && d.aliases.length > 0 && <div className="mt-1 truncate text-[13px] text-text-muted" title={d.aliases.join(", ")}>Also {d.aliases.slice(0, 4).join(", ")}</div>}

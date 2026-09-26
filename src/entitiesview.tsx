@@ -76,7 +76,7 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
   const pad = phone ? "px-4" : "px-8";
   return (
     <div className="flex min-h-full flex-col bg-background" data-testid="entities-view">
-      {!embedded && (
+      {!embedded && !phone && (
         <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border ${phone ? "px-4 py-3" : "px-8 py-5"}`}>
           <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><BookUser className="h-5 w-5" /></span>
