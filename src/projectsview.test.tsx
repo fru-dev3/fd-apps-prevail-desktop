@@ -12,6 +12,7 @@ vi.mock("./bridge", () => ({
     if (cmd === "projects_restart") return { slug: args?.slug, title: "t", goal: "Ship it", requirements: [], rules: [], decisions: [], dead_ends: [], open_questions: [], brief_model: "claude-fable-5-1" };
     if (cmd === "projects_restart_text") return `TEXT:${args?.format}`;
     if (cmd === "projects_build") return index;
+    if (cmd === "intent_instruction") return `INSTRUCTION:${args?.index}`;
     if (cmd === "read_text_file") return "<!-- prevail:replay-brief -->\n# Rebuild: fru.dev site";
     return null;
   },
@@ -76,9 +77,27 @@ describe("ProjectsView", () => {
     expect(screen.getByText("Tasks")).toBeTruthy();
     expect(screen.getByText("Skills to write")).toBeTruthy();
     expect(screen.getByText(/4,313 of your prompts, 2 projects/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add task" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add task: Follow up with the adjuster" }));
     await waitFor(() => expect(calls.find((c) => c.cmd === "tasks_add")?.args).toMatchObject({ vault: "/v", domain: "insurance", text: "Follow up with the adjuster" }));
     expect(await screen.findByText("Added")).toBeTruthy();
+  });
+
+  it("one column; every recommendation can become a task or an agent instruction", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<ProjectsView vaultPath="/v" />);
+    const recs = await screen.findByTestId("recommendations");
+    expect(recs.className).not.toMatch(/grid-cols/);
+    expect(screen.getAllByTestId("rec-row")).toHaveLength(2);
+    const add = screen.getByRole("button", { name: "Add task: Write a ship-to-Vercel skill" });
+    expect(add.getAttribute("title")).toBe("Adds it to the Dev task board");
+    const copy = screen.getByRole("button", { name: "Copy instruction: Write a ship-to-Vercel skill" });
+    expect(copy.getAttribute("title")).toMatch(/ready-to-paste instruction for an agent/);
+    fireEvent.click(copy);
+    // The index is the recommendation's place in the engine's list, not the row's.
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("INSTRUCTION:1"));
+    expect(calls.find((c) => c.cmd === "intent_instruction")?.args).toEqual({ vault: "/v", index: 1 });
+    expect(await screen.findByText("Copied")).toBeTruthy();
   });
 
   it("a recommendation links to its project under the current title", async () => {

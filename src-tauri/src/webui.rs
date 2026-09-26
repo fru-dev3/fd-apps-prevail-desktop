@@ -104,9 +104,12 @@ const WEBUI_ALLOWED: &[&str] = &[
     // Projects: the index and a project's replay prompt (read side; building
     // runs the synthesis model, so it stays on the desktop).
     "projects_index", "projects_replay",
-    // Intent: findings, the prompt history and a project's restart brief
-    // (read side; verdicts, refresh and rebuild checks stay on the desktop).
-    "mirror_findings", "mirror_history", "projects_restart", "projects_restart_text",
+    // Intent: findings (standing and per period), the periods list, the
+    // prompt history, a project's restart brief and a recommendation's agent
+    // instruction (read side; verdicts, refresh, letter writing and rebuild
+    // checks run a model or write, so they stay on the desktop).
+    "mirror_findings", "mirror_periods", "mirror_period", "mirror_history", "projects_restart", "projects_restart_text",
+    "intent_instruction",
     // Entities: the list and one entity's card (read side; save, notes and
     // refresh write the vault or run a model, so they stay on the desktop).
     "entities_list", "entities_show",
@@ -1494,7 +1497,7 @@ mod tests {
             "engine_app_set_domains", "engine_app_set_schedule", "engine_app_set_soul",
             "engine_app_set_runtime", "engine_app_set_enabled", "engine_app_sync",
             "engine_autonomy_set", "engine_budget_set", "engine_lock_set", "autonomy_policy_set",
-            "google_scaffold", "open_in_finder",
+            "google_scaffold", "open_in_finder", "mirror_generate", "mirror_refresh",
         ] {
             assert!(!WEBUI_ALLOWED.contains(&banned), "{banned} must not be web-invokable");
         }

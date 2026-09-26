@@ -1,6 +1,7 @@
-// Intent: nav routing, Noticed verdicts and rule edits, History search and
-// receipt jumps, the Restart editor's exclude list, the rebuild check, and the
-// phone layout. The engine is mocked at the bridge.
+// Intent: nav routing, the period sidebar (weeks with their days), Noticed per
+// week and per day with verdicts, rule edits and lazy letters, History's exact
+// prompts per period and receipt jumps, the Restart editor's exclude list, the
+// rebuild check, and the phone layout. The engine is mocked at the bridge.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 
@@ -35,23 +36,67 @@ const FINDINGS = {
   ],
 };
 
-const HISTORY_P1 = {
-  total: 3, tools: ["claude", "codex"],
+const EXACT = "  first line keeps its indent\n\n    **not bold**, # not a heading\n- not a list\ttab";
+const LONG = `${"word ".repeat(200)}\nlast line`;
+const HIST_WEEK = {
+  total: 2, tools: ["claude", "codex"],
   weeks: [{
-    week: "2026-09-14", label: "Week of Sep 14", intent_line: "You mostly worked on acme shop checkout.",
-    sittings: [{
-      id: "s1", tool: "claude", project: "acme-shop", project_title: "acme shop", start_ts: day("2026-09-15", 9), end_ts: day("2026-09-15", 10),
-      prompts: [{ ts: day("2026-09-15", 9), text: "fix the cart total\nit rounds wrong" }, { ts: day("2026-09-15", 10), text: "x".repeat(900) }],
-    }],
+    week: "2026-09-21", label: "Sep 21 to 27", intent_line: null,
+    sittings: [
+      { id: "s1", tool: "claude", project: "acme-shop", project_title: "acme shop", start_ts: day("2026-09-22", 9), end_ts: day("2026-09-22", 10),
+        prompts: [{ ts: day("2026-09-22", 9), text: EXACT }, { ts: day("2026-09-22", 10), text: LONG }] },
+      { id: "s3", tool: "codex", project: "maple-st-rental", project_title: "Maple St rental", start_ts: day("2026-09-21", 9), end_ts: day("2026-09-21", 9),
+        prompts: [{ ts: day("2026-09-21", 9), text: "draft a lease renewal letter" }] },
+    ],
   }],
 };
-const HISTORY_P2 = {
-  total: 3, tools: ["claude", "codex"],
-  weeks: [{
-    week: "2026-09-07", label: "Week of Sep 7", intent_line: "Lease paperwork for Maple St rental.",
-    sittings: [{ id: "s2", tool: "codex", project: "maple-st-rental", project_title: "Maple St rental", start_ts: day("2026-09-10", 9), end_ts: day("2026-09-10", 9), prompts: [{ ts: day("2026-09-10", 9), text: "draft a lease renewal letter" }] }],
-  }],
+const HIST_DAY = {
+  total: 1, tools: ["codex"],
+  weeks: [{ week: "2026-09-07", label: "Sep 7 to 13", intent_line: null, sittings: [
+    { id: "s2", tool: "codex", project: "maple-st-rental", project_title: "Maple St rental", start_ts: day("2026-09-10", 9), end_ts: day("2026-09-10", 9), prompts: [{ ts: day("2026-09-10", 9), text: "draft a lease renewal letter" }] },
+  ] }],
 };
+
+const PERIODS = {
+  generated_ts: day("2026-09-23"),
+  weeks: [
+    { week: "2026-09-21", label: "Sep 21 to 27", current: true, prompts: 5, sittings: 2, has_letter: false, intent_line: "You mostly chased acme shop checkout.",
+      days: [
+        { day: "2026-09-22", label: "Tue, Sep 22", prompts: 3, sittings: 1, intent_line: "Checkout copy for acme shop." },
+        { day: "2026-09-21", label: "Mon, Sep 21", prompts: 2, sittings: 1, intent_line: null },
+      ] },
+    { week: "2026-09-14", label: "Sep 14 to 20", current: false, prompts: 4, sittings: 2, has_letter: true, intent_line: "Lease paperwork for Maple St rental.",
+      days: [{ day: "2026-09-15", label: "Tue, Sep 15", prompts: 4, sittings: 2, intent_line: null }] },
+    { week: "2026-09-07", label: "Sep 7 to 13", current: false, prompts: 1, sittings: 1, has_letter: false, intent_line: null,
+      days: [{ day: "2026-09-10", label: "Thu, Sep 10", prompts: 1, sittings: 1, intent_line: null }] },
+  ],
+};
+const PROJECTS = [
+  { slug: "acme-shop", title: "acme shop", domain: "dev", sittings: 2, prompts: 4, minutes: 40 },
+  { slug: "", title: "Other", domain: "", sittings: 1, prompts: 1, minutes: 1 },
+];
+let generated = new Set<string>();
+function periodDoc(kind: string, key: string) {
+  const base = { generated_ts: day("2026-09-23"), totals: { prompts: 5, sittings: 2 }, projects: PROJECTS };
+  if (kind === "week" && key === "2026-09-21") {
+    return { ...base, period: { kind, key, week: key, label: "Sep 21 to 27" }, current: true, intent_line: "You mostly chased acme shop checkout.", letter: null, letter_status: "not_yet", findings: FINDINGS.findings };
+  }
+  if (kind === "week" && key === "2026-09-14") {
+    return { ...base, period: { kind, key, week: key, label: "Sep 14 to 20" }, current: false, intent_line: "Lease paperwork for Maple St rental.",
+      letter: { week: key, title: "A week of lease paperwork", markdown: "Most of your week went to the **Maple St** lease." }, letter_status: "ready", findings: [] };
+  }
+  if (kind === "week" && key === "2026-09-07") {
+    const done = generated.has(key);
+    return { ...base, period: { kind, key, week: key, label: "Sep 7 to 13" }, current: false, intent_line: done ? "You mostly renewed a lease." : null,
+      letter: done ? { week: key, title: "A quiet week", markdown: "One lease letter." } : null, letter_status: done ? "ready" : "missing", findings: [] };
+  }
+  if (kind === "day" && key === "2026-09-15") {
+    const done = generated.has("2026-09-14");
+    return { ...base, period: { kind, key, week: "2026-09-14", label: "Tue, Sep 15" }, current: false, intent_line: done ? "You mostly argued lease terms." : null,
+      letter: null, letter_status: "none", findings: [FINDINGS.findings[2]] };
+  }
+  return { ...base, totals: { prompts: 0, sittings: 0 }, projects: [], period: { kind, key, week: key, label: key }, current: false, intent_line: null, letter: null, letter_status: "none", findings: [] };
+}
 
 const INDEX = {
   generated_ts: day("2026-09-21"), model: "claude-fable-5-1",
@@ -69,14 +114,16 @@ const RESTART = {
   brief_model: "claude-fable-5-1",
 };
 
-let historyPages: unknown[] = [];
 vi.mock("./bridge", () => ({
   invoke: async (cmd: string, args?: Record<string, unknown>) => {
     calls.push({ cmd, args });
     if (cmd === "mirror_findings") return FINDINGS;
+    if (cmd === "mirror_periods") return PERIODS;
+    if (cmd === "mirror_period") return periodDoc(String(args?.kind), String(args?.key));
+    if (cmd === "mirror_generate") { generated.add(String(args?.week)); return { week: args?.week, written: ["letter"] }; }
     if (cmd === "mirror_verdict") return { ok: true };
     if (cmd === "mirror_refresh") return { ok: true };
-    if (cmd === "mirror_history") return historyPages.shift() ?? { total: 3, tools: [], weeks: [] };
+    if (cmd === "mirror_history") return args?.day === "2026-09-10" ? HIST_DAY : args?.week === "2026-09-21" ? HIST_WEEK : { total: 0, tools: [], weeks: [] };
     if (cmd === "capture_status") return { harnesses: [{ tool: "claude", method: "push", present: true, wired: true }, { tool: "codex", method: "sync", present: true, wired: false }] };
     if (cmd === "projects_index") return INDEX;
     if (cmd === "projects_restart") return RESTART;
@@ -89,7 +136,7 @@ vi.mock("./bridge", () => ({
 let phone = false;
 vi.mock("./useisphone", () => ({ useIsPhone: () => phone, PHONE_MAX_PX: 767 }));
 
-import { FindingVisual, MirrorPanel, visibleFindings, type FindingsDoc } from "./mirror";
+import { FindingVisual, localDay, MirrorPanel, visibleFindings, type FindingsDoc } from "./mirror";
 import { EDITOR_NAV, navSection } from "./navdefs";
 
 const byCmd = (c: string) => calls.filter((x) => x.cmd === c);
@@ -98,7 +145,7 @@ beforeEach(() => {
   cleanup();
   calls.length = 0;
   phone = false;
-  historyPages = [];
+  generated = new Set();
   localStorage.clear();
   Object.assign(navigator, { clipboard: { writeText: vi.fn(() => Promise.resolve()) } });
 });
@@ -116,17 +163,59 @@ describe("nav routing", () => {
 });
 
 describe("Noticed", () => {
-  it("shows the letter, one featured finding, two quiet cards, and the tool dots", async () => {
+  it("lists weeks newest first and opens on the latest: its line, what it went to, one featured finding, the rest, the tool dots", async () => {
     render(<MirrorPanel vaultPath="/v" />);
-    expect(await screen.findByText("A week of checkout work")).toBeTruthy();
-    expect(screen.getByTestId("featured-finding").textContent).toContain("You told models to use pnpm 14 times");
+    expect((await screen.findByTestId("featured-finding")).textContent).toContain("You told models to use pnpm 14 times");
+    const list = screen.getByTestId("period-list");
+    expect([...list.querySelectorAll('[data-testid^="period-week-"]')].map((b) => b.querySelector("span > span")?.textContent))
+      .toEqual(["Sep 21 to 27", "Sep 14 to 20", "Sep 7 to 13"]);
+    expect(within(list).getByTestId("period-day-2026-09-22").textContent).toBe("Tue, Sep 223");
+    expect(screen.getByTestId("period-week-2026-09-21").getAttribute("aria-current")).toBe("true");
+    expect(screen.getByTestId("period-title").textContent).toBe("Sep 21 to 27");
+    expect(screen.getByTestId("period-line").textContent).toBe("You mostly chased acme shop checkout.");
+    expect(within(screen.getByTestId("spent-on")).getByText("acme shop")).toBeTruthy();
+    expect(screen.getByTestId("letter-not-yet").textContent).toContain("written once it ends");
     expect(screen.getAllByTestId("quiet-finding")).toHaveLength(2);
     expect(screen.queryByText("Hidden one")).toBeNull();
     expect(screen.getByTestId("visual-dots").children).toHaveLength(20);
+    expect(byCmd("mirror_period")[0].args).toMatchObject({ vault: "/v", kind: "week", key: "2026-09-21" });
+    expect(byCmd("mirror_generate")).toHaveLength(0);
     await waitFor(() => expect(screen.getByTestId("tool-dot-claude").dataset.on).toBe("1"));
     expect(screen.getByTestId("tool-dot-codex").dataset.on).toBe("0");
     fireEvent.click(screen.getByRole("button", { name: "Capture setup" }));
     expect(screen.getByRole("dialog", { name: "Capture setup" })).toBeTruthy();
+  });
+
+  it("last week's letter is one click away, and opens with its week", async () => {
+    render(<MirrorPanel vaultPath="/v" />);
+    fireEvent.click(await screen.findByRole("button", { name: /Read last week's letter/ }));
+    expect(await screen.findByText("A week of lease paperwork")).toBeTruthy();
+    expect(screen.getByTestId("period-week-2026-09-14").getAttribute("aria-current")).toBe("true");
+    expect(screen.getByTestId("nothing-noticed").textContent).toContain("Nothing stood out this week.");
+  });
+
+  it("a week with no letter yet gets one written once, when it is opened", async () => {
+    render(<MirrorPanel vaultPath="/v" />);
+    fireEvent.click(await screen.findByTestId("period-week-2026-09-07"));
+    expect(await screen.findByText("A quiet week")).toBeTruthy();
+    expect(screen.getByTestId("period-line").textContent).toBe("You mostly renewed a lease.");
+    expect(byCmd("mirror_generate")).toHaveLength(1);
+    expect(byCmd("mirror_generate")[0].args).toMatchObject({ vault: "/v", week: "2026-09-07", fresh: false });
+  });
+
+  it("a day shows its intent line, what it went to, and the findings that apply", async () => {
+    render(<MirrorPanel vaultPath="/v" />);
+    await screen.findByTestId("featured-finding");
+    fireEvent.click(screen.getByRole("button", { name: "Show the days of Sep 14 to 20" }));
+    fireEvent.click(screen.getByTestId("period-day-2026-09-15"));
+    expect(await screen.findByText("You mostly argued lease terms.")).toBeTruthy();
+    expect(screen.getByTestId("period-title").textContent).toBe("Tue, Sep 15");
+    expect(screen.getByText("What the day went to")).toBeTruthy();
+    expect(screen.getByTestId("featured-finding").textContent).toContain("A third of your prompts came after 11pm");
+    expect(byCmd("mirror_period").at(-1)?.args).toMatchObject({ kind: "day", key: "2026-09-15" });
+    // The day's line is written with its week's.
+    expect(byCmd("mirror_generate")[0].args).toMatchObject({ week: "2026-09-14" });
+    expect(screen.queryByTestId("letter")).toBeNull();
   });
 
   it("edits a rule before confirming it", async () => {
@@ -161,37 +250,49 @@ describe("Noticed", () => {
     expect(visibleFindings(doc, 1000).map((f) => f.id)).toEqual(["b"]);
   });
 
-  it("a receipt opens History on that prompt", async () => {
-    historyPages = [HISTORY_P2];
+  it("a receipt opens History on the day of that prompt", async () => {
     render(<MirrorPanel vaultPath="/v" />);
     fireEvent.click(await screen.findByRole("button", { name: /Open prompt from/ }));
-    await waitFor(() => expect(byCmd("mirror_history")).toHaveLength(1));
-    expect(byCmd("mirror_history")[0].args).toMatchObject({ before: day("2026-09-10", 9) + 1, q: null });
+    await waitFor(() => expect(byCmd("mirror_history").at(-1)?.args).toMatchObject({ day: localDay(day("2026-09-10", 9)), week: null, q: null }));
     expect(await screen.findByText("draft a lease renewal letter")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("period-day-2026-09-10").getAttribute("aria-current")).toBe("true");
     expect(document.querySelector(`[data-prompt-ts="${day("2026-09-10", 9)}"]`)?.className).toContain("ring-1");
   });
 });
 
 describe("History", () => {
-  it("shows weeks with intent lines, collapses long prompts, searches and pages", async () => {
+  it("shows the week's prompts exactly as typed, as plain text, with search and filters scoped to it", async () => {
     localStorage.setItem("prevail.mirror.view", "history");
-    historyPages = [HISTORY_P1, HISTORY_P2];
     render(<MirrorPanel vaultPath="/v" />);
-    expect(await screen.findByText("You mostly worked on acme shop checkout.")).toBeTruthy();
-    expect(screen.getByText(/fix the cart total\s+it rounds wrong/)).toBeTruthy();
+    await screen.findAllByTestId("sitting");
+    expect(byCmd("mirror_history")[0].args).toMatchObject({ week: "2026-09-21", day: null, limit: 2000 });
+    const texts = screen.getAllByTestId("prompt-text");
+    expect(texts[0].tagName).toBe("PRE");
+    expect(texts[0].textContent).toBe(EXACT);
+    expect(texts[0].className).toContain("whitespace-pre-wrap");
+    expect(texts[0].querySelector("strong, h1, li, em")).toBeNull();
+    // A long prompt is clipped by height only: the whole text is there.
+    expect(texts[1].textContent).toBe(LONG);
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
     expect(screen.getByRole("button", { name: "Show less" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Load older" }));
-    expect(await screen.findByText("Lease paperwork for Maple St rental.")).toBeTruthy();
-    expect(byCmd("mirror_history")[1].args).toMatchObject({ before: day("2026-09-15", 9) });
     fireEvent.click(within(screen.getAllByTestId("sitting")[0]).getAllByRole("button", { name: "Copy prompt" })[0]);
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("fix the cart total\nit rounds wrong");
-    historyPages = [HISTORY_P2];
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(EXACT);
+    expect(screen.getByTestId("period-line").textContent).toBe("You mostly chased acme shop checkout.");
     fireEvent.change(screen.getByLabelText("Search prompts"), { target: { value: "lease" } });
-    await waitFor(() => expect(byCmd("mirror_history").some((c) => c.args?.q === "lease")).toBe(true));
+    await waitFor(() => expect(byCmd("mirror_history").at(-1)?.args).toMatchObject({ q: "lease", week: "2026-09-21" }));
     fireEvent.change(screen.getByLabelText("Project"), { target: { value: "maple-st-rental" } });
     await waitFor(() => expect(byCmd("mirror_history").at(-1)?.args).toMatchObject({ q: "lease", project: "maple-st-rental" }));
+  });
+
+  it("a day in the sidebar shows only that day, and says so when it is empty", async () => {
+    localStorage.setItem("prevail.mirror.view", "history");
+    render(<MirrorPanel vaultPath="/v" />);
+    await screen.findAllByTestId("sitting");
+    fireEvent.click(screen.getByTestId("period-day-2026-09-21"));
+    await waitFor(() => expect(byCmd("mirror_history").at(-1)?.args).toMatchObject({ day: "2026-09-21", week: null }));
+    expect(await screen.findByText("No prompts this day.")).toBeTruthy();
+    expect(screen.getByTestId("period-title").textContent).toBe("Mon, Sep 21");
   });
 });
 
@@ -222,14 +323,20 @@ describe("Projects restart", () => {
 });
 
 describe("phone", () => {
-  it("Noticed shows one finding per screen with paging", async () => {
+  it("the sidebar folds into a period picker; Noticed shows one finding per screen", async () => {
     phone = true;
     render(<MirrorPanel vaultPath="/v" />);
     expect((await screen.findByTestId("featured-finding")).textContent).toContain("pnpm");
+    expect(screen.queryByTestId("period-list")).toBeNull();
+    const picker = screen.getByTestId("period-picker") as HTMLSelectElement;
+    expect(picker.value).toBe("week:2026-09-21");
+    expect([...picker.options].map((o) => o.value)).toEqual(["week:2026-09-21", "day:2026-09-22", "day:2026-09-21", "week:2026-09-14", "day:2026-09-15", "week:2026-09-07", "day:2026-09-10"]);
     expect(screen.queryAllByTestId("quiet-finding")).toHaveLength(0);
     expect(screen.getByText("1 of 3")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Next finding" }));
     expect(screen.getByTestId("featured-finding").textContent).toContain("Two projects stopped");
+    fireEvent.change(picker, { target: { value: "day:2026-09-15" } });
+    expect(await screen.findByText("You mostly argued lease terms.")).toBeTruthy();
   });
 
   it("Projects detail offers only the restart brief", async () => {

@@ -1,16 +1,20 @@
 // Intent (module name mirror.tsx): one place to look back at yourself through your own prompts.
-//   Noticed   a few findings the engine drew from every prompt you typed
-//             (`prevail intent findings`), one featured, each with receipts and
-//             a verdict you can give it (make it a rule, resume, let go...).
-//   History   the play-by-play: every sitting in every tool, week by week, the
-//             prompts exactly as typed (`prevail intent history`).
+// Noticed and History share one sidebar of periods (`prevail intent periods`):
+// weeks going back in time, newest first, each opening to its days, laid out
+// like Projects (list column left, detail right; a period picker on a phone).
+//   Noticed   for the selected week: its letter, what it went to and the
+//             findings computed for it; for a day: its intent line, what it
+//             went to and the findings that apply (`prevail intent findings
+//             --week|--day`). Verdicts still apply (make it a rule, resume...).
+//   History   the selected period's sittings, the prompts exactly as typed
+//             (`prevail intent history --week|--day`), plain text only.
 //   Projects  what those prompts were building, each with a restart brief a
 //             newer model can rebuild it from (projectsview.tsx).
 // The header's tool dots show which tools are captured; a click opens the
 // capture setup in a drawer.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, ClipboardCopy, Clock, FolderKanban, History, Loader2,
+  ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardCopy, Clock, FolderKanban, Loader2,
   PauseCircle, Play, RefreshCw, RotateCcw, ScanFace, Search, Sparkles, Terminal, ThumbsDown, X,
 } from "lucide-react";
 import { invoke } from "./bridge";
@@ -41,6 +45,17 @@ export interface HistPrompt { ts: number; text: string }
 export interface Sitting { id: string; tool: string; project: string; project_title: string; start_ts: number; end_ts: number; prompts: HistPrompt[] }
 export interface HistWeek { week: string; label: string; intent_line: string | null; sittings: Sitting[] }
 export interface HistoryDoc { total: number; tools: string[]; weeks: HistWeek[] }
+export interface PeriodDay { day: string; label: string; prompts: number; sittings: number; intent_line: string | null }
+export interface PeriodWeek { week: string; label: string; current: boolean; prompts: number; sittings: number; has_letter: boolean; intent_line: string | null; days: PeriodDay[] }
+export interface PeriodsDoc { generated_ts: number; weeks: PeriodWeek[] }
+export interface PeriodProject { slug: string; title: string; domain: string; sittings: number; prompts: number; minutes: number }
+export interface PeriodDoc {
+  period: { kind: "week" | "day"; key: string; week: string; label: string };
+  current: boolean; generated_ts: number; intent_line: string | null;
+  letter: FindingsDoc["letter"]; letter_status: "ready" | "missing" | "not_yet" | "none";
+  totals: { prompts: number; sittings: number }; projects: PeriodProject[]; findings: Finding[];
+}
+export type PeriodSel = { kind: "week" | "day"; key: string };
 
 export type MirrorView = "noticed" | "history" | "projects" | "entities";
 const VIEWS: { id: MirrorView; label: string }[] = [
@@ -143,9 +158,29 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   const [capture, setCapture] = useState(false);
   const [focus, setFocus] = useState<{ ts: number; n: number } | null>(null);
   const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(null);
-  const jumpToPrompt = (ts: number) => { setFocus((f) => ({ ts, n: (f?.n ?? 0) + 1 })); setView("history"); };
-  // An entity card's "Mentioned in" row lands on that sitting in History,
-  // whether Intent was already open (event) or opens because of it (pending).
+  const [periods, setPeriods] = useState<PeriodsDoc | null>(null);
+  const [periodsErr, setPeriodsErr] = useState<string | null>(null);
+  const [sel, setSel] = useState<PeriodSel | null>(null);
+
+  const loadPeriods = useCallback(() => {
+    invoke<PeriodsDoc>("mirror_periods", { vault: vaultPath, tz: tzNow() })
+      .then((d) => {
+        const doc = d && Array.isArray(d.weeks) ? d : { generated_ts: 0, weeks: [] };
+        setPeriods(doc); setPeriodsErr(null);
+        // Opens on the newest week.
+        setSel((s) => s ?? (doc.weeks[0] ? { kind: "week", key: doc.weeks[0].week } : null));
+      })
+      .catch((e) => { setPeriods({ generated_ts: 0, weeks: [] }); setPeriodsErr(String(e)); });
+  }, [vaultPath]);
+  useEffect(loadPeriods, [loadPeriods]);
+
+  // A receipt, or an entity card's "Mentioned in" row, opens History on the
+  // day that prompt was typed, scrolled to it.
+  const jumpToPrompt = (ts: number) => {
+    setSel({ kind: "day", key: localDay(ts) });
+    setFocus((f) => ({ ts, n: (f?.n ?? 0) + 1 }));
+    setView("history");
+  };
   useEffect(() => {
     const take = () => {
       try {
@@ -160,6 +195,36 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const openProject = (slug: string) => { setProjectSlug((p) => ({ slug, n: (p?.n ?? 0) + 1 })); setView("projects"); };
+  const select = (s: PeriodSel) => { setSel(s); setFocus(null); };
+
+  const periodView = view === "noticed" || view === "history";
+  let body: React.ReactNode = null;
+  if (periodView) {
+    if (!periods) body = <div className="p-8 text-[15px] text-text-muted">Looking back over your prompts...</div>;
+    else if (!periods.weeks.length || !sel) {
+      body = (
+        <div className={phone ? "p-4" : "mx-auto max-w-4xl px-8 py-8"}>
+          <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center">
+            <ScanFace className="mx-auto h-10 w-10 text-accent" />
+            <h2 className="mt-3 font-display text-3xl font-semibold text-text-primary">No prompts yet</h2>
+            <p className="mx-auto mt-2 max-w-lg text-[15px] leading-relaxed text-text-secondary">
+              Turn on capture for your tools and every prompt you type shows up here, week by week. Intent then points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go.
+            </p>
+            <button onClick={() => setCapture(true)} className={`${btnPrimary} mt-5 h-11 px-5`}>Set up capture</button>
+            {periodsErr && <div className="mt-3 text-[13px] text-err">{periodsErr}</div>}
+          </div>
+        </div>
+      );
+    } else {
+      body = (
+        <PeriodFrame periods={periods} sel={sel} onSelect={select} phone={phone}>
+          {view === "noticed"
+            ? <NoticedView key={`${sel.kind}:${sel.key}`} vaultPath={vaultPath} phone={phone} periods={periods} sel={sel} onSelect={select} onReceipt={jumpToPrompt} onProject={openProject} onPeriodsChanged={loadPeriods} />
+            : <HistoryView vaultPath={vaultPath} phone={phone} periods={periods} sel={sel} focus={focus} />}
+        </PeriodFrame>
+      );
+    }
+  }
 
   return (
     <div className="flex min-h-full flex-col bg-background" data-testid="mirror">
@@ -171,7 +236,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
         <div role="tablist" aria-label="Intent view" className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:order-3 max-sm:w-full">
           {VIEWS.map((v) => (
             <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => setView(v.id)}
-              className={`h-9 rounded-md px-4 text-[14px] max-sm:flex-1 ${view === v.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
+              className={`h-9 rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:px-2 ${view === v.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
               {v.label}
             </button>
           ))}
@@ -179,8 +244,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
         <div className="ml-auto"><ToolDots vaultPath={vaultPath} onOpen={() => setCapture(true)} /></div>
       </div>
       <div className="min-h-0 flex-1">
-        {view === "noticed" && <NoticedView vaultPath={vaultPath} phone={phone} onReceipt={jumpToPrompt} onProject={openProject} />}
-        {view === "history" && <HistoryView vaultPath={vaultPath} phone={phone} focus={focus} onClearFocus={() => setFocus(null)} />}
+        {periodView && body}
         {view === "projects" && <ProjectsView vaultPath={vaultPath} initialSlug={projectSlug?.slug} key={projectSlug?.n ?? 0} />}
         {view === "entities" && <EntitiesView vaultPath={vaultPath} embedded />}
       </div>
@@ -413,7 +477,7 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
 
 function QuietCard({ f, onOpen }: { f: Finding; onOpen: () => void }) {
   return (
-    <button onClick={onOpen} data-testid="quiet-finding" className="flex h-full flex-col rounded-xl border border-border-subtle bg-surface p-5 text-left hover:border-accent-border">
+    <button onClick={onOpen} data-testid="quiet-finding" className="flex h-full w-full flex-col rounded-xl border border-border-subtle bg-surface p-5 text-left hover:border-accent-border">
       <div className="font-display text-xl font-semibold leading-snug text-text-primary">{f.headline}</div>
       <div className="mt-2 line-clamp-2 text-[14px] leading-snug text-text-muted">{f.detail}</div>
       <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-accent">Look closer <ArrowRight className="h-3.5 w-3.5" /></span>
@@ -421,139 +485,337 @@ function QuietCard({ f, onOpen }: { f: Finding; onOpen: () => void }) {
   );
 }
 
-function NoticedView({ vaultPath, phone, onReceipt, onProject }: { vaultPath: string; phone: boolean; onReceipt: (ts: number) => void; onProject: (slug: string) => void }) {
-  const [doc, setDoc] = useState<FindingsDoc | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+// ── Periods: the sidebar both Noticed and History read from ─────────────────
+// Weeks newest first, each opening to its days, as a list column beside the
+// detail (the Projects layout). On a phone it folds into one period picker.
+export const tzNow = () => new Date().getTimezoneOffset();
+const pad2 = (n: number) => String(n).padStart(2, "0");
+export const localDay = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const nPrompts = (n: number) => `${n.toLocaleString()} prompt${n === 1 ? "" : "s"}`;
+const nSittings = (n: number) => `${n.toLocaleString()} sitting${n === 1 ? "" : "s"}`;
+
+export function weekOfSel(sel: PeriodSel, weeks: PeriodWeek[]): string {
+  if (sel.kind === "week") return sel.key;
+  return weeks.find((w) => w.days.some((d) => d.day === sel.key))?.week ?? "";
+}
+
+function PeriodList({ weeks, sel, onSelect }: { weeks: PeriodWeek[]; sel: PeriodSel | null; onSelect: (s: PeriodSel) => void }) {
+  const selWeek = sel ? weekOfSel(sel, weeks) : "";
+  const [open, setOpen] = useState<Set<string>>(() => new Set(selWeek ? [selWeek] : []));
+  useEffect(() => { if (selWeek) setOpen((o) => (o.has(selWeek) ? o : new Set(o).add(selWeek))); }, [selWeek]);
+  const toggle = (w: string) => setOpen((o) => { const n = new Set(o); if (n.has(w)) n.delete(w); else n.add(w); return n; });
+  return (
+    <nav aria-label="Periods" data-testid="period-list" className="w-72 shrink-0 overflow-y-auto border-r border-border bg-surface/40 p-2">
+      {weeks.map((w) => {
+        const on = sel?.kind === "week" && sel.key === w.week;
+        const isOpen = open.has(w.week);
+        return (
+          <div key={w.week} className="mb-1">
+            <div className={`flex items-center rounded-lg transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
+              <button onClick={() => { onSelect({ kind: "week", key: w.week }); setOpen((o) => new Set(o).add(w.week)); }} aria-current={on ? "true" : undefined}
+                data-testid={`period-week-${w.week}`} className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left">
+                <span className="min-w-0 flex-1">
+                  <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "font-medium text-text-secondary"}`}>{w.label}</span>
+                  <span className="mt-0.5 block text-[12px] text-text-muted">{w.current ? "This week, " : ""}{nPrompts(w.prompts)}</span>
+                </span>
+                {w.has_letter && <BookOpen className="h-4 w-4 shrink-0 text-accent" aria-label="Has a letter" />}
+              </button>
+              <button onClick={() => toggle(w.week)} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} the days of ${w.label}`}
+                className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent">
+                <ChevronRight className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+              </button>
+            </div>
+            {isOpen && w.days.length > 0 && (
+              <div className="ml-4 mt-0.5 border-l border-border-subtle pl-2">
+                {w.days.map((d) => {
+                  const dOn = sel?.kind === "day" && sel.key === d.day;
+                  return (
+                    <button key={d.day} onClick={() => onSelect({ kind: "day", key: d.day })} aria-current={dOn ? "true" : undefined} data-testid={`period-day-${d.day}`}
+                      className={`mb-0.5 flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors ${dOn ? "bg-surface-warm font-semibold text-text-primary" : "text-text-secondary hover:bg-surface-warm/50"}`}>
+                      <span className="min-w-0 flex-1 truncate">{d.label}</span>
+                      <span className="shrink-0 tabular-nums text-[12px] text-text-muted">{d.prompts}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+function PeriodPicker({ weeks, sel, onSelect }: { weeks: PeriodWeek[]; sel: PeriodSel | null; onSelect: (s: PeriodSel) => void }) {
+  return (
+    <div className="border-b border-border-subtle px-4 py-3">
+      <select aria-label="Period" data-testid="period-picker" value={sel ? `${sel.kind}:${sel.key}` : ""}
+        onChange={(e) => { const [kind, key] = e.target.value.split(":"); onSelect({ kind: kind as PeriodSel["kind"], key }); }}
+        className="h-12 w-full rounded-lg border border-border bg-surface px-3 text-[16px] font-semibold text-text-primary focus:border-accent-border focus:outline-none">
+        {weeks.map((w) => (
+          <optgroup key={w.week} label={w.label}>
+            <option value={`week:${w.week}`}>{w.label}, whole week{w.current ? " (this week)" : ""}</option>
+            {w.days.map((d) => <option key={d.day} value={`day:${d.day}`}>{d.label}</option>)}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// The shared frame: list column (or picker) plus the detail for the selection.
+function PeriodFrame({ periods, sel, onSelect, phone, children }: { periods: PeriodsDoc; sel: PeriodSel | null; onSelect: (s: PeriodSel) => void; phone: boolean; children: React.ReactNode }) {
+  if (phone) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <PeriodPicker weeks={periods.weeks} sel={sel} onSelect={onSelect} />
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full min-h-0">
+      <PeriodList weeks={periods.weeks} sel={sel} onSelect={onSelect} />
+      <div className="min-w-0 flex-1 overflow-y-auto">{children}</div>
+    </div>
+  );
+}
+
+// The period heading every detail opens with: the dates, the intent line.
+function PeriodHeading({ label, line, lineBusy, totals, right }: { label: string; line: string | null; lineBusy: boolean; totals: { prompts: number; sittings: number }; right?: React.ReactNode }) {
+  return (
+    <header className="mb-6">
+      <div className="flex flex-wrap items-start gap-3">
+        <h2 className="min-w-0 flex-1 font-display text-3xl font-semibold tracking-tight text-text-primary" data-testid="period-title">{label}</h2>
+        {right}
+      </div>
+      {line ? <p className="mt-2 max-w-3xl text-[17px] leading-snug text-text-secondary" data-testid="period-line">{line}</p>
+        : lineBusy ? <p className="mt-2 inline-flex items-center gap-2 text-[15px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading what you were after</p> : null}
+      <div className="mt-2 text-[13px] text-text-muted">{nPrompts(totals.prompts)} in {nSittings(totals.sittings)}</div>
+    </header>
+  );
+}
+
+function SpentOn({ projects, title, onProject }: { projects: PeriodProject[]; title: string; onProject: (slug: string) => void }) {
+  if (!projects.length) return null;
+  const max = Math.max(1, ...projects.map((p) => p.prompts));
+  return (
+    <section className="mb-8" data-testid="spent-on">
+      <h3 className="mb-3 font-display text-xl font-semibold text-text-primary">{title}</h3>
+      <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+        {projects.slice(0, 8).map((p) => {
+          const row = (
+            <>
+              <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-text-primary">{p.title}</span>
+              <span className="hidden h-2 w-32 overflow-hidden rounded-full bg-surface-warm sm:block" aria-hidden><span className="block h-full rounded-full bg-accent" style={{ width: `${Math.max(6, (p.prompts / max) * 100)}%` }} /></span>
+              <span className="w-40 shrink-0 text-right text-[13px] tabular-nums text-text-muted max-sm:w-auto">{nPrompts(p.prompts)}, {nSittings(p.sittings)}</span>
+            </>
+          );
+          return (
+            <li key={p.slug || "other"}>
+              {p.slug ? (
+                <button onClick={() => onProject(p.slug)} title={`Open ${p.title} in Projects`} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-warm/60">{row}</button>
+              ) : <div className="flex items-center gap-3 px-4 py-3">{row}</div>}
+            </li>
+          );
+        })}
+      </ul>
+      {projects.length > 8 && <div className="mt-2 text-[13px] text-text-muted">and {projects.length - 8} more</div>}
+    </section>
+  );
+}
+
+// The findings for one period: one featured, the rest a click away.
+function Findings({ findings, phone, onVerdict, onReceipt, onProject }: {
+  findings: Finding[]; phone: boolean;
+  onVerdict: (f: Finding, verdict: string, opts?: { item?: string; rule?: string; whole?: boolean }) => Promise<boolean>;
+  onReceipt: (ts: number) => void; onProject: (slug: string) => void;
+}) {
   const [done, setDone] = useState<Set<string>>(new Set());
   const [leaving, setLeaving] = useState<string | null>(null);
   const [featuredId, setFeaturedId] = useState<string | null>(null);
-  const [letterOpen, setLetterOpen] = useState(!phone);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    return invoke<FindingsDoc>("mirror_findings", { vault: vaultPath })
-      .then((d) => { setDoc(d && Array.isArray(d.findings) ? d : { generated_ts: 0, letter: null, findings: [] }); setErr(null); })
-      .catch((e) => { setDoc({ generated_ts: 0, letter: null, findings: [] }); setErr(String(e)); })
-      .finally(() => setLoading(false));
-  }, [vaultPath]);
-  useEffect(() => { void load(); }, [load]);
-
-  const refresh = async () => {
-    setRefreshing(true);
-    try { await invoke("mirror_refresh", { vault: vaultPath }); await load(); }
-    catch (e) { setErr(String(e)); }
-    finally { setRefreshing(false); }
-  };
-
-  const shown = useMemo(() => visibleFindings(doc).filter((f) => !done.has(f.id)), [doc, done]);
+  const shown = visibleFindings({ generated_ts: 0, letter: null, findings }).filter((f) => !done.has(f.id));
   const featured = shown.find((f) => f.id === featuredId) ?? shown[0] ?? null;
-  const rest = shown.filter((f) => f !== featured).slice(0, 2);
-
-  const verdict = async (f: Finding, v: string, opts?: { item?: string; rule?: string; whole?: boolean }) => {
-    try {
-      await invoke("mirror_verdict", { vault: vaultPath, findingId: f.id, verdict: v, item: opts?.item ?? null, rule: opts?.rule ?? null });
-    } catch (e) { setErr(String(e)); return; }
-    if (!opts?.whole) return;
+  if (!featured) return null;
+  const rest = shown.filter((f) => f !== featured);
+  const idx = shown.indexOf(featured);
+  const verdict = async (f: Finding, v: string, o?: { item?: string; rule?: string; whole?: boolean }) => {
+    const ok = await onVerdict(f, v, o);
+    if (!ok || !o?.whole) return;
     setLeaving(f.id);
     setTimeout(() => { setDone((d) => new Set(d).add(f.id)); setLeaving(null); setFeaturedId(null); }, 280);
   };
-
-  if (loading && !doc) return <div className="p-8 text-[15px] text-text-muted">Looking back over your prompts...</div>;
-
-  const letter = doc?.letter;
-  const letterBlock = letter && (
-    <section className="rounded-2xl border border-accent-border bg-accent-soft/30 p-5 sm:p-6" data-testid="letter">
-      <button onClick={() => setLetterOpen((o) => !o)} className="flex w-full items-center gap-2.5 text-left">
-        <BookOpen className="h-5 w-5 shrink-0 text-accent" />
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium text-text-muted">This week</span>
-          <span className="block font-display text-2xl font-semibold text-text-primary">{letter.title}</span>
-        </span>
-        {letterOpen ? <ChevronUp className="h-5 w-5 text-text-muted" /> : <ChevronDown className="h-5 w-5 text-text-muted" />}
-      </button>
-      {letterOpen && <div className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-secondary"><Markdown source={letter.markdown} /></div>}
-    </section>
-  );
-
-  if (!featured) {
-    return (
-      <div className={phone ? "space-y-5 p-4" : "mx-auto max-w-4xl space-y-6 px-8 py-8"}>
-        {letterBlock}
-        <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center">
-          <ScanFace className="mx-auto h-10 w-10 text-accent" />
-          <h2 className="mt-3 font-display text-3xl font-semibold text-text-primary">Nothing noticed yet</h2>
-          <p className="mx-auto mt-2 max-w-lg text-[15px] leading-relaxed text-text-secondary">
-            Intent reads every prompt you have typed, in every tool, and points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go. Findings you answer stay answered.
-          </p>
-          <button onClick={() => void refresh()} disabled={refreshing} className={`${btnPrimary} mt-5 h-11 px-5`}>
-            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{refreshing ? "Looking" : "Refresh"}
-          </button>
-          {err && <div className="mt-3 text-[13px] text-err">{err}</div>}
-        </div>
-      </div>
-    );
-  }
-
-  const idx = shown.indexOf(featured);
-  const fe = (
-    <FeaturedFinding key={featured.id} f={featured} phone={phone} leaving={leaving === featured.id}
-      onVerdict={(v, o) => verdict(featured, v, o)} onReceipt={onReceipt} onProject={onProject} />
-  );
-
-  if (phone) {
-    return (
-      <div className="space-y-4 p-4">
-        {letterBlock}
-        {fe}
-        {shown.length > 1 && (
-          <div className="flex items-center gap-2">
-            <button aria-label="Previous finding" disabled={idx <= 0} onClick={() => setFeaturedId(shown[idx - 1]?.id ?? null)} className={`${btnGhost} h-12 w-12`}><ArrowLeft className="h-5 w-5" /></button>
-            <span className="flex-1 text-center text-[14px] tabular-nums text-text-muted">{idx + 1} of {shown.length}</span>
-            <button aria-label="Next finding" disabled={idx >= shown.length - 1} onClick={() => setFeaturedId(shown[idx + 1]?.id ?? null)} className={`${btnGhost} h-12 w-12`}><ArrowRight className="h-5 w-5" /></button>
-          </div>
-        )}
-        {err && <div className="text-[13px] text-err">{err}</div>}
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-8 py-8">
-      {letterBlock}
-      {fe}
-      {rest.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2">
+    <div className="space-y-4">
+      <FeaturedFinding key={featured.id} f={featured} phone={phone} leaving={leaving === featured.id}
+        onVerdict={(v, o) => verdict(featured, v, o)} onReceipt={onReceipt} onProject={onProject} />
+      {phone ? shown.length > 1 && (
+        <div className="flex items-center gap-2">
+          <button aria-label="Previous finding" disabled={idx <= 0} onClick={() => setFeaturedId(shown[idx - 1]?.id ?? null)} className={`${btnGhost} h-12 w-12`}><ArrowLeft className="h-5 w-5" /></button>
+          <span className="flex-1 text-center text-[14px] tabular-nums text-text-muted">{idx + 1} of {shown.length}</span>
+          <button aria-label="Next finding" disabled={idx >= shown.length - 1} onClick={() => setFeaturedId(shown[idx + 1]?.id ?? null)} className={`${btnGhost} h-12 w-12`}><ArrowRight className="h-5 w-5" /></button>
+        </div>
+      ) : rest.length > 0 && (
+        <div className="space-y-3">
           {rest.map((f) => <QuietCard key={f.id} f={f} onOpen={() => setFeaturedId(f.id)} />)}
         </div>
       )}
-      <div className="flex items-center gap-3 text-[13px] text-text-muted">
-        {doc?.generated_ts ? <span>Read {fmtDate(doc.generated_ts)}</span> : null}
-        <button onClick={() => void refresh()} disabled={refreshing} className="inline-flex items-center gap-1.5 text-accent hover:underline disabled:opacity-60">
-          {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}Refresh
+    </div>
+  );
+}
+
+function LetterBlock({ letter, status, busy, current, onLastWeek }: { letter: FindingsDoc["letter"]; status: PeriodDoc["letter_status"]; busy: boolean; current: boolean; onLastWeek?: () => void }) {
+  const [open, setOpen] = useState(true);
+  if (letter) {
+    return (
+      <section className="mb-8 rounded-2xl border border-accent-border bg-accent-soft/30 p-5 sm:p-6" data-testid="letter">
+        <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-2.5 text-left">
+          <BookOpen className="h-5 w-5 shrink-0 text-accent" />
+          <span className="min-w-0 flex-1 font-display text-2xl font-semibold text-text-primary">{letter.title}</span>
+          {open ? <ChevronUp className="h-5 w-5 text-text-muted" /> : <ChevronDown className="h-5 w-5 text-text-muted" />}
         </button>
+        {open && <div className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-secondary"><Markdown source={letter.markdown} /></div>}
+      </section>
+    );
+  }
+  if (status === "missing" && busy) {
+    return <div className="mb-8 inline-flex items-center gap-2 text-[15px] text-text-muted" data-testid="letter-writing"><Loader2 className="h-4 w-4 animate-spin" />Writing the letter for this week</div>;
+  }
+  if (current) {
+    return (
+      <div className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-text-muted" data-testid="letter-not-yet">
+        <span>The letter for this week is written once it ends.</span>
+        {onLastWeek && <button onClick={onLastWeek} className="inline-flex items-center gap-1 font-medium text-accent hover:underline"><BookOpen className="h-4 w-4" />Read last week's letter</button>}
+      </div>
+    );
+  }
+  return null;
+}
+
+// ── Noticed ─────────────────────────────────────────────────────────────────
+function NoticedView({ vaultPath, phone, periods, sel, onSelect, onReceipt, onProject, onPeriodsChanged }: {
+  vaultPath: string; phone: boolean; periods: PeriodsDoc; sel: PeriodSel;
+  onSelect: (s: PeriodSel) => void; onReceipt: (ts: number) => void; onProject: (slug: string) => void; onPeriodsChanged: () => void;
+}) {
+  const [doc, setDoc] = useState<PeriodDoc | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const asked = useRef<Set<string>>(new Set());
+  const reqRef = useRef(0);
+
+  const load = useCallback(async (fresh = false) => {
+    const id = ++reqRef.current;
+    setLoading(true);
+    try {
+      const d = await invoke<PeriodDoc>("mirror_period", { vault: vaultPath, kind: sel.kind, key: sel.key, tz: tzNow(), fresh });
+      if (id !== reqRef.current) return null;
+      const ok = d && Array.isArray(d.findings) ? d : null;
+      setDoc(ok); setErr(null);
+      return ok;
+    } catch (e) { if (id === reqRef.current) { setDoc(null); setErr(String(e)); } return null; }
+    finally { if (id === reqRef.current) setLoading(false); }
+  }, [vaultPath, sel.kind, sel.key]);
+
+  // The model-written parts of a week (its letter, the day lines) are made
+  // the first time it is opened, then read back.
+  const generate = useCallback(async (week: string, fresh = false) => {
+    setWriting(true);
+    try {
+      await invoke("mirror_generate", { vault: vaultPath, week, tz: tzNow(), fresh });
+      await load();
+      onPeriodsChanged();
+    } catch { /* model unavailable (or the phone bridge): the period still reads */ }
+    finally { setWriting(false); }
+  }, [vaultPath, load, onPeriodsChanged]);
+
+  useEffect(() => {
+    setDoc(null);
+    void load().then((d) => {
+      if (!d || !d.totals.sittings) return;
+      const needs = d.letter_status === "missing" || !d.intent_line;
+      const week = d.period.week;
+      if (needs && !asked.current.has(week)) { asked.current.add(week); void generate(week); }
+    });
+  }, [load, generate]);
+
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      if (doc?.current) await invoke("mirror_refresh", { vault: vaultPath });
+      else await invoke("mirror_generate", { vault: vaultPath, week: doc?.period.week ?? sel.key, tz: tzNow(), fresh: true }).catch(() => {});
+      await load(true);
+      onPeriodsChanged();
+    } catch (e) { setErr(String(e)); }
+    finally { setRefreshing(false); }
+  };
+
+  const verdict = async (f: Finding, v: string, o?: { item?: string; rule?: string }) => {
+    try { await invoke("mirror_verdict", { vault: vaultPath, findingId: f.id, verdict: v, item: o?.item ?? null, rule: o?.rule ?? null }); return true; }
+    catch (e) { setErr(String(e)); return false; }
+  };
+
+  if (loading && !doc) return <div className={phone ? "p-4 text-[15px] text-text-muted" : "px-8 py-8 text-[15px] text-text-muted"}>Looking back over this {sel.kind}...</div>;
+  if (!doc) return <div className="p-8 text-[14px] text-err">{err ?? "Could not read this period."}</div>;
+
+  const weekIdx = periods.weeks.findIndex((w) => w.week === doc.period.week);
+  const prevWeek = periods.weeks[weekIdx + 1];
+  const shown = visibleFindings({ generated_ts: 0, letter: null, findings: doc.findings });
+  const refreshBtn = (
+    <button onClick={() => void refresh()} disabled={refreshing} title={doc.current ? "Read your prompts again and redo the findings" : "Rewrite this week's letter and lines"}
+      className={`${btnGhost} h-10 px-4`}>
+      {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{refreshing ? "Refreshing" : "Refresh"}
+    </button>
+  );
+
+  return (
+    <div className={phone ? "p-4" : "mx-auto max-w-4xl px-8 py-7"} data-testid="noticed">
+      <PeriodHeading label={doc.period.label} line={doc.intent_line} lineBusy={writing} totals={doc.totals} right={phone ? undefined : refreshBtn} />
+      {doc.period.kind === "week" && (
+        <LetterBlock letter={doc.letter} status={doc.letter_status} busy={writing} current={doc.current}
+          onLastWeek={doc.current && prevWeek?.has_letter ? () => onSelect({ kind: "week", key: prevWeek.week }) : undefined} />
+      )}
+      <SpentOn projects={doc.projects} title={doc.period.kind === "day" ? "What the day went to" : "What the week went to"} onProject={onProject} />
+      <section>
+        <h3 className="mb-3 font-display text-xl font-semibold text-text-primary">Noticed</h3>
+        {shown.length ? (
+          <Findings key={`${doc.period.kind}:${doc.period.key}`} findings={doc.findings} phone={phone} onVerdict={verdict} onReceipt={onReceipt} onProject={onProject} />
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border bg-surface p-6 text-[15px] leading-relaxed text-text-secondary" data-testid="nothing-noticed">
+            {doc.totals.sittings ? `Nothing stood out this ${doc.period.kind}.` : `No prompts this ${doc.period.kind}.`}
+            {doc.current && !doc.generated_ts && <> Intent reads every prompt you typed and points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go.</>}
+          </div>
+        )}
+      </section>
+      <div className="mt-6 flex flex-wrap items-center gap-3 text-[13px] text-text-muted">
+        {doc.generated_ts ? <span>Read {fmtDate(doc.generated_ts)}</span> : null}
+        {phone && refreshBtn}
         {err && <span className="text-err">{err}</span>}
       </div>
     </div>
   );
 }
 
-// ── History ─────────────────────────────────────────────────────────────────
-const LONG_CHARS = 600;
-const LONG_LINES = 10;
 
-function PromptText({ p, focused, phone }: { p: HistPrompt; focused: boolean; phone: boolean }) {
-  const chars = phone ? LONG_CHARS / 2 : LONG_CHARS;
-  const lines = phone ? LONG_LINES / 2 : LONG_LINES;
-  const long = p.text.length > chars || p.text.split("\n").length > lines;
+// ── History ─────────────────────────────────────────────────────────────────
+// The prompts exactly as they were typed: plain text, every space and line
+// break kept, never rendered as Markdown. A long one is clipped by height
+// only, so the text itself is never cut or rewritten.
+const LONG_CHARS = 700;
+const LONG_LINES = 12;
+
+export function PromptText({ p, focused, phone }: { p: HistPrompt; focused: boolean; phone: boolean }) {
+  const long = p.text.length > (phone ? LONG_CHARS / 2 : LONG_CHARS) || p.text.split("\n").length > (phone ? LONG_LINES / 2 : LONG_LINES);
   const [open, setOpen] = useState(false);
-  const shown = long && !open ? `${p.text.split("\n").slice(0, lines).join("\n").slice(0, chars)}...` : p.text;
   return (
     <div data-prompt-ts={p.ts} className={`group flex gap-2 rounded-lg px-3 py-2 ${phone ? "flex-wrap" : ""} ${focused ? "bg-accent-soft ring-1 ring-accent-border" : "hover:bg-surface-warm/60"}`}>
       <span className={`shrink-0 pt-0.5 text-[12px] tabular-nums text-text-muted ${phone ? "order-first basis-[calc(100%-2.5rem)]" : "w-16"}`}>{fmtTime(p.ts)}</span>
       <div className={`min-w-0 flex-1 ${phone ? "order-last basis-full" : ""}`}>
-        <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-text-primary">{shown}</div>
+        <div className={`relative ${long && !open ? (phone ? "max-h-40 overflow-hidden" : "max-h-72 overflow-hidden") : ""}`}>
+          <pre data-testid="prompt-text" className="whitespace-pre-wrap break-words font-sans text-[15px] leading-relaxed text-text-primary">{p.text}</pre>
+          {long && !open && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface to-transparent" />}
+        </div>
         {long && <button onClick={() => setOpen((o) => !o)} className="mt-1 text-[13px] font-medium text-accent hover:underline">{open ? "Show less" : "Show all"}</button>}
       </div>
       <CopyIcon text={p.text} />
@@ -579,125 +841,84 @@ function SittingCard({ s, focusTs, phone }: { s: Sitting; focusTs: number | null
   );
 }
 
-function mergeWeeks(prev: HistWeek[], next: HistWeek[]): HistWeek[] {
-  const out = prev.map((w) => ({ ...w, sittings: [...w.sittings] }));
-  for (const w of next) {
-    const hit = out.find((o) => o.week === w.week);
-    if (hit) { const ids = new Set(hit.sittings.map((s) => s.id)); hit.sittings.push(...w.sittings.filter((s) => !ids.has(s.id))); hit.intent_line = hit.intent_line ?? w.intent_line; }
-    else out.push({ ...w, sittings: [...w.sittings] });
-  }
-  return out;
-}
-
-function HistoryView({ vaultPath, phone, focus, onClearFocus }: { vaultPath: string; phone: boolean; focus: { ts: number; n: number } | null; onClearFocus: () => void }) {
+function HistoryView({ vaultPath, phone, periods, sel, focus }: { vaultPath: string; phone: boolean; periods: PeriodsDoc; sel: PeriodSel; focus: { ts: number; n: number } | null }) {
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
   const [tool, setTool] = useState("");
   const [project, setProject] = useState("");
-  const [weeks, setWeeks] = useState<HistWeek[]>([]);
-  const [tools, setTools] = useState<string[]>([]);
-  const [total, setTotal] = useState(0);
-  const [projects, setProjects] = useState<Map<string, string>>(new Map());
+  const [doc, setDoc] = useState<HistoryDoc | null>(null);
   const [loading, setLoading] = useState(false);
-  const [end, setEnd] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const reqRef = useRef(0);
-  const sentinel = useRef<HTMLDivElement | null>(null);
   const focusTs = focus?.ts ?? null;
 
   useEffect(() => { const t = setTimeout(() => setQDebounced(q.trim()), 300); return () => clearTimeout(t); }, [q]);
+  // A new period starts unfiltered.
+  useEffect(() => { setQ(""); setQDebounced(""); setTool(""); setProject(""); }, [sel.kind, sel.key]);
 
-  const fetchPage = useCallback(async (before: number | null, reset: boolean) => {
+  useEffect(() => {
     const id = ++reqRef.current;
     setLoading(true);
-    try {
-      const d = await invoke<HistoryDoc>("mirror_history", {
-        vault: vaultPath, q: qDebounced || null, tool: tool || null, project: project || null, before, limit: 200,
-      });
-      if (id !== reqRef.current) return;
-      const got = Array.isArray(d?.weeks) ? d.weeks : [];
-      setWeeks((w) => reset ? got : mergeWeeks(w, got));
-      if (Array.isArray(d?.tools) && d.tools.length) setTools(d.tools);
-      if (typeof d?.total === "number") setTotal(d.total);
-      setProjects((m) => { const n = new Map(m); for (const w of got) for (const s of w.sittings) if (s.project) n.set(s.project, s.project_title || s.project); return n; });
-      setEnd(got.every((w) => w.sittings.length === 0));
-      setErr(null);
-    } catch (e) { if (id === reqRef.current) { setErr(String(e)); setEnd(true); } }
-    finally { if (id === reqRef.current) setLoading(false); }
-  }, [vaultPath, qDebounced, tool, project]);
-
-  // A receipt jump opens the page holding that prompt, with no filters.
-  const focusBefore = focus ? focus.ts + 1 : null;
-  useEffect(() => { void fetchPage(focusBefore, true); }, [fetchPage, focusBefore]); // eslint-disable-line react-hooks/exhaustive-deps
+    invoke<HistoryDoc>("mirror_history", {
+      vault: vaultPath, q: qDebounced || null, tool: tool || null, project: project || null, before: null, limit: 2000,
+      week: sel.kind === "week" ? sel.key : null, day: sel.kind === "day" ? sel.key : null, tz: tzNow(),
+    })
+      .then((d) => { if (id === reqRef.current) { setDoc(d && Array.isArray(d.weeks) ? d : { total: 0, tools: [], weeks: [] }); setErr(null); } })
+      .catch((e) => { if (id === reqRef.current) { setDoc({ total: 0, tools: [], weeks: [] }); setErr(String(e)); } })
+      .finally(() => { if (id === reqRef.current) setLoading(false); });
+  }, [vaultPath, sel.kind, sel.key, qDebounced, tool, project]);
 
   useEffect(() => {
     if (focusTs == null) return;
     const el = document.querySelector(`[data-prompt-ts="${focusTs}"]`);
     if (el && "scrollIntoView" in el) (el as HTMLElement).scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [weeks, focusTs]);
+  }, [doc, focusTs]);
 
-  const oldest = useMemo(() => {
-    let min = Infinity;
-    for (const w of weeks) for (const s of w.sittings) min = Math.min(min, s.start_ts);
-    return Number.isFinite(min) ? min : null;
-  }, [weeks]);
-  const loadOlder = useCallback(() => { if (!loading && !end && oldest != null) void fetchPage(oldest, false); }, [loading, end, oldest, fetchPage]);
+  const sittings = useMemo(() => (doc?.weeks ?? []).flatMap((w) => w.sittings), [doc]);
+  const [projects, setProjects] = useState<Map<string, string>>(new Map());
+  useEffect(() => { setProjects(new Map()); }, [sel.kind, sel.key]);
+  useEffect(() => { setProjects((m) => { const n = new Map(m); for (const s of sittings) if (s.project) n.set(s.project, s.project_title || s.project); return n; }); }, [sittings]);
+  const [tools, setTools] = useState<string[]>([]);
+  useEffect(() => { if (doc?.tools?.length) setTools(doc.tools); }, [doc]);
 
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadOlder(); }, { rootMargin: "600px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [loadOlder]);
-
-  const clearFocus = () => { onClearFocus(); };
-  const sel = "h-10 rounded-lg border border-border bg-surface px-3 text-[14px] text-text-secondary focus:border-accent-border focus:outline-none";
+  const week = periods.weeks.find((w) => w.week === weekOfSel(sel, periods.weeks));
+  const day = sel.kind === "day" ? week?.days.find((d) => d.day === sel.key) : null;
+  const label = day?.label ?? week?.label ?? sel.key;
+  const line = (sel.kind === "day" ? day?.intent_line : week?.intent_line) ?? null;
+  const nPromptsHere = sittings.reduce((a, s) => a + s.prompts.length, 0);
+  const sel2 = "h-10 rounded-lg border border-border bg-surface px-3 text-[14px] text-text-secondary focus:border-accent-border focus:outline-none";
+  const filtered = !!(qDebounced || tool || project);
 
   return (
-    <div className={phone ? "px-3 py-3" : "mx-auto max-w-4xl px-8 py-6"}>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+    <div className={phone ? "px-3 py-4" : "mx-auto max-w-4xl px-8 py-7"} data-testid="history">
+      <PeriodHeading label={label} line={line} lineBusy={false} totals={{ prompts: nPromptsHere, sittings: sittings.length }} />
+      <div className="mb-5 flex flex-wrap items-center gap-2">
         <label className="relative min-w-0 flex-1 basis-56">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-          <input value={q} onChange={(e) => { setQ(e.target.value); if (focus) clearFocus(); }} placeholder="Search every prompt" aria-label="Search prompts"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search this ${sel.kind}`} aria-label="Search prompts"
             className="h-10 w-full rounded-lg border border-border bg-surface pl-9 pr-3 text-[15px] text-text-primary focus:border-accent-border focus:outline-none" />
         </label>
-        <select aria-label="Tool" value={tool} onChange={(e) => { setTool(e.target.value); if (focus) clearFocus(); }} className={`${sel} max-sm:flex-1`}>
+        <select aria-label="Tool" value={tool} onChange={(e) => setTool(e.target.value)} className={`${sel2} max-sm:flex-1`}>
           <option value="">All tools</option>
           {tools.map((t) => <option key={t} value={t}>{toolLabel(t)}</option>)}
         </select>
-        <select aria-label="Project" value={project} onChange={(e) => { setProject(e.target.value); if (focus) clearFocus(); }} className={`${sel} max-w-[14rem] max-sm:max-w-none max-sm:flex-1`}>
+        <select aria-label="Project" value={project} onChange={(e) => setProject(e.target.value)} className={`${sel2} max-w-[14rem] max-sm:max-w-none max-sm:flex-1`}>
           <option value="">All projects</option>
           {[...projects.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([slug, title]) => <option key={slug} value={slug}>{title}</option>)}
         </select>
       </div>
-      <div className="mb-4 flex items-center gap-3 text-[13px] text-text-muted">
-        <span>{total ? `${total.toLocaleString()} prompts` : ""}</span>
-        {focus && <button onClick={clearFocus} className="inline-flex items-center gap-1 font-medium text-accent hover:underline"><History className="h-3.5 w-3.5" />Back to newest</button>}
-      </div>
       {err && <div className="mb-3 text-[13px] text-err">{err}</div>}
-      {!loading && weeks.every((w) => w.sittings.length === 0) && (
-        <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-[15px] text-text-muted">
-          {qDebounced || tool || project ? "No prompts match." : "No prompts captured yet. Turn on capture for your tools and they show up here as you work."}
-        </div>
-      )}
-      <div className="space-y-8">
-        {weeks.filter((w) => w.sittings.length > 0).map((w) => (
-          <section key={w.week} data-testid="week">
-            <div className="sticky top-0 z-10 -mx-2 mb-3 border-b border-border-subtle bg-background/95 px-2 py-3 backdrop-blur">
-              <h2 className="font-display text-2xl font-semibold text-text-primary">{w.label}</h2>
-              {w.intent_line && <p className="mt-0.5 text-[15px] leading-snug text-text-secondary">{w.intent_line}</p>}
-            </div>
-            <div className="space-y-3">
-              {w.sittings.map((s) => <SittingCard key={s.id} s={s} focusTs={focusTs} phone={phone} />)}
-            </div>
-          </section>
-        ))}
-      </div>
-      <div ref={sentinel} className="flex justify-center py-6">
-        {loading ? <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
-          : !end && oldest != null ? <button onClick={loadOlder} className={`${btnGhost} h-10 px-4`}>Load older</button> : null}
-      </div>
+      {loading && !doc ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-text-muted" /></div>
+        : sittings.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-[15px] text-text-muted">
+            {filtered ? "No prompts match." : `No prompts this ${sel.kind}.`}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {sittings.map((s) => <SittingCard key={s.id} s={s} focusTs={focusTs} phone={phone} />)}
+          </div>
+        )}
     </div>
   );
 }
+
