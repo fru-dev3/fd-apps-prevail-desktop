@@ -23,6 +23,7 @@ use tokio::sync::{watch, Mutex as AsyncMutex};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 use crate::telegram_bridge::{record_exchange, resolve_domain, run_cli_readonly, BridgeConfig, BridgeStatus, RouteRule};
+use crate::now_secs;
 
 const GATEWAY_URL: &str = "wss://gateway.discord.gg/?v=10&encoding=json";
 const API: &str = "https://discord.com/api/v10";
@@ -56,10 +57,6 @@ struct Inner {
     stop_tx: Option<watch::Sender<bool>>,
     handle: Option<JoinHandle<()>>,
     status: Arc<AsyncMutex<BridgeStatus>>,
-}
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 impl DiscordState {

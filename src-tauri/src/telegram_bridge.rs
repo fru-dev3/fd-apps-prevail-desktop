@@ -22,6 +22,7 @@ use std::time::Duration;
 use tauri::async_runtime::JoinHandle;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::{watch, Mutex as AsyncMutex};
+use crate::now_secs;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BridgeConfig {
@@ -882,13 +883,6 @@ async fn run_cli_inner(cli: &str, model: Option<&str>, prompt: &str, read_only: 
 
 // ─────────────────────────────────────────────────────────────────────
 // Misc helpers.
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
 
 /// Split `text` into chunks no longer than `max` chars. Naïve — we
 /// just cut at the boundary. Telegram messages cap at 4096 chars; we

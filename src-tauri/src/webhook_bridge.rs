@@ -29,6 +29,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
 use crate::telegram_bridge::{run_cli_readonly, BridgeConfig, BridgeStatus};
+use crate::now_secs;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WebhookConfig {
@@ -76,13 +77,6 @@ fn ct_eq(a: &str, b: &str) -> bool {
         diff |= (x ^ y) as u32;
     }
     diff == 0
-}
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }
 
 impl WebhookState {

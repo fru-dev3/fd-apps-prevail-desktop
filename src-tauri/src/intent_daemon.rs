@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use tauri::async_runtime::JoinHandle;
 use tokio::sync::{watch, Mutex as AsyncMutex};
+use crate::now_secs;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct IntentDaemonConfig {
@@ -83,12 +84,6 @@ fn write_checkpoint(vault: &str, c: &DistillCheckpoint) {
     if let Ok(body) = serde_json::to_string(c) {
         let _ = crate::vaultio::write_atomic(&p, &body);
     }
-}
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }
 
 /// One check. Returns Some(intent_count) if it ran a distill, None if it skipped

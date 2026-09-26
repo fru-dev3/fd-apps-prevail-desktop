@@ -89,6 +89,15 @@ pub(crate) const NON_DOMAIN_DIRS: &[&str] = &[
     "_scratch",
 ];
 
+/// Seconds since the Unix epoch (0 if the clock is before it). Shared by the
+/// daemons and bridges that stamp status/cursor files.
+pub(crate) fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 // Retry I/O on EINTR (os error 4). macOS sandboxing + Tauri's runtime
 // can interrupt syscalls; the fix is the standard retry-on-EINTR loop.
 pub(crate) fn read_dir_retry(p: &Path) -> std::io::Result<fs::ReadDir> {
