@@ -1884,19 +1884,20 @@ export function BenchRunConfig({
             { id: "fromAi", label: "Saved AI", count: fromAiCount, title: "AI suggestions you saved to reuse" },
           ];
           return (
-            <div className="space-y-3">
-              {/* Filter + AI-suggest control. One list, filtered by source. */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
+            <div className="space-y-4">
+              {/* Filter + AI-suggest control. One list, filtered by source. Both
+                  controls share one height (h-9) so they line up on one axis. */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex h-9 max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border bg-background p-1 [scrollbar-width:none]">
                   {FILTERS.map((f) => (
                     <button key={f.id} onClick={() => setPresetFilter(f.id)} title={f.title}
-                      className={`rounded-md px-2.5 py-1 text-xs transition-colors ${presetFilter === f.id ? "bg-accent text-background shadow-sm" : "text-text-secondary hover:bg-surface-warm"}`}>
-                      {f.label}<span className="ml-1 opacity-60">{f.count}</span>
+                      className={`inline-flex h-full shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[13px] transition-colors ${presetFilter === f.id ? "bg-accent font-medium text-background shadow-sm" : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"}`}>
+                      {f.label}<span className={`tabular-nums ${presetFilter === f.id ? "opacity-80" : "text-text-muted"}`}>{f.count}</span>
                     </button>
                   ))}
                 </div>
-                <button onClick={suggestAiPresets} disabled={aiBusy || availableModelsForAi.length === 0} title="Ask AI to curate a library of presets over your current models" className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-xs text-accent hover:bg-accent-soft/70 disabled:opacity-40">
-                  {aiBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {aiPresets ? "Refresh suggestions" : "Suggest presets"}
+                <button onClick={suggestAiPresets} disabled={aiBusy || availableModelsForAi.length === 0} title="Ask AI to curate a library of presets over your current models" className="ml-auto inline-flex h-9 items-center gap-2 rounded-lg border border-accent-border bg-accent-soft px-3.5 text-[13px] font-medium text-accent transition-colors hover:bg-accent-soft/70 disabled:opacity-40">
+                  {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {aiPresets ? "Refresh suggestions" : "Suggest presets"}
                 </button>
               </div>
 
@@ -3654,20 +3655,22 @@ export function BenchmarkPanel({
         {/* Header lives OUTSIDE the scroll area (a fixed flex row above it) so it
             stays visible on long pages regardless of scroll-container height,
             instead of relying on position:sticky which the nested layout broke. */}
-        <div className="shrink-0 border-b border-border-subtle bg-background px-8 pb-2 pt-6">
+        <div className="shrink-0 border-b border-border-subtle bg-background px-8 pb-5 pt-6">
           <ArenaHeader
             title={HEAD[view].title}
             subtitle={HEAD[view].subtitle}
             actions={
               view === "run" ? null : (
-                <button onClick={() => setView("run")} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-background hover:bg-accent-hover">
+                <button onClick={() => setView("run")} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-background hover:bg-accent-hover">
                   <Plus className="h-3.5 w-3.5" /> New Run
                 </button>
               )
             }
           />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* pt-6: every section's content starts clear of the header rule
+            instead of sitting on it. */}
+        <div className="min-h-0 flex-1 overflow-y-auto pt-6">
         {view === "run" && (
           <>
             {/* Wizard leads the New Run page; the runs monitor sits BELOW it so

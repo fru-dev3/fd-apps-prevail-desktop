@@ -87,7 +87,7 @@ export function ArenaHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
         <h1 className="font-display text-2xl font-bold tracking-tight text-text-primary">{title}</h1>
         {subtitle && <p className="mt-1 max-w-2xl text-sm text-text-secondary">{subtitle}</p>}
