@@ -98,6 +98,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_skills_report", "telegram_bridge_status", "hooks_read",
     // Usage + retrospect analytics (the same numbers the desktop shows).
     "usage_entries", "retrospect_rollup",
+    // Projects: the index and a project's replay prompt (read side; building
+    // runs the synthesis model, so it stays on the desktop).
+    "projects_index", "projects_replay",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.

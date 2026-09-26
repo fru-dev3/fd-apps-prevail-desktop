@@ -3,13 +3,13 @@
 // state closure.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { IntentsWorkbench } from "./intentsworkbench";
-import { Archive, ArrowRight, Bell, Brain, ChevronRight, Eye, Folder, GraduationCap, Laptop, Lightbulb, ListChecks, Loader2, MessageSquarePlus, Server, Sparkles, Upload, X } from "lucide-react";
+import { Archive, Bell, Brain, ChevronRight, Eye, Folder, FolderKanban, GraduationCap, Laptop, Lightbulb, ListChecks, MessageSquarePlus, Server, Sparkles, Upload, X } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
 import { CollapsibleSection } from "./collapsible";
 import { formatFreshness, titleCase } from "./format";
-import { PREF, cheapModel, getPref, lsGet, lsSet, setPref } from "./storage";
+import { PREF, cheapModel, getPref, lsSet, setPref } from "./storage";
 import { Toggle } from "./ui";
 import { DaemonCard, HeadlessLearnCard } from "./panels";
 import { distillCfgFromPrefs, intentDaemonCfgFromPrefs, skillgenCfgFromPrefs, taskgenCfgFromPrefs } from "./daemoncfg";
@@ -484,21 +484,6 @@ type DistilledIntent = {
   prompt_ts?: number[];
 };
 
-// Pretty labels for the source surfaces a distilled intent can come from. Keeps
-// the engine slugs (claude/codex/…) human-readable in the provenance badges.
-const SOURCE_LABELS: Record<string, string> = {
-  claude: "Claude Code",
-  codex: "Codex",
-  gemini: "Gemini",
-  antigravity: "Antigravity",
-  opencode: "opencode",
-  openclaw: "Openclaw",
-  hermes: "Hermes",
-  pi: "Pi",
-  cursor: "Cursor",
-  prevail: "Prevail chat",
-};
-const sourceLabel = (s: string) => SOURCE_LABELS[s.toLowerCase()] ?? titleCase(s);
 type DistilledDoc = { generated_ts: number; source_count: number; intents: DistilledIntent[] };
 
 export function IntentsSection({ vaultPath }: { vaultPath: string }) {
@@ -506,26 +491,6 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
   const [intents, setIntents] = useState<IntentRow[]>([]);
   // Distilled layer: high-level intents + recommendations inferred from the log.
   const [distilled, setDistilled] = useState<DistilledDoc>({ generated_ts: 0, source_count: 0, intents: [] });
-  const [distilling, setDistilling] = useState(false);
-  const [distillMsg, setDistillMsg] = useState<string | null>(null);
-  const [openIntent, setOpenIntent] = useState<number | null>(null);
-  // Render-pagination: cap how many rows hit the DOM so a vault with hundreds of
-  // intents / thousands of journal rows stays responsive. "Load more" reveals
-  // the next page; the search/filter still runs across the FULL set.
-  const INTENTS_PAGE = 12;
-  const [intentsShown, setIntentsShown] = useState(INTENTS_PAGE);
-  const [intentQuery, setIntentQuery] = useState("");
-  // Recommendations that have been turned into tracked tasks (keyed intent:rec).
-  const [addedRecs, setAddedRecs] = useState<Set<string>>(new Set());
-  async function addRecAsTask(intent: DistilledIntent, rec: string, key: string) {
-    const domain = (intent.domains && intent.domains[0]) || "general";
-    try {
-      await invoke("tasks_add", { vault: vaultPath, domain, text: rec, source: "intent" });
-      setAddedRecs((s) => new Set(s).add(key));
-    } catch (e) {
-      console.error("tasks_add from intent", e);
-    }
-  }
   useEffect(() => {
     // The journal merges the native ledger (Prevail chats) with prompts captured
     // from other tools (Claude Code, Codex, …), newest first, so "what you asked"
@@ -542,61 +507,6 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
       .then((d) => setDistilled(d ?? { generated_ts: 0, source_count: 0, intents: [] }))
       .catch(() => {});
   }, [vaultPath]);
-  async function distillNow() {
-    setDistilling(true);
-    setDistillMsg(null);
-    try {
-      const provider = getPref(PREF.memoryProvider, "claude");
-      // Don't hand a claude-specific model id to a non-claude CLI (that made the
-      // distiller emit an error line with no JSON array). Use the default only
-      // for claude; for other providers, pass a stored model only if it isn't a
-      // claude id, else let the engine pick that provider's default.
-      const storedModel = getPref(PREF.distillModel, "");
-      const model = provider === "claude"
-        ? (storedModel || "claude-haiku-4-5")
-        : (storedModel && !storedModel.startsWith("claude") ? storedModel : "");
-      const doc = await invoke<DistilledDoc>("intents_distill", { cfg: { vault: vaultPath, provider, model, limit: 200 } });
-      setDistilled(doc);
-      setDistillMsg(`Distilled ${doc.intents?.length ?? 0} intent${(doc.intents?.length ?? 0) === 1 ? "" : "s"} from ${doc.source_count} prompts.`);
-    } catch (e) {
-      setDistillMsg(`Distill failed: ${e}`);
-    } finally {
-      setDistilling(false);
-    }
-  }
-  // M4 (Monday feedback): let the user dismiss distilled intents so the list
-  // doesn't grow punishingly long. Dismissed keys persist locally; the next
-  // distill can re-surface a genuinely active intent under a new title.
-  const DISMISS_KEY = "prevail.intents.dismissed";
-  const [dismissed, setDismissed] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(lsGet(DISMISS_KEY) || "[]")); } catch { return new Set(); }
-  });
-  const intentKey = (it: DistilledIntent, i: number) => (it.title || it.goal || `#${i}`).trim().toLowerCase();
-  const dismissIntent = (key: string) => setDismissed((cur) => {
-    const n = new Set(cur); n.add(key); lsSet(DISMISS_KEY, JSON.stringify([...n])); return n;
-  });
-  const statusTone = (s?: string) => s === "active" ? "text-accent" : s === "resolved" ? "text-ok" : "text-text-muted";
-  // Non-dismissed intents (original index preserved for openIntent/dismiss keys),
-  // then sliced to the current page.
-  const iq = intentQuery.trim().toLowerCase();
-  const visibleIntentPairs = distilled.intents
-    .map((it, i) => [it, i] as const)
-    .filter(([it, i]) => !dismissed.has(intentKey(it, i)))
-    .filter(([it]) =>
-      !iq ||
-      [it.title, it.goal, it.underlying_need, it.status, ...(it.domains ?? []), ...(it.sources ?? []), ...(it.recommendations ?? []), ...(it.open_questions ?? []), ...(it.evidence ?? [])]
-        .filter(Boolean)
-        .some((s) => String(s).toLowerCase().includes(iq)),
-    );
-  const pagedIntents = visibleIntentPairs.slice(0, intentsShown);
-  // When every intent on screen came from the same place, saying so on every
-  // card is a column of identical badges. The chip appears only when the list
-  // actually has more than one source to distinguish.
-  const allOneSource = (() => {
-    const seen = new Set<string>();
-    for (const [it] of visibleIntentPairs) for (const src of it.sources ?? []) seen.add(String(src));
-    return seen.size <= 1;
-  })();
   // Captured rows carry a tool slug as their `domain`; keep those out of the
   // life-domain filter so the dropdown stays meaningful (you filter them by
   // surface badge instead).
@@ -608,151 +518,30 @@ export function IntentsSection({ vaultPath }: { vaultPath: string }) {
         subtitle="The goal behind your questions."
       />
 
-      {/* Distilled intents - the high-level layer. */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-text-primary">Distilled intents</span>
-        {distilled.generated_ts > 0 && (
-          <span className="font-mono text-[10px] text-text-muted">
-            {distilled.intents.length} from {distilled.source_count} prompts · {formatFreshness(Math.max(0, (Date.now() - distilled.generated_ts * 1000) / 1000))}
-          </span>
-        )}
-        <div className="flex-1" />
+      {/* The distilled layer lives in Retrospect > Projects now: the whole
+          prompt history grouped by what it was building, with replay briefs
+          and recommendations. A second list here showed the same intents from
+          only the newest 200 prompts. */}
+      <div className="mb-8 flex flex-wrap items-center gap-4 rounded-xl border border-accent-border bg-accent-soft/40 p-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><FolderKanban className="h-5 w-5" /></span>
+        <div className="min-w-0 flex-1">
+          <div className="font-display text-lg font-semibold text-text-primary">Your intents live with your projects</div>
+          <div className="mt-0.5 text-[13px] leading-snug text-text-secondary">
+            {distilled.generated_ts > 0
+              ? `${distilled.intents.length} projects distilled from ${distilled.source_count.toLocaleString()} of your prompts, each with a replay brief and next steps.`
+              : "Every prompt you have typed, grouped by what you were building, each with a replay brief and next steps."}
+          </div>
+        </div>
         <button
-          onClick={distillNow}
-          disabled={distilling}
-          title="Read the prompt log and infer your high-level intents + next actions"
-          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-background hover:bg-accent-hover disabled:opacity-40"
+          onClick={() => {
+            try { localStorage.setItem("prevail.retrospect.lens", "projects"); } catch { /* storage off */ }
+            window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "retrospect" }));
+          }}
+          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-background hover:bg-accent-hover"
         >
-          {distilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {distilling ? "Distilling…" : distilled.generated_ts > 0 ? "Re-distill" : "Distill intents"}
+          Open Projects <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </div>
-      {distillMsg && <div className="mb-3 rounded-md border border-border-subtle bg-surface px-3 py-2 text-xs text-text-secondary">{distillMsg}</div>}
-      {distilled.intents.length > 0 && (
-        <div className="mb-3">
-          <input
-            value={intentQuery}
-            onChange={(e) => { setIntentQuery(e.target.value); setIntentsShown(INTENTS_PAGE); }}
-            placeholder="search intents…"
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
-          />
-          {intentQuery.trim() && (
-            <div className="mt-1 px-1 font-mono text-[10px] text-text-muted">
-              {visibleIntentPairs.length} of {distilled.intents.length} intents match “{intentQuery.trim()}”
-            </div>
-          )}
-        </div>
-      )}
-      {distilled.intents.length === 0 ? (
-        <div className="mb-6 rounded-lg border border-dashed border-border bg-surface p-6 text-sm text-text-muted">
-          No distilled intents yet. Hit <span className="text-accent">Distill intents</span> to infer the goals behind your prompts and get recommended next actions.
-        </div>
-      ) : (
-        <div className="mb-6 space-y-2">
-          {pagedIntents.map(([it, i]) => {
-            const open = openIntent === i;
-            return (
-              <div key={i} className="overflow-hidden rounded-xl border border-border bg-surface">
-               <div className="flex items-start">
-                <button onClick={() => setOpenIntent(open ? null : i)} className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left hover:bg-surface-warm">
-                  <ChevronRight className={`mt-0.5 h-4 w-4 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent"><Lightbulb className="h-4 w-4" /></span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-display text-base font-semibold tracking-tight text-text-primary">{it.title ?? "Intent"}</span>
-                      {it.status && <span className={`text-[11px] ${statusTone(it.status)}`}>{it.status}</span>}
-                      {typeof it.confidence === "number" && <span className="font-mono text-[10px] text-text-muted">{Math.round(it.confidence * 100)}%</span>}
-                    </div>
-                    {it.goal && <div className="mt-0.5 text-sm text-text-secondary">{it.goal}</div>}
-                    {/* Provenance earns a row only when it differs. Every
-                        intent drawn from the same one CLI printed the same
-                        "From Claude Code" chip on every card - a column of
-                        identical badges saying what the header could say once.
-                        `allOneSource` is computed over the whole list. */}
-                    {(it.sources ?? []).length > 0 && !allOneSource && (
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                        <span className="text-[11px] text-text-muted">From</span>
-                        {(it.sources ?? []).map((s) => (
-                          <span key={s} className="inline-flex items-center gap-1 rounded border border-ai/30 bg-ai/5 px-1.5 py-0.5 font-mono text-[10px] text-ai" title="Surface this intent was drawn from">
-                            {sourceLabel(s)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <span className="hidden shrink-0 items-center gap-1 sm:flex">
-                    {(it.domains ?? []).slice(0, 3).map((d) => (
-                      <span key={d} className="rounded bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{titleCase(d)}</span>
-                    ))}
-                  </span>
-                </button>
-                {/* M4: dismiss this intent so the list stays manageable. */}
-                <button onClick={() => dismissIntent(intentKey(it, i))} title="Dismiss this intent"
-                  className="m-2 shrink-0 rounded p-1 text-text-muted hover:bg-surface-warm hover:text-err">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-               </div>
-                {open && (
-                  <div className="space-y-3 border-t border-border-subtle px-4 py-4 pl-[60px] text-sm">
-                    {it.underlying_need && (
-                      <div><span className="text-[11px] text-text-muted">Underlying need</span><div className="mt-0.5 text-text-secondary">{it.underlying_need}</div></div>
-                    )}
-                    {(it.recommendations ?? []).length > 0 && (
-                      <div>
-                        <span className="text-[11px] text-accent">Recommended next actions</span>
-                        <ul className="mt-1 space-y-1">
-                          {it.recommendations!.map((r, j) => {
-                            const key = `${i}:${j}`;
-                            const added = addedRecs.has(key);
-                            return (
-                              <li key={j} className="group/rec flex items-start gap-2">
-                                <ArrowRight className="mt-1 h-3 w-3 shrink-0 text-accent" />
-                                <span className="flex-1 text-text-primary">{r}</span>
-                                <button
-                                  onClick={() => addRecAsTask(it, r, key)}
-                                  disabled={added}
-                                  title={added ? "Added to your tasks" : `Add as a task in ${titleCase((it.domains && it.domains[0]) || "general")}`}
-                                  className={`shrink-0 rounded-md border px-2 py-0.5 text-[11px] transition-colors ${added ? "border-ok/40 text-ok" : "border-border text-text-muted hover:border-accent-border hover:text-accent"}`}
-                                >
-                                  {added ? "added ✓" : "+ task"}
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    )}
-                    {(it.open_questions ?? []).length > 0 && (
-                      <div>
-                        <span className="text-[11px] text-text-muted">Open questions</span>
-                        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-text-secondary">
-                          {it.open_questions!.map((qq, j) => <li key={j}>{qq}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    {(it.evidence ?? []).length > 0 && (
-                      <div>
-                        <span className="text-[11px] text-text-muted">Evidence ({it.evidence!.length} prompts)</span>
-                        <ul className="mt-1 space-y-0.5">
-                          {it.evidence!.map((e, j) => <li key={j} className="border-l-2 border-border-subtle pl-2 text-text-muted">{e}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {visibleIntentPairs.length > intentsShown && (
-            <button
-              onClick={() => setIntentsShown((n) => n + INTENTS_PAGE)}
-              className="w-full rounded-xl border border-dashed border-border bg-surface px-4 py-2.5 text-sm text-text-secondary hover:border-accent-border hover:text-accent"
-            >
-              Show {Math.min(INTENTS_PAGE, visibleIntentPairs.length - intentsShown)} more · {intentsShown} of {visibleIntentPairs.length}
-            </button>
-          )}
-        </div>
-      )}
 
       {/* The raw "what you asked" ledger, made usable: recurring rollup, grouping,
           filters, pinning, and reuse. Intents above are the semantic distillation. */}

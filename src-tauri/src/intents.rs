@@ -231,127 +231,6 @@ pub(crate) struct IntentsDistillCfg {
     pub limit: Option<usize>,
 }
 
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
-fn build_intents_prompt(activity: &str, existing_domains: &[String]) -> String {
-    // The user's existing domains, so the distiller REUSES them instead of
-    // coining a new granular label for every cluster (which fragments the vault
-    // into dozens of overlapping domains). Domains must stay broad/encompassing.
-    let domains_line = if existing_domains.is_empty() {
-        "(none yet)".to_string()
-    } else {
-        existing_domains.join(", ")
-    };
-    format!(
-        "You are Prevail's intent analyst. Below is a chronological log of the user's \
-prompts. Each line is `#N [domain via surface] prompt` (or `#N [surface] prompt`), \
- where #N is a stable reference number for that prompt. \
-The SURFACE is the app or tool the prompt was typed in - e.g. claude (Claude Code), \
-codex, gemini, antigravity, opencode, or prevail (the Prevail desktop chat).\n\n\
-Your job is NOT to summarize the prompts. Infer the HIGH-LEVEL INTENTS behind \
-them - the real goals the user is pursuing - by clustering related prompts \
-across sessions, domains, and surfaces. Lift each cluster up a level of abstraction: e.g. \
-prompts comparing car models map to the intent \"Evaluating a vehicle purchase\" \
-with underlying need \"transportation\", not \"asked about Toyota vs Honda\".\n\n\
-The user's EXISTING DOMAINS are: {domains_line}.\n\
-DOMAIN RULES (critical - the user manages these by hand and does NOT want domain sprawl):\n\
-- For the \"domains\" field, STRONGLY PREFER an existing domain from the list above. Reuse beats creating.\n\
-- A domain is a BROAD, encompassing area of life or work (e.g. \"career\", \"health\", \"finance\", a major project), NOT a sub-topic, skill, tool, or facet. Things like \"software architecture\", \"product design\", \"ui/ux\", \"integration\", \"ai/agent systems\" are all FACETS of one project or domain - map them to that single existing domain, never to separate new domains.\n\
-- Only use a domain name NOT in the list when the intent genuinely fits NO existing domain AND is itself a broad new life/work area worth tracking on its own. This should be rare. When in doubt, reuse the closest existing domain.\n\
-- Do not output two domain names that are facets of the same thing. Collapse them.\n\n\
-Return ONLY a JSON array (no prose, no markdown fences). Each element:\n\
-{{\n  \"title\": short intent name,\n  \"goal\": one sentence - what they are really trying to achieve,\n  \"underlying_need\": the deeper need behind it,\n  \"domains\": [domains it spans - prefer existing ones],\n  \"sources\": [the distinct surfaces these prompts came from, e.g. \"claude\", \"codex\", \"prevail\"],\n  \"status\": \"active\" | \"dormant\" | \"resolved\",\n  \"confidence\": 0.0-1.0,\n  \"open_questions\": [the next things to figure out],\n  \"evidence\": [2-4 short quoted snippets from the prompts that support this],\n  \"prompt_refs\": [the #N reference numbers of EVERY prompt in the log that belongs to this intent - be inclusive; this is how prompts nest under the intent],\n  \"recommendations\": [concrete next actions Prevail could take or suggest]\n}}\n\n\
-Produce 3-8 intents, most important first. Be specific and genuinely useful; \
-never invent facts not supported by the prompts. For \"sources\", list ONLY surfaces \
-that actually appear in this intent's prompts; never invent one.\n\n\
-OUTPUT FORMAT (non-negotiable): your entire response MUST be a single JSON array. \
-Begin with `[` and end with `]`. No preamble, no explanation, no markdown fences. \
-If there is nothing to report, output exactly `[]`.\n\n\
-PROMPT LOG:\n{activity}\n"
-    )
-}
-
-/// Strip a leading/trailing markdown code fence (```json ... ```), returning the
-/// inner content. No fence -> the input trimmed.
-fn strip_code_fences(s: &str) -> &str {
-    let s = s.trim();
-    if let Some(rest) = s.strip_prefix("```") {
-        // Drop an optional language tag on the fence's first line.
-        let rest = rest.splitn(2, '\n').nth(1).unwrap_or(rest);
-        return rest.trim_end().strip_suffix("```").unwrap_or(rest).trim();
-    }
-    s
-}
-
-/// The balanced `[ ... ]` slice that STARTS at byte index `start` (which must be
-/// a `[`), string/escape aware. None if it never closes.
-fn balanced_array_from(s: &str, start: usize) -> Option<&str> {
-    let b = s.as_bytes();
-    let (mut depth, mut in_str, mut esc) = (0i32, false, false);
-    for i in start..b.len() {
-        let c = b[i];
-        if esc {
-            esc = false;
-        } else if in_str {
-            match c {
-                b'\\' => esc = true,
-                b'"' => in_str = false,
-                _ => {}
-            }
-        } else {
-            match c {
-                b'"' => in_str = true,
-                b'[' => depth += 1,
-                b']' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(&s[start..=i]);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    None
-}
-
-/// Pull the JSON array out of a model's output. Robust to markdown fences, a
-/// `{"intents":[...]}` wrapper, and leading/trailing prose - the old first-`[`/
-/// last-`]` slice failed ("model output had no JSON array") whenever the model
-/// added any preamble. Returns the parsed array of intent objects.
-fn parse_intents_output(out: &str) -> Result<serde_json::Value, String> {
-    let cleaned = strip_code_fences(out);
-    // 1) Whole thing already parses as an array, or a {"intents":[...]} wrapper.
-    if let Ok(v) = serde_json::from_str::<serde_json::Value>(cleaned) {
-        if v.is_array() {
-            return Ok(v);
-        }
-        if let Some(arr) = v.get("intents").filter(|a| a.is_array()) {
-            return Ok(arr.clone());
-        }
-    }
-    // 2) Try each `[` in turn: take the balanced array starting there and parse
-    // it; return the first that is a valid JSON array. This skips stray prose
-    // brackets like "[see below]" that aren't valid JSON.
-    let mut from = 0usize;
-    while let Some(rel) = cleaned[from..].find('[') {
-        let start = from + rel;
-        if let Some(slice) = balanced_array_from(cleaned, start) {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(slice) {
-                if v.is_array() {
-                    return Ok(v);
-                }
-            }
-        }
-        from = start + 1;
-    }
-    Err("model output had no JSON array".into())
-}
 
 /// Count every intent record across the vault. Cheap signal the daemon uses to
 /// decide whether enough NEW prompts have arrived to be worth a model pass.
@@ -455,109 +334,27 @@ pub(crate) fn capture_prompts_read(
 }
 
 /// The reusable distillation core - called by both the manual command and the
-/// background daemon. Reads the ledger, runs one model pass, writes
-/// <vault>/_meta/intents_distilled.json, and returns the document.
+/// background daemon. Distilling is the engine's projects build now: it reads
+/// the WHOLE prompt history (every harness, Prevail's own traffic removed),
+/// groups it by project with the most capable model, and writes
+/// intents_distilled.json (one intent per project) alongside the replay packs.
+/// The old path here read only the newest `limit` prompts (200) and replaced
+/// the file each run, so it showed about ten hours of a seven-month history.
+/// `provider`/`model`/`limit` are accepted for the existing callers and
+/// config, and ignored: synthesis quality is the point, so the engine picks
+/// its top model.
 pub(crate) async fn distill_intents_core(
     vault: &str,
-    provider: &str,
-    model: &str,
-    limit: usize,
+    _provider: &str,
+    _model: &str,
+    _limit: usize,
 ) -> Result<serde_json::Value, String> {
-    // Merge the native ledger with the captured cross-tool prompt streams, then
-    // keep the newest `limit` across both so a unified chronological log feeds
-    // the model.
-    let mut intents = intents_read_all_impl(vault.to_string(), Some(limit))?;
-    intents.extend(read_capture_prompts(vault, Some(limit)));
-    intents.sort_by_key(|v| std::cmp::Reverse(v.get("ts").and_then(|t| t.as_i64()).unwrap_or(0)));
-    intents.truncate(limit);
-    if intents.is_empty() {
-        return Err("No prompts captured yet. Chat a bit, or run capture sync.".into());
-    }
-    // Oldest-first so the model reads the narrative in order; cap each line.
-    // Each line is numbered (#N) and we keep N -> ts, so the model can cite which
-    // prompts feed each intent (prompt_refs) and we resolve those to timestamps
-    // the desktop matches exactly (prompt_ts) - real parentage, not keyword guess.
-    let mut activity = String::new();
-    let mut line_ts: Vec<i64> = Vec::new();
-    for v in intents.iter().rev() {
-        let dom = v.get("domain").and_then(|d| d.as_str()).unwrap_or("general");
-        let surface = v.get("surface").and_then(|s| s.as_str()).unwrap_or("prevail");
-        let msg = v.get("message").and_then(|m| m.as_str()).unwrap_or("");
-        if msg.trim().is_empty() {
-            continue;
-        }
-        let ts = v.get("ts").and_then(|t| t.as_i64()).unwrap_or(0);
-        let m: String = msg.chars().take(400).collect();
-        // `[domain via surface]` when they differ (native ledger), else `[surface]`
-        // (captured cross-tool prompts, where domain == tool == surface). Gives
-        // the model both the life-domain hint and the provenance tag. The
-        // machine (host) rides along when known, so the distiller can also see
-        // WHERE activity happens (hub vs laptop) and weigh it.
-        let host = v.get("host").and_then(|h| h.as_str()).unwrap_or("");
-        let mut tag = if dom == surface {
-            surface.to_string()
-        } else {
-            format!("{dom} via {surface}")
-        };
-        if !host.is_empty() {
-            tag = format!("{tag} @ {host}");
-        }
-        line_ts.push(ts);
-        activity.push_str(&format!("#{} [{tag}] {}\n", line_ts.len(), m.replace('\n', " ")));
-    }
-    if activity.trim().is_empty() {
-        return Err("No prompt text to analyze.".into());
-    }
-    let ideal = crate::ideal_state_preamble(std::path::Path::new(vault));
-    let existing_domains = crate::vault::list_domain_names(vault);
-    let prompt = format!("{ideal}{}", build_intents_prompt(&activity, &existing_domains));
-
-    crate::bunker::guard_cli(provider)?;
-    let model_opt = if model.is_empty() { None } else { Some(model) };
-    let out = crate::telegram_bridge::run_cli(provider, model_opt, &prompt).await?;
-    if out.trim().is_empty() {
-        return Err("intent distiller produced no output".into());
-    }
-    let mut arr = parse_intents_output(&out)?;
-    // Resolve each intent's prompt_refs (#N line numbers) to the timestamps of
-    // those log lines, so the desktop nests prompts under themes by exact match.
-    if let Some(items) = arr.as_array_mut() {
-        for it in items.iter_mut() {
-            let refs: Vec<i64> = it
-                .get("prompt_refs")
-                .and_then(|r| r.as_array())
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|n| n.as_i64())
-                        .filter_map(|n| {
-                            let idx = (n - 1) as usize; // #N is 1-based
-                            line_ts.get(idx).copied().filter(|t| *t > 0)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            if let Some(obj) = it.as_object_mut() {
-                obj.insert("prompt_ts".into(), serde_json::json!(refs));
-            }
-        }
-    }
-    let doc = serde_json::json!({
-        "generated_ts": now_secs(),
-        "source_count": intents.len(),
-        "intents": arr,
-    });
-    let meta_dir = crate::paths::build_root(vault).join("_meta");
-    fs::create_dir_all(&meta_dir).map_err(|e| format!("mkdir _meta: {e}"))?;
-    let path = meta_dir.join("intents_distilled.json");
-    let body = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
-    fs::write(&path, engine::maybe_encrypt(&path, &body))
-        .map_err(|e| format!("write intents_distilled.json: {e}"))?;
-    Ok(doc)
+    crate::projects::projects_build(vault.to_string(), None, None, None).await?;
+    intents_distilled_read(vault.to_string())
 }
 
-/// Distill the raw intent ledger into high-level intents + recommendations and
-/// persist them to <vault>/_meta/intents_distilled.json. Runs a single model
-/// pass (a cheap model is plenty). Returns the written document.
+/// Distill the whole prompt history into projects and intents (see
+/// distill_intents_core). Returns the written intents document.
 #[tauri::command]
 pub(crate) async fn intents_distill(
     cfg: IntentsDistillCfg,
@@ -735,47 +532,3 @@ mod capture_source_tests {
     }
 }
 
-#[cfg(test)]
-mod parse_intents_tests {
-    use super::*;
-
-    #[test]
-    fn parses_bare_array() {
-        let v = parse_intents_output("[{\"title\":\"a\"}]").unwrap();
-        assert!(v.is_array());
-        assert_eq!(v.as_array().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn parses_array_wrapped_in_prose() {
-        // The old first-'['/last-']' slice broke when prose contained a stray '['.
-        let out = "Here are the intents [see below]:\n[{\"title\":\"a\"},{\"title\":\"b\"}]\nDone.";
-        let v = parse_intents_output(out).unwrap();
-        assert_eq!(v.as_array().unwrap().len(), 2);
-    }
-
-    #[test]
-    fn parses_fenced_json() {
-        let out = "```json\n[{\"title\":\"a\"}]\n```";
-        let v = parse_intents_output(out).unwrap();
-        assert_eq!(v.as_array().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn unwraps_intents_object() {
-        let out = "{\"intents\": [{\"title\":\"a\"}]}";
-        let v = parse_intents_output(out).unwrap();
-        assert_eq!(v.as_array().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn empty_array_is_ok() {
-        let v = parse_intents_output("[]").unwrap();
-        assert_eq!(v.as_array().unwrap().len(), 0);
-    }
-
-    #[test]
-    fn genuine_prose_with_no_array_errors() {
-        assert!(parse_intents_output("I cannot help with that.").is_err());
-    }
-}

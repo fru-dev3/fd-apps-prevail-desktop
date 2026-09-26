@@ -142,6 +142,14 @@ pub fn retrospect_rollup(
         _ => "month".to_string(),
     };
     let tz = tz_offset_minutes.unwrap_or(0);
+    // The engine rolls up the whole prompt history (every harness, Prevail's
+    // own traffic removed) with per-project counts. The ledger-only rollup
+    // below is the fallback for when the engine can't run.
+    if let Ok(v) = crate::projects::timeline(&vault, &vantage, tz) {
+        if v.get("periods").and_then(|p| p.as_array()).is_some() {
+            return Ok(v);
+        }
+    }
     let mut buckets: HashMap<String, Bucket> = HashMap::new();
     let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
 
