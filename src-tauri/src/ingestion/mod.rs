@@ -138,37 +138,12 @@ pub fn ingestion_composio_stop(
     rt.stop().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn ingestion_keychain_set(
-    service: String,
-    account: String,
-    secret: String,
-) -> Result<(), String> {
-    keychain::set(&service, &account, &secret).map_err(|e| e.to_string())
-}
-
 // SECURITY: there is intentionally NO `ingestion_keychain_get` Tauri command.
 // Exposing a generic "read any Keychain secret by service+account" to the JS
 // layer would be a broad exfiltration primitive if the renderer were ever
 // compromised. Rust-internal callers use `keychain::get(...)` directly; the
 // frontend only ever learns whether a secret EXISTS (see `provider_key_exists`),
 // never its value.
-
-#[tauri::command]
-pub fn ingestion_keychain_del(
-    service: String,
-    account: String,
-) -> Result<(), String> {
-    keychain::del(&service, &account).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn ingestion_mcp_config_path() -> Result<String, String> {
-    Ok(storage::app_support_root()?
-        .join("mcp_config.json")
-        .to_string_lossy()
-        .to_string())
-}
 
 /// Create a blank `mcp_config.json` with the right schema if it
 /// doesn't already exist. Returns the path either way.

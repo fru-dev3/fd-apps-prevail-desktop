@@ -1481,13 +1481,6 @@ pub fn engine_app_set_schedule(
     run_engine_json(&refs)
 }
 
-/// Set (or clear) an app's "what to pull" instruction, which the gateway sync
-/// injects so the user controls exactly what each sync fetches. Empty clears it.
-#[tauri::command]
-pub fn engine_app_set_pull_instructions(id: String, instructions: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "set", &id, "instructions", &instructions, "--json"])
-}
-
 /// Read an app's soul note (apps/<id>/soul.md) — the same construct domains use,
 /// declaring WHY the app is in the user's harness. The agent reads it on every
 /// run. Returns { ok, soul, path? }.
@@ -1722,13 +1715,6 @@ pub async fn engine_run_playbook_stream(
 ) -> Result<(), String> {
     let args = vec!["run-playbook".to_string(), id, "--stream".to_string()];
     run_engine_stream(app, session, args, "playbook_run").await
-}
-
-/// Discover what data a gateway app CAN provide (one agent turn over the
-/// gateway). Long-running like a sync; returns { ok, markdown?, error? }.
-#[tauri::command]
-pub fn engine_app_gateway_capabilities(id: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "gateway-capabilities", &id, "--json"])
 }
 
 /// Enable / disable an app's autonomous sync. A disabled app stays configured
@@ -2552,51 +2538,6 @@ pub fn engine_appmode_mark_demo(vault: String) -> Result<serde_json::Value, Stri
 #[tauri::command]
 pub fn engine_discover_models(provider: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["models", &provider])
-}
-
-/// `prevail --vault <vault> vault embed --from <vault> --json`
-/// Non-destructively copy the active vault into the app-owned location
-/// (~/.prevail/vault) and repoint config there. Returns the engine's
-/// MigrateResult { dest, alreadyEmbedded, copied, sourceFiles, ok }. The source
-/// is left intact; the desktop repoints its own vaultPath to `dest` on success.
-#[tauri::command]
-pub fn engine_vault_embed(vault: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["--vault", &vault, "vault", "embed", "--from", &vault])
-}
-
-/// W4 — `prevail --vault <vault> vault migrate-data --json`
-/// Relocate the whole vault under <vault>/data (non-destructive copy + verify),
-/// then the engine repoints config.vaultPath to <vault>/data. Returns
-/// { dataDir, ok, repointed, ... }; the desktop repoints its own vaultPath to
-/// `dataDir` on success, exactly like the embed flow.
-#[tauri::command]
-pub fn engine_vault_migrate_data(vault: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["--vault", &vault, "vault", "migrate-data"])
-}
-
-/// W4 — `prevail --vault <dataDir> vault archive-data --force --json`
-/// AFTER migration + repoint, move the orphaned originals at the true root into a
-/// timestamped backup (never deletes). `vault` is the repointed data dir.
-#[tauri::command]
-pub fn engine_vault_archive_data(vault: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["--vault", &vault, "vault", "archive-data", "--force"])
-}
-
-/// B2-12 — `prevail --vault <vault> vault migrate-build --json`
-/// Tidy the General/root SUPPORTING runtime files into <vault>/build/
-/// (non-destructive copy + verify, originals left). No config repoint needed —
-/// buildRoot()/runtime_file() resolve to build/ once it exists.
-#[tauri::command]
-pub fn engine_vault_migrate_build(vault: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["--vault", &vault, "vault", "migrate-build"])
-}
-
-/// B2-12 — `prevail --vault <vault> vault archive-build --force --json`
-/// AFTER a verified build/ migration, move the duplicated root originals into a
-/// timestamped `_pre-build-*` backup (never deletes).
-#[tauri::command]
-pub fn engine_vault_archive_build(vault: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["--vault", &vault, "vault", "archive-build", "--force"])
 }
 
 /// `prevail --vault <vault> score <domain> [--audit] --json`

@@ -373,54 +373,6 @@ pub fn google_profiles() -> Result<Vec<serde_json::Value>, String> {
     Ok(out)
 }
 
-/// Authorize (or re-authorize) a Google profile: runs `gws auth login` with the
-/// Gmail/Calendar/Drive scopes in that profile's config dir. Opens the browser;
-/// long-running, so it runs off the UI thread. `config_dir` empty = a NEW profile
-/// under ~/.config/gws-<label>. Returns { ok, output, configDir }.
-#[tauri::command]
-pub async fn google_profile_login(label: String, config_dir: Option<String>) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let home = std::env::var("HOME").unwrap_or_default();
-        let dir = match config_dir.filter(|d| !d.trim().is_empty()) {
-            Some(d) => d,
-            None => {
-                let safe = label.trim().to_lowercase().chars()
-                    .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-                    .collect::<String>();
-                let safe = safe.trim_matches('-').to_string();
-                if safe.is_empty() || safe == "default" {
-                    format!("{home}/.config/gws")
-                } else {
-                    format!("{home}/.config/gws-{safe}")
-                }
-            }
-        };
-        let bin = resolve_gws_bin().ok_or_else(|| "Google Workspace CLI (gws) not found".to_string())?;
-        let _ = std::fs::create_dir_all(&dir);
-        // Seed a NEW profile with the default profile's OAuth client so the new
-        // account can actually complete OAuth (gws has no per-login client flag;
-        // it reads client_secret.json from the config dir). Honest error if the
-        // default client can't be located.
-        ensure_oauth_client(Path::new(&dir))?;
-        // Request the read+send scopes the connector needs across the ecosystem.
-        let out = Command::new(&bin)
-            .args(["auth", "login", "--scopes", GWS_SCOPES])
-            .env("PATH", gws_path())
-            .env("GOOGLE_WORKSPACE_CLI_CONFIG_DIR", &dir)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .map_err(|e| format!("gws auth login failed to start: {e}"))?;
-        let text = format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
-        Ok(serde_json::json!({ "ok": out.status.success(), "output": crate::engine::cap_output(&text), "configDir": dir }))
-    })
-    .await
-    .map_err(|e| format!("join: {e}"))?
-}
-
 /// Remove a Google profile by deleting its gws config dir, so the user can clear
 /// a stuck or half-set-up account and start fresh. Guarded: the directory must
 /// live under ~/.config AND be a gws / gws-* profile dir, never anything else.
@@ -954,7 +906,7 @@ fn find_file(root: &Path, name: &str) -> Option<PathBuf> {
 
 /// One-click browser OAuth: runs `gws auth login` with the connector's scopes,
 /// streaming output on `google_auth:line` / `google_auth:done`. `config_dir`
-/// selects a profile (same env mechanism as `google_profile_login`); empty/None
+/// selects a profile (via GOOGLE_WORKSPACE_CLI_CONFIG_DIR); empty/None
 /// uses the default profile (~/.config/gws). When the gws auth URL appears, it
 /// is ALSO opened in the browser via the opener plugin as a backup, in case gws
 /// did not auto-open. Success is derived from the output ("status": "success" /
@@ -984,8 +936,8 @@ pub async fn google_auth_login_stream(
 
     let home = std::env::var("HOME").unwrap_or_default();
     // An explicit config_dir wins (re-authorizing an existing profile). Otherwise
-    // derive the dir from the label for a NEW named profile (same scheme as
-    // google_profile_login), falling back to the default profile.
+    // derive the dir from the label for a NEW named profile (~/.config/gws-<label>),
+    // falling back to the default profile.
     let dir = match config_dir.filter(|d| !d.trim().is_empty()) {
         Some(d) => d,
         None => {
