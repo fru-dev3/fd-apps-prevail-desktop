@@ -93,6 +93,9 @@ describe("apps mirror model", () => {
   it("uses the product site for connectors on a shared API host", () => {
     expect(logoHost("Gmail", "https://gmailmcp.googleapis.com/mcp/v1")).toBe("mail.google.com");
     expect(logoHost("Acme Notes", "https://mcp.acmenotes.example/mcp")).toBe("acmenotes.example");
+    expect(logoHost("Google Calendar", "https://calendarmcp.googleapis.com/mcp/v1")).toBe("calendar.google.com");
+    expect(logoHost("Foo Planner", "https://foomcp.googleapis.com/mcp/v1")).toBe("foo.google.com");
+    expect(logoHost("Privacy.com", "https://mcp.privacy.com")).toBe("privacy.com");
   });
 
   it("builds the save payload with only sync-allowed read tools", () => {

@@ -15,7 +15,7 @@ export default defineConfig({
     viewport: { width: 1440, height: 900 },
   },
   webServer: {
-    command: "bunx vite --port 1420 --strictPort",
+    command: "npx vite --port 1420 --strictPort",
     url: "http://localhost:1420",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

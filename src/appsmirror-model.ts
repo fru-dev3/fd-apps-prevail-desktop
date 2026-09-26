@@ -185,7 +185,15 @@ const LOGO_HOSTS: Record<string, string> = {
   spotify: "spotify.com",
 };
 export function logoHost(name: string, url?: string): string | null {
-  return LOGO_HOSTS[(name || "").trim().toLowerCase()] ?? faviconHost(url);
+  const known = LOGO_HOSTS[(name || "").trim().toLowerCase()];
+  if (known) return known;
+  // Google serves each product's MCP from <product>mcp.googleapis.com; the
+  // product itself lives at <product>.google.com.
+  let host = "";
+  try { host = url ? new URL(url).hostname.toLowerCase() : ""; } catch { host = ""; }
+  const g = host.match(/^([a-z0-9-]+?)(?:mcp)?\.googleapis\.com$/);
+  if (g && g[1] !== "www") return `${g[1]}.google.com`;
+  return faviconHost(url);
 }
 
 export interface RecipeDraft {

@@ -82,14 +82,26 @@ pub async fn app_favicon(host: String) -> Result<String, String> {
 async fn fetch_favicon(host: &str) -> Option<String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(6))
+        .dns_resolver(std::sync::Arc::new(PublicOnlyResolver))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 || !is_public_https(attempt.url()) {
+                attempt.stop()
+            } else {
+                attempt.follow()
+            }
+        }))
         .build()
         .ok()?;
-    if let Some(uri) = fetch_icon(&client, &format!("https://{host}/favicon.ico")).await {
-        return Some(uri);
+    for path in icon_paths(host) {
+        if let Some(uri) = fetch_icon(&client, &format!("https://{host}{path}")).await {
+            return Some(uri);
+        }
     }
     // Many sites serve no /favicon.ico and declare their icon in the page head
-    // instead. Read the home page (size-capped) and follow the declared icon,
-    // but only to https on the same site, never to another host.
+    // instead, often on an asset host of their own (a CDN, a static domain).
+    // Read the home page (size-capped) and follow the declared icon over https
+    // to a named public host. The resolver refuses private addresses, so a page
+    // cannot point the fetch into the local network.
     let resp = client.get(format!("https://{host}/")).send().await.ok()?;
     if !resp.status().is_success() {
         return None;
@@ -103,6 +115,22 @@ async fn fetch_favicon(host: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Products whose site answers /favicon.ico and its home page with a sign-in
+/// wall rather than an icon. Each maps to the path of the icon the product
+/// itself serves, tried before /favicon.ico.
+const PRODUCT_ICON_PATHS: &[(&str, &str)] = &[
+    ("calendar.google.com", "/googlecalendar/images/favicons_2020q4/calendar_31.ico"),
+];
+
+fn icon_paths(host: &str) -> Vec<&'static str> {
+    PRODUCT_ICON_PATHS
+        .iter()
+        .filter(|(h, _)| *h == host)
+        .map(|(_, p)| *p)
+        .chain(std::iter::once("/favicon.ico"))
+        .collect()
 }
 
 async fn fetch_icon(client: &reqwest::Client, url: &str) -> Option<String> {
@@ -178,8 +206,9 @@ fn attr(tag: &str, tag_l: &str, name: &str) -> Option<String> {
     None
 }
 
-/// Resolve a declared icon href against the site. Only https URLs on the same
-/// site (the host itself or a subdomain of its registrable part) are allowed.
+/// Resolve a declared icon href against the site. Only https URLs on a named
+/// host (no IP literal, no explicit port) are allowed; the host may differ from
+/// the site, since icons often live on the site's own asset host.
 fn resolve_icon_url(host: &str, href: &str) -> Option<String> {
     let h = href.trim();
     let url = if let Some(rest) = h.strip_prefix("https://") {
@@ -193,16 +222,78 @@ fn resolve_icon_url(host: &str, href: &str) -> Option<String> {
     } else {
         format!("https://{host}/{h}")
     };
-    let target = url["https://".len()..].split(['/', '?', '#']).next()?.to_ascii_lowercase();
-    if !is_plain_hostname(&target) {
-        return None;
+    let parsed = reqwest::Url::parse(&url).ok()?;
+    if is_public_https(&parsed) { Some(url) } else { None }
+}
+
+/// An https URL on a named host with the default port. IP literals are refused
+/// here because they skip DNS, and so would skip the resolver's address check.
+fn is_public_https(url: &reqwest::Url) -> bool {
+    if url.scheme() != "https" || url.port().is_some() {
+        return false;
     }
-    let labels: Vec<&str> = host.split('.').collect();
-    let base = if labels.len() >= 2 { labels[labels.len() - 2..].join(".") } else { host.to_string() };
-    if target == host || target == base || target.ends_with(&format!(".{base}")) {
-        Some(url)
-    } else {
-        None
+    let Some(d) = url.host_str() else { return false };
+    let d = d.to_ascii_lowercase();
+    is_plain_hostname(&d)
+        && d.contains('.')
+        && !d.ends_with(".local")
+        && !d.ends_with(".internal")
+        && d.parse::<std::net::IpAddr>().is_err()
+        && !d.chars().all(|c| c.is_ascii_digit() || c == '.')
+}
+
+/// A public internet address. Loopback, private, link-local, CGNAT (which
+/// includes Tailscale), multicast and unspecified ranges are refused.
+fn is_public_ip(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            !(v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+                || v4.is_unspecified()
+                || v4.is_multicast()
+                || o[0] == 0
+                || (o[0] == 100 && (o[1] & 0xc0) == 64)
+                || (o[0] == 198 && (o[1] & 0xfe) == 18)
+                || o[0] >= 240)
+        }
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_public_ip(IpAddr::V4(v4));
+            }
+            let seg = v6.segments();
+            !(v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_multicast()
+                || (seg[0] & 0xfe00) == 0xfc00
+                || (seg[0] & 0xffc0) == 0xfe80
+                || seg[0] == 0x2001 && seg[1] == 0x0db8)
+        }
+    }
+}
+
+/// DNS for favicon fetches: the system resolver, with every non-public address
+/// dropped. A name that only resolves privately fails to connect. This covers
+/// the site, its declared icon host and every redirect hop.
+struct PublicOnlyResolver;
+
+impl reqwest::dns::Resolve for PublicOnlyResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host.as_str(), 0))
+                .await?
+                .filter(|a| is_public_ip(a.ip()))
+                .collect();
+            if addrs.is_empty() {
+                return Err("no public address".into());
+            }
+            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
+        })
     }
 }
 
@@ -226,14 +317,63 @@ mod tests {
     }
 
     #[test]
-    fn declared_icons_stay_on_the_same_site() {
+    fn declared_icons_resolve_to_public_https() {
         assert_eq!(resolve_icon_url("foo.example", "/i.png").as_deref(), Some("https://foo.example/i.png"));
         assert_eq!(resolve_icon_url("foo.example", "i.png").as_deref(), Some("https://foo.example/i.png"));
         assert_eq!(resolve_icon_url("www.foo.example", "https://cdn.foo.example/i.png").as_deref(), Some("https://cdn.foo.example/i.png"));
         assert_eq!(resolve_icon_url("foo.example", "//static.foo.example/i.png").as_deref(), Some("https://static.foo.example/i.png"));
-        for bad in ["http://foo.example/i.png", "https://bar.example/i.png", "https://127.0.0.1/i.png", "data:image/png;base64,AA", "https://foo.example:8443/i.png"] {
+        // An asset host of the site's own (a CDN or static domain) is followed.
+        assert_eq!(resolve_icon_url("cal.foo.example", "https://assets.foostatic.example/f.ico?v=1").as_deref(), Some("https://assets.foostatic.example/f.ico?v=1"));
+        for bad in [
+            "http://foo.example/i.png",
+            "https://127.0.0.1/i.png",
+            "https://10.0.0.8/i.png",
+            "https://[::1]/i.png",
+            "https://localhost/i.png",
+            "https://printer.local/i.png",
+            "data:image/png;base64,AA",
+            "https://foo.example:8443/i.png",
+            "https://user@foo.example@evil/i.png",
+        ] {
             assert!(resolve_icon_url("foo.example", bad).is_none(), "{bad} must not be fetched");
         }
+    }
+
+    #[test]
+    fn only_public_addresses_are_dialed() {
+        for ok in ["93.184.216.34", "142.250.72.14", "2606:4700::1111"] {
+            assert!(is_public_ip(ok.parse().unwrap()), "{ok} is public");
+        }
+        for bad in [
+            "127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.10", "169.254.169.254", "100.83.1.2",
+            "0.0.0.0", "224.0.0.1", "::1", "fd00::1", "fe80::1", "::ffff:192.168.1.1", "::ffff:127.0.0.1",
+        ] {
+            assert!(!is_public_ip(bad.parse().unwrap()), "{bad} must not be dialed");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_resolver_drops_private_answers() {
+        use reqwest::dns::Resolve;
+        use std::str::FromStr;
+        let r = PublicOnlyResolver.resolve(reqwest::dns::Name::from_str("localhost").unwrap()).await;
+        assert!(r.is_err(), "localhost must not resolve for a favicon fetch");
+    }
+
+    // Live check against real sites; run with `cargo test --lib -- --ignored favicon`.
+    #[tokio::test]
+    #[ignore]
+    async fn live_icons_on_other_asset_hosts() {
+        for host in ["calendar.google.com", "privacy.com"] {
+            let uri = fetch_favicon(host).await.unwrap_or_default();
+            assert!(uri.starts_with("data:image/"), "{host} has no icon");
+        }
+    }
+
+    #[test]
+    fn product_icon_paths_come_before_the_default() {
+        assert_eq!(icon_paths("calendar.google.com"), vec!["/googlecalendar/images/favicons_2020q4/calendar_31.ico", "/favicon.ico"]);
+        assert_eq!(icon_paths("foo.example"), vec!["/favicon.ico"]);
     }
 
     #[test]
