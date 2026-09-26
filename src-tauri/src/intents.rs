@@ -369,6 +369,9 @@ pub(crate) async fn distill_intents_core(
     _limit: usize,
 ) -> Result<serde_json::Value, String> {
     crate::projects::projects_build(vault.to_string(), None, None, None).await?;
+    // Mirror's findings, weekly intent lines and letter ride on the fresh
+    // projects. Best effort: a failed refresh never fails the distill.
+    let _ = crate::mirror::mirror_refresh(vault.to_string(), None).await;
     intents_distilled_read(vault.to_string())
 }
 

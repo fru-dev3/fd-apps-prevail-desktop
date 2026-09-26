@@ -12,6 +12,7 @@
 // signing complexity for the first release.
 
 mod benchmark;
+mod mirror;
 mod appcmds;
 mod bunker;
 mod vault_lock;
@@ -594,6 +595,13 @@ pub fn run() {
             projects::projects_index,
             projects::projects_build,
             projects::projects_replay,
+            mirror::mirror_findings,
+            mirror::mirror_verdict,
+            mirror::mirror_history,
+            mirror::mirror_refresh,
+            mirror::projects_restart,
+            mirror::projects_restart_text,
+            mirror::projects_diff,
             favicon::app_favicon,
             google::google_profile_remove,
             google::google_scaffold,
