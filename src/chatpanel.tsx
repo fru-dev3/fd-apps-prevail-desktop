@@ -26,6 +26,7 @@ import { ProviderMark } from "./marks";
 import { DomainHome, DomainStatusBar, MessageList } from "./chatviews";
 import { LoopsPanel } from "./loopspanel";
 import { BoardPanel } from "./boardpanel";
+import { entityLinkDirective } from "./entities";
 import { AgentPickerRail, ContextCanvas, DomainContextDrawer, DomainPrefsPanel } from "./domainpanels";
 import { HomeBriefing } from "./recommendationspanel";
 import type { BrandLogo, ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, LifeReadiness, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
@@ -1804,6 +1805,9 @@ export function ChatPanel({
     // Load the attached skills' actual SKILL.md bodies so the model gets their
     // instructions, not just a reference to a name it can't see.
     const skillsPreamble = await buildSkillsPreamble(attachedSkills, allSkills, domain ?? null);
+    // Ask for people, places, domains, tasks, files and dates as prevail://
+    // links, which the reply renders as chips that open the real thing.
+    const linkPreamble = entityLinkDirective(domains.map((d) => d.name));
     // Usage intelligence: tick the ledger for every skill riding this send
     // (fire-and-forget - accounting never delays or breaks the turn). Powers
     // the Skills page's popularity ranking + archive-the-bloat suggestions.
@@ -1818,8 +1822,8 @@ export function ChatPanel({
     const history = buildChatContext(messages, 40000);
     const promptText = fwLens.buildPrompt(
       history
-        ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
-        : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${visible}`
+        ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
+        : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
     );
     pushHistory(visible);
     setAttachments([]);

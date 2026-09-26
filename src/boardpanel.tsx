@@ -206,7 +206,25 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
       localStorage.removeItem("prevail.board.openNeeds");
       setView("needs");
     }
-    return () => window.removeEventListener("prevail:board-view", onView as EventListener);
+    // A task link in a chat reply opens that task's detail panel. The board is
+    // often mounting fresh when the link is clicked, so the id also waits in
+    // localStorage for this first render.
+    const onOpenTask = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (typeof id === "string" && id) {
+        try { localStorage.removeItem("prevail.board.openTask"); } catch { /* storage off */ }
+        setOpenId(id);
+      }
+    };
+    window.addEventListener("prevail:open-task", onOpenTask as EventListener);
+    try {
+      const pending = localStorage.getItem("prevail.board.openTask");
+      if (pending) { localStorage.removeItem("prevail.board.openTask"); setOpenId(pending); }
+    } catch { /* storage off */ }
+    return () => {
+      window.removeEventListener("prevail:board-view", onView as EventListener);
+      window.removeEventListener("prevail:open-task", onOpenTask as EventListener);
+    };
   }, []);
   // Full domain list (so you can add a task to a domain that has none yet).
   useEffect(() => {

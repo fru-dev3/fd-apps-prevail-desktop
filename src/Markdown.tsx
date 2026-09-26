@@ -1,9 +1,9 @@
 // Markdown rendering subsystem, extracted from App.tsx so the chat/doc render
-// path lives in one small module. Self-contained: depends only on React and
-// react-markdown - no app-specific helpers.
+// path lives in one small module. Depends on React and react-markdown, plus EntityLink for links (vault objects render as chips).
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { EntityLink, markdownUrlTransform } from "./entities";
 
 // Renders LLM output as proper markdown - headings, lists, bold, inline code,
 // fenced blocks, tables. Wraps each block element in `prose`-like Tailwind so
@@ -46,7 +46,7 @@ function MarkdownCode(props: React.HTMLAttributes<HTMLElement> & { className?: s
   );
 }
 
-const MARKDOWN_COMPONENTS = { code: MarkdownCode } as const;
+const MARKDOWN_COMPONENTS = { code: MarkdownCode, a: EntityLink } as const;
 
 export const Markdown = React.memo(function Markdown({ source, compact = false }: { source: string; compact?: boolean }) {
   // Two flavors: default (chat reply) and compact (state/decisions/journal).
@@ -61,7 +61,7 @@ export const Markdown = React.memo(function Markdown({ source, compact = false }
     <div
       className={`prose-prevail max-w-none ${compact ? "prose-prevail--compact" : ""}`}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>{source}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS} urlTransform={markdownUrlTransform}>{source}</ReactMarkdown>
     </div>
   );
 });
