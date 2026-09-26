@@ -1,39 +1,27 @@
-# Prevail 0.3.124
+# Prevail 0.3.125
 
-Intent is one place to look back at yourself through your own prompts. It
-replaces Intents, Prompts and Retrospect, which used to show the same history
-three different ways.
+Apps now mirror the connectors you already signed into in Claude, Codex and
+Gemini. There is nothing new to connect and no keys to paste: what works in
+those tools shows up here, with its status and a way to sign in again when
+one needs it.
 
-## Noticed
+## Safe by default
 
-Intent reads every prompt you have typed, in every tool, and points out a few
-things you might not see yourself: instructions you keep repeating, how much
-of your week went into tools and setup, projects that went quiet mid-stream,
-and parts of your life that never came up. Each finding shows its evidence,
-the prompts behind it, and a small picture of the numbers.
+Every connector tool is marked read, write or blocked. Syncs only ever use
+read tools. Anything that spends money or sends on your behalf is blocked by
+default, and Gmail stays drafts only, so nothing goes out without you.
 
-Answer each one. "That's true" on a repeated instruction makes it a standing
-rule, saved to your ideal state so no model has to be told again. "Not
-really" hides a finding, "Later" brings it back next week, and a quiet project
-can be resumed or let go. A short letter sums up each finished week.
+## Sync recipes feed your domains
 
-## History
+Each Claude connector can carry a sync recipe: what to pull, which domains it feeds
+and how often. Let AI draft one, adjust it, and press Sync now or leave it on a
+daily or weekly schedule. What it finds lands in those domains, so their chats
+and loops can use it.
 
-A play-by-play of every prompt exactly as you typed it, grouped into sittings
-and weeks, each week opening with one plain line about what you were really
-after. Search everything, filter by tool or project, and jump from any piece
-of evidence straight to the moment it was said.
+Pin a connector to keep it in the sidebar.
 
-## Restart
+## Cleaner
 
-Every project has a restart brief: its goal, the requirements, the rules you
-already had to give, decisions, dead ends and open questions, written for a
-newer model to rebuild it without the back-and-forth. Untick anything that
-should not carry over, then copy it as a handoff prompt, a short intent, or
-the raw prompts. Point the rebuild check at a folder to see which
-requirements a rebuild met, missed or left unclear.
-
-## On your phone
-
-Noticed, History and the restart brief work on the phone, with large buttons
-and one column.
+The old connection methods are gone, and app folders that never synced can be
+moved to an archive in one step, never deleted. Sites without a connector keep
+browser replay: sign in once, and later runs repeat the steps.
