@@ -1,17 +1,22 @@
 // Retrospect — where your attention went, over time. A cross-domain read-over of
-// the intent ledger (retrospect_rollup): a vantage switch (day/week/month/year),
-// a spine of periods, and per period a headline, an attention breakdown by
-// domain, and the threads of work underneath. Counts + threads are REAL; the
-// headline is a plain data summary for now (AI theme headline is a later phase).
+// every prompt the user typed, in every AI tool (retrospect_rollup, served by the
+// engine's cleaned corpus). Two lenses on one data source:
+//   Time      a vantage switch (day/week/month/year), a spine of periods, and per
+//             period the projects and domains attention went to, plus the threads.
+//   Projects  what those prompts were building, each with a replay brief a newer
+//             model can rebuild it from, and recommendations across all of it
+//             (projectsview.tsx).
 import { useEffect, useMemo, useState } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { CalendarRange, FolderKanban, History, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
+import { ProjectsView } from "./projectsview";
 
 type Vantage = "day" | "week" | "month" | "year";
-interface Thread { domain: string; message: string; ts: number; count: number }
+interface Thread { domain: string; project?: string; message: string; ts: number; count: number }
 interface DomCount { domain: string; count: number }
-interface Period { key: string; label: string; total: number; byDomain: DomCount[]; threads: Thread[] }
+interface ProjCount { slug: string; title: string; domain: string; count: number }
+interface Period { key: string; label: string; total: number; byDomain: DomCount[]; byProject?: ProjCount[]; threads: Thread[] }
 interface Rollup { vantage: string; periods: Period[] }
 
 // A small warm palette; a domain always maps to the same color (stable hash).
@@ -27,6 +32,10 @@ const VANTAGES: { id: Vantage; label: string }[] = [
 ];
 
 export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
+  const [lens, setLens] = useState<"time" | "projects">(() => {
+    try { return localStorage.getItem("prevail.retrospect.lens") === "projects" ? "projects" : "time"; } catch { return "time"; }
+  });
+  const pickLens = (l: "time" | "projects") => { setLens(l); try { localStorage.setItem("prevail.retrospect.lens", l); } catch { /* storage off */ } };
   const [vantage, setVantage] = useState<Vantage>("month");
   const [rollup, setRollup] = useState<Rollup | null>(null);
   const [selKey, setSelKey] = useState<string | null>(null);
@@ -47,6 +56,10 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
   const sel = useMemo(() => rollup?.periods.find((p) => p.key === selKey) ?? rollup?.periods[0] ?? null, [rollup, selKey]);
   const maxTotal = useMemo(() => Math.max(1, ...(rollup?.periods.map((p) => p.total) ?? [1])), [rollup]);
   const domains = sel?.byDomain ?? [];
+  // Attention by project once the projects are built (the engine assigns every
+  // prompt); "" is prompts no project claimed yet.
+  const projTitle = useMemo(() => new Map((sel?.byProject ?? []).map((p) => [p.slug, p.slug ? p.title : "Other"])), [sel]);
+  const byProject = (sel?.byProject ?? []).filter((p) => !filter || p.domain === filter);
   const shownThreads = useMemo(() => (sel?.threads ?? []).filter((t) => !filter || t.domain === filter), [sel, filter]);
   const shownDomains = useMemo(() => domains.filter((d) => !filter || d.domain === filter), [domains, filter]);
   const domTotal = shownDomains.reduce((a, d) => a + d.count, 0) || 1;
@@ -57,10 +70,19 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
       {/* Bar: vantage switch + domain filter */}
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-6 py-3">
         <div className="flex items-center gap-2 font-display text-lg font-semibold text-text-primary">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-accent-border bg-accent-soft text-accent">↺</span>
+          <span className="flex h-7 w-7 items-center justify-center rounded-md border border-accent-border bg-accent-soft text-accent"><History className="h-4 w-4" /></span>
           Retrospect
         </div>
-        <div className="ml-2 inline-flex overflow-hidden rounded-lg border border-border">
+        <div className="inline-flex h-9 items-center gap-0.5 rounded-lg border border-border bg-background p-1">
+          {([["time", "Time", CalendarRange], ["projects", "Projects", FolderKanban]] as const).map(([id, label, Icon]) => (
+            <button key={id} onClick={() => pickLens(id)}
+              className={`inline-flex h-full items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[13px] transition-colors ${lens === id ? "bg-accent font-medium text-background shadow-sm" : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"}`}>
+              <Icon className="h-3.5 w-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+        {lens === "time" && (
+        <div className="inline-flex overflow-hidden rounded-lg border border-border">
           {VANTAGES.map((v) => (
             <button key={v.id} onClick={() => setVantage(v.id)}
               className={`px-3 py-1.5 font-mono text-[11px] tracking-wide transition-colors ${vantage === v.id ? "bg-accent font-bold text-background" : "text-text-muted hover:bg-surface-warm hover:text-text-secondary"}`}>
@@ -68,7 +90,8 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
             </button>
           ))}
         </div>
-        {domains.length > 0 && (
+        )}
+        {lens === "time" && domains.length > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <button onClick={() => setFilter(null)}
               className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${!filter ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}>
@@ -84,6 +107,9 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
         )}
       </div>
 
+      {lens === "projects" ? (
+        <div className="min-h-0 flex-1"><ProjectsView vaultPath={vaultPath} /></div>
+      ) : (
       <div className="flex min-h-0 flex-1">
         {/* Spine: periods (collapsible) */}
         {spineCollapsed ? (
@@ -145,10 +171,22 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
               )}
               <div className="mt-1.5 text-[11px] text-text-muted">{sel.total} prompt{sel.total === 1 ? "" : "s"} · {domains.length} domain{domains.length === 1 ? "" : "s"} touched</div>
 
-              {/* Attention bars */}
+              {/* Attention bars: by project once projects exist, else by domain. */}
               <div className="mt-6">
                 <div className="mb-3 text-[11px] text-text-muted">Where your attention went</div>
-                {shownDomains.map((d) => {
+                {byProject.length > 0 ? byProject.slice(0, 12).map((p) => {
+                  const tot = byProject.reduce((a, x) => a + x.count, 0) || 1;
+                  const pct = Math.round((p.count / tot) * 100);
+                  return (
+                    <div key={p.slug || "other"} className="mb-2 flex items-center gap-3">
+                      <span className="w-40 shrink-0 truncate text-right text-[13px] text-text-secondary" title={p.slug ? p.title : "Prompts no project claimed yet"}>{p.slug ? p.title : "Other"}</span>
+                      <div className="h-5 flex-1 overflow-hidden rounded-md bg-surface">
+                        <div className="flex h-full items-center rounded-md pl-2 text-[11px] font-bold text-background" style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: p.slug ? domColor(p.domain) : "var(--color-text-muted)" }}>{p.count}</div>
+                      </div>
+                      <span className="w-12 shrink-0 text-right text-[11px] text-text-muted">{pct}%</span>
+                    </div>
+                  );
+                }) : shownDomains.map((d) => {
                   const pct = Math.round((d.count / domTotal) * 100);
                   return (
                     <div key={d.domain} className="mb-2 flex items-center gap-3">
@@ -172,7 +210,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: domColor(t.domain) }} />
                     <div className="min-w-0">
                       <div className="text-[14px] leading-snug text-text-primary">{t.message}</div>
-                      <div className="mt-0.5 font-mono text-[10.5px] text-text-muted">{titleCase(t.domain)} · {t.count} prompt{t.count === 1 ? "" : "s"}</div>
+                      <div className="mt-0.5 text-[11px] text-text-muted">{t.project && projTitle.get(t.project) ? projTitle.get(t.project) : titleCase(t.domain)} · {t.count} prompt{t.count === 1 ? "" : "s"}</div>
                     </div>
                   </div>
                 ))}
@@ -181,6 +219,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
