@@ -62,8 +62,6 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "resources/connectors/catalog.json",
-      "resources/connectors/logos.json",
       "resources/connectors/cli_providers.json",
       "resources/sample-vault/**/*",
       "resources/skill-packs/**/*",

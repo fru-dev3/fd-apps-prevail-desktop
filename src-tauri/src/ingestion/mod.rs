@@ -1,13 +1,7 @@
-// Ingestion orchestrator
-//
-// Triple-tier data collection layer for life-domain artifacts:
-//   Tier A — Raw MCP / native OAuth subprocesses
-//   Tier B — Composio managed gateway runtime
-//   Tier C — Headed Playwright browser automation
-//
-// Each tier is a pluggable `IngestionTier` implementation registered
-// with the orchestrator at startup. Tiers run independently so a
-// failure in one doesn't tear the others down.
+// Ingestion: the storage sandbox for imported artifacts, the Keychain helper,
+// and the command-line connectors (tier D: read-only pulls from CLIs the user
+// already signed into). Runtime MCP connectors are mirrored by apps_mirror.rs
+// and the browser lane lives in the engine.
 //
 // All artifacts land in the storage sandbox (see `storage.rs`).
 // Public Tauri commands are exposed via the public functions at the
@@ -15,8 +9,6 @@
 
 pub mod storage;
 pub mod keychain;
-pub mod tier_a_mcp;
-pub mod tier_b_composio;
 // Tier C (headed Playwright browser automation) RETIRED: the browser lane now
 // lives entirely in the prevail-cli engine (connectors browser-learn / browser-
 // replay), surfaced by ConnectorRunPanel. One engine-owned browser path.
@@ -28,24 +20,6 @@ use std::sync::Mutex;
 // ─────────────────────────────────────────────────────────────────────
 // Shared types
 
-/// What a tier reports back when asked for its status.
-#[derive(Debug, Clone, Serialize)]
-pub struct TierStatus {
-    /// Stable id, e.g. "tier_a_mcp", "tier_b_composio", "tier_c_browser".
-    pub id: String,
-    /// Human label for the settings UI.
-    pub label: String,
-    /// One-line readiness summary.
-    pub state: String,
-    /// True when this tier has work it can do right now (config loaded,
-    /// API key present, etc.). False when inert/idle.
-    pub active: bool,
-    /// Number of in-flight subprocesses or active sessions.
-    pub running: usize,
-    /// Last error message, if any. Cleared on successful run.
-    pub last_error: Option<String>,
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // Orchestrator state — shared across Tauri commands
 
@@ -53,16 +27,12 @@ pub struct TierStatus {
 /// (live subprocesses, etc.). Wrapped in Mutex because Tauri commands
 /// can be called from multiple threads.
 pub struct OrchestratorState {
-    pub tier_a: Mutex<tier_a_mcp::McpRegistry>,
-    pub tier_b: Mutex<tier_b_composio::ComposioRuntime>,
     pub tier_d: Mutex<tier_d_cli::CliRunner>,
 }
 
 impl Default for OrchestratorState {
     fn default() -> Self {
         Self {
-            tier_a: Mutex::new(tier_a_mcp::McpRegistry::new()),
-            tier_b: Mutex::new(tier_b_composio::ComposioRuntime::new()),
             tier_d: Mutex::new(tier_d_cli::CliRunner::new()),
         }
     }
@@ -71,110 +41,12 @@ impl Default for OrchestratorState {
 // ─────────────────────────────────────────────────────────────────────
 // Tauri commands — re-exported via lib.rs
 
-#[tauri::command]
-pub fn ingestion_status(
-    state: tauri::State<'_, OrchestratorState>,
-) -> Result<Vec<TierStatus>, String> {
-    let a = state.tier_a.lock().map_err(|e| e.to_string())?.status();
-    let b = state.tier_b.lock().map_err(|e| e.to_string())?.status();
-    let d = state.tier_d.lock().map_err(|e| e.to_string())?.status();
-    Ok(vec![a, b, d])
-}
-
-#[tauri::command]
-pub fn ingestion_mcp_list(
-    state: tauri::State<'_, OrchestratorState>,
-) -> Result<Vec<tier_a_mcp::McpServerInfo>, String> {
-    state
-        .tier_a
-        .lock()
-        .map_err(|e| e.to_string())?
-        .list()
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn ingestion_mcp_start(
-    state: tauri::State<'_, OrchestratorState>,
-    name: String,
-) -> Result<(), String> {
-    crate::bunker::guard_cloud()?; // external MCP servers reach the network
-    let mut reg = state.tier_a.lock().map_err(|e| e.to_string())?;
-    reg.start(&name).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn ingestion_mcp_stop(
-    state: tauri::State<'_, OrchestratorState>,
-    name: String,
-) -> Result<(), String> {
-    let mut reg = state.tier_a.lock().map_err(|e| e.to_string())?;
-    reg.stop(&name).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn ingestion_composio_set_key(
-    state: tauri::State<'_, OrchestratorState>,
-    key: String,
-) -> Result<(), String> {
-    let mut rt = state.tier_b.lock().map_err(|e| e.to_string())?;
-    rt.set_key(&key).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn ingestion_composio_start(
-    state: tauri::State<'_, OrchestratorState>,
-) -> Result<(), String> {
-    crate::bunker::guard_cloud()?; // Composio is a cloud integration gateway
-    let mut rt = state.tier_b.lock().map_err(|e| e.to_string())?;
-    rt.start().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn ingestion_composio_stop(
-    state: tauri::State<'_, OrchestratorState>,
-) -> Result<(), String> {
-    let mut rt = state.tier_b.lock().map_err(|e| e.to_string())?;
-    rt.stop().map_err(|e| e.to_string())
-}
-
 // SECURITY: there is intentionally NO `ingestion_keychain_get` Tauri command.
 // Exposing a generic "read any Keychain secret by service+account" to the JS
 // layer would be a broad exfiltration primitive if the renderer were ever
 // compromised. Rust-internal callers use `keychain::get(...)` directly; the
 // frontend only ever learns whether a secret EXISTS (see `provider_key_exists`),
 // never its value.
-
-/// Create a blank `mcp_config.json` with the right schema if it
-/// doesn't already exist. Returns the path either way.
-#[tauri::command]
-pub fn ingestion_mcp_config_init() -> Result<String, String> {
-    let root = storage::app_support_root()?;
-    // 0700 the app-support tree: it holds decrypted vault imports, this MCP
-    // config (which the user fills with integration tokens), and ingestion logs.
-    storage::create_private_dir(&root)?;
-    let p = root.join("mcp_config.json");
-    if !p.exists() {
-        let blank = serde_json::json!({
-            "mcpServers": {}
-        });
-        let text = serde_json::to_string_pretty(&blank)
-            .map_err(|e| format!("serialize blank: {e}"))?;
-        // 0600: the user will paste tokens (GITHUB_TOKEN, etc.) into this file;
-        // pre-clamp perms so they're never world-readable even after editing.
-        storage::write_private(&p, &text)?;
-    }
-    Ok(p.to_string_lossy().to_string())
-}
-
-#[tauri::command]
-pub fn ingestion_mcp_reload(
-    state: tauri::State<'_, OrchestratorState>,
-) -> Result<(), String> {
-    let mut reg = state.tier_a.lock().map_err(|e| e.to_string())?;
-    reg.reload();
-    Ok(())
-}
 
 /// A single artifact entry as surfaced to the UI.
 #[derive(serde::Serialize, Clone, Debug)]
@@ -239,58 +111,6 @@ pub fn ingestion_list_artifacts(domain: String) -> Result<Vec<ArtifactEntry>, St
     }
     entries.sort_by(|a, b| b.mtime.cmp(&a.mtime));
     Ok(entries)
-}
-
-#[tauri::command]
-pub fn ingestion_mcp_stderr(
-    state: tauri::State<'_, OrchestratorState>,
-    name: String,
-) -> Result<String, String> {
-    let mut reg = state.tier_a.lock().map_err(|e| e.to_string())?;
-    reg.drain_stderr(&name)
-}
-
-/// Bundled connector catalog — the pre-populated, pattern-tagged list of
-/// personal-life apps. Every app carries a connector `pattern`
-/// (api/oauth/cli/browser) that maps to an ingestion tier, so the router
-/// stays app-agnostic. Returned verbatim as parsed JSON to avoid struct
-/// drift as the catalog schema grows; the frontend owns the shape.
-#[tauri::command]
-pub fn ingestion_connector_catalog(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    use tauri::Manager;
-    let resource = app
-        .path()
-        .resolve(
-            "resources/connectors/catalog.json",
-            tauri::path::BaseDirectory::Resource,
-        )
-        .map_err(|e| format!("resolve catalog.json: {e}"))?;
-    if !resource.exists() {
-        return Ok(serde_json::json!({ "version": 0, "domains": [], "apps": [] }));
-    }
-    let raw =
-        std::fs::read_to_string(&resource).map_err(|e| format!("read catalog.json: {e}"))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse catalog.json: {e}"))
-}
-
-/// Bundled brand logos for catalog apps — `{ slug: { hex, path } }`, an SVG
-/// path per matched simple-icons brand. Apps reference a slug via `iconSlug`;
-/// unmatched apps fall back to a pattern-tinted dot in the UI.
-#[tauri::command]
-pub fn ingestion_connector_logos(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    use tauri::Manager;
-    let resource = app
-        .path()
-        .resolve(
-            "resources/connectors/logos.json",
-            tauri::path::BaseDirectory::Resource,
-        )
-        .map_err(|e| format!("resolve logos.json: {e}"))?;
-    if !resource.exists() {
-        return Ok(serde_json::json!({}));
-    }
-    let raw = std::fs::read_to_string(&resource).map_err(|e| format!("read logos.json: {e}"))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse logos.json: {e}"))
 }
 
 // ── Tier D — CLI connectors ──────────────────────────────────────────
@@ -498,23 +318,6 @@ pub fn ingestion_vacuum_imports(domain: String, older_than_days: u64) -> Result<
         }));
     }
     Ok(removed)
-}
-
-#[tauri::command]
-pub fn ingestion_audit_tail(limit: Option<usize>) -> Result<Vec<serde_json::Value>, String> {
-    let path = storage::app_support_root()?.join("ingestion.log");
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-    let raw = std::fs::read_to_string(&path).map_err(|e| format!("read audit: {e}"))?;
-    let cap = limit.unwrap_or(200);
-    let lines: Vec<&str> = raw.lines().collect();
-    let start = lines.len().saturating_sub(cap);
-    let out = lines[start..]
-        .iter()
-        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
-        .collect();
-    Ok(out)
 }
 
 /// Used by storage::ingest_artifact via re-export so storage doesn't

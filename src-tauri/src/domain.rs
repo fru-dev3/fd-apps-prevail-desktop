@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use crate::paths::{data_root, domain_dir, domain_dir_pub};
+use crate::paths::{domain_dir, domain_dir_pub};
 use crate::read_dir_retry;
 use crate::read_to_string_retry;
 use crate::secs_to_ymdhms;
@@ -382,46 +382,6 @@ fn context_for_root(root: PathBuf, extra_base: Option<PathBuf>, domain_label: &s
 
     let layout_v4 = crate::paths::is_v4_domain(&root);
     Ok(DomainContext { state, decisions, journal, recent_logs, skills, layout_v4 })
-}
-
-/// App/domain parity: an app is a domain with a little more, so it owns the same
-/// rich context (journal, state, decisions, recent logs, skills). Apps live under
-/// the content root's `apps/<app_id>` (v4: `<vault>/data/apps/<id>`, legacy:
-/// `<vault>/apps/<id>`). A freshly-connected app may have no dir yet, so a missing
-/// dir returns an EMPTY-but-valid context rather than an error.
-#[tauri::command]
-pub(crate) fn app_context(vault: String, app_id: String) -> Result<DomainContext, String> {
-    // Guard the id against traversal before joining it into a path. App ids are
-    // slugified ([a-z0-9-_]); anything else (incl. a "../" attempt) yields an
-    // empty context rather than escaping the vault.
-    let safe = !app_id.is_empty()
-        && app_id.len() <= 64
-        && !app_id.starts_with('.')
-        && app_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-    let empty = DomainContext {
-        state: None,
-        decisions: None,
-        journal: None,
-        recent_logs: Vec::new(),
-        skills: Vec::new(),
-        layout_v4: false,
-    };
-    if !safe {
-        return Ok(empty);
-    }
-    // v4 content root (<vault>/data when it exists, else <vault>) → apps/<id>,
-    // with a legacy <vault>/apps/<id> fallback if the data/ form is absent.
-    let v4 = data_root(&vault).join("apps").join(&app_id);
-    let app_dir = if v4.exists() {
-        v4
-    } else {
-        let legacy = PathBuf::from(&vault).join("apps").join(&app_id);
-        if legacy.exists() { legacy } else { v4 }
-    };
-    if !app_dir.exists() {
-        return Ok(empty);
-    }
-    context_for_root(app_dir, None, &app_id)
 }
 
 #[tauri::command]

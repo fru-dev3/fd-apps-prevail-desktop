@@ -89,13 +89,12 @@ const WEBUI_ALLOWED: &[&str] = &[
     // Apps / connectors: the list, its logos, per-domain import counts, and the
     // read-only audit trail. app_favicon fetches one host's /favicon.ico so app
     // rows carry real brand marks instead of letter tiles.
-    "engine_apps_list", "app_favicon", "ingestion_connector_catalog", "ingestion_connector_logos",
+    "engine_apps_list", "app_favicon",
     // The runtime connector mirror: the cached list only (it already carries
     // each app's tools). Refresh and the live tool probe reach into the
     // runtimes; recipe edits, sync and archive change things. All desktop-only.
     "apps_mirror_list",
-    "ingestion_domain_stats", "ingestion_list_artifacts", "ingestion_status",
-    "ingestion_audit_tail", "ingestion_mcp_list", "mcp_install_status",
+    "ingestion_domain_stats", "ingestion_list_artifacts", "mcp_install_status",
     // Daemons + activity: status readouts and the activity feed.
     "distill_status", "taskgen_status", "skillgen_status", "intent_daemon_status",
     "reminders_daemon_status", "headless_learn_status", "activity_read",
@@ -116,15 +115,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     "machine_role_get", "vault_lock_status", "email_policy_get", "egress_guard_get",
     "get_auto_council", "google_profiles", "engine_discover_models", "provider_key_exists",
     "ingestion_cli_providers", "ingestion_cli_probe",
-    // An app's own description, and the connectors a runtime advertises. Both
-    // read; both are what the Apps detail pane shows.
-    "engine_app_get_soul", "discover_runtime_connectors", "engine_app_skills",
-    // The rest of what an app's detail tabs READ: its context bundle, the files
-    // it has pulled, which apps are due a sync, and which of your runtimes
-    // already carry it as a connector. Everything that CHANGES an app stays
-    // desktop-only - adding, removing, running a skill, setting its schedule,
-    // domains, runtime or soul, and every gateway command that holds a key.
-    "app_context", "app_data_files", "engine_apps_sync_due", "harness_connections_scan",
+    // What the app views READ: the files an app has pulled and which apps are
+    // due a sync. Everything that CHANGES an app stays desktop-only.
+    "app_data_files", "engine_apps_sync_due",
 
     // Status reads the rest of the app makes. A denied one does not fail
     // quietly: the Autonomy screen printed the raw refusal JSON at the user
@@ -135,7 +128,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_autonomy_status", "engine_budget_status", "engine_lock_status", "engine_vault_status",
     "discord_bridge_status", "email_bridge_status", "slack_bridge_status",
     "webhook_bridge_status", "native_bridge_status",
-    "google_cli_status", "composio_status", "composio_cli_status", "nango_status",
+    "google_cli_status",
     "model_suggestions_read", "profile_prefs_get", "task_detail_get", "vault_backups_list",
     "gateway_log_read",
     // Marking a task done from the phone. tasks_set (which rewrites the whole

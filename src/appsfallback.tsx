@@ -4,7 +4,7 @@
 //   Command-line tools         read-only pulls from CLIs you already signed into
 //   Obsidian import            a one-way copy of an Obsidian vault into a domain
 import { useCallback, useEffect, useState } from "react";
-import { FolderInput, Globe, Loader2, Play, Plus, RotateCcw, Terminal, X } from "lucide-react";
+import { FolderInput, Globe, Loader2, LogIn, Play, Plus, RotateCcw, Terminal, X } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
 import { relTime, titleCase } from "./format";
 import { toast } from "./toast";
@@ -54,6 +54,14 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
   }, [vaultPath]);
   useEffect(() => { void load(); }, [load]);
 
+  async function importLogin(id: string) {
+    try {
+      const r = await invoke<{ ok?: boolean; message?: string; error?: string }>("engine_app_import_login", { id });
+      if (r?.ok) toast.success(r.message || "Sign-in copied from Chrome");
+      else toast.error(r?.error || r?.message || "Could not copy the sign-in");
+    } catch (e) { toast.error(String(e)); }
+  }
+
   async function addSite() {
     const title = form.name.trim();
     const id = slugify(title);
@@ -100,6 +108,7 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
                     </button>
                     <RowMenu items={[
                       { icon: RotateCcw, label: "Teach again", hint: "Relearn the steps from scratch", onClick: () => setRun({ id: a.id, mode: "relearn" }), disabled: !!run },
+                      { icon: LogIn, label: "Use my Chrome sign-in", hint: "Copy this site's login from Chrome (quit Chrome first)", onClick: () => void importLogin(a.id) },
                     ]} />
                   </>
                 )}

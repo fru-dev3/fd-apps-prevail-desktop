@@ -19,7 +19,6 @@
 //   * Every run is wall-clock bounded and the captured output is size
 //     capped before it is written to disk.
 
-use super::TierStatus;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::process::{Command, Stdio};
@@ -172,17 +171,6 @@ impl CliRunner {
         Ok(out)
     }
 
-    pub fn status(&mut self) -> TierStatus {
-        TierStatus {
-            id: "tier_d_cli".to_string(),
-            label: "CLI connectors".to_string(),
-            state: "ready — run an installed CLI to pull data".to_string(),
-            // Tier D is stateless: it is always available to attempt a run.
-            active: true,
-            running: 0,
-            last_error: self.last_error.clone(),
-        }
-    }
 }
 
 #[cfg(test)]

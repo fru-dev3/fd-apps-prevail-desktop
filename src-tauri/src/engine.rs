@@ -1032,214 +1032,12 @@ pub fn engine_obsidian_import(vault: String, from: String, domain: Option<String
     run_engine_json(&["obsidian", "import", "--from", &from, "--into", &dom, "--vault", &vault, "--json"])
 }
 
-/// Probe one app's connectivity/auth (api/oauth/browser/mcp/cli/manual).
-/// Returns the structured ProbeResult: { ok, status, message, fixHint?, ... }.
-#[tauri::command]
-pub fn engine_app_probe(id: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "test", &id, "--json"])
-}
-
 // ── Composio CLI (browser-OAuth setup, an alternative to the MCP key) ──────
 // These shell out to the official `composio` CLI rather than the prevail engine.
 // They are pure SETUP helpers: the agent still uses the Composio MCP under the
 // hood, so connecting an app stays on the existing composio_connect_app path.
 // PATH is built the same way build_cli_env() does (so a Finder-launched app can
 // find binaries) plus ~/.composio/bin where the official installer drops it.
-
-/// PATH enriched with ~/.composio/bin (where the official installer puts the
-/// `composio` binary) on top of the well-known CLI dirs from build_cli_env().
-fn composio_cli_path() -> String {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let (base, _user, _logname) = crate::build_cli_env();
-    if home.is_empty() {
-        base
-    } else {
-        format!("{home}/.composio/bin:{base}")
-    }
-}
-
-/// Resolve the `composio` binary: `which` first, then the well-known install
-/// locations. Returns the full path, or None when nothing is found.
-fn resolve_composio_bin() -> Option<String> {
-    use std::process::Command;
-    let path = composio_cli_path();
-    // `which composio` honoring our enriched PATH.
-    if let Ok(out) = Command::new("which")
-        .arg("composio")
-        .env("PATH", &path)
-        .stdin(std::process::Stdio::null())
-        .output()
-    {
-        if out.status.success() {
-            let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if !p.is_empty() && Path::new(&p).exists() {
-                return Some(p);
-            }
-        }
-    }
-    let home = std::env::var("HOME").unwrap_or_default();
-    let candidates = [
-        format!("{home}/.composio/bin/composio"),
-        "/opt/homebrew/bin/composio".to_string(),
-        "/usr/local/bin/composio".to_string(),
-        format!("{home}/.local/bin/composio"),
-    ];
-    for c in &candidates {
-        if Path::new(c).exists() {
-            return Some(c.clone());
-        }
-    }
-    None
-}
-
-/// Cap process output so a chatty installer/login can't blow up the JSON payload.
-pub(crate) fn cap_output(s: &str) -> String {
-    let s = s.trim();
-    if s.len() <= 4000 {
-        s.to_string()
-    } else {
-        let head: String = s.chars().take(4000).collect();
-        format!("{head}\n… (truncated)")
-    }
-}
-
-/// Composio CLI status: is the `composio` binary installed, and is it logged in?
-/// Defensive — any failure resolves to installed/loggedIn false, never an Err.
-/// Returns { installed, loggedIn, account, bin }.
-#[tauri::command]
-pub fn composio_cli_status() -> Result<serde_json::Value, String> {
-    use std::process::Command;
-    let bin = match resolve_composio_bin() {
-        Some(b) => b,
-        None => {
-            return Ok(serde_json::json!({
-                "installed": false, "loggedIn": false, "account": null, "bin": null
-            }));
-        }
-    };
-    let path = composio_cli_path();
-    // Prefer `whoami`; fall back to `--version` just to confirm the binary runs.
-    let mut logged_in = false;
-    let mut account: Option<String> = None;
-    let whoami = Command::new(&bin)
-        .arg("whoami")
-        .env("PATH", &path)
-        .stdin(std::process::Stdio::null())
-        .output();
-    if let Ok(out) = whoami {
-        let text = format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
-        let lower = text.to_lowercase();
-        // Treat a clean exit that doesn't read like "not logged in" as logged in.
-        let looks_logged_out = lower.contains("not logged in")
-            || lower.contains("please login")
-            || lower.contains("please log in")
-            || lower.contains("no active")
-            || lower.contains("unauthenticated")
-            || lower.contains("login required");
-        if out.status.success() && !looks_logged_out {
-            logged_in = true;
-            // Best-effort account extraction: first email-looking token.
-            let acct = text
-                .split_whitespace()
-                .find(|t| t.contains('@') && t.contains('.'))
-                .map(|t| t.trim_matches(|c: char| !c.is_ascii_graphic()).to_string())
-                .filter(|s| !s.is_empty());
-            account = acct;
-        }
-    }
-    Ok(serde_json::json!({
-        "installed": true,
-        "loggedIn": logged_in,
-        "account": account,
-        "bin": bin,
-    }))
-}
-
-/// Install the Composio CLI via the official installer. Long-ish but finite;
-/// runs off the UI thread. Returns { ok, output } (output capped).
-#[tauri::command]
-pub async fn composio_cli_install(_app: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        use std::process::Command;
-        let path = composio_cli_path();
-        let (_p, user, logname) = crate::build_cli_env();
-        let out = Command::new("bash")
-            .arg("-lc")
-            // Download the installer to a temp file, then run it — don't pipe
-            // remote code straight into bash (O37). The script never bypasses
-            // disk, so it's inspectable and the download can fail cleanly.
-            // (Cryptographic SHA-pinning awaits an upstream-published checksum.)
-            .arg("set -euo pipefail; t=\"$(mktemp -t composio-install.XXXXXX)\"; curl -fsSL https://composio.dev/install -o \"$t\"; bash \"$t\"; rm -f \"$t\"")
-            .env_clear()
-            .envs(crate::scrubbed_env_pairs())
-            .env("PATH", path)
-            .env("USER", user)
-            .env("LOGNAME", logname)
-            .stdin(std::process::Stdio::null())
-            .output();
-        match out {
-            Ok(o) => {
-                let combined = format!(
-                    "{}{}",
-                    String::from_utf8_lossy(&o.stdout),
-                    String::from_utf8_lossy(&o.stderr)
-                );
-                serde_json::json!({ "ok": o.status.success(), "output": cap_output(&combined) })
-            }
-            Err(e) => serde_json::json!({ "ok": false, "output": format!("install failed: {e}") }),
-        }
-    })
-    .await
-    .map_err(|e| format!("composio install task failed: {e}"))
-}
-
-/// Run `composio login` (browser OAuth). Interactive + long-running: opens a
-/// browser and waits for the user, so it uses a generous timeout. Returns
-/// { ok, output } (output capped). If the binary is missing, returns ok:false.
-#[tauri::command]
-pub async fn composio_cli_login(_app: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        use std::process::Command;
-        let bin = match resolve_composio_bin() {
-            Some(b) => b,
-            None => {
-                return serde_json::json!({ "ok": false, "output": "Composio CLI not installed" });
-            }
-        };
-        let path = composio_cli_path();
-        let (_p, user, logname) = crate::build_cli_env();
-        // Wrap in `timeout` so a never-completing browser auth can't hang the
-        // child forever. macOS lacks GNU coreutils `timeout` by default, so run
-        // the binary directly and rely on the child finishing once the user
-        // signs in (or closes the tab). The 300s budget is the user's window.
-        let out = Command::new(&bin)
-            .arg("login")
-            .env_clear()
-            .envs(crate::scrubbed_env_pairs())
-            .env("PATH", path)
-            .env("USER", user)
-            .env("LOGNAME", logname)
-            .stdin(std::process::Stdio::null())
-            .output();
-        match out {
-            Ok(o) => {
-                let combined = format!(
-                    "{}{}",
-                    String::from_utf8_lossy(&o.stdout),
-                    String::from_utf8_lossy(&o.stderr)
-                );
-                serde_json::json!({ "ok": o.status.success(), "output": cap_output(&combined) })
-            }
-            Err(e) => serde_json::json!({ "ok": false, "output": format!("login failed: {e}") }),
-        }
-    })
-    .await
-    .map_err(|e| format!("composio login task failed: {e}"))
-}
 
 /// Scaffold a new app from a catalog pick — writes ~/.prevail/apps/<id>/ so it
 /// becomes a real connectable App. Returns { ok, path?, error? }.
@@ -1272,27 +1070,6 @@ pub fn engine_app_add(
     run_engine_json(&refs)
 }
 
-/// Scaffold a GATEWAY app (Composio / Nango) for a toolkit pick. Unlike
-/// engine_app_add (a generic catalog scaffold), this tags the app as a gateway
-/// app wired to the given provider so syncs run through the gateway connection.
-/// Returns { ok, path?, error? }.
-#[tauri::command]
-pub fn engine_gateway_app_add(
-    provider: String,
-    toolkit: String,
-    id: String,
-    title: String,
-) -> Result<serde_json::Value, String> {
-    run_engine_json(&[
-        "connectors", "gateway-add",
-        "--provider", &provider,
-        "--toolkit", &toolkit,
-        "--id", &id,
-        "--title", &title,
-        "--json",
-    ])
-}
-
 /// Rewrite an app's many-to-many domain binding. Pass the full desired list;
 /// the engine normalizes/validates/dedups and writes only the manifest's
 /// `domains` array. Returns { ok, path?, domains?, error? }.
@@ -1308,27 +1085,6 @@ pub fn engine_app_set_domains(id: String, domains: Vec<String>, vault: Option<St
         Some(v) => run_engine_json(&["connectors", "set", &id, "domains", &doms, "--vault", v, "--json"]),
         None => run_engine_json(&["connectors", "set", &id, "domains", &doms, "--json"]),
     }
-}
-
-/// A2: change how a connected app connects (api | oauth | browser | mcp | manual).
-#[tauri::command]
-pub fn engine_app_set_integration(id: String, integration: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "set", &id, "integration", &integration, "--json"])
-}
-
-/// Per-app privacy: local-only pins this app's data processing to a local model
-/// (same construct domains use). Returns { ok, path?, localOnly?, error? }.
-#[tauri::command]
-pub fn engine_app_set_privacy(id: String, local_only: bool) -> Result<serde_json::Value, String> {
-    let v = if local_only { "local" } else { "standard" };
-    run_engine_json(&["connectors", "set", &id, "privacy", v, "--json"])
-}
-
-/// Per-app default model for the app's skill / sync / agent runs. Empty clears
-/// it (falls back to the global default). Returns { ok, path?, model?, error? }.
-#[tauri::command]
-pub fn engine_app_set_model(id: String, model: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "set", &id, "model", &model, "--json"])
 }
 
 /// Record one skill USE in the vault's usage ledger (fire-and-forget from the
@@ -1361,31 +1117,6 @@ pub fn engine_skill_archive(domain: String, skill: String, restore: Option<bool>
 pub async fn engine_app_import_login(id: String) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         run_engine_json(&["connectors", "import-login", &id, "--json"])
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-/// Pin (or clear) the AI runtime that serves an app's chats - the routing half
-/// of the harness pass-through lanes. Empty/off clears.
-#[tauri::command]
-pub fn engine_app_set_runtime(id: String, runtime: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "set", &id, "runtime", &runtime, "--json"])
-}
-
-/// The normalized harness-connections inventory (Claude Code / Codex / Gemini
-/// connectors, local + account, with health), optionally matched to one app.
-#[tauri::command]
-pub async fn harness_connections_scan(app: Option<String>) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut args: Vec<String> = vec!["harness-connections".into()];
-        if let Some(a) = app.filter(|s| !s.trim().is_empty()) {
-            args.push("--app".into());
-            args.push(a);
-        }
-        args.push("--json".into());
-        let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        run_engine_json(&refs)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1458,83 +1189,6 @@ pub fn engine_app_set_account(
     }
     args.push("--json");
     run_engine_json(&args)
-}
-
-/// APP-4: set (or clear) an app's autonomous-sync schedule. `every` is the
-/// cadence the engine validates (hourly | <2-23>h | daily | weekly), with an
-/// optional HH:MM `at` and weekday `on`; "off"/"none"/"" clears the schedule.
-/// Returns { ok, path?, refresh?, error? }.
-#[tauri::command]
-pub fn engine_app_set_schedule(
-    id: String,
-    every: String,
-    at: Option<String>,
-    on: Option<String>,
-) -> Result<serde_json::Value, String> {
-    let mut args: Vec<String> = vec![
-        "connectors".into(), "set".into(), id, "refresh".into(), every,
-    ];
-    if let Some(a) = at { if !a.trim().is_empty() { args.push("at".into()); args.push(a); } }
-    if let Some(o) = on { if !o.trim().is_empty() { args.push("on".into()); args.push(o); } }
-    args.push("--json".into());
-    let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    run_engine_json(&refs)
-}
-
-/// Read an app's soul note (apps/<id>/soul.md) — the same construct domains use,
-/// declaring WHY the app is in the user's harness. The agent reads it on every
-/// run. Returns { ok, soul, path? }.
-#[tauri::command]
-pub fn engine_app_get_soul(id: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "soul", &id, "--json"])
-}
-
-/// Write (or clear, when empty) an app's soul note. Returns { ok, path?, soul? }.
-#[tauri::command]
-pub fn engine_app_set_soul(id: String, soul: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "set", &id, "soul", &soul, "--json"])
-}
-
-/// AI-draft an app's Ideal State (its soul.md) from the app's real context —
-/// catalog description, existing note, domains it feeds, skills, connection
-/// method — optionally web-researching the app for best-practice capabilities.
-/// Mirrors `domain_draft_ideal` (the per-domain drafter) for apps, but shells
-/// the sidecar (which owns the app catalog + CLI detection) rather than calling
-/// the model in-process. Returns the drafted markdown for the editor to show;
-/// the user reviews, edits, and Saves — which writes the SAME soul.md the chat
-/// and agent read, so drafting here or from chat lands on one file.
-/// Returns the raw draft string (not JSON) so the UI can drop it straight into
-/// the editor.
-#[tauri::command]
-pub fn engine_app_draft_ideal(id: String, provider: String, model: String, vault: Option<String>) -> Result<String, String> {
-    let mut args: Vec<&str> = vec!["connectors", "draft-ideal", &id];
-    if !provider.trim().is_empty() {
-        args.push("--cli");
-        args.push(&provider);
-    }
-    if !model.trim().is_empty() {
-        args.push("--model");
-        args.push(&model);
-    }
-    // Target the SAME vault the UI is showing, so draft-ideal always finds the
-    // connector the user is looking at. Without this it fell back to the ambient
-    // vault, which could differ from where the app was added ("no connector with
-    // id X"). Mirrors engine_app_add / engine_apps_list, which both pass --vault.
-    let vault = vault.filter(|v| !v.trim().is_empty());
-    if let Some(v) = &vault {
-        args.push("--vault");
-        args.push(v);
-    }
-    // run_engine_json appends --json, so the sidecar emits { ok, draft } | { ok:false, error }.
-    let v = run_engine_json(&args)?;
-    if v.get("ok").and_then(|b| b.as_bool()) == Some(false) {
-        return Err(v.get("error").and_then(|e| e.as_str()).unwrap_or("draft failed").to_string());
-    }
-    let draft = v.get("draft").and_then(|d| d.as_str()).unwrap_or("").trim().to_string();
-    if draft.is_empty() {
-        return Err("the model returned an empty draft".into());
-    }
-    Ok(draft)
 }
 
 /// AI-draft a complete, valid SKILL.md for a domain from a plain-language
@@ -1734,13 +1388,6 @@ pub fn engine_app_sync(id: String, vault: String) -> Result<serde_json::Value, S
     run_engine_json(&["connectors", "sync", &id, "--vault", &vault, "--json"])
 }
 
-/// Fully delete a user-installed connector (removes its whole folder). Bundled
-/// connectors are refused by the engine. Returns { ok, removed?, error? }.
-#[tauri::command]
-pub fn engine_app_remove(id: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "remove", &id, "--json"])
-}
-
 /// List the data files a connector has actually loaded (apps redesign: "showcase
 /// what data has been loaded in the app's folder"). Reads <vault>/data/apps/<id>/
 /// data/** recursively → [{ path, name, bytes, mtime }], newest first. Empty when
@@ -1784,25 +1431,6 @@ pub(crate) fn is_safe_app_id(id: &str) -> bool {
         && id.len() <= 128
         && !id.starts_with('.')
         && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
-}
-
-/// Run an OAuth app's sign-in flow (`connectors oauth <id>`): opens the browser
-/// to the provider's consent screen, captures the loopback redirect, and persists
-/// the refresh token. Blocks until the flow completes. The desktop then runs a
-/// verify sync. Used by the per-app "Sign in" button.
-#[tauri::command]
-pub fn engine_app_oauth(id: String, vault: String) -> Result<serde_json::Value, String> {
-    let out = run_engine_raw(&["--vault", &vault, "connectors", "oauth", &id])?;
-    Ok(serde_json::json!({ "ok": true, "output": out }))
-}
-
-/// Agentic browser login: opens a real browser to the connector's login page so
-/// the user does only their own login, then persists the session for headless
-/// reuse. Long-running + interactive (like oauth), so it uses the raw spawn.
-#[tauri::command]
-pub fn engine_app_browser_login(id: String) -> Result<serde_json::Value, String> {
-    let out = run_engine_raw(&["connectors", "browser-login", &id])?;
-    Ok(serde_json::json!({ "ok": true, "output": out }))
 }
 
 /// The proactive Recommendations feed: domains to create (from recurring
@@ -1893,56 +1521,11 @@ pub fn engine_apps_sync_due(vault: String) -> Result<serde_json::Value, String> 
     run_engine_json(&["connectors", "sync-due", "--vault", &vault, "--json"])
 }
 
-/// Connection Agent: given an app name + a plain-language goal, research the best
-/// available connection method (MCP/API/CLI/Composio/browser), scaffold the app,
-/// and return a plan { ok, plan:{integration, why, auth_step, schedule, domains,
-/// data}, error? }. This is the describe-the-goal alternative to catalog forms.
-#[tauri::command]
-pub fn engine_app_connect(
-    name: String,
-    goal: String,
-    vault: String,
-    provider: Option<String>,
-    model: Option<String>,
-    reevaluate: Option<bool>,
-    current: Option<String>,
-) -> Result<serde_json::Value, String> {
-    let mut args: Vec<String> = vec![
-        "connectors".into(), "connect".into(),
-        "--name".into(), name,
-        "--goal".into(), goal,
-        "--vault".into(), vault,
-    ];
-    if let Some(p) = provider { if !p.trim().is_empty() { args.push("--cli".into()); args.push(p); } }
-    if let Some(m) = model { if !m.trim().is_empty() { args.push("--model".into()); args.push(m); } }
-    // Re-evaluate mode: research-only (don't re-scaffold an existing app), and
-    // tell the agent the current method so the comparison is meaningful.
-    if reevaluate.unwrap_or(false) {
-        args.push("--reevaluate".into());
-        if let Some(c) = current { if !c.trim().is_empty() { args.push("--current".into()); args.push(c); } }
-    }
-    let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    run_engine_json(&refs)
-}
-
 /// Ideal-state alignment report: per-pillar fit score + rationale + actions.
 /// Signal mode (no model) by default; fast + side-effect-light.
 #[tauri::command]
 pub fn engine_alignment(vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["--vault", &vault, "alignment", "--json"])
-}
-
-/// One app's runnable skills (id/runner/trigger) for the per-app detail view.
-#[tauri::command]
-pub fn engine_app_skills(id: String, vault: Option<String>) -> Result<serde_json::Value, String> {
-    // Pass --vault so the SKILL LISTING resolves the SAME vault the run does
-    // (engine_app_run_skill passes it explicitly). Without this the listing used
-    // the ambient vault while the run used the UI's vault, so a listed skill
-    // could fail to run with "no skill X for connector Y".
-    match vault.filter(|v| !v.trim().is_empty()) {
-        Some(v) => run_engine_json(&["connectors", "skills", &id, "--vault", &v, "--json"]),
-        None => run_engine_json(&["connectors", "skills", &id, "--json"]),
-    }
 }
 
 /// One app's skill FILES as attachable context: the primary SKILL.md plus every
@@ -1952,14 +1535,6 @@ pub fn engine_app_skills(id: String, vault: Option<String>) -> Result<serde_json
 #[tauri::command]
 pub fn engine_app_skill_files(id: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["connectors", "skill-files", &id, "--json"])
-}
-
-/// One app's run history (last ~20 runs) for the per-app Runs facet. Returns
-/// { lastRunTs, lastOkTs, lastRunOk, lastError, nextDueTs, consecutiveFailures,
-/// runs: [{ ts, ok, skill, summary?, error?, duration_ms, artifacts }] }.
-#[tauri::command]
-pub fn engine_app_runs(id: String) -> Result<serde_json::Value, String> {
-    run_engine_json(&["connectors", "runs", &id, "--json"])
 }
 
 /// App lock (Phase 0 passcode). The passcode is sent on the child's STDIN so it
@@ -2779,23 +2354,6 @@ pub async fn engine_connector_run_stream(
     run_engine_stream(app, session, args, "connector_run").await
 }
 
-/// One-time convenience: copy the user's EXISTING Chrome login cookies for this
-/// app's site into the connector's dedicated profile (Chrome must be quit).
-/// Scoped to the site host only — never the whole browser. Returns the CLI's
-/// JSON result ({ ok, imported, message }).
-#[tauri::command]
-pub fn engine_connector_import_login(id: String, host: Option<String>) -> Result<serde_json::Value, String> {
-    let mut args: Vec<String> = vec!["connectors".into(), "import-login".into(), id];
-    if let Some(h) = host {
-        if !h.trim().is_empty() {
-            args.push("--host".into());
-            args.push(h);
-        }
-    }
-    let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    run_engine_json(&refs)
-}
-
 /// One historical context-score sample for a domain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScoreHistoryPoint {
@@ -3279,40 +2837,6 @@ pub async fn engine_agent_run(
     }
 
     run_engine_stream(app, session, args, "engine-agent").await
-}
-
-/// Run one of an app's skills, streaming progress to the frontend.
-///
-/// `prevail connectors skill-run --app <app> --skill <skill> --vault <vault>
-///  [--cli <provider>] --json`. The browser-method skill performs its
-/// first-time login on the first run, so this also covers setup. Streams the
-/// same ChatEvent NDJSON shape as `engine_chat` / `engine_agent_run`, on
-/// `engine-skill:line` and `engine-skill:done`, so the UI reuses its existing
-/// stream parser. Mirrors `engine_agent_run`'s spawn/stream/emit path.
-#[tauri::command]
-pub async fn engine_app_run_skill(
-    handle: tauri::AppHandle,
-    session: String,
-    vault: String,
-    app: String,
-    skill: String,
-    cli: Option<String>,
-) -> Result<(), String> {
-    let mut args: Vec<String> = vec![
-        "connectors".to_string(),
-        "skill-run".to_string(),
-        "--app".to_string(),
-        app,
-        "--skill".to_string(),
-        skill,
-        "--vault".to_string(),
-        vault,
-    ];
-    if let Some(c) = cli.filter(|s| !s.is_empty()) {
-        args.push("--cli".to_string());
-        args.push(c);
-    }
-    run_engine_stream(handle, session, args, "engine-skill").await
 }
 
 // ─────────────────────────────────────────────────────────────────────
