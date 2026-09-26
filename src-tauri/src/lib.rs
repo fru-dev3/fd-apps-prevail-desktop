@@ -49,6 +49,7 @@ mod runtime_connectors;
 mod retrospect;
 mod projects;
 mod favicon;
+mod apps_mirror;
 mod composio;
 mod nango;
 mod reminders;
@@ -603,6 +604,13 @@ pub fn run() {
             mirror::projects_restart_text,
             mirror::projects_diff,
             favicon::app_favicon,
+            apps_mirror::apps_mirror_list,
+            apps_mirror::apps_mirror_refresh,
+            apps_mirror::apps_mirror_tools,
+            apps_mirror::apps_mirror_recipe_draft,
+            apps_mirror::apps_mirror_recipe_save,
+            apps_mirror::apps_mirror_sync,
+            apps_mirror::apps_mirror_archive,
             google::google_profile_remove,
             google::google_scaffold,
             google::google_cli_install_stream,

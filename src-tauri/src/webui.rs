@@ -90,6 +90,10 @@ const WEBUI_ALLOWED: &[&str] = &[
     // read-only audit trail. app_favicon fetches one host's /favicon.ico so app
     // rows carry real brand marks instead of letter tiles.
     "engine_apps_list", "app_favicon", "ingestion_connector_catalog", "ingestion_connector_logos",
+    // The runtime connector mirror: the cached list only (it already carries
+    // each app's tools). Refresh and the live tool probe reach into the
+    // runtimes; recipe edits, sync and archive change things. All desktop-only.
+    "apps_mirror_list",
     "ingestion_domain_stats", "ingestion_list_artifacts", "ingestion_status",
     "ingestion_audit_tail", "ingestion_mcp_list", "mcp_install_status",
     // Daemons + activity: status readouts and the activity feed.
@@ -1483,6 +1487,8 @@ mod tests {
         // make a session a shell.
         for banned in [
             "webui_secret_get", "webui_secret_set", "webui_start", "webui_stop",
+            "apps_mirror_refresh", "apps_mirror_tools", "apps_mirror_recipe_draft",
+            "apps_mirror_recipe_save", "apps_mirror_sync", "apps_mirror_archive",
             "webui_tunnel_start", "webui_pair_code", "webui_device_revoke",
             "provider_key_get", "provider_key_set", "provider_key_del",
             "write_text_file", "write_file", "open_in_terminal", "app_uninstall",
