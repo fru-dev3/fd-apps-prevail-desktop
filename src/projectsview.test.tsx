@@ -35,14 +35,14 @@ const INDEX = {
       takeaways: ["Office green, never gold"], ideas: ["A guestbook window"], open_questions: ["Which analytics?"],
     },
     {
-      slug: "maple-claim", title: "maple insurance claim", domain: "insurance", kind: "life", summary: "Hail claim.",
+      slug: "roof-claim", title: "Roof damage claim", domain: "insurance", kind: "life", summary: "Hail claim.",
       status: "dormant", prompt_count: 3, first_ts: day("2026-07-01"), last_ts: day("2026-07-02"),
-      monthly: { "2026-07": 3 }, tools: { claude: 3 }, pack_dir: "data/domains/insurance/memory/projects/maple-claim",
+      monthly: { "2026-07": 3 }, tools: { claude: 3 }, pack_dir: "data/domains/insurance/memory/projects/roof-claim",
       brief_model: "", brief_ts: 0, intents: [], takeaways: [], ideas: [], open_questions: [],
     },
   ],
   recommendations: [
-    { kind: "task", title: "Follow up with the adjuster", why: "Claim dormant since July", domain: "insurance", project: "maple insurance claim" },
+    { kind: "task", title: "Follow up with the adjuster", why: "Claim dormant since July", domain: "insurance", project: "Roof damage claim" },
     { kind: "skill", title: "Write a ship-to-Vercel skill", why: "You re-explained the deploy 14 times", domain: "dev", project: "fru.dev directory sites", project_slug: "fru-dev-site" },
   ],
   recommendations_model: "claude-fable-5-1",
@@ -114,7 +114,7 @@ describe("ProjectsView", () => {
 
   it("a small project has its prompts but no brief to copy", async () => {
     render(<ProjectsView vaultPath="/v" />);
-    fireEvent.click(await screen.findByText("maple insurance claim"));
+    fireEvent.click(await screen.findByText("Roof damage claim"));
     expect(screen.getByText(/No brief yet/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Copy replay brief/ })).toBeNull();
     expect(screen.getByRole("button", { name: /Every prompt/ })).toBeTruthy();
@@ -123,7 +123,7 @@ describe("ProjectsView", () => {
   it("filters to active projects", async () => {
     render(<ProjectsView vaultPath="/v" />);
     fireEvent.click(await screen.findByRole("button", { name: "Active 1" }));
-    expect(screen.queryByText("maple insurance claim")).toBeNull();
+    expect(screen.queryByText("Roof damage claim")).toBeNull();
   });
 
   it("offers the first build when there are no projects", async () => {

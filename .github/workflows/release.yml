@@ -22,6 +22,8 @@ jobs:
       # shipped demo vault. Runs FIRST so a leak never gets signed/notarized.
       - name: Scrub gate (no personal data in demo vault)
         run: bash scripts/scrub-gate.sh
+      - name: Content check
+        run: bash scripts/content-check.sh
 
       # Integrity gate: fail fast + loud if a release file is empty or invalid
       # JSON (a version-bump race once committed 0-byte package.json/tauri.conf,
@@ -162,6 +164,8 @@ jobs:
       # shipped demo vault. Runs FIRST so a leak never gets signed/notarized.
       - name: Scrub gate (no personal data in demo vault)
         run: bash scripts/scrub-gate.sh
+      - name: Content check
+        run: bash scripts/content-check.sh
 
       # Integrity gate: fail fast + loud if a release file is empty or invalid
       # JSON (a version-bump race once committed 0-byte package.json/tauri.conf,
