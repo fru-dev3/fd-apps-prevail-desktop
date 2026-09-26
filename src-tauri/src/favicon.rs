@@ -24,6 +24,25 @@ fn safe_host(host: &str) -> String {
         .collect()
 }
 
+/// A bare DNS name: letters, digits, dots and dashes, nothing else. The host is
+/// pasted into `https://{host}/favicon.ico`, so a `?`, `#`, `@` or `:` would
+/// let a caller aim the fetch at another path or port (e.g. `127.0.0.1:8443?`
+/// fetches that service's root). Combined with returning any body as a data:
+/// URI, that read a private service over the phone bridge.
+fn is_plain_hostname(host: &str) -> bool {
+    !host.is_empty()
+        && host.len() <= 253
+        && !host.starts_with('.')
+        && !host.starts_with('-')
+        && host.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+}
+
+/// Only an image may come back as an icon; anything else (an HTML page, a JSON
+/// API response) is dropped rather than handed to the caller.
+fn is_image_type(ct: &str) -> bool {
+    ct.trim().to_ascii_lowercase().starts_with("image/")
+}
+
 /// Return a base64 data: URI for `host`'s favicon, or "" when unavailable.
 /// Cached on disk after the first fetch. Empty in Bunker Mode (offline-only),
 /// or when the host is missing / the fetch fails — the UI then shows the letter
@@ -31,7 +50,7 @@ fn safe_host(host: &str) -> String {
 #[tauri::command]
 pub async fn app_favicon(host: String) -> Result<String, String> {
     let host = host.trim().to_lowercase();
-    if host.is_empty() || host.contains('/') || host.contains(' ') {
+    if !is_plain_hostname(&host) {
         return Ok(String::new());
     }
     let dir = cache_dir();
@@ -76,6 +95,9 @@ async fn fetch_favicon(host: &str) -> Option<String> {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("image/png")
         .to_string();
+    if !is_image_type(&ct) {
+        return None;
+    }
     let bytes = resp.bytes().await.ok()?;
     // Google returns a tiny generic globe (~ a few hundred bytes) for unknown
     // domains; treat a suspiciously small payload as "no real favicon" so the UI
@@ -86,4 +108,26 @@ async fn fetch_favicon(host: &str) -> Option<String> {
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
     Some(format!("data:{ct};base64,{b64}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_bare_hostname_is_fetched() {
+        assert!(is_plain_hostname("canva.com"));
+        assert!(is_plain_hostname("app.hubspot.com"));
+        for bad in ["", "127.0.0.1:8443?", "internal#", "user@evil.com", "a/b", "a b", ".x", "x?y=1", "[::1]"] {
+            assert!(!is_plain_hostname(bad), "{bad:?} must not be fetched");
+        }
+    }
+
+    #[test]
+    fn only_an_image_comes_back() {
+        assert!(is_image_type("image/x-icon"));
+        assert!(is_image_type("IMAGE/png"));
+        assert!(!is_image_type("text/html; charset=utf-8"));
+        assert!(!is_image_type("application/json"));
+    }
 }
