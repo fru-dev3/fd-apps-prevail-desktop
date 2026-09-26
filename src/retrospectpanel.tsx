@@ -85,7 +85,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
         <div className="inline-flex overflow-hidden rounded-lg border border-border">
           {VANTAGES.map((v) => (
             <button key={v.id} onClick={() => setVantage(v.id)}
-              className={`px-3 py-1.5 font-mono text-[11px] tracking-wide transition-colors ${vantage === v.id ? "bg-accent font-bold text-background" : "text-text-muted hover:bg-surface-warm hover:text-text-secondary"}`}>
+              className={`px-3 py-1.5 text-[12px] transition-colors ${vantage === v.id ? "bg-accent font-bold text-background" : "text-text-muted hover:bg-surface-warm hover:text-text-secondary"}`}>
               {v.label}
             </button>
           ))}
@@ -136,7 +136,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
                 className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
                 <div className="min-w-0 flex-1">
                   <div className={`truncate text-[13px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{p.label}</div>
-                  <div className="font-mono text-[10px] text-text-muted">{p.total} prompt{p.total === 1 ? "" : "s"}{t ? ` · ${titleCase(t.domain)}` : ""}</div>
+                  <div className="text-[11px] text-text-muted">{p.total} prompt{p.total === 1 ? "" : "s"}{t ? ` · ${titleCase(t.domain)}` : ""}</div>
                 </div>
                 <span className="h-6 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t ? domColor(t.domain) : "var(--border)", opacity: 0.3 + 0.7 * (p.total / maxTotal) }} />
               </button>
@@ -151,7 +151,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
         {/* Main */}
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
           {loading ? (
-            <div className="font-mono text-[12px] text-text-muted">reading your intents…</div>
+            <div className="text-[13px] text-text-muted">Reading your prompts…</div>
           ) : !sel ? (
             <div className="max-w-md text-sm text-text-muted">Nothing to look back on yet. Retrospect fills in as you use Prevail.</div>
           ) : (
@@ -194,7 +194,7 @@ export function RetrospectPanel({ vaultPath }: { vaultPath: string }) {
                       <div className="h-5 flex-1 overflow-hidden rounded-md bg-surface">
                         <div className="flex h-full items-center rounded-md pl-2 text-[11px] font-bold text-background" style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: domColor(d.domain) }}>{d.count}</div>
                       </div>
-                      <span className="w-12 shrink-0 text-right font-mono text-[11px] text-text-muted">{pct}%</span>
+                      <span className="w-12 shrink-0 text-right text-[11px] tabular-nums text-text-muted">{pct}%</span>
                     </div>
                   );
                 })}

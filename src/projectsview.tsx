@@ -20,11 +20,11 @@ export interface ProjectEntry {
   slug: string; title: string; domain: string; kind: string; summary: string;
   status: "active" | "dormant" | "done";
   prompt_count: number; first_ts: number; last_ts: number;
-  monthly: Record<string, number>; tools: Record<string, number>;
+  monthly: Record<string, number>; weekly?: Record<string, number>; tools: Record<string, number>;
   pack_dir: string; brief_model: string; brief_ts: number;
   intents: ProjectIntent[]; takeaways: string[]; ideas: string[]; open_questions: string[];
 }
-export interface Recommendation { kind: "task" | "skill" | "app" | "habit" | "automation" | "project"; title: string; why: string; domain?: string; project?: string }
+export interface Recommendation { kind: "task" | "skill" | "app" | "habit" | "automation" | "project"; title: string; why: string; domain?: string; project?: string; project_slug?: string }
 export interface ProjectsIndex {
   generated_ts: number; model: string;
   stats?: { records: number; kept: number; internal: number; program?: number; projects: number; unassigned: number };
@@ -41,6 +41,58 @@ const REC_LABEL: Record<Recommendation["kind"], string> = {
 const STATUS_TONE: Record<ProjectEntry["status"], string> = {
   active: "bg-ok/15 text-ok", dormant: "bg-surface-warm text-text-muted", done: "bg-accent-soft text-accent",
 };
+// The model words intent status freely ("in progress", "shipped", "open").
+export function statusKind(s: string): ProjectEntry["status"] {
+  const l = s.toLowerCase();
+  if (/done|resolved|complete|shipped|finished|closed/.test(l)) return "done";
+  if (/active|progress|ongoing|open|doing|started/.test(l)) return "active";
+  return "dormant";
+}
+export const nPrompts = (n: number) => `${n.toLocaleString()} prompt${n === 1 ? "" : "s"}`;
+
+// Every Monday from the first week to the last (keys match the engine's).
+export function weekSpan(first: number, last: number): string[] {
+  const monday = (ts: number) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+  const out: string[] = [];
+  const d = monday(first);
+  const end = monday(last);
+  while (d <= end && out.length < 60) {
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    d.setDate(d.getDate() + 7);
+  }
+  return out;
+}
+
+// Prompts over time: weekly bars for a history under four months (a single
+// monthly bar says nothing), monthly beyond that.
+function ActivityChart({ p }: { p: ProjectEntry }) {
+  const weekly = p.weekly && p.last_ts - p.first_ts < 120 * 864e5;
+  const keys = weekly ? weekSpan(p.first_ts, p.last_ts) : monthSpan(p.first_ts, p.last_ts);
+  const counts = weekly ? p.weekly! : p.monthly;
+  const max = Math.max(1, ...keys.map((k) => counts[k] ?? 0));
+  const label = (k: string) => weekly
+    ? new Date(`${k}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : new Date(`${k}-15T12:00:00`).toLocaleDateString(undefined, { month: "short" });
+  const every = Math.max(1, Math.ceil(keys.length / 8)); // label at most ~8 ticks
+  const color = domainColor(p.domain);
+  return (
+    <div className="mt-5 rounded-xl border border-border-subtle bg-surface p-4">
+      <div className="mb-3 text-[12px] text-text-muted">Prompts per {weekly ? "week" : "month"}</div>
+      <div className="flex h-20 items-end gap-1">
+        {keys.map((k, i) => {
+          const n = counts[k] ?? 0;
+          return (
+            <div key={k} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${label(k)}: ${nPrompts(n)}`}>
+              {n > 0 && <span className="text-[10px] tabular-nums text-text-muted">{n}</span>}
+              <div className="w-full max-w-6 rounded-sm" style={{ height: n ? `${Math.max(4, (n / max) * 52)}px` : "2px", backgroundColor: n ? color : "var(--color-border)" }} />
+              <span className="h-3 whitespace-nowrap text-[10px] text-text-muted">{i % every === 0 ? label(k) : ""}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const fmtDay = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const fmtSpan = (a: number, b: number) => {
@@ -122,7 +174,7 @@ function ListBlock({ icon: Icon, title, items }: { icon: LucideIcon; title: stri
   );
 }
 
-function Recommendations({ recs, vaultPath }: { recs: Recommendation[]; vaultPath: string }) {
+function Recommendations({ recs, vaultPath, titles, onOpen }: { recs: Recommendation[]; vaultPath: string; titles: Map<string, string>; onOpen: (slug: string) => void }) {
   const [added, setAdded] = useState<Set<string>>(new Set());
   const groups = useMemo(() => {
     const order: Recommendation["kind"][] = ["task", "skill", "automation", "app", "habit", "project"];
@@ -143,7 +195,12 @@ function Recommendations({ recs, vaultPath }: { recs: Recommendation[]; vaultPat
                   <div key={key} className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="text-[14px] font-medium leading-snug text-text-primary">{r.title}</div>
-                      <div className="mt-0.5 text-[13px] leading-snug text-text-muted">{r.why}{r.project ? <span className="text-text-secondary"> · {r.project}</span> : null}</div>
+                      <div className="mt-0.5 text-[13px] leading-snug text-text-muted">
+                        {r.why}
+                        {r.project_slug && titles.has(r.project_slug) ? (
+                          <> · <button onClick={() => onOpen(r.project_slug!)} className="text-accent underline decoration-accent-border underline-offset-[3px] hover:decoration-accent">{titles.get(r.project_slug)}</button></>
+                        ) : r.project ? <span className="text-text-secondary"> · {r.project}</span> : null}
+                      </div>
                     </div>
                     {kind === "task" && (
                       <button
@@ -241,7 +298,7 @@ export function ProjectsView({ vaultPath }: { vaultPath: string }) {
           <button key={p.slug} onClick={() => setSel(p.slug)} className={`mb-1 flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
             <div className="min-w-0 flex-1">
               <div className={`truncate text-[13px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{p.title}</div>
-              <div className="mt-0.5 text-[11px] text-text-muted">{p.prompt_count} prompts · {new Date(p.last_ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+              <div className="mt-0.5 text-[11px] text-text-muted">{nPrompts(p.prompt_count)} · {new Date(p.last_ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
             </div>
             <Sparkline monthly={p.monthly} months={months} color={domainColor(p.domain)} />
           </button>
@@ -270,30 +327,16 @@ export function ProjectsView({ vaultPath }: { vaultPath: string }) {
       <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-text-primary">{cur.title}</h2>
       {cur.summary && <p className="mt-1.5 text-[15px] leading-snug text-text-secondary">{cur.summary}</p>}
       <div className="mt-2 text-[12px] text-text-muted">
-        {cur.prompt_count} prompts · {fmtSpan(cur.first_ts, cur.last_ts)} · {Object.entries(cur.tools).sort((a, b) => b[1] - a[1]).map(([t]) => titleCase(t)).join(", ")}
+        {nPrompts(cur.prompt_count)} · {fmtSpan(cur.first_ts, cur.last_ts)} · {Object.entries(cur.tools).sort((a, b) => b[1] - a[1]).map(([t]) => titleCase(t)).join(", ")}
       </div>
 
-      <div className="mt-5 rounded-xl border border-border-subtle bg-surface p-4">
-        <div className="mb-2 text-[12px] text-text-muted">Prompts per month</div>
-        <div className="flex h-16 items-end gap-1.5">
-          {monthSpan(cur.first_ts, cur.last_ts).map((m) => {
-            const n = cur.monthly[m] ?? 0;
-            const max = Math.max(1, ...Object.values(cur.monthly));
-            return (
-              <div key={m} className="flex min-w-0 flex-1 flex-col items-center gap-1" title={`${m}: ${n}`}>
-                <div className="w-full max-w-10 rounded-sm" style={{ height: n ? `${Math.max(8, (n / max) * 48)}px` : "2px", backgroundColor: n ? domainColor(cur.domain) : "var(--color-border)" }} />
-                <span className="text-[10px] text-text-muted">{new Date(`${m}-15`).toLocaleDateString(undefined, { month: "short" })}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <ActivityChart p={cur} />
 
       <section className="mt-6 rounded-xl border border-accent-border bg-accent-soft/40 p-4">
         <h3 className="flex items-center gap-2 font-display text-lg font-semibold text-text-primary"><History className="h-4 w-4 text-accent" />Replay with a newer model</h3>
         <p className="mt-1 text-[13px] leading-snug text-text-secondary">
           {cur.brief_model
-            ? <>The brief packs every requirement, correction and decision from these {cur.prompt_count} prompts into one prompt. Paste it into any model or coding agent to rebuild {cur.title}. Written by {modelName(cur.brief_model)} on {fmtDay(cur.brief_ts)}.</>
+            ? <>The brief packs every requirement, correction and decision from these {nPrompts(cur.prompt_count)} into one prompt. Paste it into any model or coding agent to rebuild {cur.title}. Written by {modelName(cur.brief_model)} on {fmtDay(cur.brief_ts)}.</>
             : <>No brief yet: projects under five prompts get none. The prompts themselves are saved.</>}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -326,7 +369,7 @@ export function ProjectsView({ vaultPath }: { vaultPath: string }) {
                   <div className="text-[14px] font-medium text-text-primary">{it.title}</div>
                   <div className="mt-0.5 text-[13px] leading-snug text-text-muted">{it.goal}</div>
                 </div>
-                <span className={`shrink-0 rounded-md px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide ${STATUS_TONE[(it.status as ProjectEntry["status"]) in STATUS_TONE ? (it.status as ProjectEntry["status"]) : "dormant"]}`}>{it.status}</span>
+                <span className={`shrink-0 whitespace-nowrap rounded-md px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide ${STATUS_TONE[statusKind(it.status)]}`}>{it.status}</span>
               </div>
             ))}
           </div>
@@ -342,7 +385,7 @@ export function ProjectsView({ vaultPath }: { vaultPath: string }) {
       <p className="mt-1.5 max-w-2xl text-[14px] leading-snug text-text-secondary">
         Read from all {idx.projects.length} projects and the {idx.stats?.kept.toLocaleString() ?? ""} prompts behind them{idx.recommendations_model ? `, by ${modelName(idx.recommendations_model)}` : ""}.
       </p>
-      <div className="mt-6"><Recommendations recs={idx.recommendations} vaultPath={vaultPath} /></div>
+      <div className="mt-6"><Recommendations recs={idx.recommendations} vaultPath={vaultPath} titles={new Map(idx.projects.map((p) => [p.slug, p.title]))} onOpen={setSel} /></div>
     </div>
   );
 

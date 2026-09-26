@@ -18,7 +18,7 @@ vi.mock("./bridge", () => ({
 let phone = false;
 vi.mock("./useisphone", () => ({ useIsPhone: () => phone, PHONE_MAX_PX: 767 }));
 
-import { ProjectsView, modelName, monthSpan } from "./projectsview";
+import { ProjectsView, modelName, monthSpan, nPrompts, statusKind, weekSpan } from "./projectsview";
 
 const day = (s: string) => Date.parse(`${s}T12:00:00`);
 const INDEX = {
@@ -43,7 +43,7 @@ const INDEX = {
   ],
   recommendations: [
     { kind: "task", title: "Follow up with the adjuster", why: "Claim dormant since July", domain: "insurance", project: "maple insurance claim" },
-    { kind: "skill", title: "Write a ship-to-Vercel skill", why: "You re-explained the deploy 14 times", domain: "dev", project: "fru.dev site" },
+    { kind: "skill", title: "Write a ship-to-Vercel skill", why: "You re-explained the deploy 14 times", domain: "dev", project: "fru.dev directory sites", project_slug: "fru-dev-site" },
   ],
   recommendations_model: "claude-fable-5-1",
 };
@@ -58,6 +58,12 @@ describe("helpers", () => {
     expect(modelName("gpt-5.6-sol")).toBe("GPT-5.6 Sol");
     expect(modelName("some-new-model-x")).toBe("some-new-model-x");
     expect(monthSpan(day("2026-06-20"), day("2026-09-01"))).toEqual(["2026-06", "2026-07", "2026-08", "2026-09"]);
+    expect(weekSpan(day("2026-09-09"), day("2026-09-24"))).toEqual(["2026-09-07", "2026-09-14", "2026-09-21"]);
+    expect(statusKind("IN PROGRESS")).toBe("active");
+    expect(statusKind("shipped")).toBe("done");
+    expect(statusKind("parked")).toBe("dormant");
+    expect(nPrompts(1)).toBe("1 prompt");
+    expect(nPrompts(4313)).toBe("4,313 prompts");
   });
 });
 
@@ -73,11 +79,17 @@ describe("ProjectsView", () => {
     expect(await screen.findByText("Added")).toBeTruthy();
   });
 
+  it("a recommendation links to its project under the current title", async () => {
+    render(<ProjectsView vaultPath="/v" />);
+    fireEvent.click(await screen.findByRole("button", { name: "fru.dev site" }));
+    expect(screen.getByRole("heading", { name: "fru.dev site" })).toBeTruthy();
+  });
+
   it("shows a project's arc and copies its replay brief", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });
     render(<ProjectsView vaultPath="/v" />);
-    fireEvent.click(await screen.findByText("fru.dev site"));
+    fireEvent.click((await screen.findAllByText("fru.dev site"))[0]); // the list entry
     expect(screen.getByText(/697 prompts · Jun 3 to Sep 24, 2026 · Claude, Codex/)).toBeTruthy();
     expect(screen.getByText("Office green, never gold")).toBeTruthy();
     expect(screen.getByText(/Written by Fable 5.1/)).toBeTruthy();
@@ -92,7 +104,7 @@ describe("ProjectsView", () => {
     const on = (e: Event) => seen.push((e as CustomEvent).detail);
     window.addEventListener("prevail:open-canvas", on);
     render(<ProjectsView vaultPath="/v/" />);
-    fireEvent.click(await screen.findByText("fru.dev site"));
+    fireEvent.click((await screen.findAllByText("fru.dev site"))[0]); // the list entry
     fireEvent.click(screen.getByRole("button", { name: /Read brief/ }));
     await waitFor(() => expect(seen).toHaveLength(1));
     window.removeEventListener("prevail:open-canvas", on);
