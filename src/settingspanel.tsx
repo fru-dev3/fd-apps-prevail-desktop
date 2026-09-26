@@ -8,7 +8,7 @@ import { ProviderMark } from "./marks";
 import { FrameworksSection, IngestionSection, RemoteSection, ShortcutsSection } from "./settings1";
 import { PhoneSection } from "./remotepair";
 import { DaemonsSection, MemoryContextSection, SkillsSection } from "./settings2";
-import { AppsPanel } from "./appspanel";
+import { AppsMirrorPanel } from "./appsmirror";
 import { SystemActivity } from "./activitypanel";
 import { MirrorPanel } from "./mirror";
 import { navSection } from "./navdefs";
@@ -169,10 +169,7 @@ export function SettingsPanel({
           {section === "ingestion" && <IngestionSection />}
           {section === "loopboard" && <LoopBoard vaultPath={vaultPath} />}
           {section === "council" && <CouncilSettingsSection clis={clis} />}
-          {/* Apps bleeds past the page's left padding so its panel attaches
-              flush to the settings nav (no page-background gap), like the home
-              columns. Bottom bleed lets the panel fill down. */}
-          {section === "connectors" && <div className="-mb-10 pl-2"><AppsPanel vaultPath={vaultPath} /></div>}
+          {section === "connectors" && <AppsMirrorPanel vaultPath={vaultPath} />}
           {section === "safety" && <SafetySection vaultPath={vaultPath} />}
           {section === "autonomy" && <AutonomyPanel vaultPath={vaultPath} />}
           {section === "gateway" && <><GatewaySection /><GatewayLogsCard vaultPath={vaultPath} /></>}
