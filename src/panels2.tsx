@@ -212,7 +212,7 @@ export function UsageDashboard({
       )}
 
       {/* breakdowns - three equal columns, each row filling the card width */}
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3">
         <UsageBreakdown title="By agent" icon={Cpu} rows={summary.by_cli} />
         <UsageBreakdown title="By model" icon={Layers} rows={summary.by_model} />
         <UsageBreakdown title="By domain" icon={Users} rows={summary.by_domain} />

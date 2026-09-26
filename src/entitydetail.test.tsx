@@ -20,7 +20,7 @@ const LIST = {
   generated_ts: 1, total: 3, entities: [
     { id: "person/sam-rivera", name: "Sam Rivera", kind: "person", aliases: ["Sam"], mention_count: 2, conversations: 2, last_ts: 2, saved: false, has_page: true },
     { id: "place/maple-st", name: "Maple St", kind: "place", aliases: [], mention_count: 2, conversations: 2, last_ts: 2, saved: false, has_page: false },
-    { id: "org/acme", name: "acme", kind: "org", aliases: [], mention_count: 1, conversations: 1, last_ts: 1, saved: false, has_page: false },
+    { id: "org/acme", name: "acme", kind: "org", aliases: [], mention_count: 1, conversations: 1, last_ts: 1, saved: true, has_page: true },
   ],
 };
 
@@ -145,8 +145,17 @@ describe("Entities view", () => {
     render(<EntitiesView vaultPath="/v2" />);
     await screen.findByRole("heading", { name: /people/i });
     expect(screen.getByRole("heading", { name: /places/i })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /companies and products/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^companies/i })).toBeTruthy();
     await screen.findByText("You asked Sam about the roof.");
+    // The list lives in the canonical SideSpine, and the vault marker is the
+    // green ok token, never the accent.
+    expect(screen.getByTestId("entities-list").hasAttribute("data-spine-column")).toBe(true);
+    const dots = Array.from(document.querySelectorAll("[data-vault-dot]"));
+    expect(dots.length).toBeGreaterThan(0);
+    for (const dot of dots) {
+      expect(dot.className).toMatch(/\bbg-ok\b/);
+      expect(dot.className).not.toMatch(/\bbg-accent\b/);
+    }
     fireEvent.change(screen.getByLabelText("Search entities"), { target: { value: "map" } });
     expect(screen.getAllByTestId("entity-row")).toHaveLength(1);
     fireEvent.change(screen.getByLabelText("Search entities"), { target: { value: "" } });

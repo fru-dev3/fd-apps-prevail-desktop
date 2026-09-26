@@ -4,16 +4,15 @@
 // runs through its runtime with read tools only and files what it finds into
 // your domains. Sites and tools no connector covers use the fallback lanes at
 // the bottom (browser learn/replay, command-line tools, Obsidian import).
-import { STICKY_HEAD } from "./sidespine";
+import { SideSpine } from "./sidespine";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, ArrowLeft, Loader2, Plug, RefreshCw, Wrench } from "lucide-react";
+import { Archive, Loader2, Plug, RefreshCw, Wrench } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
 import { relTime, titleCase } from "./format";
 import { toast } from "./toast";
-import { MasterDetail } from "./masterdetail";
 import { RowMenu } from "./ui";
 import { ProviderMark } from "./marks";
-import { SettingsHeader } from "./sectionutil";
+import { PageHeaderBar, SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
 import { RUNTIME_MARK, groupByRuntime, type ArchiveResult, type MirrorApp, type MirrorList, type RuntimeGroup } from "./appsmirror-model";
 import { AppLogo, MIRROR_SELECT_KEY, SigninHelp, StatusPill } from "./appsmirror-parts";
@@ -253,35 +252,29 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
     </div>
   );
 
+  // Same layout as Intent: the header pinned full width, the connectors in the
+  // collapsible column on the left (grouped by runtime), the picked connector
+  // in one column on the right. On a phone, the list then the detail.
   return (
-    <div className="pb-10">
-      {/* Stays in view while the pane scrolls, full width so nothing shows
-          beside it. */}
-      <div data-testid="page-header" className={`${STICKY_HEAD} -mx-8 px-8 pt-3 max-md:-mx-4 max-md:px-4`}>{header}</div>
-      {err && <div className="mb-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn">{err}</div>}
-      {archiveOpen && <ArchivePanel vaultPath={vaultPath} onClose={() => { setArchiveOpen(false); void load(); }} />}
-      {phone ? (
-        selected ? (
-          <div className="-mx-1">
-            <button type="button" onClick={() => setSelectedId(null)} className="mb-1 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[14px] font-medium text-text-secondary hover:text-accent">
-              <ArrowLeft className="h-4 w-4" /> All apps
-            </button>
-            <div className="overflow-hidden rounded-xl border border-border bg-surface">{detail}</div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border bg-surface-warm p-2">{listBody}</div>
-        )
-      ) : (
-        <MasterDetail title="Connectors" storageKey="prevail.apps.mirror.collapsed" list={listBody}
-          rail={apps.map((a) => (
-            <button key={a.id} type="button" title={a.name} onClick={() => setSelectedId(a.id)}
-              className={`rounded-lg p-0.5 ${a.id === effectiveId ? "ring-2 ring-accent" : ""}`}>
-              <AppLogo name={a.name} url={a.url} size={28} />
-            </button>
-          ))}
-          detail={detail} />
+    <div className="flex h-full min-h-0 flex-col bg-background" data-testid="apps-view">
+      <PageHeaderBar>{header}</PageHeaderBar>
+      {(err || archiveOpen) && (
+        <div className={`max-h-[40vh] shrink-0 overflow-y-auto ${phone ? "px-4 pt-3" : "px-8 pt-4"}`}>
+          {err && <div className="mb-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn">{err}</div>}
+          {archiveOpen && <ArchivePanel vaultPath={vaultPath} onClose={() => { setArchiveOpen(false); void load(); }} />}
+        </div>
       )}
-      {(!phone || !selected) && <AppsFallback vaultPath={vaultPath} domains={domains} />}
+      <SideSpine storageKey="prevail.apps.spine" title="Connectors" label="connectors" testId="apps-list"
+        phone={phone} phoneDetail={phone && !!selected} onBack={() => setSelectedId(null)} backLabel="All apps"
+        detail={
+          <div className={phone ? "pb-10" : "px-2 pb-10"}>
+            {detail}
+            {!phone && <div className="px-6"><AppsFallback vaultPath={vaultPath} domains={domains} /></div>}
+          </div>
+        }>
+        <div className="p-2">{listBody}</div>
+        {phone && <div className="px-4 pb-10"><AppsFallback vaultPath={vaultPath} domains={domains} /></div>}
+      </SideSpine>
     </div>
   );
 }

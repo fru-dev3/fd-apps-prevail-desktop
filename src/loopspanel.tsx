@@ -300,7 +300,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl font-semibold tracking-tight">Loops</h2>
-          <p className="mt-1 max-w-2xl text-sm text-text-secondary">
+          <p className="mt-1 text-sm text-text-secondary">
             Standing forces on {titleCase(domain)}, not one-off tasks. Each loop watches signals and works to close the gap to your desired state. Open loops run forever; closed loops finish when their condition is met.
           </p>
         </div>
@@ -342,7 +342,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
             A loop is a <span className="font-semibold text-text-primary">Standing agent</span> for this domain. It learns from its own run history, so it doesn't repeat itself and escalates when a gap stalls.
           </p>
           {/* The cadence → gap → act mini-flow, as three steps, not prose. */}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2">
             {[
               { n: "1", h: "Reads", b: "the domain's state + your Ideal State, on each cadence or Run now." },
               { n: "2", h: "Measures", b: "the gap between where you are and where you want to be." },
@@ -360,7 +360,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
           {/* Guardrail tiers as a clean two-column list with accent keys. */}
           <div>
             <div className="mb-1.5 text-[11px] font-semibold text-text-muted">Each loop's guardrail · what it may DO</div>
-            <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-subtle bg-border-subtle sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-subtle bg-border-subtle">
               {(["suggest", "tasks", "ask", "auto"] as LoopAutonomy[]).map((a) => (
                 <div key={a} className="bg-surface px-3 py-2">
                   <div className="font-mono text-[11px] font-semibold text-accent">{LOOP_AUTONOMY_LABEL[a]}</div>
@@ -668,7 +668,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
   const nextRun = loop.enabled && loop.status === "active" && loop.lastRunTs
     ? new Date(loop.lastRunTs + (CADENCE_MS[loop.cadence] ?? 6048e5))
     : null;
-  const dot = done ? "#9aa0a6" : loop.status === "paused" ? "#d9a441" : "#0d7a6e";
+  const dot = done ? "#9aa0a6" : loop.status === "paused" ? "#d9a441" : "var(--color-accent)";
   return (
     <div className={`overflow-hidden rounded-xl border bg-surface ${done ? "border-border-subtle opacity-70" : "border-border"}`}>
       <div className="flex items-center gap-2 px-4 py-3">
@@ -699,7 +699,7 @@ function LoopCard({ loop, rt, open, onToggleOpen, onChange, onRemove, vaultPath,
 
           {/* Signals + condition - compact "what it watches" metadata row. */}
           {(loop.signals.length > 0 || loop.condition) && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3">
               {loop.signals.length > 0 && (
                 <Field label="Watches">
                   <div className="flex flex-wrap gap-1.5">

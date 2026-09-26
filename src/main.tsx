@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "./bridge";
+import { fatalLogText } from "./fatallog";
 import App from "./App";
 import { Toaster } from "./toast";
 import { APP_VERSION } from "./constants";
@@ -25,8 +26,8 @@ if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window) && "serv
 initCrashReporting();
 
 // Surface fatal startup/render errors instead of a blank white window.
-function showFatal(msg: string) {
-  void invoke("log_fatal", { msg }).catch(() => {});
+function showFatal(msg: string, err?: unknown) {
+  void invoke("log_fatal", { msg: fatalLogText("fatal", err) }).catch(() => {});
   const el = document.getElementById("root");
   if (el) {
     el.innerHTML =
@@ -42,7 +43,7 @@ function showFatal(msg: string) {
   }
 }
 window.addEventListener("error", (e) =>
-  showFatal((e.error && (e.error.stack || e.error.message)) || e.message || "unknown error"),
+  showFatal((e.error && (e.error.stack || e.error.message)) || e.message || "unknown error", e.error),
 );
 // A stray promise rejection should NOT nuke the whole app - log it and keep
 // running. Only render/startup errors (the "error" listener + ErrorBoundary
@@ -50,7 +51,7 @@ window.addEventListener("error", (e) =>
 window.addEventListener("unhandledrejection", (e) => {
   const msg = (e.reason && (e.reason.stack || e.reason.message)) || String(e.reason);
   console.error("[prevail] unhandled rejection (non-fatal):", msg);
-  void invoke("log_fatal", { msg: "unhandledrejection (non-fatal): " + msg }).catch(() => {});
+  void invoke("log_fatal", { msg: fatalLogText("unhandledrejection (non-fatal)", e.reason) }).catch(() => {});
 });
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err: unknown }> {
@@ -60,7 +61,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
   }
   componentDidCatch(err: unknown) {
     reportError(err); // no-op unless crash consent is on + DSN built in
-    showFatal((err as Error)?.stack || (err as Error)?.message || String(err));
+    showFatal((err as Error)?.stack || (err as Error)?.message || String(err), err);
   }
   render() {
     return this.state.err ? null : this.props.children;
@@ -77,5 +78,5 @@ try {
     </ErrorBoundary>,
   );
 } catch (err) {
-  showFatal((err as Error)?.stack || (err as Error)?.message || String(err));
+  showFatal((err as Error)?.stack || (err as Error)?.message || String(err), err);
 }

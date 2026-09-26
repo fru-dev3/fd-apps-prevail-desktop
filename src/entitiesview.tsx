@@ -18,7 +18,7 @@ import { useIsPhone } from "./useisphone";
 const GROUPS: { kind: EntityKindName; label: string }[] = [
   { kind: "person", label: "People" },
   { kind: "place", label: "Places" },
-  { kind: "org", label: "Companies and products" },
+  { kind: "org", label: "Companies" },
   { kind: "thing", label: "Things" },
 ];
 const FILTERS: { id: "all" | EntityKindName; label: string }[] = [
@@ -41,7 +41,7 @@ function Row({ e, on, onPick }: { e: EntitySummary; on: boolean; onPick: (e: Ent
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className={`truncate text-[14px] ${on ? "font-semibold text-text-primary" : "font-medium text-text-primary"}`}>{e.name}</span>
-            {e.saved && <span title="Saved to your vault" aria-label="Saved to your vault" className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
+            {e.saved && <span title="Saved to your vault" aria-label="Saved to your vault" className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" data-vault-dot />}
           </span>
           {e.aliases.length > 0 && <span className="block truncate text-[12px] text-text-muted">{e.aliases.slice(0, 3).join(", ")}</span>}
         </span>
@@ -161,8 +161,8 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
     : list && !phone ? <p className="text-[15px] text-text-muted">Pick someone or something on the left.</p> : null;
 
   return (
-    <div className={`flex ${embedded ? "min-h-0 flex-1" : "h-full min-h-full"} flex-col bg-background`} data-testid="entities-view">
-      <div data-testid="page-header" className={embedded ? "" : STICKY_HEAD}>
+    <div className={`flex ${embedded ? "min-h-0 flex-1" : "h-full min-h-0"} flex-col bg-background`} data-testid="entities-view">
+      <div data-testid="page-header" className={`shrink-0 ${embedded ? "" : STICKY_HEAD}`}>
       {!embedded && !phone && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border px-8 py-5">
           <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
@@ -174,20 +174,11 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
       )}
       {toolbar}
       </div>
-      {phone ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {sel === null ? listPane : (
-            <div className="p-4">
-              <button onClick={() => setSel(null)} className="mb-3 text-[14px] font-medium text-accent">All entities</button>
-              {detail}
-            </div>
-          )}
-        </div>
-      ) : (
-        <SideSpine storageKey="prevail.entities.spine" title="Entities" label="entities" testId="entities-list" detail={<div className="p-6">{detail}</div>}>
-          {listPane}
-        </SideSpine>
-      )}
+      <SideSpine storageKey="prevail.entities.spine" title="Entities" label="entities" testId="entities-list"
+        phone={phone} phoneDetail={sel !== null} onBack={() => setSel(null)} backLabel="All entities"
+        detail={<div className={phone ? "p-4" : "p-6"}>{detail}</div>}>
+        {listPane}
+      </SideSpine>
     </div>
   );
 }

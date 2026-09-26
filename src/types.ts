@@ -25,6 +25,11 @@ export interface ThreadMeta {
   // The model that last answered in this thread (for the rail icon).
   cli: string | null;
   model: string | null;
+  // Domains this General thread was routed to, and, on a domain's own list,
+  // the space a linked thread really lives in ("general").
+  routed?: string[];
+  linked_from?: string | null;
+  route_turns?: string;
 }
 
 export interface ThreadTurn {
@@ -257,7 +262,7 @@ export interface Lens {
   instruction: string;
 }
 
-export type TabId = "chat" | "council" | "benchmark" | "settings" | "work" | "retrospect" | "tools" | "map";
+export type TabId = "chat" | "council" | "benchmark" | "settings" | "work" | "retrospect" | "tools";
 
 export type DomainTab = "chat" | "welcome" | "soul" | "context" | "insights" | "usage" | "state" | "decisions" | "journal" | "logs" | "skills" | "prefs" | "apps" | "loops" | "work";
 
@@ -269,8 +274,19 @@ export type Mode = "light" | "dark" | "system";
 
 export type Palette = "prevail" | "vault" | "midnight" | "ember" | "mono" | "cyberpunk" | "slate";
 
+// Where a General message was routed (routing.ts). `tagged` domains got the
+// thread linked and their context included; `suggested` fell below the
+// confidence threshold and are only offered.
+export interface MessageRoute {
+  tagged: string[];
+  suggested: { slug: string; confidence: number }[];
+  pending?: boolean;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
+  // General-to-domain filing (routing.ts), distinct from `route` (model pick).
+  domainRoute?: MessageRoute;
   cli?: string;
   // Model id that produced an assistant turn (e.g. "claude-opus-4-8").
   // Persisted with the thread so a conversation records WHICH model

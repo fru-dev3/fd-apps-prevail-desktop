@@ -223,7 +223,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
       {/* On a client the processing-daemon controls are disabled (presentation
           only; the CLI is the real enforcement). A disabled fieldset natively
           switches off every toggle, select, input and button it contains. */}
-      <fieldset disabled={isClient} className={isClient ? "pointer-events-none opacity-50" : ""}>
+      <fieldset disabled={isClient} className={`min-w-0 ${isClient ? "pointer-events-none opacity-50" : ""}`}>
       {/* One collapsible group per routine: status + tuning + run-now together. */}
       <DaemonGroup
         icon={Brain}
@@ -467,6 +467,8 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
 export function MemoryContextSection({ headerless }: { vaultPath: string; headerless?: boolean }) {
   const [persistent, setPersistent] = useState(() => getPref(PREF.persistentMemory, "1") === "1");
   const [memBudget, setMemBudget] = useState(() => getPref(PREF.memoryBudgetChars, "4000"));
+  const [routeOn, setRouteOn] = useState(() => getPref(PREF.routeDomains, "1") === "1");
+  const [routeMin, setRouteMin] = useState(() => getPref(PREF.routeThreshold, "0.75"));
   const [status, setStatus] = useState<{ running?: boolean; last_run_ts?: number | null; last_error?: string | null; lines_distilled?: number } | null>(null);
 
   useEffect(() => {
@@ -526,6 +528,10 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
           control={<Toggle on={persistent} onChange={(v) => { setPersistent(v); setPref(PREF.persistentMemory, v ? "1" : "0"); }} />} />
         <Row title="Memory budget" desc="Hard cap (characters) on the distilled memory injected into each prompt."
           control={<Num value={memBudget} set={setMemBudget} pref={PREF.memoryBudgetChars} w="w-24" />} />
+        <Row title="File General chats in domains" desc="When a General conversation is about a domain, tag it there and include that domain's context. Only the message text is sent to the routing model."
+          control={<Toggle on={routeOn} onChange={(v) => { setRouteOn(v); setPref(PREF.routeDomains, v ? "1" : "0"); }} />} />
+        <Row title="Filing confidence" desc="How sure routing must be (0 to 1) before it files a conversation. Below this it only suggests."
+          control={<Num value={routeMin} set={setRouteMin} pref={PREF.routeThreshold} w="w-24" step="0.05" />} />
         <Row title="Context engine" desc="Strategy for managing long conversations near the context limit."
           control={
             <select value={getPref(PREF.contextEngine, "compressor")} onChange={(e) => setPref(PREF.contextEngine, e.target.value)}
@@ -690,9 +696,9 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
         subtitle="The recipes your AI can follow."
       />
 
-      <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+      <div>
         {/* Toolbar: title · count · refresh · search */}
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <h3 className="font-display text-xl font-semibold tracking-tight">My Skills</h3>
           <span className="rounded-full bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-secondary">{skills.length}</span>
           <button

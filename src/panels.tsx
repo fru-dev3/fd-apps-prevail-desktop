@@ -1,7 +1,9 @@
 // Components extracted from App.tsx.
 import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm, open as openFileDialog } from "@tauri-apps/plugin-dialog";
-import { Archive, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Cpu, Download, Folder, Lightbulb, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, Shield, Sparkles, Wrench, X } from "lucide-react";
+import { SpineColumn, useSpineCollapsed } from "./sidespine";
+import { RowAction } from "./rowaction";
+import { Archive, ArrowRight, Check, ChevronDown, ChevronRight, Cpu, Download, Folder, Lightbulb, Link2, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, Search, Shield, Sparkles, Trash2, Wrench, X } from "lucide-react";
 import { siWhatsapp } from "simple-icons";
 import { PrevailLogo } from "./PrevailLogo";
 import { ProviderMark } from "./marks";
@@ -509,7 +511,6 @@ export function ThreadsRail({
   onNew,
   onRefresh,
   runningThreadPaths,
-  railWidth,
 }: {
   threads: ThreadMeta[];
   activePath: string | null;
@@ -523,12 +524,10 @@ export function ThreadsRail({
   onNew: () => void;
   onRefresh: () => void;
   runningThreadPaths: Set<string>;
-  railWidth: number;
 }) {
   void vaultPath;
   // Collapse state persisted across launches.
-  const [collapsed, setCollapsed] = useState<boolean>(() => lsGet("prevail.threadsRail.collapsed") === "1");
-  useEffect(() => { lsSet("prevail.threadsRail.collapsed", collapsed ? "1" : "0"); }, [collapsed]);
+  const [collapsed, toggleCollapsed] = useSpineCollapsed("prevail.threads.spine");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [threadFilter, setThreadFilter] = useState("");
   const filteredThreads = useMemo(() => {
@@ -539,42 +538,6 @@ export function ThreadsRail({
       t.preview.toLowerCase().includes(q));
   }, [threads, threadFilter]);
   const [renameInput, setRenameInput] = useState("");
-  if (collapsed) {
-    return (
-      <aside className="flex w-7 shrink-0 flex-col items-center gap-1 border-r border-border-subtle bg-surface-warm py-2">
-        <button
-          onClick={() => setCollapsed(false)}
-          title="Expand threads rail"
-          className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-text-primary"
-        >
-          <ChevronRight className="h-4 w-4" strokeWidth={2} />
-        </button>
-        <button
-          onClick={onNew}
-          title="New thread"
-          className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-accent"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-        <div className="mt-1 flex flex-col gap-1">
-          {threads.slice(0, 12).map((t) => (
-            <button
-              key={t.path}
-              onClick={() => onPick(t.path)}
-              title={t.cli ? `${t.title} · ${t.model || t.cli}` : t.title}
-              className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-mono ${
-                t.path === activePath
-                  ? "bg-accent-soft text-accent ring-1 ring-accent-border"
-                  : "text-text-muted hover:bg-surface-warm hover:text-text-primary"
-              }`}
-            >
-              {t.cli ? <ProviderMark vendor={t.cli} size={16} /> : (t.title || "·").charAt(0).toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </aside>
-    );
-  }
   async function applyRename(path: string) {
     if (!renameInput.trim()) { setRenaming(null); return; }
     try {
@@ -598,57 +561,41 @@ export function ThreadsRail({
     return new Date(secs * 1000).toLocaleDateString();
   }
   return (
-    <aside className="flex shrink-0 flex-col border-r border-border-subtle bg-surface-warm" style={{ width: railWidth }}>
-      <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-3 py-2.5">
-        <span className="font-mono text-[11px] font-bold text-text-primary">
-          Threads · {scopeLabel ?? (selectedDomain ? titleCase(selectedDomain) : "General")}
-        </span>
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={onNew}
-            title="New thread"
-            className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-accent"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setCollapsed(true)}
-            title="Collapse threads rail"
-            className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-text-primary"
-          >
-            <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-          </button>
-        </div>
-      </div>
-      {threads.length > 0 && (
-        <div className="border-b border-border-subtle px-2 py-1.5">
+    <SpineColumn collapsed={collapsed} onToggle={toggleCollapsed} testId="threads-list" label="threads"
+      title={`Threads, ${scopeLabel ?? (selectedDomain ? titleCase(selectedDomain) : "General")}`}
+      actions={
+        <button onClick={onNew} title="New thread" aria-label="New thread"
+          className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent">
+          <Plus className="h-4 w-4" />
+        </button>
+      }
+      toolbar={threads.length > 0 ? (
           <div className="relative">
-            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-text-muted">⌕</span>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden />
             <input
               value={threadFilter}
               onChange={(e) => setThreadFilter(e.target.value)}
-              placeholder="filter threads…"
-              className="w-full rounded-md border border-border-subtle bg-background py-1 pl-6 pr-2 text-[11px] text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
+              placeholder="Search threads" aria-label="Search threads"
+              className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-7 text-[14px] text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
             />
             {threadFilter && (
               <button
                 onClick={() => setThreadFilter("")}
-                className="absolute right-1 top-1/2 -translate-y-1/2 text-[11px] text-text-muted hover:text-warn"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[14px] text-text-muted hover:text-warn" aria-label="Clear search"
                 title="Clear filter"
               >×</button>
             )}
           </div>
-        </div>
-      )}
-      <div className="flex-1 overflow-y-auto px-1.5 py-1.5">
+      ) : undefined}>
+      <div className="px-2 py-2">
         {threads.length === 0 && (
           <div className="px-2 py-3 text-xs text-text-muted">
-            no threads yet. Click + to start one.
+            No threads yet. Press + to start one.
           </div>
         )}
         {threads.length > 0 && filteredThreads.length === 0 && (
           <div className="px-2 py-3 text-xs text-text-muted">
-            no matches for <code className="text-accent">{threadFilter}</code>
+            Nothing matches {threadFilter}
           </div>
         )}
         <ul className="space-y-0.5">
@@ -690,6 +637,11 @@ export function ThreadsRail({
                         <span className={`truncate text-sm ${active ? "font-medium text-text-primary" : "text-text-secondary"}`}>
                           {t.title}
                         </span>
+                        {t.linked_from && (
+                          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[10px] text-text-muted" title="Started in General and filed here. Same conversation, not a copy.">
+                            <Link2 className="h-2.5 w-2.5" />from General
+                          </span>
+                        )}
                       </div>
                       <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-muted">
                         {runningThreadPaths.has(t.path) ? (
@@ -716,27 +668,12 @@ export function ThreadsRail({
                     </button>
                   )}
                   {!isRenaming && (
-                    <div className="absolute right-1 top-1 flex gap-0.5 opacity-0 group-hover:opacity-100">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setRenameInput(t.title); setRenaming(t.path); }}
-                        title="Rename"
-                        className="flex h-5 w-5 items-center justify-center rounded bg-background/80 text-text-muted hover:text-accent"
-                      >
-                        <PenLine className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            const ok = await tauriConfirm(`Delete "${t.title}"?`, { title: "Delete thread", kind: "warning" });
-                            if (ok) deleteThread(t.path);
-                          } catch (err) { console.error("confirm delete", err); }
-                        }}
-                        title="Delete"
-                        className="flex h-5 w-5 items-center justify-center rounded bg-background/80 text-text-muted hover:text-err"
-                      >
-                        ×
-                      </button>
+                    <div className="absolute right-1 top-1 flex gap-0.5 rounded-md bg-surface/90 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                      <RowAction icon={PenLine} label="Rename thread" onClick={() => { setRenameInput(t.title); setRenaming(t.path); }} />
+                      <RowAction icon={Trash2} label="Delete thread" onClick={async () => {
+                        const ok = await tauriConfirm(`Delete "${t.title}"?`, { title: "Delete thread", kind: "warning" });
+                        if (ok) await deleteThread(t.path);
+                      }} />
                     </div>
                   )}
                 </div>
@@ -745,7 +682,7 @@ export function ThreadsRail({
           })}
         </ul>
       </div>
-    </aside>
+    </SpineColumn>
   );
 }
 

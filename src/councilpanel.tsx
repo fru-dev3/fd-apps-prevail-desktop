@@ -1,8 +1,8 @@
 // The multi-model Council panel, extracted from App.tsx: convene a panel of
 // (CLI, model) slots over a question, stream each panelist, then synthesize a
-// chair verdict. Renders the shared DomainStatusBar + DomainContextDrawer.
+// chair verdict. Renders the shared DomainStatusBar + DomainContextView.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, BookOpen, Check, ChevronRight, Crown, Folder, Ghost, Layers, MessageSquare, PanelRightOpen, Plus, Scale, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ArrowRight, BookOpen, Check, ChevronRight, Crown, Folder, Ghost, Layers, MessageSquare, Plus, Scale, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { invoke, listen } from "./bridge";
 import { savePastedImages } from "./paste";
 import { titleCase } from "./format";
@@ -21,7 +21,7 @@ import { ProviderMark } from "./marks";
 import { useSuites } from "./bench-presets";
 import { BrandMark } from "./brandmark";
 import { DomainStatusBar } from "./chatviews";
-import { ContextCanvas, DomainContextDrawer } from "./domainpanels";
+import { ContextButton, ContextCanvas, DomainContextView } from "./domainpanels";
 import { AppRowLogo } from "./panels3";
 import type { CliInfo, Domain, DomainContextBundle, EngineApp, ModelPick, PanelistReply, PanelistSlot, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
@@ -989,7 +989,7 @@ export function CouncilPanel({
         await attachCouncilDomain(name, e.altKey ? "folder" : e.shiftKey ? "full" : "light");
       }}
     >
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className={`relative min-w-0 flex-1 flex-col ${contextOpen && _vaultPath ? "hidden" : "flex"}`}>
       {dragOver && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-accent-soft/80 backdrop-blur-sm">
           <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-center text-sm text-accent shadow-xl">
@@ -1023,12 +1023,17 @@ export function CouncilPanel({
           <span className="font-mono text-xs text-text-muted">Council</span>
         )}
         <div className="flex-1" />
-        {/* Context is a collapse/expand sidebar (right edge), never a labeled
-            button: see the rail at the end of this panel. */}
         <span className="font-mono text-[11px] text-text-muted">
           {panelistSlots.length} on panel
         </span>
+        {/* Context swaps this column for the in-flow Context view. */}
+        {_vaultPath && <ContextButton onClick={() => setContextOpen(true)} />}
       </div>
+      )}
+      {phone && _vaultPath && (
+        <div className="flex shrink-0 items-center justify-end border-b border-border-subtle px-3 py-1.5">
+          <ContextButton onClick={() => setContextOpen(true)} />
+        </div>
       )}
 
       {/* Hero / transcript area */}
@@ -1742,29 +1747,20 @@ export function CouncilPanel({
         </div>
       </div>
       </div>
-      <ContextCanvas />
-      {_vaultPath && (contextOpen ? (
-        <DomainContextDrawer
+      {contextOpen && _vaultPath ? (
+        <DomainContextView
           domain={domain ?? ""}
+          phone={phone}
           vaultPath={_vaultPath}
           domainPath={domainPath ?? ""}
           onClose={() => setContextOpen(false)}
           onInjectContext={(body, label) => injectContext(body, label)}
-          onInsertSkill={(name) => insertSkillSlash(name)}
+          onInsertSkill={(name) => { insertSkillSlash(name); setContextOpen(false); }}
           preferredSet={preferredSkillsSet}
           onTogglePreferred={togglePreferredSkill}
         />
-      ) : phone ? null : (
-        // Collapsed: a thin chevron rail to expand the context sidebar - no
-        // labeled button, just the collapse/expand affordance.
-        <button
-          onClick={() => setContextOpen(true)}
-          title="Show context"
-          className="flex w-9 shrink-0 items-center justify-center border-l border-border-subtle bg-surface py-3 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
-        >
-          <PanelRightOpen className="h-4 w-4" />
-        </button>
-      ))}
+      ) : null}
+      <ContextCanvas />
     </div>
   );
 }

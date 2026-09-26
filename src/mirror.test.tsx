@@ -184,7 +184,11 @@ describe("Noticed", () => {
     expect(screen.getByTestId("tool-dot-codex").dataset.on).toBe("0");
     // The header stays in view while scrolling; the content is one column.
     expect(screen.getByTestId("page-header").className).toMatch(/\bsticky\b/);
-    expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]/);
+    // The header is its own row, outside the scrolling body, and says in one
+    // calm line what Intent is.
+    expect(screen.getByTestId("intent-body").contains(screen.getByTestId("page-header"))).toBe(false);
+    expect(screen.getByTestId("intent-about").textContent).toMatch(/every prompt you typed/);
+    expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]|max-w-(2xl|3xl|4xl)/);
     // The capture setup opens in the page, not in a drawer or dialog.
     fireEvent.click(screen.getByRole("button", { name: "Capture setup" }));
     expect(screen.getByTestId("capture-view")).toBeTruthy();

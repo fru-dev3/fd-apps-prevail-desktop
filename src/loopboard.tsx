@@ -179,7 +179,7 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
     const busy = running === id;
     const isExpanded = expandedId === id;
     const isActing = acting === id;
-    const dot = r.loop.status === "done" ? "#9aa0a6" : r.loop.status === "paused" ? "#d9a441" : "#0d7a6e";
+    const dot = r.loop.status === "done" ? "#9aa0a6" : r.loop.status === "paused" ? "#d9a441" : "var(--color-accent)";
     const lastRun = r.rt?.history?.[r.rt.history.length - 1];
     return (
       <div key={id} className={r.loop.enabled ? "" : "opacity-55"}>

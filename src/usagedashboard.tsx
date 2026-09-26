@@ -2,6 +2,7 @@
 // All pivoting/filtering/heatmapping is done client-side over the raw entries
 // (personal volume is small), so every viewpoint is instant and offline. No
 // chart library: SVG for the time series, CSS grid for the heatmap + cross-tab.
+import { SettingsHeader } from "./sectionutil";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { invoke } from "./bridge";
 import { BarChart3, Filter, Search, X } from "lucide-react";
@@ -44,7 +45,7 @@ const fmtCost = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : n > 0 ? `$${n.toFi
 const fmtTok = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${n}`);
 const fmtNum = (n: number) => n.toLocaleString();
 
-// A heat color from a 0..1 intensity, biased to the app accent (teal).
+// A heat color from a 0..1 intensity, biased to the app accent (office green).
 function heat(t: number): string {
   if (t <= 0) return "transparent";
   const a = 0.08 + t * 0.82;
@@ -169,11 +170,7 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
   return (
     <div className="flex flex-col gap-5">
       {/* Header + metric + range */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-accent" />
-          <h2 className="font-display text-2xl font-bold tracking-tight">Usage</h2>
-        </div>
+      <SettingsHeader title="Usage" icon={BarChart3} subtitle="What your models cost and how much you use them." right={
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
@@ -206,7 +203,7 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
             ))}
           </div>
         </div>
-      </div>
+      } />
 
       {empty ? (
         <div className="rounded-xl border border-dashed border-border-subtle px-6 py-16 text-center text-sm text-text-muted">

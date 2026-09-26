@@ -1,38 +1,93 @@
-// The domain/navigation Sidebar, extracted from App.tsx. Prop-driven (collapse
-// state, domains, active selection, and a set of callbacks); renders the live
-// gateway/MCP/benchmark status strips from shared modules.
-import { Fragment, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+// The app sidebar, extracted from App.tsx. Prop-driven (collapse state,
+// domains, active selection, and a set of callbacks).
+//
+// Home mode (everything that is not the Editor) reads top to bottom:
+//   profile header (switcher + settings button), search (opens the command
+//   palette), Home / Inbox / the Home surfaces, WORK (board, projects, tasks,
+//   goals), DOMAINS (Pinned / All / Archived).
+// Editor mode keeps the same header and swaps the list for the configuration
+// nav, with a way back to Home at the top.
+import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
-import { ArrowUpRight, Activity, Archive, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Folder, Layers, Loader2, MessagesSquare, Monitor, Moon, MoreVertical, Pin, PinOff, Plug, Plus, PowerOff, RotateCcw, Settings as SettingsIcon, Sparkles, StarOff, Sun, Waypoints, X } from "lucide-react";
-import { PrevailLogo } from "./PrevailLogo";
-import { invoke, isBrowser } from "./bridge";
-import { STATUS_TINT } from "./constants";
-import { appName, scoreColor, titleCase } from "./format";
+import { Activity, Archive, ArrowLeft, ChevronRight, Folder, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
+import { invoke } from "./bridge";
+import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
-import { favKeyOf, toggleFavorite, useFavorites } from "./appfavorites";
 import { SidebarGatewayLive, SidebarMcpLive } from "./panels";
 import { ProfileSwitcher } from "./profileswitcher";
 import { EDITOR_NAV, WORK_NAV } from "./navdefs";
 import { domainIcon } from "./icons";
-import { useAppearance } from "./hooks";
 import { SidebarBackupActive, SidebarBenchmarkRuns, SidebarBenchScheduled, SidebarProcesses } from "./cards";
 import { useProcesses } from "./processes";
 import { BENCH_SCHED, useBenchBatches } from "./bench";
 import { BACKUP_CFG } from "./backup";
-import { BrandMark } from "./brandmark";
-import { AppRowLogo } from "./panels3";
-import { ObsidianLogo } from "./obsidianmodal";
-import { AppLogo, MIRROR_SELECT_KEY, TONE_DOT, mirrorPinKey } from "./appsmirror-parts";
-import { RUNTIME_LABEL, statusMeta, type MirrorApp, type MirrorList } from "./appsmirror-model";
-import type { Domain, EngineApp, LifeReadiness, Mode, TabId } from "./types";
+import type { Domain, TabId } from "./types";
 
-// Shared "selected row" treatment for every selectable nav row in the sidebar
-// (General, Work, Domains, Apps). A solid accent fill reads as a clear,
-// high-contrast selected state rather than a faint tint, and keeps the active
-// item looking identical no matter which section it lives in.
-const SEL_ROW = "bg-accent text-background font-semibold shadow-sm";
-// Collapsed icon-rail version (icon only, no label so no font-weight needed).
-const SEL_ICON = "bg-accent text-background shadow-sm";
+// Active row: a light accent tint, accent text, and a short accent bar on the
+// left edge. Every selectable row in the sidebar uses it.
+const ACTIVE_ROW = "bg-accent-soft font-semibold text-accent before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-accent";
+const IDLE_ROW = "text-text-secondary hover:bg-surface-warm hover:text-text-primary";
+const SECTION_LABEL = "text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted";
+const cap99 = (n: number) => (n > 99 ? "99+" : String(n));
+
+function CountPill({ n, active }: { n: number; active: boolean }) {
+  if (n <= 0) return null;
+  return (
+    <span className={`ml-auto shrink-0 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-[18px] ${active ? "bg-accent text-on-accent" : "bg-surface-warm text-text-muted"}`}>
+      {cap99(n)}
+    </span>
+  );
+}
+
+// One nav row. Collapsed, it is an icon button with the label as its tooltip.
+function NavRow({ icon: Icon, label, active, count = 0, collapsed, onClick, testId }: {
+  icon: typeof House; label: string; active: boolean; count?: number; collapsed: boolean; onClick: () => void; testId?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={collapsed ? (count > 0 ? `${label} (${count})` : label) : undefined}
+      aria-current={active ? "page" : undefined}
+      data-testid={testId}
+      className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${
+        collapsed ? "h-10 justify-center" : "h-9 gap-3 px-3"
+      } ${active ? ACTIVE_ROW : IDLE_ROW}`}
+    >
+      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
+      {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
+      {!collapsed && <CountPill n={count} active={active} />}
+      {collapsed && count > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
+    </button>
+  );
+}
+
+function Divider() {
+  return <div className="mx-3 my-2 h-px bg-border-subtle" />;
+}
+
+function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour }: {
+  label: string; count?: number; open: boolean; onToggle: () => void; onAdd?: () => void; addTitle?: string; tour?: string;
+}) {
+  return (
+    <div data-tour={tour} className="group/h flex items-center gap-1 px-3 pb-1 pt-1">
+      <button onClick={onToggle} aria-expanded={open} className={`flex flex-1 items-center gap-1.5 text-left transition-colors hover:text-text-secondary ${SECTION_LABEL}`}>
+        <span>{label}</span>
+        {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70">{count}</span>}
+        <ChevronRight className={`h-3 w-3 shrink-0 opacity-0 transition group-hover/h:opacity-100 ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
+      </button>
+      {onAdd && (
+        <button
+          onClick={onAdd}
+          title={addTitle}
+          aria-label={addTitle}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.2} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function Sidebar({
   collapsed,
@@ -42,19 +97,17 @@ export function Sidebar({
   vaultError,
   selectedDomain,
   setSelectedDomain,
-  activeAppId,
   openInFinder,
   tab,
   setTab,
   onDomainCreated,
-  appearance,
   runningDomains,
   finishedDomains,
   domainStats,
   railWidth,
   onOpenOnboarding,
   onDomainsChanged,
-  onOpenApp,
+  inboxCount,
 }: {
   collapsed: boolean;
   setCollapsed: (v: boolean | ((cur: boolean) => boolean)) => void;
@@ -63,19 +116,18 @@ export function Sidebar({
   vaultError: string | null;
   selectedDomain: string | null;
   setSelectedDomain: (n: string) => void;
-  activeAppId: string | null;
   openInFinder: (p: string | null) => void;
   tab: TabId;
   setTab: (t: TabId) => void;
   onDomainCreated: (d: Domain) => void;
-  appearance: ReturnType<typeof useAppearance>;
   runningDomains: Set<string>;
   finishedDomains: Set<string>;
   domainStats: Record<string, number>;
   railWidth: number;
   onOpenOnboarding: () => void;
   onDomainsChanged: () => void;
-  onOpenApp: (app: EngineApp) => void;
+  // Actions waiting on your approval (the board's "Needs you" view).
+  inboxCount: number;
 }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -87,12 +139,10 @@ export function Sidebar({
       return new Set(raw ? raw.split(",").filter(Boolean) : []);
     } catch { return new Set(); }
   });
-  // Group collapse - Pinned vs All. Persisted so collapsing survives
-  // app restarts.
+  // Group collapse - Pinned vs All. Persisted so collapsing survives restarts.
   const [pinnedOpen, setPinnedOpen] = useState<boolean>(() => lsGet("prevail.sidebar.pinnedOpen") !== "0");
-  // "All" collapsed by default so Domains opens just one level (Pinned + the
-  // All header with its count), keeping the rail compact rather than listing
-  // every domain. The header stays visible when collapsed, so nothing is lost.
+  // "All" starts collapsed so Domains opens one level deep (Pinned + the All
+  // header with its count) rather than listing every domain.
   const [allOpen, setAllOpen] = useState<boolean>(() => lsGet("prevail.sidebar.allOpen") === "1");
   useEffect(() => { lsSet("prevail.sidebar.pinnedOpen", pinnedOpen ? "1" : "0"); }, [pinnedOpen]);
   useEffect(() => { lsSet("prevail.sidebar.allOpen", allOpen ? "1" : "0"); }, [allOpen]);
@@ -105,50 +155,13 @@ export function Sidebar({
       return next;
     });
   };
-  const railFilter = ""; // domain filter input removed from the sidebar
-  // App-wide aggregate score (mean of every domain's context score) - the
-  // single "how ready is my whole life-OS" number, pinned bottom-left.
-  const [lifeScore, setLifeScore] = useState<{ value: number; count: number } | null>(null);
-  // Agent-operable score from the Map panel (broadcast + cached), so this chip
-  // deep-links to the Map without the sidebar re-scanning apps itself.
-  const [mapScore, setMapScore] = useState<number | null>(() => {
-    const v = typeof localStorage !== "undefined" ? localStorage.getItem("prevail:map-score") : null;
-    return v !== null && v !== "" ? Number(v) : null;
-  });
-  useEffect(() => {
-    const onScore = (e: Event) => {
-      const v = (e as CustomEvent).detail;
-      if (typeof v === "number") setMapScore(v);
-    };
-    window.addEventListener("prevail:map-score", onScore);
-    return () => window.removeEventListener("prevail:map-score", onScore);
-  }, []);
-  useEffect(() => {
-    let on = true;
-    invoke<LifeReadiness>("engine_score_all", { vault: vaultPath })
-      .then((lr) => {
-        if (on && lr && lr.life_readiness !== null) {
-          setLifeScore({ value: lr.life_readiness, count: lr.domains.length });
-        }
-      })
-      .catch(() => {});
-    return () => { on = false; };
-  }, [vaultPath, domains.length]);
+  // Real domains only: internal / app-scope pseudo-domains ("_meta",
+  // "_app-...") never show here. Pinned first.
   const sortedDomains = useMemo(() => {
-    const q = railFilter.trim().toLowerCase();
-    const isPinned = (d: Domain) => pinned.has(d.name);
-    const matches = (d: Domain) =>
-      !q ||
-      d.name.toLowerCase().includes(q) ||
-      titleCase(d.name).toLowerCase().includes(q);
-    // Hide internal / app-scope pseudo-domains (e.g. "_app-composio-notion",
-    // "_meta"): the sidebar lists real DOMAINS only, never apps. Apps live in
-    // their own Apps section (and on the home screen when starred).
-    const filtered = domains.filter((d) => !d.name.startsWith("_")).filter(matches);
-    const pin = filtered.filter(isPinned);
-    const rest = filtered.filter((d) => !isPinned(d));
-    return [...pin, ...rest];
-  }, [domains, pinned, railFilter]);
+    const filtered = domains.filter((d) => !d.name.startsWith("_"));
+    return [...filtered.filter((d) => pinned.has(d.name)), ...filtered.filter((d) => !pinned.has(d.name))];
+  }, [domains, pinned]);
+  const pinnedCount = sortedDomains.filter((d) => pinned.has(d.name)).length;
   const [addError, setAddError] = useState<string | null>(null);
 
   async function createDomain() {
@@ -163,26 +176,16 @@ export function Sidebar({
     }
   }
 
-  // Domains top-level collapse.
   const [domainsOpen, setDomainsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.domainsOpen") !== "0");
   useEffect(() => { lsSet("prevail.sidebar.domainsOpen", domainsOpen ? "1" : "0"); }, [domainsOpen]);
-
-  // "Work" surfaces group — collapsible like Domains. Persisted.
   const [workOpen, setWorkOpen] = useState<boolean>(() => lsGet("prevail.sidebar.workOpen") !== "0");
   useEffect(() => { lsSet("prevail.sidebar.workOpen", workOpen ? "1" : "0"); }, [workOpen]);
 
-  // Mode-aware nav (2026 redesign): the single left bar shows Work surfaces or
-  // Editor sections depending on the active mode, rather than a second column.
-  // Track which section is active for highlighting, kept in sync with the events
-  // the content panels listen to.
+  // Which Editor / Work section is active, kept in sync with the events the
+  // content panels listen to.
   const [editorActive, setEditorActive] = useState("general");
-  // Editor nav groups fold away, and the choice is remembered, so twenty-seven
-  // destinations can be cut down to the few you actually use. They start OPEN:
-  // Phone was deliberately promoted to a top-level section because nobody goes
-  // looking for mobile access inside a network panel, and defaulting every
-  // group closed would re-hide it and six others behind a heading. A group
-  // holding the active section always opens, whatever was stored, so you never
-  // lose sight of where you are.
+  // Editor nav groups fold away and the choice is remembered. A group holding
+  // the active section always opens, so where you are stays visible.
   const NAV_GROUPS_LS = "prevail.editorNav.closed";
   const [closedNavGroups, setClosedNavGroups] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem(NAV_GROUPS_LS) || "[]") as string[]); }
@@ -199,16 +202,12 @@ export function Sidebar({
     const onEd = (e: Event) => { const d = (e as CustomEvent<string>).detail || "general"; setEditorActive(d.split(":")[0]); };
     const onWk = (e: Event) => { const d = (e as CustomEvent<string>).detail || "tasks"; setWorkActive(d); };
     window.addEventListener("prevail:settings-section", onEd as EventListener);
-    // Deep links inside the app ("Set up a model", a Tools row, the trust
-    // ribbon) dispatch open-settings, which App routes to the right mode. The
-    // rail listened only to settings-section, so after one of those the
-    // highlight still named the previous page - and now that a group folds
-    // away unless it holds the active section, a stale highlight also opens
-    // the wrong group. WORK_SECTIONS go to the Work rail instead.
+    // Deep links elsewhere in the app dispatch open-settings, which App routes
+    // to the right mode; the highlight follows.
     const onOpen = (e: Event) => {
       const d = ((e as CustomEvent<string>).detail || "").split(":")[0];
       if (!d) return;
-      if (WORK_NAV.some((g) => g.items.some((i) => i.id === d)) || d === "loopboard") setWorkActive(d === "loopboard" ? "automations" : d);
+      if (d === "inbox" || WORK_NAV.some((g) => g.items.some((i) => i.id === d)) || d === "loopboard") setWorkActive(d === "loopboard" ? "automations" : d);
       else setEditorActive(d);
     };
     window.addEventListener("prevail:open-settings", onOpen as EventListener);
@@ -219,18 +218,44 @@ export function Sidebar({
       window.removeEventListener("prevail:work-section", onWk as EventListener);
     };
   }, []);
-  // App owns the actual mode switch + section jump (reliable even when the
-  // content panel isn't mounted yet); we just reflect the choice + announce it.
+  // App owns the mode switch + section jump; the sidebar reflects the choice
+  // and announces it.
   const selectEditor = (id: string) => { setEditorActive(id); window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: id })); };
   const selectWork = (id: string) => { setWorkActive(id); window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: id })); };
+  const goHome = () => { setSelectedDomain(""); setTab("chat"); };
+  const newTask = () => {
+    try { localStorage.setItem("prevail.board.openAdd", "1"); } catch { /* storage off */ }
+    selectWork("tasks");
+    window.dispatchEvent(new Event("prevail:board-add"));
+  };
 
-  // Archived domains - fetched from the engine. Shown in a collapsible
-  // group at the bottom of the rail, each with a Restore action.
+  // Counts for the Work rows, read from the same sources their screens use:
+  // open tasks across every domain, and the Projects index.
+  const [openTasks, setOpenTasks] = useState(0);
+  const [projectCount, setProjectCount] = useState(0);
+  useEffect(() => {
+    if (!vaultPath) return;
+    let alive = true;
+    const pull = () => {
+      invoke<{ open?: number }>("work_count", { vault: vaultPath, today: new Date().toISOString().slice(0, 10), domain: null })
+        .then((r) => { if (alive) setOpenTasks(r?.open ?? 0); }).catch(() => {});
+      invoke<{ projects?: unknown[] } | null>("projects_index", { vault: vaultPath })
+        .then((r) => { if (alive) setProjectCount(Array.isArray(r?.projects) ? r!.projects!.length : 0); }).catch(() => {});
+    };
+    pull();
+    const id = window.setInterval(pull, 120000);
+    window.addEventListener("prevail:tasks-changed", pull);
+    return () => { alive = false; window.clearInterval(id); window.removeEventListener("prevail:tasks-changed", pull); };
+  }, [vaultPath]);
+  const workCounts: Record<string, number> = { "task-list": openTasks, projects: projectCount };
+
+  // Archived domains - fetched from the engine, shown under Domains, each with
+  // a Restore action.
   const [archived, setArchived] = useState<string[]>([]);
   const [archivedOpen, setArchivedOpen] = useState<boolean>(() => lsGet("prevail.sidebar.archivedOpen") === "1");
   useEffect(() => { lsSet("prevail.sidebar.archivedOpen", archivedOpen ? "1" : "0"); }, [archivedOpen]);
   const [restoring, setRestoring] = useState<string | null>(null);
-  // Which domain's kebab (⋮) action menu is open (one at a time).
+  // Which domain's kebab menu is open (one at a time).
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -241,310 +266,17 @@ export function Sidebar({
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [menuOpen]);
-  // Which app row's kebab (⋮) menu is open, keyed by app id; mirrors the domain
-  // kebab so the Apps section gets the same hover-revealed action menu.
-  const [appMenuOpen, setAppMenuOpen] = useState<string | null>(null);
-  useEffect(() => {
-    if (!appMenuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (!t || !t.closest("[data-app-menu]")) setAppMenuOpen(null);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [appMenuOpen]);
   const refreshArchived = useCallback(async () => {
     if (!vaultPath) return;
     try {
       const list = await invoke<string[]>("engine_list_archived", { vault: vaultPath });
-      // A null (older engine, empty JSON body) must not crash the whole shell.
+      // A null (older engine, empty JSON body) must not crash the shell.
       setArchived(Array.isArray(list) ? list : []);
     } catch {
-      // Engine may not support archiving yet - keep the group hidden.
       setArchived([]);
     }
   }, [vaultPath]);
-  // Refresh when the active domain set changes (e.g. after archive/restore).
   useEffect(() => { void refreshArchived(); }, [refreshArchived, domains.length]);
-
-  // Apps section - peer to Domains in the sidebar. It shows ONLY the apps the
-  // user has pinned: mirrored connectors pinned in the Apps screen, plus any
-  // vault app starred earlier. The favorites set is the shared ./appfavorites
-  // store, so pinning anywhere updates this list live.
-  const [sidebarApps, setSidebarApps] = useState<EngineApp[]>([]);
-  const [appsOpen, setAppsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsOpen") !== "0");
-  useEffect(() => { lsSet("prevail.sidebar.appsOpen", appsOpen ? "1" : "0"); }, [appsOpen]);
-  // Pinned apps - the exact parallel of pinned domains, so a favorite app can be
-  // promoted to a "Pinned" group at the top of the Apps section. Keyed by the
-  // app's favorite key (favKeyOf of title/id) so it lines up
-  // with how the star (favorites) keys each row. Persisted as a comma-separated
-  // list, mirroring PIN_KEY for domains.
-  const PINNED_APPS_KEY = "prevail.desktop.pinnedApps";
-  const [pinnedApps, setPinnedApps] = useState<Set<string>>(() => {
-    try {
-      const raw = lsGet(PINNED_APPS_KEY);
-      return new Set(raw ? raw.split(",").filter(Boolean) : []);
-    } catch { return new Set(); }
-  });
-  const toggleAppPin = (key: string) => {
-    setPinnedApps((cur) => {
-      const next = new Set(cur);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      lsSet(PINNED_APPS_KEY, Array.from(next).join(","));
-      return next;
-    });
-  };
-  // Apps "Pinned" vs "All" group collapse - mirrors pinnedOpen/allOpen for
-  // domains so the two sections behave identically. Persisted across restarts.
-  const [appsPinnedOpen, setAppsPinnedOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsPinnedOpen") !== "0");
-  const [appsAllOpen, setAppsAllOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsAllOpen") === "1");
-  useEffect(() => { lsSet("prevail.sidebar.appsPinnedOpen", appsPinnedOpen ? "1" : "0"); }, [appsPinnedOpen]);
-  useEffect(() => { lsSet("prevail.sidebar.appsAllOpen", appsAllOpen ? "1" : "0"); }, [appsAllOpen]);
-  useEffect(() => {
-    let alive = true;
-    const pull = () => { invoke<EngineApp[]>("engine_apps_list", { vault: vaultPath }).then((a) => { if (alive) setSidebarApps((a ?? []).map((x) => ({ ...x, title: appName(x.title) }))); }).catch(() => {}); };
-    pull();
-    // Re-pull when an app is added/removed elsewhere.
-    const onChanged = () => pull();
-    window.addEventListener("prevail:apps-changed", onChanged);
-    return () => { alive = false; window.removeEventListener("prevail:apps-changed", onChanged); };
-  }, [vaultPath]);
-  // The home screen list = starred apps, across every connection mode, sorted
-  // by name. Matched by the same normalized key the star writes (title or id).
-  const favs = useFavorites();
-  const favoritedSidebarApps = useMemo(
-    () => sidebarApps
-      .filter((a) => favs.has(favKeyOf(a.title || a.id)) || favs.has(favKeyOf(a.id)))
-      .sort((a, b) => a.title.localeCompare(b.title)),
-    [sidebarApps, favs],
-  );
-  // Mirrored connectors (Claude, Codex, Gemini) the user pinned in the Apps
-  // screen. Read from the engine's cached list, so this never probes a runtime.
-  const [mirrorApps, setMirrorApps] = useState<MirrorApp[]>([]);
-  useEffect(() => {
-    if (isBrowser()) return;
-    let alive = true;
-    const pull = () => { invoke<MirrorList>("apps_mirror_list", { vault: vaultPath }).then((l) => { if (alive) setMirrorApps(Array.isArray(l?.apps) ? l.apps : []); }).catch(() => {}); };
-    pull();
-    window.addEventListener("prevail:apps-changed", pull);
-    return () => { alive = false; window.removeEventListener("prevail:apps-changed", pull); };
-  }, [vaultPath]);
-  const pinnedMirrorApps = useMemo(
-    () => mirrorApps.filter((a) => favs.has(mirrorPinKey(a.id))).sort((a, b) => a.name.localeCompare(b.name)),
-    [mirrorApps, favs],
-  );
-  const openMirrorApp = (id: string) => {
-    try { sessionStorage.setItem(MIRROR_SELECT_KEY, id); } catch { /* ignore */ }
-    window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }));
-    window.dispatchEvent(new CustomEvent("prevail:mirror-select", { detail: id }));
-  };
-  const renderMirrorRow = (app: MirrorApp) => {
-    const tone = statusMeta(app.status).tone;
-    return (
-      <li key={`mirror-${app.id}`} className="group flex items-center gap-1 pl-6">
-        <button
-          onClick={() => openMirrorApp(app.id)}
-          title={`${app.name} · ${statusMeta(app.status).label}`}
-          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary"
-        >
-          <span className="relative shrink-0">
-            <AppLogo name={app.name} url={app.url} size={18} />
-            <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-surface-strong ${TONE_DOT[tone]}`} />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col leading-tight">
-            <span className="truncate text-sm">{app.name}</span>
-            <span className="truncate text-[10px] text-text-muted">{RUNTIME_LABEL[app.runtime] ?? app.runtime}</span>
-          </span>
-        </button>
-        <button
-          onClick={() => toggleFavorite(mirrorPinKey(app.id))}
-          title={`Unpin ${app.name}`}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted opacity-0 hover:bg-surface-warm hover:text-accent group-hover:opacity-100"
-        >
-          <PinOff className="h-3.5 w-3.5" />
-        </button>
-      </li>
-    );
-  };
-  const pinnedAppCount = favoritedSidebarApps.length + pinnedMirrorApps.length;
-  // Split the favorited list into pinned vs the rest so pinned apps rise to a
-  // "Pinned" group at the top, exactly like pinned domains. The name sort is
-  // kept within each group.
-  const appBuckets = useMemo(() => {
-    const isPinnedApp = (key: string) => pinnedApps.has(key);
-    const pinnedSidebar = favoritedSidebarApps.filter((a) => isPinnedApp(favKeyOf(a.title || a.id)));
-    const restSidebar = favoritedSidebarApps.filter((a) => !isPinnedApp(favKeyOf(a.title || a.id)));
-    return { pinnedSidebar, restSidebar };
-  }, [favoritedSidebarApps, pinnedApps]);
-  const hasPinnedApps = appBuckets.pinnedSidebar.length > 0;
-  // One app row, reused by the Favorites and All groups. Highlights when it's
-  // the app currently open in the canvas so "which app am I in" is obvious.
-  const renderAppRow = (app: EngineApp) => {
-    const tint = STATUS_TINT[app.status] ?? "#9aa0a6";
-    const active = activeAppId === app.id;
-    // A disabled app (its skill/connector has enabled === false) won't be run by
-    // the sync daemon. Surface that here so it reads as off at a glance: muted
-    // styling, a grey status dot, and a small "Off" badge. Absent/true = enabled.
-    const disabled = app.enabled === false;
-    // Pin key matches the favorite key the star writes (title preferred, id
-    // fallback) so pinning lines up with whichever key favorited the row.
-    const appPinKey = favKeyOf(app.title || app.id);
-    const isAppPinned = pinnedApps.has(appPinKey);
-    return (
-      <li key={app.id} className="group flex items-center gap-1 pl-6">
-        <button
-          onMouseDown={(e) => {
-            // Manual drag (WKWebView's HTML5 DnD is unreliable): on mouseup
-            // after moving, call the chat panel's global app-attach hook so the
-            // app drops into the composer as a context chip. Mirror of the
-            // domain-row drag below.
-            if (e.button !== 0) return;
-            const startX = e.clientX;
-            const startY = e.clientY;
-            let dragging = false;
-            let pill: HTMLDivElement | null = null;
-            const onMove = (ev: MouseEvent) => {
-              if (!dragging && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
-              if (!dragging) {
-                dragging = true;
-                pill = document.createElement("div");
-                pill.textContent = `◆ ${app.title}`;
-                pill.style.cssText =
-                  "position:fixed;z-index:9999;pointer-events:none;padding:6px 10px;" +
-                  "border-radius:9999px;background:var(--color-accent,#0d7a6e);color:#fff;" +
-                  "font-family:ui-monospace,monospace;font-size:11px;" +
-                  "box-shadow:0 6px 20px rgba(0,0,0,0.2);transform:translate(-50%,-50%);";
-                document.body.appendChild(pill);
-                document.body.style.userSelect = "none";
-              }
-              if (pill) { pill.style.left = ev.clientX + "px"; pill.style.top = ev.clientY + "px"; }
-            };
-            const onUp = (ev: MouseEvent) => {
-              window.removeEventListener("mousemove", onMove);
-              window.removeEventListener("mouseup", onUp);
-              document.body.style.userSelect = "";
-              if (pill) { pill.remove(); pill = null; }
-              if (!dragging) return; // a click, not a drag - let onClick fire
-              ev.preventDefault();
-              ev.stopPropagation();
-              const hook = (window as unknown as { __prevailAttachApp?: (id: string) => void }).__prevailAttachApp;
-              if (hook) hook(app.id);
-              else console.warn("[prevail/drag] no app-attach hook: drop fell outside chat panel");
-            };
-            window.addEventListener("mousemove", onMove);
-            window.addEventListener("mouseup", onUp);
-          }}
-          onClick={() => onOpenApp(app)}
-          className={`flex flex-1 cursor-grab items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors active:cursor-grabbing ${
-            active
-              ? SEL_ROW
-              : disabled
-                ? "text-text-muted hover:bg-surface-warm"
-                : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"
-          }`}
-          title={`${disabled ? `${app.title} is turned off and won't sync · ` : ""}Click to open ${app.title} · drag into chat to attach as context${app.domains.length ? " · refreshes " + app.domains.map(titleCase).join(", ") : ""}`}
-        >
-          {/* Brand mark + a tiny status dot anchored to it so connection state
-              stays visible. */}
-          <span className={`relative shrink-0 ${disabled && !active ? "opacity-50" : ""}`}>
-            <AppRowLogo app={{ title: app.title, id: app.id }} size={18} fallback="letter" />
-            <span
-              className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-surface-strong"
-              style={{ backgroundColor: disabled ? "#9aa0a6" : tint }}
-            />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col leading-tight">
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-sm">{app.title}</span>
-              {disabled && (
-                <span
-                  className={`inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0 text-[11px] ${active ? "bg-background/20 text-background" : "bg-surface-warm text-text-muted"}`}
-                  title="This app is turned off and won't be synced"
-                >
-                  <PowerOff className="h-2.5 w-2.5" /> Off
-                </span>
-              )}
-            </span>
-            <span className={`truncate text-[10px] ${active ? "text-background/80" : "text-text-muted"}`}>{disabled ? "Off" : app.domains.length ? app.domains.map(titleCase).join(", ") : "Vault app"}</span>
-          </span>
-        </button>
-        {/* Row actions collapsed into a kebab (⋮), matching the domain rows: a
-            hover-revealed menu with open / open-in-Finder / remove-from-sidebar
-            (the app equivalent of unpinning a domain). */}
-        <div className="relative shrink-0" data-app-menu>
-          <button
-            onClick={(e) => { e.stopPropagation(); setAppMenuOpen((cur) => (cur === app.id ? null : app.id)); }}
-            className={`flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-accent ${
-              active || appMenuOpen === app.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            }`}
-            title="App actions"
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
-          {appMenuOpen === app.id && (
-            <div className="absolute right-0 top-7 z-50 w-44 rounded-md border border-border bg-surface p-0.5 shadow-xl">
-              {/* Pin to top - the app equivalent of pinning a domain. Promotes
-                  this row into the "Pinned" group above; does NOT unfavorite. */}
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleAppPin(appPinKey); setAppMenuOpen(null); }}
-                className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-text-primary hover:bg-surface-warm"
-              >
-                <Pin className={`h-3 w-3 shrink-0 ${isAppPinned ? "fill-accent text-accent" : ""}`} /> {isAppPinned ? "Unpin" : "Pin to top"}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setAppMenuOpen(null); onOpenApp(app); }}
-                className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-text-primary hover:bg-surface-warm"
-              >
-                <ExternalLink className="h-3 w-3 shrink-0" /> Open
-              </button>
-              {app.path && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setAppMenuOpen(null); openInFinder(app.path ?? null); }}
-                  className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-text-primary hover:bg-surface-warm"
-                >
-                  <Folder className="h-3 w-3 shrink-0" /> Open in Finder
-                </button>
-              )}
-              <div className="my-0.5 h-px bg-border-subtle" />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAppMenuOpen(null);
-                  // Remove whichever key(s) pinned this app - id-keyed (AppDetail
-                  // star) or name-keyed (Direct list star). Only delete present
-                  // keys so this never accidentally re-adds.
-                  const idK = favKeyOf(app.id), titleK = favKeyOf(app.title);
-                  if (favs.has(idK)) toggleFavorite(idK);
-                  if (titleK !== idK && favs.has(titleK)) toggleFavorite(titleK);
-                }}
-                className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-text-primary hover:bg-surface-warm"
-              >
-                <StarOff className="h-3 w-3 shrink-0" /> Remove from sidebar
-              </button>
-            </div>
-          )}
-        </div>
-      </li>
-    );
-  };
-
-  // "Pinned" / "All" group header inside the Apps section - the visual + collapse
-  // twin of the domain group headers (renderGroupHeader above).
-  const renderAppGroupHeader = (label: "Pinned" | "All", open: boolean, set: (v: boolean) => void, count: number) => (
-    <li key={`app-${label}-header`} className="mt-1 first:mt-0">
-      <button
-        onClick={() => set(!open)}
-        title={`${open ? "Collapse" : "Expand"} ${label}`}
-        className="group/h flex w-full items-center gap-1.5 rounded-md py-1.5 pl-4 pr-2 text-left text-[11px] font-semibold text-text-muted transition-colors hover:text-text-secondary"
-      >
-        <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
-        <span>{label}</span>
-        <span className="ml-auto font-mono text-[10px] tabular-nums text-text-muted/70">{count}</span>
-      </button>
-    </li>
-  );
-
 
   async function restoreDomain(name: string) {
     setRestoring(name);
@@ -559,8 +291,7 @@ export function Sidebar({
     }
   }
 
-  // Archive a domain straight from its sidebar row (the spot users look first).
-  // Nothing is deleted - it moves to the collapsible "Archived" section below
+  // Archive a domain from its row. Nothing is deleted: it moves to Archived
   // and can be restored any time.
   async function archiveDomain(name: string) {
     try {
@@ -577,705 +308,360 @@ export function Sidebar({
     }
   }
 
-  // Mode-aware sidebar wash: Work mode gets a faint accent (teal) glow at the
-  // top, Editor mode a warmer neutral wash, so the whole rail visibly reads as
-  // one mode or the other beyond just the footer toggle.
+  // Manual drag of a domain row into the chat (WKWebView's HTML5 DnD does not
+  // reliably fire dragstart). On mouseup after moving, the chat panel's global
+  // attach hook takes the domain as context.
+  const startDomainDrag = (e: ReactMouseEvent, name: string) => {
+    if (e.button !== 0) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragging = false;
+    let pill: HTMLDivElement | null = null;
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
+      if (!dragging) {
+        dragging = true;
+        pill = document.createElement("div");
+        pill.textContent = titleCase(name);
+        pill.style.cssText =
+          "position:fixed;z-index:9999;pointer-events:none;padding:6px 10px;border-radius:9999px;" +
+          "background:var(--color-accent);color:var(--color-on-accent,#fff);font-size:12px;font-weight:600;" +
+          "box-shadow:0 6px 20px rgba(0,0,0,0.2);transform:translate(-50%,-50%);";
+        document.body.appendChild(pill);
+        document.body.style.userSelect = "none";
+      }
+      if (pill) { pill.style.left = ev.clientX + "px"; pill.style.top = ev.clientY + "px"; }
+    };
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = "";
+      if (pill) { pill.remove(); pill = null; }
+      if (!dragging) return; // a click: let onClick fire
+      ev.preventDefault();
+      ev.stopPropagation();
+      const hook = (window as unknown as { __prevailAttach?: (n: string, mode?: "light" | "full" | "folder") => void }).__prevailAttach;
+      if (hook) hook(name, ev.altKey ? "folder" : ev.shiftKey ? "full" : "light");
+      else console.warn("[prevail/drag] no attach hook registered: drop fell outside chat panel");
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+  const openDomainRow = (name: string) => { setSelectedDomain(name); if (tab === "work") setTab("chat"); };
+
   const editorMode = tab === "settings";
-  const modeWash = editorMode
-    ? "linear-gradient(180deg, color-mix(in srgb, var(--color-surface-warm) 70%, var(--color-surface-strong)) 0%, var(--color-surface-strong) 240px)"
-    : "linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 9%, var(--color-surface-strong)) 0%, var(--color-surface-strong) 240px)";
+  const homeActive = !editorMode && tab !== "work" && !selectedDomain;
+
+  const settingsButton = (
+    <button
+      onClick={() => (editorMode ? goHome() : setTab("settings"))}
+      title={editorMode ? "Close settings" : "Settings"}
+      aria-label={editorMode ? "Close settings" : "Settings"}
+      aria-pressed={editorMode}
+      data-tour="settings"
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${
+        editorMode ? "border-accent-border bg-accent-soft text-accent" : "border-border-subtle bg-surface text-text-secondary hover:border-accent-border hover:text-accent"
+      }`}
+    >
+      {editorMode ? <X className="h-4 w-4" /> : <SettingsIcon className="h-4 w-4" />}
+    </button>
+  );
+
+  const groupHeader = (label: string, open: boolean, onToggle: () => void, count: number, icon?: ReactNode) => (
+    <li key={`${label}-header`}>
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left text-[13px] text-text-muted transition-colors hover:bg-surface-warm hover:text-text-secondary"
+      >
+        <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.2} />
+        {icon}
+        <span className="flex-1">{label}</span>
+        <span className="tabular-nums text-[12px] text-text-muted/80">{count}</span>
+      </button>
+    </li>
+  );
+
+  const domainRow = (d: Domain) => {
+    const active = d.name === selectedDomain && tab !== "work" && !editorMode;
+    const Icon = domainIcon(d.name);
+    const isPinned = pinned.has(d.name);
+    const stat = domainStats[d.name] ?? 0;
+    if (collapsed) {
+      return (
+        <li key={d.name}>
+          <button
+            onClick={() => openDomainRow(d.name)}
+            title={titleCase(d.name)}
+            className={`relative flex h-10 w-full items-center justify-center rounded-lg transition-colors ${active ? ACTIVE_ROW : IDLE_ROW}`}
+          >
+            {Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} /> : (
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-warm text-[11px] font-semibold text-text-secondary ring-1 ring-border">
+                {titleCase(d.name).charAt(0)}
+              </span>
+            )}
+          </button>
+        </li>
+      );
+    }
+    return (
+      <li key={d.name} className="group relative flex items-center">
+        <button
+          onMouseDown={(e) => startDomainDrag(e, d.name)}
+          onClick={() => openDomainRow(d.name)}
+          title="Click to enter · drag to chat as context (plain: state · ⇧ full · ⌥ entire folder)"
+          aria-current={active ? "page" : undefined}
+          className={`relative flex h-9 min-w-0 flex-1 cursor-grab items-center gap-3 rounded-lg pl-8 pr-9 text-left text-[14px] transition-colors active:cursor-grabbing ${active ? ACTIVE_ROW : IDLE_ROW}`}
+        >
+          {Icon ? <Icon className="h-4 w-4 shrink-0" strokeWidth={1.9} /> : <span className="h-4 w-4 shrink-0 rounded-full bg-surface-warm ring-1 ring-border" />}
+          <span className="min-w-0 flex-1 truncate">{titleCase(d.name)}</span>
+          {runningDomains.has(d.name) ? (
+            <span className="pulse-soft inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="A reply is streaming in this domain" />
+          ) : finishedDomains.has(d.name) ? (
+            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok" title="Just finished: open to view" />
+          ) : null}
+          {stat > 0 && <span title={`${stat} imports`} className="shrink-0 text-[12px] tabular-nums text-text-muted group-hover:opacity-0">{cap99(stat)}</span>}
+        </button>
+        {/* Row actions behind one kebab: pin, open in Finder, archive. */}
+        <div className="absolute right-1 shrink-0" data-domain-menu>
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((cur) => (cur === d.name ? null : d.name)); }}
+            className={`flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent ${
+              menuOpen === d.name ? "opacity-100" : "opacity-0 focus:opacity-100 group-hover:opacity-100"
+            }`}
+            title="Domain actions"
+            aria-label={`${titleCase(d.name)} actions`}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+          {menuOpen === d.name && (
+            <div className="absolute right-0 top-8 z-50 w-40 rounded-lg border border-border bg-surface p-1 shadow-xl">
+              <button
+                onClick={(e) => { e.stopPropagation(); togglePin(d.name); setMenuOpen(null); }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-text-primary hover:bg-surface-warm"
+              >
+                <Pin className={`h-3.5 w-3.5 shrink-0 ${isPinned ? "fill-accent text-accent" : ""}`} /> {isPinned ? "Unpin" : "Pin to top"}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); openInFinder(d.path); setMenuOpen(null); }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-text-primary hover:bg-surface-warm"
+              >
+                <Folder className="h-3.5 w-3.5 shrink-0" /> Open in Finder
+              </button>
+              <div className="my-1 h-px bg-border-subtle" />
+              <button
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(null); void archiveDomain(d.name); }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-warn hover:bg-warn/10"
+              >
+                <Archive className="h-3.5 w-3.5 shrink-0" /> Archive
+              </button>
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  };
+
+  const pinnedDomains = sortedDomains.filter((d) => pinned.has(d.name));
+  const otherDomains = sortedDomains.filter((d) => !pinned.has(d.name));
+
   return (
     <aside
+      data-testid="app-sidebar"
       className="flex shrink-0 flex-col border-r border-border-subtle bg-surface-strong"
-      style={{ width: collapsed ? 56 : railWidth, backgroundImage: modeWash }}
+      style={{ width: collapsed ? 64 : railWidth }}
     >
-      {/* The Prevail mark on its own row, full width, with the sidebar toggle on
-          the far right. The macOS traffic lights are handled by the full-width
-          title bar above this whole layout, so the sidebar starts clean here. */}
-      <div
-        data-tauri-drag-region
-        className={`flex shrink-0 items-center gap-2 px-3 py-2.5 ${
-          collapsed ? "border-b border-border-subtle" : "border-b border-black/20 bg-[#141416]"
-        }`}
-      >
-        {collapsed ? (
-          <div className="mx-auto flex flex-col items-center gap-2">
-            <span className="overflow-hidden rounded-lg ring-1 ring-white/20"><PrevailLogo size={30} animated={false} /></span>
-            <button
-              onClick={() => setCollapsed(false)}
-              title="Expand sidebar"
-              aria-label="Expand sidebar"
-              className="flex h-7 w-7 items-center justify-center rounded-md bg-text-primary text-background shadow-sm transition-opacity hover:opacity-80"
-            >
-              <ChevronRight className="h-[18px] w-[18px]" strokeWidth={2} />
-            </button>
+      <ProfileSwitcher collapsed={collapsed} trailing={settingsButton} />
+
+      {/* Search opens the command palette (it searches every screen, action
+          and domain). */}
+      <div className={collapsed ? "px-2 pb-2" : "px-3 pb-2"}>
+        <button
+          onClick={() => window.dispatchEvent(new Event("prevail:open-palette"))}
+          title="Search (⌘K)"
+          aria-label="Search"
+          className={`flex w-full items-center rounded-lg border border-border-subtle bg-background text-text-muted transition-colors hover:border-accent-border hover:text-text-secondary ${
+            collapsed ? "h-10 justify-center" : "h-9 gap-2 px-3"
+          }`}
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left text-[14px]">Search</span>
+              <kbd className="rounded-md border border-border-subtle bg-surface px-1.5 text-[11px] font-medium leading-[18px] text-text-muted">⌘K</kbd>
+            </>
+          )}
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2">
+        {editorMode ? (
+          <div className={collapsed ? "px-2" : "px-3"}>
+            <NavRow icon={ArrowLeft} label="Back to Home" active={false} collapsed={collapsed} onClick={goHome} />
+            <Divider />
+            {EDITOR_NAV.map((group) => {
+              const holdsActive = group.items.some((i) => i.id === editorActive);
+              const open = collapsed || holdsActive || !closedNavGroups.has(group.heading);
+              return (
+                <div key={group.heading} className="mb-1.5">
+                  {!collapsed && (
+                    <button
+                      onClick={() => toggleNavGroup(group.heading)}
+                      aria-expanded={open}
+                      className={`mb-0.5 mt-2 flex w-full items-center gap-1.5 rounded px-3 py-0.5 transition-colors hover:text-text-secondary ${SECTION_LABEL}`}
+                    >
+                      <span className="flex-1 text-left">{group.heading}</span>
+                      {!open && <span className="font-medium tabular-nums text-text-muted/70">{group.items.length}</span>}
+                      <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
+                    </button>
+                  )}
+                  {open && (
+                    <div className="space-y-0.5">
+                      {group.items.map((it) => (
+                        <NavRow key={it.id} icon={it.icon} label={it.label} active={editorActive === it.id} collapsed={collapsed} onClick={() => selectEditor(it.id)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <>
-            <span className="shrink-0 overflow-hidden rounded-lg ring-1 ring-white/20"><PrevailLogo size={24} animated={false} /></span>
-            <BrandMark fill className="min-w-0 flex-1 font-display text-2xl font-bold text-white [text-shadow:0_2px_6px_rgba(0,0,0,0.5)]" />
-            <button
-              onClick={() => setCollapsed(true)}
-              title="Collapse sidebar"
-              aria-label="Collapse sidebar"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/12 text-white transition-colors hover:bg-white/25"
-            >
-              <ChevronLeft className="h-[18px] w-[18px]" strokeWidth={2} />
-            </button>
+            <nav aria-label="Home" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+              <NavRow icon={House} label="Home" active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
+              <NavRow icon={Inbox} label="Inbox" count={inboxCount} active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} testId="nav-inbox" />
+              {WORK_NAV[0].items.map((it) => (
+                <NavRow key={it.id} icon={it.icon} label={it.label} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} />
+              ))}
+            </nav>
+
+            <Divider />
+            {!collapsed && <SectionHeader label="Work" open={workOpen} onToggle={() => setWorkOpen((v) => !v)} onAdd={newTask} addTitle="New task" />}
+            {(collapsed || workOpen) && (
+              <nav aria-label="Work" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+                {WORK_NAV.slice(1).flatMap((g) => g.items).map((it) => (
+                  <NavRow key={it.id} icon={it.icon} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} />
+                ))}
+              </nav>
+            )}
+
+            <Divider />
+            {!collapsed && (
+              <SectionHeader
+                label="Domains"
+                count={sortedDomains.length}
+                open={domainsOpen}
+                onToggle={() => setDomainsOpen((v) => !v)}
+                onAdd={() => { setDomainsOpen(true); setAdding(true); }}
+                addTitle="New domain"
+                tour="domains"
+              />
+            )}
+            {vaultError && !collapsed && domainsOpen && (
+              <div className="mx-3 my-2 rounded-lg border border-warn/40 bg-warn/10 p-2 text-[13px] text-warn">{vaultError}</div>
+            )}
+            {sortedDomains.length === 0 && !vaultError && !collapsed && domainsOpen && (
+              <div className="px-3 py-2">
+                <p className="mb-2 text-[13px] text-text-muted">No domains yet. Let Prevail suggest a starter set, or add one with the + above.</p>
+                <button
+                  onClick={onOpenOnboarding}
+                  className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-accent px-3 text-[14px] font-semibold text-on-accent transition-opacity hover:opacity-90"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Set up domains
+                </button>
+              </div>
+            )}
+            {collapsed ? (
+              <ul className="space-y-0.5 px-2">{sortedDomains.map(domainRow)}</ul>
+            ) : domainsOpen && (
+              <ul className="space-y-0.5 px-3">
+                {pinnedDomains.length > 0 && (
+                  <Fragment>
+                    {groupHeader("Pinned", pinnedOpen, () => setPinnedOpen((v) => !v), pinnedCount)}
+                    {pinnedOpen && pinnedDomains.map(domainRow)}
+                  </Fragment>
+                )}
+                {otherDomains.length > 0 && (
+                  <Fragment>
+                    {groupHeader("All", allOpen, () => setAllOpen((v) => !v), otherDomains.length)}
+                    {allOpen && otherDomains.map(domainRow)}
+                  </Fragment>
+                )}
+                {archived.length > 0 && (
+                  <Fragment>
+                    {groupHeader("Archived", archivedOpen, () => setArchivedOpen((v) => !v), archived.length)}
+                    {archivedOpen && archived.map((name) => (
+                      <li key={`archived-${name}`} className="group flex h-9 items-center gap-3 rounded-lg pl-8 pr-2 text-text-muted">
+                        <Archive className="h-4 w-4 shrink-0 opacity-70" />
+                        <span className="min-w-0 flex-1 truncate text-[14px]">{titleCase(name)}</span>
+                        <button
+                          onClick={() => restoreDomain(name)}
+                          disabled={restoring === name}
+                          title={`Restore ${titleCase(name)}`}
+                          className="flex shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-[12px] text-text-muted opacity-0 hover:border-accent-border hover:text-accent focus:opacity-100 group-hover:opacity-100 disabled:opacity-100"
+                        >
+                          {restoring === name ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                          Restore
+                        </button>
+                      </li>
+                    ))}
+                  </Fragment>
+                )}
+              </ul>
+            )}
+            {!collapsed && domainsOpen && adding && (
+              <div className="mt-2 px-3">
+                <div className="rounded-lg border border-border bg-background p-2">
+                  <input
+                    autoFocus
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") createDomain();
+                      if (e.key === "Escape") { setAdding(false); setNewName(""); setAddError(null); }
+                    }}
+                    placeholder="e.g. travel"
+                    aria-label="New domain name"
+                    className="w-full bg-transparent px-1 py-0.5 text-[14px] focus:outline-none"
+                  />
+                  {addError && <div className="mt-1 text-[12px] text-err">{addError}</div>}
+                  <div className="mt-2 flex gap-1.5">
+                    <button
+                      onClick={createDomain}
+                      disabled={!newName.trim()}
+                      className="rounded-md bg-accent px-2.5 py-1 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:bg-surface-warm disabled:text-text-muted"
+                    >
+                      Create
+                    </button>
+                    <button
+                      onClick={() => { setAdding(false); setNewName(""); setAddError(null); }}
+                      className="rounded-md border border-border px-2.5 py-1 text-[13px] text-text-muted hover:bg-surface-warm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
 
-      {/* Profile switcher - pinned at the top under the logo (workspace-context
-          convention: Notion/Linear), keeping the bottom uncluttered. */}
-      <ProfileSwitcher collapsed={collapsed} />
-
-      {/* Domain list (icon rail when collapsed, full list when expanded) */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        {/* EDITOR MODE: the single left bar becomes the configuration nav (no
-            second column). Selecting an item drives the content panel via event. */}
-        {tab === "settings" && (
-          <div className={`pt-2 ${collapsed ? "px-1.5" : "px-2"}`}>
-            {EDITOR_NAV.map((group) => {
-              // Twenty-seven destinations in one column do not fit a laptop
-              // screen: the last group was below the fold, and every visit
-              // meant reading past twenty rows to find one. Groups collapse,
-              // and the one holding the section you are on is open, so the
-              // list is short and where you are is always visible. The choice
-              // is remembered per group.
-              const holdsActive = group.items.some((i) => i.id === editorActive);
-              const open = collapsed || holdsActive || !closedNavGroups.has(group.heading);
-              return (
-              <div key={group.heading} className="mb-1.5">
-                {!collapsed && (
-                  <button
-                    onClick={() => toggleNavGroup(group.heading)}
-                    aria-expanded={open}
-                    className="mb-0.5 mt-2 flex w-full items-center gap-1 rounded px-2 py-0.5 text-[11px] text-text-muted/70 transition-colors hover:text-text-secondary"
-                  >
-                    <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
-                    <span className="flex-1 text-left">{group.heading}</span>
-                    {!open && <span className="text-text-muted/50">{group.items.length}</span>}
-                  </button>
-                )}
-                {open && group.items.map((it) => {
-                  const Icon = it.icon;
-                  const active = editorActive === it.id;
-                  return (
-                    <button
-                      key={it.id}
-                      onClick={() => selectEditor(it.id)}
-                      title={collapsed ? it.label : undefined}
-                      className={`group flex w-full items-center rounded-md py-1.5 text-left text-sm transition-all ${collapsed ? "justify-center px-0" : "gap-3 px-3"} ${
-                        active ? "bg-accent font-semibold text-background shadow-sm" : "text-text-secondary hover:bg-accent-soft hover:text-accent hover:shadow-sm active:scale-[0.99]"
-                      } ${!active && !collapsed ? "hover:pl-4" : ""}`}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span className="flex-1">{it.label}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* WORK MODE (everything that isn't Editor): Today + Work surfaces +
-            Domains + Apps, all in this one bar. */}
-        {tab !== "settings" && (<>
-        {/* General - the home for chats not tied to any domain. Selecting it
-            unbinds the chat from domain context; its threads live in the vault
-            root _threads/. New threads are created via the threads rail's +. */}
-        <div className={collapsed ? "flex justify-center p-2" : "px-2 pt-2"}>
-          <button
-            onClick={() => {
-              setSelectedDomain("");
-              if (tab === "work") setTab("chat");
-            }}
-            title="General: chats not tied to any domain"
-            className={
-              collapsed
-                ? `flex h-10 w-10 items-center justify-center rounded-md transition-colors ${
-                    selectedDomain === "" && tab !== "work"
-                      ? SEL_ICON
-                      : "text-text-muted hover:bg-surface-warm hover:text-text-primary"
-                  }`
-                : `flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors ${
-                    selectedDomain === "" && tab !== "work"
-                      ? SEL_ROW
-                      : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"
-                  }`
-            }
-          >
-            <MessagesSquare className="h-4 w-4" />
-            {!collapsed && "General"}
-          </button>
-        </div>
-
-        {/* Work surfaces - board, automations, calendar, notes - in the main bar
-            (no second column). Collapsible + indented, mirroring Domains. */}
-        {!collapsed && (
-          <button
-            onClick={() => setWorkOpen((v) => !v)}
-            className="group/h mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-text-muted hover:text-text-secondary transition-colors"
-          >
-            <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${workOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
-            <Briefcase className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-            <span>Work</span>
-          </button>
-        )}
-        {(collapsed || workOpen) && (
-          <ul className={`space-y-0.5 ${collapsed ? "px-1.5 py-1" : "px-2"}`}>
-            {WORK_NAV.flatMap((g) => g.items).map((it) => {
-              const Icon = it.icon;
-              const active = tab === "work" && workActive === it.id;
-              return (
-                <li key={it.id}>
-                  <button
-                    onClick={() => selectWork(it.id)}
-                    title={collapsed ? it.label : undefined}
-                    className={`group flex w-full items-center rounded-md py-1.5 text-left text-sm transition-all ${collapsed ? "justify-center px-0" : "gap-2.5 pl-6 pr-2"} ${
-                      active ? SEL_ROW : "text-text-secondary hover:bg-accent-soft hover:text-accent hover:shadow-sm active:scale-[0.99]"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {!collapsed && <span className="flex-1 truncate">{it.label}</span>}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {!collapsed && (
-          <div data-tour="domains" className="group/h mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-semibold text-text-muted">
-            <button
-              onClick={() => setDomainsOpen((v) => !v)}
-              className="flex flex-1 items-center gap-1.5 text-left transition-colors hover:text-text-secondary"
-            >
-              <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${domainsOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
-              <Layers className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-              <span>Domains</span>
-            </button>
-            {/* Add affordance: revealed on hover so the rail stays clean. */}
-            <button
-              onClick={() => { setDomainsOpen(true); setAdding(true); }}
-              title="New domain"
-              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition hover:bg-surface-warm hover:text-accent focus:opacity-100 group-hover/h:opacity-100"
-            >
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </button>
-            <span className="font-mono text-[10px] tabular-nums text-text-muted/70">{domains.length}</span>
-          </div>
-        )}
-        {vaultError && !collapsed && domainsOpen && (
-          <div className="mx-2 my-2 rounded border border-warn/40 bg-warn/10 p-2 text-xs text-warn">{vaultError}</div>
-        )}
-        {domains.length === 0 && !vaultError && !collapsed && domainsOpen && (
-          <div className="px-3 py-3">
-            <div className="mb-2 text-xs text-text-muted">
-              no domains yet. let Prevail recommend a starter set, or create one manually below.
-            </div>
-            <button
-              onClick={onOpenOnboarding}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-opacity hover:opacity-90"
-            >
-              <Sparkles className="h-4 w-4" />
-              Set up domains
-            </button>
-          </div>
-        )}
-        {/* "Set up domains" moved to Settings → Vault to declutter the sidebar. */}
-        <ul className={`space-y-0.5 ${collapsed ? "px-1.5 py-2" : "px-2"}`}>
-          {sortedDomains.map((d, i) => {
-            const active = d.name === selectedDomain && tab !== "work";
-            const Icon = domainIcon(d.name);
-            const isPinned = pinned.has(d.name);
-            const isFirstPinned = !collapsed && isPinned && (i === 0 || !pinned.has(sortedDomains[i - 1].name));
-            const isFirstAll = !collapsed && !isPinned && (i === 0 || pinned.has(sortedDomains[i - 1].name));
-            // Hide entries when their group is collapsed.
-            if (!collapsed && !domainsOpen) return null;
-            if (!collapsed && isPinned && !pinnedOpen && !isFirstPinned) return null;
-            if (!collapsed && !isPinned && !allOpen && !isFirstAll) return null;
-            const renderGroupHeader = (label: "Pinned" | "All", open: boolean, set: (v: boolean) => void, count: number) => (
-              <li key={`${label}-header`} className="mt-1 first:mt-0">
-                <button
-                  onClick={() => set(!open)}
-                  title={`${open ? "Collapse" : "Expand"} ${label}`}
-                  className="group/h flex w-full items-center gap-1.5 rounded-md py-1.5 pl-4 pr-2 text-left text-[11px] font-semibold text-text-muted transition-colors hover:text-text-secondary"
-                >
-                  <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
-                  <span>{label}</span>
-                  <span className="ml-auto font-mono text-[10px] tabular-nums text-text-muted/70">{count}</span>
-                </button>
-              </li>
-            );
-            // Render a thin "Pinned / All" divider when transitioning.
-            const showDivider = false;
-            void showDivider;
-            if (collapsed) {
-              return (
-                <li key={d.name}>
-                  <button
-                    onClick={() => {
-                      setSelectedDomain(d.name);
-                      if (tab === "work") setTab("chat");
-                    }}
-                    title={titleCase(d.name)}
-                    className={`flex h-10 w-10 items-center justify-center rounded-md transition-colors ${
-                      active
-                        ? SEL_ICON
-                        : "text-text-muted hover:bg-surface-warm hover:text-text-primary"
-                    }`}
-                  >
-                    {Icon ? <Icon className="h-4 w-4" /> : (
-                      // NAV-1: no per-domain icon → a circular badge (not a bare
-                      // glyph) so the collapsed rail signals "content behind here".
-                      <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold ${
-                        active ? "bg-background/20 text-background" : "bg-surface-warm text-text-secondary ring-1 ring-border"
-                      }`}>
-                        {titleCase(d.name).charAt(0)}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            }
-            return (
-              <Fragment key={d.name}>
-                {isFirstPinned && renderGroupHeader("Pinned", pinnedOpen, setPinnedOpen, pinned.size)}
-                {isFirstAll && renderGroupHeader("All", allOpen, setAllOpen, sortedDomains.length - pinned.size)}
-                {((isPinned && pinnedOpen) || (!isPinned && allOpen)) && (
-              <li
-                className="group flex items-center gap-1 pl-6"
-              >
-                <button
-                  onMouseDown={(e) => {
-                    // Manual drag - WebKit's HTML5 DnD in WKWebView
-                    // doesn't reliably fire dragstart. Track mouse
-                    // movement; on mouseup, hit-test the chat composer
-                    // / messages area and call its global attach hook.
-                    if (e.button !== 0) return;
-                    const startX = e.clientX;
-                    const startY = e.clientY;
-                    let dragging = false;
-                    let pill: HTMLDivElement | null = null;
-                    const onMove = (ev: MouseEvent) => {
-                      const dx = ev.clientX - startX;
-                      const dy = ev.clientY - startY;
-                      if (!dragging && Math.hypot(dx, dy) < 6) return;
-                      if (!dragging) {
-                        dragging = true;
-                        pill = document.createElement("div");
-                        pill.textContent = `◆ ${titleCase(d.name)}`;
-                        pill.style.cssText =
-                          "position:fixed;z-index:9999;pointer-events:none;" +
-                          "padding:6px 10px;border-radius:9999px;" +
-                          "background:var(--color-accent,#0d7a6e);color:#fff;" +
-                          "font-family:ui-monospace,monospace;font-size:11px;" +
-                          "box-shadow:0 6px 20px rgba(0,0,0,0.2);" +
-                          "transform:translate(-50%,-50%);";
-                        document.body.appendChild(pill);
-                        document.body.style.userSelect = "none";
-                      }
-                      if (pill) {
-                        pill.style.left = ev.clientX + "px";
-                        pill.style.top = ev.clientY + "px";
-                      }
-                    };
-                    const onUp = (ev: MouseEvent) => {
-                      window.removeEventListener("mousemove", onMove);
-                      window.removeEventListener("mouseup", onUp);
-                      document.body.style.userSelect = "";
-                      if (pill) { pill.remove(); pill = null; }
-                      if (!dragging) return; // treat as a click - let onClick fire
-                      // Don't let onClick fire after a drag ended
-                      ev.preventDefault();
-                      ev.stopPropagation();
-                      const hook = (window as unknown as { __prevailAttach?: (n: string, mode?: "light" | "full" | "folder") => void }).__prevailAttach;
-                      if (hook) hook(d.name, ev.altKey ? "folder" : ev.shiftKey ? "full" : "light");
-                      else console.warn("[prevail/drag] no attach hook registered: drop fell outside chat panel");
-                    };
-                    window.addEventListener("mousemove", onMove);
-                    window.addEventListener("mouseup", onUp);
-                  }}
-                  onClick={() => {
-                    setSelectedDomain(d.name);
-                    if (tab === "work") setTab("chat");
-                  }}
-                  title="Click to enter · drag to chat as context (plain: state · ⇧ full · ⌥ entire folder)"
-                  className={`flex flex-1 cursor-grab items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors active:cursor-grabbing ${
-                    active
-                      ? SEL_ROW
-                      : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"
-                  }`}
-                >
-                  {Icon ? (
-                    <Icon className={`h-4 w-4 ${active ? "text-background" : "text-text-muted"}`} />
-                  ) : (
-                    <span className={active ? "text-background" : "text-text-muted"}>◆</span>
-                  )}
-                  <span className="flex-1 truncate">{titleCase(d.name)}</span>
-                  {(domainStats[d.name] ?? 0) > 0 && (
-                    <span
-                      className={`shrink-0 rounded-full px-1.5 py-0 font-mono text-[10px] ${active ? "bg-background/20 text-background" : "bg-surface-warm text-text-muted"}`}
-                      title={`${domainStats[d.name]} imports`}
-                    >
-                      {domainStats[d.name]}
-                    </span>
-                  )}
-                  {runningDomains.has(d.name) ? (
-                    <span className="pulse-soft inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="A reply is streaming in this domain" />
-                  ) : finishedDomains.has(d.name) ? (
-                    <span
-                      className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{
-                        background: "var(--color-ok, #2e9e5b)",
-                        boxShadow: "0 0 0 3px color-mix(in srgb, var(--color-ok, #2e9e5b) 28%, transparent)",
-                      }}
-                      title="Just finished: open to view"
-                    />
-                  ) : null}
-                </button>
-                {/* Row actions collapsed into a kebab (⋮) so the list stays
-                    clean: pin / open in Finder / archive live behind one click. */}
-                <div className="relative shrink-0" data-domain-menu>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setMenuOpen((cur) => (cur === d.name ? null : d.name)); }}
-                    className={`flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-accent ${
-                      active || menuOpen === d.name ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                    }`}
-                    title="Domain actions"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  {menuOpen === d.name && (
-                    <div className="absolute right-0 top-7 z-50 w-36 rounded-md border border-border bg-surface p-0.5 shadow-xl">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); togglePin(d.name); setMenuOpen(null); }}
-                        className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-text-primary hover:bg-surface-warm"
-                      >
-                        <Pin className={`h-3 w-3 shrink-0 ${isPinned ? "fill-accent text-accent" : ""}`} /> {isPinned ? "Unpin" : "Pin to top"}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openInFinder(d.path); setMenuOpen(null); }}
-                        className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-text-primary hover:bg-surface-warm"
-                      >
-                        <Folder className="h-3 w-3 shrink-0" /> Open in Finder
-                      </button>
-                      <div className="my-0.5 h-px bg-border-subtle" />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setMenuOpen(null); void archiveDomain(d.name); }}
-                        className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-warn hover:bg-warn/10"
-                      >
-                        <Archive className="h-3 w-3 shrink-0" /> Archive…
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </li>
-                )}
-              </Fragment>
-            );
-          })}
-        </ul>
-
-        {/* Add domain - triggered by the hover "+" on the Domains header above;
-            only the inline create form renders here (no persistent button). */}
-        {!collapsed && domainsOpen && adding && (
-          <div className="mt-2 px-2">
-            {(
-              <div className="rounded-md border border-border bg-background p-2">
-                <input
-                  autoFocus
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") createDomain();
-                    if (e.key === "Escape") { setAdding(false); setNewName(""); setAddError(null); }
-                  }}
-                  placeholder="e.g. travel"
-                  className="w-full bg-transparent px-1 py-0.5 text-xs focus:outline-none"
-                />
-                {addError && <div className="mt-1 text-[11px] text-err">{addError}</div>}
-                <div className="mt-1.5 flex gap-1">
-                  <button
-                    onClick={createDomain}
-                    disabled={!newName.trim()}
-                    className="rounded bg-accent px-2 py-0.5 text-[11px] text-background hover:bg-accent-hover disabled:bg-surface-strong disabled:text-text-muted"
-                  >
-                    create
-                  </button>
-                  <button
-                    onClick={() => { setAdding(false); setNewName(""); setAddError(null); }}
-                    className="rounded border border-border px-2 py-0.5 text-[11px] text-text-muted hover:bg-surface-warm"
-                  >
-                    cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        {collapsed && (
-          <div className="mt-2 flex justify-center">
-            <button
-              onClick={() => setCollapsed(false)}
-              title="New domain (expand sidebar first)"
-              className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-border text-text-muted hover:border-accent-border hover:bg-surface-warm hover:text-accent"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Archived domains - collapsible, grouped right under Domains (it's a
-            domains concept). Hidden from the active list; restore re-scans. */}
-        {!collapsed && domainsOpen && archived.length > 0 && (
-          <div className="mt-2 px-2">
-            <button
-              onClick={() => setArchivedOpen((v) => !v)}
-              className="flex w-full items-center gap-1.5 rounded px-1 py-1 pl-4 text-[11px] text-text-muted hover:text-text-secondary"
-            >
-              {archivedOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-              <Archive className="h-3 w-3" />
-              Archived
-              <span className="ml-auto rounded-full bg-surface-strong px-1.5 text-[11px] text-text-muted">{archived.length}</span>
-            </button>
-            {archivedOpen && (
-              <ul className="mt-1 space-y-0.5">
-                {archived.map((name) => (
-                  <li
-                    key={name}
-                    className="group flex items-center gap-2 rounded-md px-2 py-1 pl-6 text-text-muted"
-                  >
-                    <Archive className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                    <span className="min-w-0 flex-1 truncate text-xs">{titleCase(name)}</span>
-                    <button
-                      onClick={() => restoreDomain(name)}
-                      disabled={restoring === name}
-                      title={`Restore ${titleCase(name)}`}
-                      className="flex shrink-0 items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[11px] text-text-muted opacity-0 hover:border-accent-border hover:text-accent group-hover:opacity-100 disabled:opacity-100"
-                    >
-                      {restoring === name ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                      restore
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {/* Source Map - a peer nav row sitting just above Apps (the two are
-            one-to-one: Source Map shows every app across domains; Apps lists them).
-            Opens the Source tab; shows the agent-operable score once computed. */}
+      {/* One slim footer line: collapse, and the background-work popover. */}
+      <div className={`flex shrink-0 items-center border-t border-border-subtle ${collapsed ? "flex-col gap-1 py-2" : "gap-1 px-3 py-2"}`}>
         <button
-          onClick={() => setTab("map")}
-          title="Source Map: every app and tool feeding your domains, and how agent-operable each is"
-          className={`mt-3 flex w-full items-center rounded-md transition-colors ${
-            collapsed ? "justify-center px-2 py-2" : "gap-1.5 px-2 py-1.5"
-          } ${tab === "map" ? "bg-accent text-background" : "text-text-muted hover:bg-surface-warm hover:text-text-secondary"}`}
+          onClick={() => setCollapsed((v) => !v)}
+          title={collapsed ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
         >
-          <Waypoints className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-          {!collapsed && (
-            <>
-              <span className="flex-1 text-left text-[11px] font-semibold tracking-[0.16em]">Source Map</span>
-              {mapScore !== null && <span className="font-mono text-[11px] tabular-nums opacity-70">{mapScore}%</span>}
-            </>
-          )}
+          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>
-
-        {/* Apps - peer to Domains. Always shown so it stays first-class even
-            with nothing connected yet. Favorites expand by default; the full
-            list stays collapsed so a long list never floods the rail. */}
-        {!collapsed && (
-          <div className="mt-3">
-            <div className="group/h flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-semibold text-text-muted">
-              <button
-                onClick={() => setAppsOpen((v) => !v)}
-                className="flex flex-1 items-center gap-1.5 text-left transition-colors hover:text-text-secondary"
-              >
-                <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${appsOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
-                <Plug className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                <span>Apps</span>
-              </button>
-              {/* Hover affordances: jump to the Apps configuration space, or add
-                  an app. Revealed on hover so the rail stays clean. */}
-              <button
-                onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))}
-                title="Open Apps configuration"
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition hover:bg-surface-warm hover:text-accent focus:opacity-100 group-hover/h:opacity-100"
-              >
-                <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.5} />
-              </button>
-              <button
-                onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))}
-                title="Add an app"
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition hover:bg-surface-warm hover:text-accent focus:opacity-100 group-hover/h:opacity-100"
-              >
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-              </button>
-              <span className="font-mono text-[10px] tabular-nums text-text-muted/70">{pinnedAppCount}</span>
-            </div>
-            {appsOpen && (pinnedAppCount > 0 ? (
-              <ul className="mt-0.5 space-y-0.5 px-2">
-                {/* The home screen = starred apps only. The star on a row
-                    removes it from home.
-                    When any app is pinned, split into a "Pinned" group above an
-                    "All" group - the exact parallel of the Domains section. */}
-                {pinnedMirrorApps.map(renderMirrorRow)}
-                {hasPinnedApps ? (
-                  <>
-                    {renderAppGroupHeader("Pinned", appsPinnedOpen, setAppsPinnedOpen, appBuckets.pinnedSidebar.length)}
-                    {appsPinnedOpen && appBuckets.pinnedSidebar.map(renderAppRow)}
-                    {renderAppGroupHeader("All", appsAllOpen, setAppsAllOpen, appBuckets.restSidebar.length)}
-                    {appsAllOpen && appBuckets.restSidebar.map(renderAppRow)}
-                  </>
-                ) : (
-                  <>{favoritedSidebarApps.map(renderAppRow)}</>
-                )}
-              </ul>
-            ) : (
-              <div className="px-2">
-                <p className="mt-0.5 px-4 py-1.5 text-[11px] leading-relaxed text-text-muted">Pin a connector in Apps to keep it here.</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        </>)}
+        {!collapsed && <div className="flex-1" />}
+        <FooterProcesses collapsed={collapsed} setTab={setTab} />
       </div>
-
-      {/* App-wide readiness - the aggregate of every domain's score. */}
-      {lifeScore && (
-        <button
-          onClick={() => setTab("settings")}
-          title={`Life readiness: mean context score across ${lifeScore.count} domain${lifeScore.count === 1 ? "" : "s"}. Click for settings.`}
-          className={`flex items-center border-t border-border-subtle transition-colors hover:bg-surface-warm ${
-            collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2"
-          }`}
-        >
-          <span className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center">
-            <svg viewBox="0 0 36 36" className="h-7 w-7 -rotate-90">
-              <circle cx="18" cy="18" r="15" fill="none" stroke="var(--color-border, #2a2a2a)" strokeWidth="3" />
-              <circle
-                cx="18" cy="18" r="15" fill="none"
-                stroke={scoreColor(lifeScore.value)} strokeWidth="3" strokeLinecap="round"
-                strokeDasharray={`${(lifeScore.value / 100) * 94.2} 94.2`}
-              />
-            </svg>
-            <span className="absolute text-[11px] font-semibold" style={{ color: scoreColor(lifeScore.value) }}>
-              {lifeScore.value}
-            </span>
-          </span>
-          {!collapsed && (
-            <span className="flex min-w-0 flex-col items-start leading-tight">
-              <span className="font-mono text-[11px] text-text-muted">Life readiness</span>
-              <span className="text-xs text-text-secondary">{lifeScore.count} domain{lifeScore.count === 1 ? "" : "s"} scored</span>
-            </span>
-          )}
-        </button>
-      )}
-
-      {/* Source Map now lives up in the nav next to Apps (see above), not as a
-          standalone footer chip. */}
-
-      {/* The live process / benchmark / backup / connectivity strips used to
-          stack here and made the footer busy. They now live behind the single
-          "Processes" icon in the footer line below (opens a modal on click). */}
-
-      {/* Work / Editor + theme - a full-width ribbon pinned to the bottom. The
-          2026 redesign splits the old single "Settings" button into the two
-          modes (Cursor-style): Work (operational hub) and Editor (configuration).
-          A solid edge-to-edge bar so it reads as the app's footer action. */}
-      {collapsed ? (
-        <div data-tour="settings" className="flex flex-col items-center gap-1 border-t border-border-subtle p-2">
-          <button onClick={() => setTab("chat")} title="Work: your domains, board, automations, calendar & notes" aria-label="Work mode"
-            className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${tab !== "settings" ? "bg-accent-soft text-accent" : "text-text-muted hover:text-text-primary"}`}>
-            <Briefcase className="h-4 w-4" />
-          </button>
-          <button onClick={() => setTab("settings")} title="Editor: models, connections & settings" aria-label="Editor mode"
-            className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${tab === "settings" ? "bg-accent-soft text-accent" : "text-text-muted hover:text-text-primary"}`}>
-            <SettingsIcon className="h-4 w-4" />
-          </button>
-          <button onClick={() => window.dispatchEvent(new Event("prevail:import-obsidian"))} title="Obsidian: import your Obsidian vault as AI-readable notes" aria-label="Obsidian"
-            className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:text-accent">
-            <ObsidianLogo className="h-4 w-4" />
-          </button>
-          <button onClick={() => { const cycle: Mode[] = ["light", "dark", "system"]; const i = cycle.indexOf(appearance.mode); appearance.setMode(cycle[(i + 1) % cycle.length]); }}
-            title={`Theme: ${appearance.mode}: click to cycle`} className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:text-text-secondary">
-            {appearance.mode === "dark" ? <Moon className="h-4 w-4" /> : appearance.mode === "system" ? <Monitor className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          </button>
-          <FooterProcesses collapsed setTab={setTab} />
-        </div>
-      ) : (
-        // Full-width, edge-to-edge mode switch. Two equal halves span the whole
-        // rail; the active mode is filled (accent for Work, warm for Editor)
-        // with a bold top indicator bar, so the current mode is unmistakable.
-        <div data-tour="settings" className="grid shrink-0 grid-cols-2 border-t border-border">
-          <button
-            onClick={() => setTab("chat")}
-            title="Work: your domains, board, automations, calendar & notes"
-            className={`relative flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors ${
-              tab !== "settings"
-                ? "bg-accent text-background shadow-sm"
-                : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"
-            }`}
-          >
-            <Briefcase className="h-4 w-4 shrink-0" />
-            Work
-          </button>
-          <button
-            onClick={() => setTab("settings")}
-            title="Editor: models, connections & settings"
-            className={`relative flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors ${
-              tab === "settings"
-                ? "bg-accent text-background shadow-sm"
-                : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"
-            }`}
-          >
-            <SettingsIcon className="h-4 w-4 shrink-0" />
-            Editor
-          </button>
-        </div>
-      )}
-      {!collapsed && (
-        // Slim one-line footer. The Beta badge IS the feedback link (the tooltip
-        // carries the use-at-your-own-risk notice), and the theme toggle +
-        // Processes icon are kept tiny on the
-        // right so this corner stays minimal rather than a stack of status cards.
-        <div className="flex shrink-0 items-center gap-2 border-t border-border-subtle px-3 py-2">
-          <a
-            href="https://github.com/fru-dev3/prevail-desktop/issues/new"
-            target="_blank"
-            rel="noreferrer"
-            title="Beta: Prevail is a beta release, provided as-is with no warranty: use at your own risk. Click to send feedback or report a bug."
-            className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent transition-colors hover:bg-accent hover:text-background"
-          >
-            <span className="text-[10px] leading-none">◆</span> Beta
-          </a>
-          <button
-            onClick={() => window.dispatchEvent(new Event("prevail:import-obsidian"))}
-            title="Obsidian: import your Obsidian vault as AI-readable notes"
-            aria-label="Obsidian"
-            className="group/ob flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
-          >
-            <ObsidianLogo className="h-3.5 w-3.5" />
-            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-medium opacity-0 transition-all group-hover/ob:max-w-[64px] group-hover/ob:opacity-100">Obsidian</span>
-          </button>
-          <div className="flex-1" />
-          <button
-            onClick={() => { const cycle: Mode[] = ["light", "dark", "system"]; const i = cycle.indexOf(appearance.mode); appearance.setMode(cycle[(i + 1) % cycle.length]); }}
-            title={`Theme: ${appearance.mode}, click to cycle (light · dark · system)`}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
-          >
-            {appearance.mode === "dark" ? <Moon className="h-3.5 w-3.5" /> : appearance.mode === "system" ? <Monitor className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
-          </button>
-          <FooterProcesses collapsed={false} setTab={setTab} />
-        </div>
-      )}
     </aside>
   );
 }

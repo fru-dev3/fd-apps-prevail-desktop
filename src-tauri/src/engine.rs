@@ -1148,25 +1148,6 @@ pub async fn engine_attachments_caption() -> Result<(), String> {
     Ok(())
 }
 
-/// Bind (or clear) an app's account identity - WHICH account of a multi-account
-/// connector this app instance is (e.g. which Google account). Attaching the app
-/// to a chat carries this identity into the turn. Empty label clears the
-/// binding. Returns { ok, path?, account?, error? }.
-#[tauri::command]
-pub fn engine_app_set_account(
-    id: String,
-    label: String,
-    address: Option<String>,
-) -> Result<serde_json::Value, String> {
-    let mut args: Vec<&str> = vec!["connectors", "set", &id, "account", &label];
-    let addr = address.unwrap_or_default();
-    if !addr.trim().is_empty() {
-        args.push(&addr);
-    }
-    args.push("--json");
-    run_engine_json(&args)
-}
-
 /// AI-draft a complete, valid SKILL.md for a domain from a plain-language
 /// description. Shells the sidecar `skill-draft --json`, which gathers the
 /// domain's real context (ideal state, memory, state, goals, recent decisions
@@ -2149,7 +2130,8 @@ pub fn engine_manifest_get(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifeReadiness {
     /// 0–100 aggregate across all (non-archived) domains, or null when
-    /// there are no domains to average.
+    /// there are no domains to average. The CLI emits it as `lifeReadiness`.
+    #[serde(alias = "lifeReadiness")]
     pub life_readiness: Option<i64>,
     /// Per-domain scores backing the aggregate.
     pub domains: Vec<ContextScore>,
@@ -3016,4 +2998,46 @@ mod app_id_tests {
         }
         assert!(app_data_files("/tmp/v".into(), "../../../..".into()).is_err());
     }
+}
+
+/// Which vault domains a General message is about (`prevail route`). The text
+/// rides on stdin, never argv, so it does not show up in a process listing,
+/// and nothing here logs it. Runs off the main thread: the model fallback can
+/// take seconds and the chat send path must never wait on it.
+#[tauri::command]
+pub async fn engine_route(vault: String, text: String, thread: Option<String>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut args: Vec<&str> = vec!["route", "--text", "-", "--vault", &vault];
+        if let Some(t) = thread.as_deref().filter(|t| !t.trim().is_empty()) {
+            args.push("--thread");
+            args.push(t);
+        }
+        run_engine_json_stdin(&args, &text)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+}
+
+/// Record the user's correction of a route (`prevail route correct`), logged
+/// to General's decision log inside the vault and fed back as examples.
+#[tauri::command]
+pub async fn engine_route_correct(
+    vault: String,
+    thread: String,
+    domains: Vec<String>,
+    from: Option<Vec<String>>,
+    text: Option<String>,
+) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let doms = domains.join(",");
+        let from = from.unwrap_or_default().join(",");
+        let body = text.unwrap_or_default();
+        let args: Vec<&str> = vec![
+            "route", "correct", "--thread", &thread, "--domains", &doms, "--from", &from,
+            "--text", "-", "--source", "desktop", "--vault", &vault,
+        ];
+        run_engine_json_stdin(&args, &body)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
 }

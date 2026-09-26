@@ -3,7 +3,7 @@
 // shared chatviews + domainpanels.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, Check, ClipboardList, Compass, FileText, Folder, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, PanelRightOpen, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp, X } from "lucide-react";
+import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, Check, ClipboardList, Compass, FileText, Folder, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp, X } from "lucide-react";
 import { PrevailLogo } from "./PrevailLogo";
 import { invoke, listen } from "./bridge";
 import { addNote } from "./notesstore";
@@ -24,11 +24,14 @@ import { domainIcon } from "./icons";
 import { useFrameworkLens } from "./hooks";
 import { ProviderMark } from "./marks";
 import { DomainHome, DomainStatusBar, MessageList } from "./chatviews";
+import { RouteChips } from "./routechips";
+import { GeneralSearch } from "./generalsearch";
+import { ROUTE_WAIT_MS, buildRoutedContext, correctRoute, decodeRouteTurns, encodeRouteTurns, routeText, routeThreshold, routingEnabled, splitRoute, threadIdOf, threadRoutes } from "./routing";
 import { LoopsPanel } from "./loopspanel";
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
 import { savedEntitiesForDirective } from "./entitystore";
-import { AgentPickerRail, ContextCanvas, DomainContextDrawer, DomainPrefsPanel } from "./domainpanels";
+import { AgentPickerRail, ContextButton, ContextCanvas, DomainContextView, DomainPrefsPanel } from "./domainpanels";
 import { HomeBriefing } from "./recommendationspanel";
 import type { ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, LifeReadiness, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
@@ -111,6 +114,7 @@ export function ChatPanel({
   onStreamStart,
   onStreamEnd,
   domains,
+  onPickDomain,
   domainTab,
   setDomainTab,
   active = true,
@@ -396,8 +400,8 @@ export function ChatPanel({
   // Domain context column - a persistent right column showing state.md,
   // decisions, journal, recent logs, skills. Collapsible; state persisted.
   // Items can be "used in chat" to inject as prompt context.
-  const [contextOpen, setContextOpen] = useState<boolean>(() => lsGet("prevail.contextOpen") === "1");
-  useEffect(() => { lsSet("prevail.contextOpen", contextOpen ? "1" : "0"); }, [contextOpen]);
+  // The Context view swaps in for the chat column; always start on the chat.
+  const [contextOpen, setContextOpen] = useState(false);
   // Restore any manual context cached for this scope (survives a tab-switch
   // remount). The scope key mirrors the parent's mount key (tDomain, else General).
   const primedScope = tDomain ?? "general";
@@ -1106,6 +1110,20 @@ export function ChatPanel({
   // Current messages, read by the load effect without subscribing to them (so
   // the effect doesn't re-run on every streamed chunk).
   const messagesRef = useRef(messages);
+  // Domains a General message can be filed in (General itself is not one).
+  const routableDomains = useMemo(
+    () => domains.map((d) => d.name.toLowerCase()).filter((n) => n && n !== "general"),
+    [domains],
+  );
+  // The user corrected where message `i` was filed: record it so routing
+  // learns, and let the save carry the new tags to the thread.
+  const correctMessageRoute = useCallback((i: number, next: string[]) => {
+    const m = messagesRef.current[i];
+    if (!m || m.role !== "user") return;
+    const prev = m.domainRoute?.tagged ?? [];
+    setMessages((cur) => cur.map((x, j) => (j === i ? { ...x, domainRoute: { tagged: next, suggested: [] } } : x)));
+    correctRoute(vaultPath, threadIdOf(activeThreadRef.current), next, prev, m.content);
+  }, [vaultPath]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   // Any thread pick returns to the chat view - even re-clicking the active
   // thread (which doesn't change activeThreadPath), so you can always escape
@@ -1142,11 +1160,13 @@ export function ChatPanel({
         if (cancelled) return;
         displayedPathRef.current = activeThreadPath;
         setThreadTitle(t.meta?.title?.trim() || "Untitled");
-        setMessages(t.turns.map((tn) => ({
+        const routes = decodeRouteTurns(t.meta?.route_turns);
+        setMessages(t.turns.map((tn, i) => ({
           role: tn.role,
           cli: tn.cli ?? undefined,
           content: tn.content,
           ts: Date.now(),
+          ...(routes.has(i) ? { domainRoute: { tagged: routes.get(i) ?? [], suggested: [] } } : {}),
         })));
       })
       .catch((e) => console.error("load_thread", e));
@@ -1197,6 +1217,8 @@ export function ChatPanel({
             model: m.model ?? null,
             content: m.content,
           })),
+          // General owns routing; any other scope leaves what is on disk.
+          ...(tDomain ? {} : { routed: threadRoutes(messages), routeTurns: encodeRouteTurns(messages) }),
         });
         // Adopt the returned path so the NEXT save reuses the same slug.
         if (!activeThreadRef.current) {
@@ -1762,7 +1784,10 @@ export function ChatPanel({
     // it). Non-breaking: any concrete model id is unchanged.
     const nativeModel = chatModel === "auto" ? null : chatModel;
     const visible = input.trim();
-    const userMsg: ChatMessage = { role: "user", content: visible, ts: Date.now() };
+    // General routing: ask which domains this is about, without holding the
+    // turn hostage. Incognito and Bunker Mode skip it (no context, no cloud).
+    const routeOn = !domain && !tDomain && !isApp && routingEnabled() && !incognitoActive("chat") && !isBunkerOn();
+    const userMsg: ChatMessage = { role: "user", content: visible, ts: Date.now(), ...(routeOn ? { domainRoute: { tagged: [], suggested: [], pending: true } } : {}) };
     const replyMsg: ChatMessage = { role: "assistant", cli: chatCli, model: chatModel || undefined, framework: fwLens.framework ?? undefined, lens: fwLens.lens ?? undefined, content: "", ts: Date.now(), streaming: true };
     setMessages((m) => [...m, userMsg, replyMsg]);
     // Attach file paths to the prompt so the CLI can read them.
@@ -1818,11 +1843,28 @@ export function ChatPanel({
     // single text payload because the CLIs spawn fresh each turn and
     // have no shared session. Cap at ~40K characters (~10K tokens) and
     // drop the oldest turns to fit, keeping at least the most recent.
+    let routedPreamble = "";
+    if (routeOn) {
+      const routeP = routeText(vaultPath, visible, threadIdOf(activeThreadRef.current)).then((res) => {
+        const known = new Set(routableDomains);
+        const r = splitRoute(res, routeThreshold(), known);
+        setMessages((m) => m.map((x) => (x === userMsg || (x.role === "user" && x.ts === userMsg.ts) ? { ...x, domainRoute: r } : x)));
+        return r;
+      });
+      // A fast answer shapes this turn; a slow one still files the thread and
+      // shapes the next.
+      const early = await Promise.race([routeP, new Promise<null>((r) => window.setTimeout(() => r(null), ROUTE_WAIT_MS))]);
+      const include = [...threadRoutes(messages)];
+      for (const d of early?.tagged ?? []) if (!include.includes(d)) include.push(d);
+      routedPreamble = await buildRoutedContext(vaultPath, include).catch(() => "");
+    } else if (!domain && !tDomain && !isApp && !incognitoActive("chat")) {
+      routedPreamble = await buildRoutedContext(vaultPath, threadRoutes(messages)).catch(() => "");
+    }
     const history = buildChatContext(messages, 40000);
     const promptText = fwLens.buildPrompt(
       history
-        ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
-        : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
+        ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
+        : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
     );
     pushHistory(visible);
     setAttachments([]);
@@ -2235,7 +2277,7 @@ export function ChatPanel({
   ];
   // The context bundle exposes the raw journal/state/decisions/logs; the Journal
   // tab surfaces them. `context`/`state`/`decisions`/`logs` remain valid domainTab
-  // values (reached from the context drawer) and fall through to their own bodies.
+  // values (reached from the Context view) and fall through to their own bodies.
   const detailHeader = inDomainDetail && (
     <>
       <div className="flex flex-wrap items-start gap-4 border-b border-border-subtle bg-surface px-6 pb-4 pt-4">
@@ -2307,7 +2349,7 @@ export function ChatPanel({
         void attachDomainAsContext(name, e.altKey ? "folder" : e.shiftKey ? "full" : "light");
       }}
     >
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className={`relative min-w-0 flex-1 flex-col ${contextOpen && vaultPath ? "hidden" : "flex"}`}>
       {dragOver && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-accent-soft/80 backdrop-blur-sm">
           <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-center text-sm text-accent shadow-xl">
@@ -2328,12 +2370,20 @@ export function ChatPanel({
           })()}
           <span className="shrink-0 font-display text-lg font-semibold">{titleCase(domain)}</span>
           <span className="hidden min-w-0 flex-1 truncate text-sm text-text-muted md:inline">{domainBlurb(domain)}</span>
-          <div className="ml-auto shrink-0">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <ContextScoreBadge
               score={ctxScore}
               onClick={() => setDomainTab("welcome")}
             />
+            <ContextButton onClick={() => setContextOpen(true)} />
           </div>
+        </div>
+      )}
+      {/* General and the phone have no domain header; the Context view is
+          still one tap away from a slim row above the transcript. */}
+      {!inDomainDetail && !isApp && (phone || !domain) && (
+        <div className="flex shrink-0 items-center justify-end border-b border-border-subtle px-3 py-1.5">
+          <ContextButton onClick={() => setContextOpen(true)} />
         </div>
       )}
 
@@ -2359,6 +2409,13 @@ export function ChatPanel({
             <p className={`max-w-md text-balance text-center text-text-muted ${phone ? "mt-1.5 text-[13px]" : "mt-3 text-sm"}`}>
               An AI that learns you, gets sharper, and surfaces what you'd have missed.
             </p>
+            <GeneralSearch
+              vaultPath={vaultPath}
+              domains={routableDomains}
+              compact={phone}
+              onPickThread={(p) => onActiveThreadChange(p)}
+              onPickDomain={(n) => onPickDomain(domains.find((d) => d.name.toLowerCase() === n)?.name ?? n)}
+            />
             {lifeReadiness && lifeReadiness.life_readiness !== null && (
               <div
                 className="mt-3 flex items-center gap-3 rounded-full border px-4 py-1.5"
@@ -2511,7 +2568,7 @@ export function ChatPanel({
                   </div>
 
                   {/* MAIN GRID - fills the screen with rich, clickable cards. */}
-                  <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="grid gap-4">
                     {/* What this domain is / why it matters -> Ideal State. */}
                     <button
                       onClick={() => setDomainTab("soul")}
@@ -2642,7 +2699,7 @@ export function ChatPanel({
                 read_domain_ideal / write_domain_ideal contract as DomainPrefsPanel;
                 Generate calls domain_draft_ideal (same command the Prefs panel uses). */}
             {domainTab === "soul" && (
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+              <div className="grid grid-cols-1 gap-4">
                 {/* LEFT: the editable Ideal State note + Generate with AI. */}
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col rounded-2xl border border-border-subtle bg-surface/50 p-5">
@@ -2756,7 +2813,7 @@ export function ChatPanel({
             {domainCtx && domainTab === "decisions" && (domainCtx.decisions ? <Markdown source={domainCtx.decisions} compact /> : <div className="rounded-lg border border-dashed border-border bg-surface p-6 text-sm text-text-muted">no <code className="text-accent">decisions.md</code> yet.</div>)}
             {/* JOURNAL - the domain's running context: journal + state snapshot +
                 distilled decisions + recent session logs, reusing the same context
-                bundle the context drawer reads. */}
+                bundle the Context view reads. */}
             {domainCtx && domainTab === "journal" && (
               <div className="space-y-6">
                 <div>
@@ -2857,8 +2914,11 @@ export function ChatPanel({
           </div>
         )}
         {!domain && domainTab === "chat" && messages.length > 0 && (
-          <div className="mx-auto w-full max-w-3xl px-6 py-8">
+          <div className={`mx-auto w-full max-w-3xl ${phone ? "px-4 py-5" : "px-6 py-8"}`}>
             <MessageList
+              userFooter={tDomain || isApp ? undefined : (m, i) => (
+                <RouteChips route={m.domainRoute} domains={routableDomains} onChange={(next) => correctMessageRoute(i, next)} />
+              )}
               messages={messages}
               resetKey={chatViewNonce}
               onCopy={copyToClipboard}
@@ -3553,27 +3613,20 @@ export function ChatPanel({
         </div>
       </div>
       </div>
-      <ContextCanvas />
-      {contextOpen ? (
-        <DomainContextDrawer
+      {contextOpen && vaultPath ? (
+        <DomainContextView
           domain={domain ?? ""}
+          phone={phone}
           vaultPath={vaultPath}
           domainPath={domainPath ?? ""}
           onClose={() => setContextOpen(false)}
           onInjectContext={(body, label) => injectContext(body, label)}
-          onInsertSkill={(name) => insertSkillSlash(name)}
+          onInsertSkill={(name) => { insertSkillSlash(name); setContextOpen(false); }}
           preferredSet={preferredSkillsSet}
           onTogglePreferred={togglePreferredSkill}
         />
-      ) : phone ? null : (
-        <button
-          onClick={() => setContextOpen(true)}
-          title="Show context"
-          className="flex w-9 shrink-0 items-center justify-center border-l border-border-subtle bg-surface py-3 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
-        >
-          <PanelRightOpen className="h-4 w-4" />
-        </button>
-      )}
+      ) : null}
+      <ContextCanvas />
     </div>
   );
 }

@@ -110,7 +110,7 @@ export function FrameworksSection() {
         <span className="ml-auto text-[11px] text-text-muted">structure × perspective</span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         <div className="rounded-xl border border-border bg-surface p-4">
           <div className="mb-2 flex items-baseline gap-2">
             <Diamond className="h-4 w-4 shrink-0 text-accent" />

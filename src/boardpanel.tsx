@@ -132,6 +132,14 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
   const [addDomain, setAddDomain] = useState("");
   const [addDue, setAddDue] = useState("");
   const [addModalOpen, setAddModalOpen] = useState(false);
+  // The sidebar's Work "+" opens this dialog; a flag covers a board that is
+  // still mounting when the event fires.
+  useEffect(() => {
+    const open = () => setAddModalOpen(true);
+    try { if (localStorage.getItem("prevail.board.openAdd") === "1") { localStorage.removeItem("prevail.board.openAdd"); open(); } } catch { /* storage off */ }
+    window.addEventListener("prevail:board-add", open);
+    return () => window.removeEventListener("prevail:board-add", open);
+  }, []);
   const [running, setRunning] = useState(false);
   // Collapsed board columns - free real estate for the columns you care about.
   // Persisted; Icebox starts collapsed since it's a rarely-touched parking lot.
@@ -636,9 +644,9 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
   return (
     <>
       {/* Pinned header: title, AI status, and all controls stay visible while the
-          board/list scrolls. Negative margins cancel the page's px-8/py-10 so the
+          board/list scrolls. Negative margins cancel the page's padding (px-8/py-6, px-4 on a phone) so the
           backdrop goes edge-to-edge and flush to the top. */}
-      <div className="sticky top-0 z-20 -mx-8 -mt-10 border-b border-border-subtle bg-background px-8 pb-3 pt-8">
+      <div className="sticky top-0 z-20 -mx-8 -mt-6 border-b border-border-subtle bg-background px-8 pb-3 pt-4 max-md:-mx-4 max-md:-mt-4 max-md:px-4">
       <SettingsHeader title="Work Board" icon={Briefcase}
         subtitle="Your tasks, yours or handed to AI." />
 

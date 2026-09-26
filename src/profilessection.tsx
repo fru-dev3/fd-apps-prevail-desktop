@@ -186,7 +186,7 @@ export function ProfilesSection() {
 
       {/* Editor form (add / edit) */}
       {draft && (
-        <div className="mb-4 max-w-xl rounded-lg border border-border bg-surface-warm p-4">
+        <div className="mb-4 rounded-lg border border-border bg-surface-warm p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-display text-base font-semibold text-text-primary">{loadProfiles().some((p) => p.id === draft.id) ? "Edit profile" : "New profile"}</h3>
             <button onClick={() => { setDraft(null); setErr(null); }} className="rounded p-1 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>
@@ -270,7 +270,7 @@ export function ProfilesSection() {
           </p>
         </div>
       )}
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-3">
         {profiles.map((p) => {
           const isActive = p.id === activeId;
           const isDefault = p.id === defaultId;

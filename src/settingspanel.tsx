@@ -1,10 +1,9 @@
 // The Settings page shell, extracted from App.tsx. Owns the section router /
 // left-nav and composes every Settings section from its own module.
 import { useEffect, useState } from "react";
-import { Compass, Sigma, Target } from "lucide-react";
+import { Compass, Sigma } from "lucide-react";
 import { useAppearance } from "./hooks";
-import { SettingsHeader } from "./sectionutil";
-import { ProviderMark } from "./marks";
+import { ScrollPage, SettingsHeader } from "./sectionutil";
 import { FrameworksSection, RemoteSection, ShortcutsSection } from "./settings1";
 import { PhoneSection } from "./remotepair";
 import { DaemonsSection, MemoryContextSection, SkillsSection } from "./settings2";
@@ -30,6 +29,10 @@ import { BenchmarkPanel } from "./benchpanel";
 import { HooksSection } from "./hookssection";
 import { ProfilesSection } from "./profilessection";
 import type { CliInfo } from "./types";
+
+// Sections that are a SideSpine screen: they fill the pane edge to edge and
+// scroll their column and detail on their own.
+const FLUSH_SECTIONS = new Set<string>(["intent", "entities", "connectors", "models", "benchmark"]);
 
 export function SettingsPanel({
   appearance,
@@ -94,35 +97,13 @@ export function SettingsPanel({
     // Content-only: the Editor nav lives in the shared app sidebar (EDITOR_NAV),
     // so this panel renders just the active section. min-h-0 + flex-1 so it fills
     // the space above the footer ribbon.
-    <div className="min-h-0 flex-1 overflow-y-auto">
-        {/* Full width - settings use the whole pane, left-aligned, to match
-            the rest of the app. Long prose inside sections caps itself
-            (subtitles use max-w-2xl) so readability stays intact. */}
-        <div className="w-full px-8 py-10">
+    <ScrollPage key={section} testId="settings-page" flush={FLUSH_SECTIONS.has(section)}>
+        {/* Full width: settings use the whole pane. */}
+        
           {section === "general" && <GeneralSection appearance={appearance} />}
           {section === "privacy" && <PrivacyConnectivitySection enabled={bunkerEnabled} onChange={onBunkerChange} />}
           {section === "models" && <ModelsSection clis={clis} onStartChatWith={onStartChatWith} onActivated={onRefreshClis} vaultPath={vaultPath} />}
-          {section === "benchmark" && (
-            <>
-              <SettingsHeader
-                title="Arena"
-                icon={Target}
-                subtitle="Your own eval suite. See who leads where."
-                right={
-                  <div className="flex items-center -space-x-2">
-                    {["claude", "codex", "antigravity", "openrouter", "ollama", "lmstudio"].map((v) => (
-                      <span key={v} className="rounded-md ring-2 ring-surface transition-transform hover:z-10 hover:-translate-y-0.5">
-                        <ProviderMark vendor={v} size={30} />
-                      </span>
-                    ))}
-                  </div>
-                }
-              />
-              <div className="-mx-4 min-h-[60vh]">
-                <BenchmarkPanel vaultPath={vaultPath} />
-              </div>
-            </>
-          )}
+          {section === "benchmark" && <BenchmarkPanel vaultPath={vaultPath} />}
           {/* B2-24 / image #28: Ideals = page header + two big collapsible sections
               (Constitution, Omega). Big-header collapsibles so each reads above the
               sub-headers inside; Constitution open by default. */}
@@ -165,13 +146,13 @@ export function SettingsPanel({
           {section === "daemons" && <DaemonsSection vaultPath={vaultPath} />}
           {section === "usage" && <UsageDashboard vaultPath={vaultPath} />}
           {section === "activity" && <SystemActivity vaultPath={vaultPath} />}
-          {section === "intent" && <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5"><MirrorPanel vaultPath={vaultPath} /></div>}
-          {section === "entities" && <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5"><EntitiesView vaultPath={vaultPath} /></div>}
+                              {section === "intent" && <MirrorPanel vaultPath={vaultPath} />}
+          {section === "entities" && <EntitiesView vaultPath={vaultPath} />}
           {section === "tools" && <ToolsPanel />}
           {section === "loopboard" && <LoopBoard vaultPath={vaultPath} />}
           {section === "council" && <CouncilSettingsSection clis={clis} />}
           {section === "connectors" && <AppsMirrorPanel vaultPath={vaultPath} />}
-          {section === "safety" && <SafetySection vaultPath={vaultPath} />}
+                    {section === "safety" && <SafetySection vaultPath={vaultPath} />}
           {section === "autonomy" && <AutonomyPanel vaultPath={vaultPath} />}
           {section === "gateway" && <><GatewaySection /><GatewayLogsCard vaultPath={vaultPath} /></>}
           {section === "mcp" && <IntegrationsPanel vaultPath={vaultPath} clis={clis} />}
@@ -189,7 +170,6 @@ export function SettingsPanel({
           {section === "skills" && <SkillsSection vaultPath={vaultPath} />}
           {section === "shortcuts" && <ShortcutsSection />}
           {section === "about" && <AboutSection vaultPath={vaultPath} />}
-        </div>
-      </div>
+    </ScrollPage>
   );
 }

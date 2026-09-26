@@ -24,7 +24,6 @@ const SettingsPanel = lazy(() => import("./settingspanel").then((m) => ({ defaul
 const WorkPanel = lazy(() => import("./workpanel").then((m) => ({ default: m.WorkPanel })));
 const BenchmarkPanel = lazy(() => import("./benchpanel").then((m) => ({ default: m.BenchmarkPanel })));
 const ToolsPanel = lazy(() => import("./toolspanel").then((m) => ({ default: m.ToolsPanel })));
-const MapPanel = lazy(() => import("./mappanel").then((m) => ({ default: m.MapPanel })));
 // The phone frame (bottom tab bar, big header, one full-width surface). Only
 // fetched at phone width, so the desktop bundle stays as it was.
 const PhoneShell = lazy(() => import("./phoneshell").then((m) => ({ default: m.PhoneShell })));
@@ -143,7 +142,6 @@ import {
   CalendarDays,
   PanelLeft,
   Compass,
-  Waypoints,
   ShieldCheck,
   Power,
   Briefcase,
@@ -974,14 +972,10 @@ export default function App() {
   // Persisted rail widths. Min/max enforced when dragging.
   const [domainRailWidth, setDomainRailWidth] = useState<number>(() => {
     const v = parseInt(lsGet("prevail.domainRailWidth"), 10);
-    return Number.isFinite(v) && v > 0 ? v : 240;
+    return Number.isFinite(v) && v > 0 ? v : 256;
   });
-  const [threadsRailWidth, setThreadsRailWidth] = useState<number>(() => {
-    const v = parseInt(lsGet("prevail.threadsRailWidth"), 10);
-    return Number.isFinite(v) && v > 0 ? v : 240;
-  });
+
   useEffect(() => { lsSet("prevail.domainRailWidth", String(domainRailWidth)); }, [domainRailWidth]);
-  useEffect(() => { lsSet("prevail.threadsRailWidth", String(threadsRailWidth)); }, [threadsRailWidth]);
   const refreshThreads = useCallback(async () => {
     if (!vaultPath) return;
     try {
@@ -1168,14 +1162,17 @@ export default function App() {
   // "loopboard" is the legacy Settings id for the LoopBoard — now "Automations"
   // in Work mode; kept here so old deep-links still route correctly (WorkPanel
   // normalizes the alias).
-  const WORK_SECTIONS = ["tasks", "recommendations", "spark", "automations", "calendar", "notes", "loopboard"];
+  const WORK_SECTIONS = ["tasks", "task-list", "inbox", "recommendations", "spark", "automations", "calendar", "notes", "insights", "projects", "goals", "loopboard"];
+  // The Source Map screen was removed; links saved before that land on Home.
+  const REMOVED_SECTIONS = ["map", "source-map", "source"];
   const openWorkAt = (section: string) => {
     setWorkJump((j) => ({ section, n: (j?.n ?? 0) + 1 }));
     setTab("work");
   };
   // Route a section name to whichever mode now owns it.
   const openSectionAt = (section: string) => {
-    if (WORK_SECTIONS.includes(section)) openWorkAt(section);
+    if (REMOVED_SECTIONS.includes(section)) { setSelectedDomain(""); setTab("chat"); }
+    else if (WORK_SECTIONS.includes(section)) openWorkAt(section);
     else openSettingsAt(section);
   };
   // Window-event form of the same jump, for module-scope UI (sidebar
@@ -1186,6 +1183,9 @@ export default function App() {
       if (s) openSectionAt(s);
     };
     window.addEventListener("prevail:open-settings", onOpen as EventListener);
+    // The sidebar's search field opens the command palette.
+    const onOpenPalette = () => setCmdPaletteOpen(true);
+    window.addEventListener("prevail:open-palette", onOpenPalette);
     // The shared sidebar's Work surfaces dispatch this. Route through openWorkAt
     // so the section reaches WorkPanel via jumpTo even when it's mounting fresh
     // (a plain event would fire before its listener attaches).
@@ -1237,6 +1237,7 @@ export default function App() {
     window.addEventListener("prevail:tasks-changed", bump);
     return () => {
       window.removeEventListener("prevail:open-settings", onOpen as EventListener);
+      window.removeEventListener("prevail:open-palette", onOpenPalette);
       window.removeEventListener("prevail:work-section", onWorkSection as EventListener);
       window.removeEventListener("prevail:settings-section", onEditorSection as EventListener);
       window.removeEventListener("prevail:open-domain", onOpenDomain as EventListener);
@@ -1408,6 +1409,7 @@ export default function App() {
     cmds.push(
       { id: "act:new-chat", label: "New chat", hint: "⌘K", group: "Actions", icon: MessageSquarePlus, keywords: "conversation ask", run: () => { setSelectedDomain(""); setActiveThreadPath(null); setTab("chat"); } },
       { id: "act:new-note", label: "New note", group: "Actions", icon: FileText, keywords: "capture write", run: () => openWorkAt("notes") },
+      { id: "act:inbox", label: "Open inbox", group: "Actions", icon: Inbox, keywords: "decisions approvals needs you", run: () => openWorkAt("inbox") },
       { id: "act:board", label: "Open work board", group: "Actions", icon: Briefcase, keywords: "tasks todo", run: () => openWorkAt("tasks") },
       { id: "act:calendar", label: "Open calendar", group: "Actions", icon: CalendarDays, keywords: "schedule events", run: () => openWorkAt("calendar") },
       { id: "act:toggle-rail", label: "Toggle domain rail", hint: "⌘B", group: "Actions", icon: PanelLeft, keywords: "sidebar hide show", run: () => setSidebarCollapsed((v) => !v) },
@@ -1602,7 +1604,6 @@ export default function App() {
       vaultError={vaultError}
       selectedDomain={selectedDomain}
       setSelectedDomain={(name) => { setSelectedApp(null); setAppView(false); setSelectedDomain(name); }}
-      activeAppId={appView && selectedApp ? selectedApp.id : null}
       openInFinder={openInFinder}
       tab={tab}
       setTab={setTab}
@@ -1611,14 +1612,13 @@ export default function App() {
         setSelectedApp(null); setAppView(false);
         setSelectedDomain(d.name);
       }}
-      appearance={appearance}
       runningDomains={runningDomains}
       finishedDomains={finishedDomainSet}
       domainStats={domainStats}
       railWidth={domainRailWidth}
       onOpenOnboarding={() => { setOnboardDismissed(false); setOnboardOpen(true); }}
       onDomainsChanged={() => void refreshDomains()}
-      onOpenApp={openApp}
+      inboxCount={decisionsCount}
     />
   );
 
@@ -1777,11 +1777,6 @@ export default function App() {
                 <ToolsPanel />
               </div>
             )}
-            {tab === "map" && (
-              <div className="h-full">
-                <MapPanel vaultPath={vaultPath} />
-              </div>
-            )}
             </Suspense>
             </PanelBoundary>
           </div>
@@ -1891,11 +1886,10 @@ export default function App() {
         {/* Threads rail - visible on every tab so the domain's conversation
             history stays one click away and the left chrome doesn't vanish
             when you switch to Benchmark. Picking a thread on Benchmark jumps
-            back to Chat with that thread open. Hidden on the Map, which is a
-            cross-domain report (not a domain conversation) and wants full width.
+            back to Chat with that thread open.
             On a phone the rail cannot share the width with the conversation, so
             it is hidden; threads stay reachable from the drawer's domain view. */}
-        {!phone && tab !== "map" && (
+        {!phone && (
           <>
             <ThreadsRail
               threads={threads}
@@ -1907,11 +1901,6 @@ export default function App() {
               onNew={() => void newThread()}
               onRefresh={() => void refreshThreads()}
               runningThreadPaths={runningThreadPaths}
-              railWidth={threadsRailWidth}
-            />
-            <ResizeHandle
-              ariaLabel="Resize threads rail"
-              onChange={(dx) => setThreadsRailWidth((w) => Math.max(180, Math.min(480, w + dx)))}
             />
           </>
         )}
@@ -1927,19 +1916,17 @@ export default function App() {
             {/* Quick visual cue: are we in an APP or a DOMAIN? An icon (no text)
                 at the far left, so the two contexts are instantly distinguishable.
                 App = plug, domain/general = layers. */}
-            {tab !== "map" && (
             <span
               title={onApp ? `App: ${selectedApp?.title ?? ""}` : `Domain: ${titleCase(selectedDomain || "general")}`}
               className={`mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${onApp ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-secondary"}`}
             >
               {onApp ? <Plug className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
             </span>
-            )}
             {/* Chat + Council sit on the LEFT for BOTH apps and domains, so the
                 conversation is always in the same place. The app's / domain's
                 OTHER views (Runs / Settings / Domains, or Insights / Preferences)
                 live in the right cluster below. */}
-            {tab !== "map" && TABS.map((t) => {
+            {TABS.map((t) => {
               const Icon = t.icon;
               const active = t.id === "chat"
                 ? tab === "chat" && (onApp || domainTab === "chat")
@@ -2066,15 +2053,6 @@ export default function App() {
                     }`}
                   >
                     <span className="text-[12px] leading-none">⛭</span> Tools
-                  </button>
-                  <button
-                    onClick={() => setTab("map")}
-                    title="Source: every app and tool feeding your domains, and how agent-operable each is"
-                    className={`flex items-center gap-1 rounded whitespace-nowrap px-1.5 py-0.5 text-[11px] transition-colors ${
-                      tab === "map" ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-accent"
-                    }`}
-                  >
-                    <Waypoints className="h-3.5 w-3.5" /> Source Map
                   </button>
                 </>
               )}

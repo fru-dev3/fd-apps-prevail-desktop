@@ -26,6 +26,7 @@ import { ProjectsView } from "./projectsview";
 import { EntitiesView } from "./entitiesview";
 import { useIsPhone } from "./useisphone";
 import { SideSpine, STICKY_HEAD } from "./sidespine";
+import { RowAction, RowActions } from "./rowaction";
 
 // ── Engine shapes (see the mirror contract) ─────────────────────────────────
 export type FindingKind = "goals_drift" | "tooling_share" | "repeated_rules" | "open_loops" | "late_night";
@@ -64,6 +65,7 @@ const VIEWS: { id: MirrorView; label: string }[] = [
 ];
 const VIEW_KEY = "prevail.mirror.view";
 const FOCUS_KEY = "prevail.intent.focus";
+const PROJECT_KEY = "prevail.intent.project";
 
 export const toolLabel = (t: string) => CAPTURE_LABELS[t] ?? titleCase(t || "other");
 const fmtDate = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -85,20 +87,6 @@ function ProjectChip({ slug, title }: { slug: string; title: string }) {
     <span className="inline-flex max-w-[16rem] items-center gap-1 truncate rounded-md px-1.5 py-px text-[12px] font-semibold" style={{ color: c, backgroundColor: `${c}1f` }}>
       <FolderKanban size={12} aria-hidden className="shrink-0" /><span className="truncate">{title || slug}</span>
     </span>
-  );
-}
-
-function CopyIcon({ text, label = "Copy prompt" }: { text: string; label?: string }) {
-  const [done, setDone] = useState(false);
-  return (
-    <button
-      aria-label={label}
-      title={label}
-      onClick={() => { void navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }).catch(() => {}); }}
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent"
-    >
-      {done ? <Check className="h-4 w-4 text-accent" /> : <ClipboardCopy className="h-4 w-4" />}
-    </button>
   );
 }
 
@@ -138,7 +126,14 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   });
   const setView = (v: MirrorView) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage off */ } };
   const [focus, setFocus] = useState<{ ts: number; n: number } | null>(null);
-  const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(null);
+  // Recommendations opens a project here by leaving its slug under this key.
+  const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(() => {
+    try {
+      const slug = localStorage.getItem(PROJECT_KEY);
+      localStorage.removeItem(PROJECT_KEY);
+      return slug ? { slug, n: 1 } : null;
+    } catch { return null; }
+  });
   const [periods, setPeriods] = useState<PeriodsDoc | null>(null);
   const [periodsErr, setPeriodsErr] = useState<string | null>(null);
   const [sel, setSel] = useState<PeriodSel | null>(null);
@@ -176,6 +171,16 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const openProject = (slug: string) => { setProjectSlug((p) => ({ slug, n: (p?.n ?? 0) + 1 })); setView("projects"); };
+  useEffect(() => {
+    const take = (e: Event) => {
+      const slug = (e as CustomEvent<string>).detail;
+      try { localStorage.removeItem(PROJECT_KEY); } catch { /* storage off */ }
+      if (typeof slug === "string" && slug) openProject(slug);
+    };
+    window.addEventListener("prevail:intent-project", take);
+    return () => window.removeEventListener("prevail:intent-project", take);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const select = (s: PeriodSel) => { setSel(s); setFocus(null); };
 
   const periodView = view === "noticed" || view === "history";
@@ -184,7 +189,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
     if (!periods) body = <div className="p-8 text-[15px] text-text-muted">Looking back over your prompts...</div>;
     else if (!periods.weeks.length || !sel) {
       body = (
-        <div className={phone ? "p-4" : "mx-auto max-w-4xl px-8 py-8"}>
+        <div className={phone ? "p-4" : "px-8 py-8"}>
           <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center">
             <ScanFace className="mx-auto h-10 w-10 text-accent" />
             <h2 className="mt-3 font-display text-3xl font-semibold text-text-primary">No prompts yet</h2>
@@ -208,13 +213,17 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   }
 
   return (
-    <div className="flex min-h-full flex-col bg-background" data-testid="mirror">
-      {/* The header stays in view while the page scrolls (STICKY_HEAD). */}
-      <div data-testid="page-header" className={`${STICKY_HEAD} flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border ${phone ? "px-4 py-3" : "px-8 py-5"}`}>
-        <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><ScanFace className="h-5 w-5" /></span>
-          Intent
-        </h1>
+    <div className="flex h-full min-h-0 flex-col bg-background" data-testid="mirror">
+      {/* The header sits in its own row above the scrolling area, so it
+          never scrolls away. */}
+      <div data-testid="page-header" className={`${STICKY_HEAD} flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-border ${phone ? "px-4 py-3" : "px-8 py-5"}`}>
+        {/* On a phone the shell's header bar already names the page. */}
+        {!phone && (
+          <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><ScanFace className="h-5 w-5" /></span>
+            Intent
+          </h1>
+        )}
         <div role="tablist" aria-label="Intent view" className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:order-3 max-sm:w-full">
           {VIEWS.map((v) => (
             <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => setView(v.id)}
@@ -224,13 +233,16 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
           ))}
         </div>
         <div className="ml-auto"><ToolDots vaultPath={vaultPath} active={view === "capture"} onOpen={() => setView("capture")} /></div>
+        <p data-testid="intent-about" className="basis-full text-[14px] leading-snug text-text-muted max-sm:order-2">
+          Intent reads every prompt you typed, in every tool, to show what you were really working on, what you keep repeating, and what to hand to a newer model.
+        </p>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="intent-body">
         {periodView && body}
         {view === "projects" && <ProjectsView vaultPath={vaultPath} initialSlug={projectSlug?.slug} key={projectSlug?.n ?? 0} />}
         {view === "entities" && <EntitiesView vaultPath={vaultPath} embedded />}
         {view === "capture" && (
-          <div className={phone ? "p-4" : "mx-auto w-full max-w-4xl px-8 py-8"} data-testid="capture-view">
+          <div className={phone ? "p-4" : "w-full px-8 py-8"} data-testid="capture-view">
             <button onClick={() => setView("noticed")} className="mb-4 inline-flex items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
               <ArrowLeft className="h-4 w-4" />Back to Noticed
             </button>
@@ -392,12 +404,10 @@ function RuleItem({ item, big, onConfirm }: { item: FindingItem; big: boolean; o
   const [busy, setBusy] = useState(false);
   const h = big ? "h-12 px-5" : "h-9 px-3.5";
   return (
-    <li className="rounded-lg border border-border-subtle bg-background px-3.5 py-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className={`min-w-0 flex-1 text-[15px] text-text-primary ${big ? "basis-full" : ""}`}>{item.label}</span>
-        {item.count != null && <span className="text-[13px] tabular-nums text-text-muted">said {item.count} times</span>}
-        {!editing && <button onClick={() => setEditing(true)} className={`${btnPrimary} ${h} ${big ? "ml-auto" : ""}`}><Sparkles className="h-4 w-4" />Make it a rule</button>}
-      </div>
+    <li className="flow-root rounded-lg border border-border-subtle bg-background px-3.5 py-3" data-testid="rule-item">
+      {!editing && <RowActions><RowAction icon={Sparkles} label="Make it a rule" onClick={() => setEditing(true)} testId="make-rule" /></RowActions>}
+      <span className="text-[15px] text-text-primary">{item.label}</span>
+      {item.count != null && <span className="ml-2 text-[13px] tabular-nums text-text-muted">said {item.count} times</span>}
       {editing && (
         <div className="mt-3">
           <label className="mb-1 block text-[13px] text-text-muted" htmlFor={`rule-${item.id}`}>The rule, in your words</label>
@@ -430,9 +440,9 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
   return (
     <article data-testid="featured-finding" className={`rounded-2xl border border-border-subtle bg-surface transition-all duration-300 ${leaving ? "translate-y-2 opacity-0" : "opacity-100"} ${phone ? "p-5" : "p-8"}`}>
       <h2 className={`font-display font-semibold leading-tight tracking-tight text-text-primary ${phone ? "text-3xl" : "text-4xl"}`}>{f.headline}</h2>
-      <p className="mt-3 max-w-2xl text-[16px] leading-relaxed text-text-secondary">{f.detail}</p>
+      <p className="mt-3 text-[16px] leading-relaxed text-text-secondary">{f.detail}</p>
       {/* A list visual repeats the item rows below it; draw it only when there are no rows. */}
-      {!((isRules || isLoops) && f.visual?.type === "list" && items.length > 0) && <div className="mt-6 max-w-xl"><FindingVisual visual={f.visual} /></div>}
+      {!((isRules || isLoops) && f.visual?.type === "list" && items.length > 0) && <div className="mt-6"><FindingVisual visual={f.visual} /></div>}
 
       {isRules && items.length > 0 && (
         <ul className="mt-6 space-y-2">
@@ -442,11 +452,14 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
       {isLoops && items.length > 0 && (
         <ul className="mt-6 space-y-2">
           {items.map((it) => (
-            <li key={it.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border-subtle bg-background px-3.5 py-3">
-              <span className={`min-w-0 flex-1 text-[15px] text-text-primary ${phone ? "basis-full" : ""}`}>{it.label}{it.count != null && it.count > 0 && <span className="ml-2 text-[13px] tabular-nums text-text-muted">{it.count} prompts</span>}</span>
-              <button onClick={async () => { await onVerdict("resume", { item: it.id }); drop(it.id); if (it.project) onProject(it.project); }} className={`${btnPrimary} ${phone ? "h-12 min-w-0 flex-1 px-2" : "h-9 px-3.5"}`}><Play className="h-4 w-4" />Resume</button>
-              <button onClick={async () => { await onVerdict("let_go", { item: it.id }); drop(it.id); }} className={`${btnGhost} ${phone ? "h-12 min-w-0 flex-1 px-2" : "h-9 px-3.5"}`}><PauseCircle className="h-4 w-4" />Let go</button>
-              {it.project && <button onClick={() => onProject(it.project!)} className={`${btnGhost} ${phone ? "h-12 min-w-0 flex-1 px-2" : "h-9 px-3.5"}`}><RotateCcw className="h-4 w-4" />Replay</button>}
+            <li key={it.id} className="flow-root rounded-lg border border-border-subtle bg-background px-3.5 py-3" data-testid="loop-item">
+              <RowActions>
+                <RowAction icon={Play} label="Resume" onClick={async () => { await onVerdict("resume", { item: it.id }); drop(it.id); if (it.project) onProject(it.project); }} testId="loop-resume" />
+                <RowAction icon={PauseCircle} label="Let go" onClick={async () => { await onVerdict("let_go", { item: it.id }); drop(it.id); }} testId="loop-letgo" />
+                {it.project && <RowAction icon={RotateCcw} label="Replay the project" onClick={() => onProject(it.project!)} testId="loop-replay" />}
+              </RowActions>
+              <span className="text-[15px] text-text-primary">{it.label}</span>
+              {it.count != null && it.count > 0 && <span className="ml-2 text-[13px] tabular-nums text-text-muted">{it.count} prompts</span>}
             </li>
           ))}
         </ul>
@@ -577,7 +590,7 @@ function PeriodHeading({ label, line, lineBusy, totals, right }: { label: string
         <h2 className="min-w-0 flex-1 font-display text-3xl font-semibold tracking-tight text-text-primary" data-testid="period-title">{label}</h2>
         {right}
       </div>
-      {line ? <p className="mt-2 max-w-3xl text-[17px] leading-snug text-text-secondary" data-testid="period-line">{line}</p>
+      {line ? <p className="mt-2 text-[17px] leading-snug text-text-secondary" data-testid="period-line">{line}</p>
         : lineBusy ? <p className="mt-2 inline-flex items-center gap-2 text-[15px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading what you were after</p> : null}
       <div className="mt-2 text-[13px] text-text-muted">{nPrompts(totals.prompts)} in {nSittings(totals.sittings)}</div>
     </header>
@@ -662,7 +675,7 @@ function LetterBlock({ letter, status, busy, current, onLastWeek }: { letter: Fi
           <span className="min-w-0 flex-1 font-display text-2xl font-semibold text-text-primary">{letter.title}</span>
           {open ? <ChevronUp className="h-5 w-5 text-text-muted" /> : <ChevronDown className="h-5 w-5 text-text-muted" />}
         </button>
-        {open && <div className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-secondary"><Markdown source={letter.markdown} /></div>}
+        {open && <div className="mt-3 text-[15px] leading-relaxed text-text-secondary"><Markdown source={letter.markdown} /></div>}
       </section>
     );
   }
@@ -758,7 +771,7 @@ function NoticedView({ vaultPath, phone, periods, sel, onSelect, onReceipt, onPr
   );
 
   return (
-    <div className={phone ? "p-4" : "mx-auto max-w-4xl px-8 py-7"} data-testid="noticed">
+    <div className={phone ? "p-4" : "px-8 py-7"} data-testid="noticed">
       <PeriodHeading label={doc.period.label} line={doc.intent_line} lineBusy={writing} totals={doc.totals} right={phone ? undefined : refreshBtn} />
       {doc.period.kind === "week" && (
         <LetterBlock letter={doc.letter} status={doc.letter_status} busy={writing} current={doc.current}
@@ -801,12 +814,12 @@ export function PromptText({ p, focused, phone }: { p: HistPrompt; focused: bool
       <span className={`shrink-0 pt-0.5 text-[12px] tabular-nums text-text-muted ${phone ? "order-first basis-[calc(100%-2.5rem)]" : "w-16"}`}>{fmtTime(p.ts)}</span>
       <div className={`min-w-0 flex-1 ${phone ? "order-last basis-full" : ""}`}>
         <div className={`relative ${long && !open ? (phone ? "max-h-40 overflow-hidden" : "max-h-72 overflow-hidden") : ""}`}>
-          <pre data-testid="prompt-text" className="whitespace-pre-wrap break-words font-sans text-[15px] leading-relaxed text-text-primary">{p.text}</pre>
+          <pre data-testid="prompt-text" className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-sans text-[15px] leading-relaxed text-text-primary">{p.text}</pre>
           {long && !open && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface to-transparent" />}
         </div>
         {long && <button onClick={() => setOpen((o) => !o)} className="mt-1 text-[13px] font-medium text-accent hover:underline">{open ? "Show less" : "Show all"}</button>}
       </div>
-      <CopyIcon text={p.text} />
+      <RowAction icon={ClipboardCopy} label="Copy prompt" doneLabel="Copied" onClick={() => navigator.clipboard.writeText(p.text)} testId="copy-prompt" />
     </div>
   );
 }
@@ -878,7 +891,7 @@ function HistoryView({ vaultPath, phone, periods, sel, focus }: { vaultPath: str
   const filtered = !!(qDebounced || tool || project);
 
   return (
-    <div className={phone ? "px-3 py-4" : "mx-auto max-w-4xl px-8 py-7"} data-testid="history">
+    <div className={phone ? "px-3 py-4" : "px-8 py-7"} data-testid="history">
       <PeriodHeading label={label} line={line} lineBusy={false} totals={{ prompts: nPromptsHere, sittings: sittings.length }} />
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <label className="relative min-w-0 flex-1 basis-56">

@@ -36,7 +36,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     // read/return paths only; they don't expose arbitrary file I/O. (B5/B6)
     "bootstrap_vault", "import_sample_vault",
     // chat
-    "chat_send", "engine_chat", "abort_sessions", "detect_clis",
+    "chat_send", "engine_chat", "abort_sessions", "detect_clis", "engine_route", "engine_route_correct",
     // threads
     "list_threads", "load_thread", "save_thread", "rename_thread", "delete_thread", "save_session",
     // memory / profile (read)
