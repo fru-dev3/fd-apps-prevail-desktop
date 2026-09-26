@@ -221,7 +221,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
           {readable.length === 0 ? (
             <p className="mt-1 text-[13px] text-text-muted">{(tools ?? []).length ? "This connector has no read tools a sync may use." : "Load the tool list below to choose. With none picked, the recipe may use any read tool."}</p>
           ) : (
-            <div className="mt-1.5 grid gap-1 sm:grid-cols-2">
+            <div className="mt-1.5 grid gap-1">
               {readable.map((t) => {
                 const on = draft.read_tools.includes(t.name);
                 return (

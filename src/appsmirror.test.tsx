@@ -142,6 +142,9 @@ describe("AppsMirrorPanel", () => {
     expect(within(gemini).getByText("Not installed on this Mac.")).toBeTruthy();
     const codex = screen.getByRole("region", { name: "Codex" });
     expect(within(codex).getByText("codex mcp login baz-helper")).toBeTruthy();
+    // The page header stays in view while scrolling; the content is one column.
+    expect(screen.getByTestId("page-header").className).toMatch(/\bsticky\b/);
+    expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]/);
   });
 
   it("shows blocked tools and saves the recipe payload", async () => {

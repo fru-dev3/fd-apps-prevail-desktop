@@ -156,6 +156,13 @@ describe("Entities view", () => {
     await waitFor(() => expect(calls.filter((c) => c.cmd === "entities_show").pop()?.args).toEqual({ vault: "/v2", id: "org/acme" }));
   });
 
+  it("keeps the page header in view and the content in one column", async () => {
+    await openOn("person", "Sam Rivera");
+    await screen.findByText("You asked Sam about the roof.");
+    expect(screen.getByTestId("page-header").className).toMatch(/\bsticky\b/);
+    expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]|columns-[2-9]/);
+  });
+
   it("the list collapses like the other sidebars", async () => {
     render(<EntitiesView vaultPath="/v" />);
     await screen.findAllByTestId("entity-row");

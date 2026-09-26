@@ -12,7 +12,7 @@ import {
   loadEntities, lookupEntity, registerEntitiesView, slugifyName, takeRequestedEntity, useEntityStore,
   type EntityKindName, type EntitySummary, type EntityTarget,
 } from "./entitystore";
-import { SideSpine } from "./sidespine";
+import { SideSpine, STICKY_HEAD } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 
 const GROUPS: { kind: EntityKindName; label: string }[] = [
@@ -162,6 +162,7 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
 
   return (
     <div className={`flex ${embedded ? "min-h-0 flex-1" : "h-full min-h-full"} flex-col bg-background`} data-testid="entities-view">
+      <div data-testid="page-header" className={embedded ? "" : STICKY_HEAD}>
       {!embedded && !phone && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border px-8 py-5">
           <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
@@ -172,6 +173,7 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
         </div>
       )}
       {toolbar}
+      </div>
       {phone ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           {sel === null ? listPane : (

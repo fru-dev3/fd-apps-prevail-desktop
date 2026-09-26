@@ -25,7 +25,7 @@ import { CAPTURE_LABELS, PromptCapturePanel, type CaptureStatus } from "./prompt
 import { ProjectsView } from "./projectsview";
 import { EntitiesView } from "./entitiesview";
 import { useIsPhone } from "./useisphone";
-import { SideSpine } from "./sidespine";
+import { SideSpine, STICKY_HEAD } from "./sidespine";
 
 // ── Engine shapes (see the mirror contract) ─────────────────────────────────
 export type FindingKind = "goals_drift" | "tooling_share" | "repeated_rules" | "open_loops" | "late_night";
@@ -209,7 +209,8 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
 
   return (
     <div className="flex min-h-full flex-col bg-background" data-testid="mirror">
-      <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border ${phone ? "px-4 py-3" : "px-8 py-5"}`}>
+      {/* The header stays in view while the page scrolls (STICKY_HEAD). */}
+      <div data-testid="page-header" className={`${STICKY_HEAD} flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border ${phone ? "px-4 py-3" : "px-8 py-5"}`}>
         <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><ScanFace className="h-5 w-5" /></span>
           Intent

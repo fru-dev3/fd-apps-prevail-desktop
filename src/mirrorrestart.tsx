@@ -102,7 +102,7 @@ function RebuildCheck({ vaultPath, slug }: { vaultPath: string; slug: string }) 
       </div>
       {err && <div className="mt-2 text-[13px] text-err">{err}</div>}
       {diff && (
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3">
           {cols.map(({ key, label, icon: Icon, tone }) => (
             <div key={key} className="rounded-lg border border-border-subtle bg-background p-3" data-testid={`diff-${key}`}>
               <div className={`mb-2 flex items-center gap-1.5 text-[15px] font-semibold ${tone}`}><Icon className="h-4 w-4" />{label} <span className="tabular-nums">{(diff[key] ?? []).length}</span></div>

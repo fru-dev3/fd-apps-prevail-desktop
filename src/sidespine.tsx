@@ -6,6 +6,10 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 // button in the spine's header folds it to a thin strip holding a
 // PanelLeftOpen button, and the detail pane takes the freed width. The state
 // is remembered per view under `storageKey`.
+// A screen's page header stays in view while the settings pane scrolls,
+// pinned to the pane's top edge.
+export const STICKY_HEAD = "sticky top-0 z-20 bg-background";
+
 export function useSpineCollapsed(storageKey: string): [boolean, () => void] {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(storageKey) === "1"; } catch { return false; }

@@ -4,6 +4,7 @@
 // runs through its runtime with read tools only and files what it finds into
 // your domains. Sites and tools no connector covers use the fallback lanes at
 // the bottom (browser learn/replay, command-line tools, Obsidian import).
+import { STICKY_HEAD } from "./sidespine";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, ArrowLeft, Loader2, Plug, RefreshCw, Wrench } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
@@ -254,7 +255,9 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
 
   return (
     <div className="pb-10">
-      {header}
+      {/* Stays in view while the pane scrolls, full width so nothing shows
+          beside it. */}
+      <div data-testid="page-header" className={`${STICKY_HEAD} -mx-8 px-8 pt-3 max-md:-mx-4 max-md:px-4`}>{header}</div>
       {err && <div className="mb-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn">{err}</div>}
       {archiveOpen && <ArchivePanel vaultPath={vaultPath} onClose={() => { setArchiveOpen(false); void load(); }} />}
       {phone ? (

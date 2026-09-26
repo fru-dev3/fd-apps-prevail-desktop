@@ -182,6 +182,9 @@ describe("Noticed", () => {
     expect(byCmd("mirror_generate")).toHaveLength(0);
     await waitFor(() => expect(screen.getByTestId("tool-dot-claude").dataset.on).toBe("1"));
     expect(screen.getByTestId("tool-dot-codex").dataset.on).toBe("0");
+    // The header stays in view while scrolling; the content is one column.
+    expect(screen.getByTestId("page-header").className).toMatch(/\bsticky\b/);
+    expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]/);
     // The capture setup opens in the page, not in a drawer or dialog.
     fireEvent.click(screen.getByRole("button", { name: "Capture setup" }));
     expect(screen.getByTestId("capture-view")).toBeTruthy();
@@ -322,6 +325,7 @@ describe("Projects restart", () => {
     fireEvent.change(screen.getByLabelText("Rebuild folder"), { target: { value: "/tmp/acme-v2" } });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(within(await screen.findByTestId("diff-met")).getByText("Cart totals round to cents")).toBeTruthy();
+    expect(screen.getByTestId("diff-met").parentElement!.className).not.toMatch(/grid-cols/);
     expect(within(screen.getByTestId("diff-missed")).getByText("Works on phones")).toBeTruthy();
     expect(byCmd("projects_diff")[0].args).toEqual({ vault: "/v", slug: "acme-shop", against: "/tmp/acme-v2" });
   });
