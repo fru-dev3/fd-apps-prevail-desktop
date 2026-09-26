@@ -64,6 +64,7 @@ const VIEWS: { id: MirrorView; label: string }[] = [
 ];
 const VIEW_KEY = "prevail.mirror.view";
 const FOCUS_KEY = "prevail.intent.focus";
+const PROJECT_KEY = "prevail.intent.project";
 
 export const toolLabel = (t: string) => CAPTURE_LABELS[t] ?? titleCase(t || "other");
 const fmtDate = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -138,7 +139,14 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   });
   const setView = (v: MirrorView) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage off */ } };
   const [focus, setFocus] = useState<{ ts: number; n: number } | null>(null);
-  const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(null);
+  // Recommendations opens a project here by leaving its slug under this key.
+  const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(() => {
+    try {
+      const slug = localStorage.getItem(PROJECT_KEY);
+      localStorage.removeItem(PROJECT_KEY);
+      return slug ? { slug, n: 1 } : null;
+    } catch { return null; }
+  });
   const [periods, setPeriods] = useState<PeriodsDoc | null>(null);
   const [periodsErr, setPeriodsErr] = useState<string | null>(null);
   const [sel, setSel] = useState<PeriodSel | null>(null);
@@ -176,6 +184,16 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const openProject = (slug: string) => { setProjectSlug((p) => ({ slug, n: (p?.n ?? 0) + 1 })); setView("projects"); };
+  useEffect(() => {
+    const take = (e: Event) => {
+      const slug = (e as CustomEvent<string>).detail;
+      try { localStorage.removeItem(PROJECT_KEY); } catch { /* storage off */ }
+      if (typeof slug === "string" && slug) openProject(slug);
+    };
+    window.addEventListener("prevail:intent-project", take);
+    return () => window.removeEventListener("prevail:intent-project", take);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const select = (s: PeriodSel) => { setSel(s); setFocus(null); };
 
   const periodView = view === "noticed" || view === "history";

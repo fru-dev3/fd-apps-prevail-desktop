@@ -71,39 +71,19 @@ describe("helpers", () => {
 });
 
 describe("ProjectsView", () => {
-  it("opens on the overview with grouped recommendations, and a task one becomes a task", async () => {
+  it("opens on the overview and sends its recommendations to the Recommendations page", async () => {
+    const seen: unknown[] = [];
+    const on = (e: Event) => seen.push((e as CustomEvent).detail);
+    window.addEventListener("prevail:open-settings", on);
     render(<ProjectsView vaultPath="/v" />);
-    expect(await screen.findByText("What would move you forward")).toBeTruthy();
-    expect(screen.getByText("Tasks")).toBeTruthy();
-    expect(screen.getByText("Skills to write")).toBeTruthy();
+    expect(await screen.findByText("Your projects")).toBeTruthy();
     expect(screen.getByText(/4,313 of your prompts, 2 projects/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add task: Follow up with the adjuster" }));
-    await waitFor(() => expect(calls.find((c) => c.cmd === "tasks_add")?.args).toMatchObject({ vault: "/v", domain: "insurance", text: "Follow up with the adjuster" }));
-    expect(await screen.findByText("Added")).toBeTruthy();
-  });
-
-  it("one column; every recommendation can become a task or an agent instruction", async () => {
-    const writeText = vi.fn(() => Promise.resolve());
-    Object.assign(navigator, { clipboard: { writeText } });
-    render(<ProjectsView vaultPath="/v" />);
-    const recs = await screen.findByTestId("recommendations");
-    expect(recs.className).not.toMatch(/grid-cols/);
-    expect(screen.getAllByTestId("rec-row")).toHaveLength(2);
-    const add = screen.getByRole("button", { name: "Add task: Write a ship-to-Vercel skill" });
-    expect(add.getAttribute("title")).toBe("Adds it to the Dev task board");
-    const copy = screen.getByRole("button", { name: "Copy instruction: Write a ship-to-Vercel skill" });
-    expect(copy.getAttribute("title")).toMatch(/ready-to-paste instruction for an agent/);
-    fireEvent.click(copy);
-    // The index is the recommendation's place in the engine's list, not the row's.
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("INSTRUCTION:1"));
-    expect(calls.find((c) => c.cmd === "intent_instruction")?.args).toEqual({ vault: "/v", index: 1 });
-    expect(await screen.findByText("Copied")).toBeTruthy();
-  });
-
-  it("a recommendation links to its project under the current title", async () => {
-    render(<ProjectsView vaultPath="/v" />);
-    fireEvent.click(await screen.findByRole("button", { name: "fru.dev site" }));
-    expect(screen.getByRole("heading", { name: "fru.dev site" })).toBeTruthy();
+    // No duplicate list here: one link to the one home for next steps.
+    expect(screen.queryByTestId("rec-row")).toBeNull();
+    expect(screen.queryByText("What would move you forward")).toBeNull();
+    fireEvent.click(screen.getByTestId("recs-link"));
+    expect(seen).toEqual(["recommendations"]);
+    window.removeEventListener("prevail:open-settings", on);
   });
 
   it("shows a project's arc and copies its restart brief", async () => {
@@ -145,7 +125,7 @@ describe("collapsible projects list", () => {
     fireEvent.click(screen.getByLabelText("Collapse projects"));
     expect(screen.queryByTestId("projects-list")).toBeNull();
     expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("collapsed");
-    expect(screen.getByText("What would move you forward")).toBeTruthy();
+    expect(screen.getByText("Your projects")).toBeTruthy();
     expect(localStorage.getItem("prevail.intent.spine.projects")).toBe("1");
     cleanup();
     render(<ProjectsView vaultPath="/v" />);
@@ -157,7 +137,7 @@ describe("collapsible projects list", () => {
   it("a phone keeps its plain list", async () => {
     phone = true;
     render(<ProjectsView vaultPath="/v" />);
-    await screen.findByText("Overview and recommendations");
+    await screen.findByText("Overview");
     expect(screen.queryByLabelText("Collapse projects")).toBeNull();
   });
 });

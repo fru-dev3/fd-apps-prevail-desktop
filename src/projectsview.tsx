@@ -6,8 +6,7 @@
 // keeps a readable copy (prompts.md) and an exact one (prompts.jsonl).
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bot, Check, ClipboardCopy, FolderPlus, Lightbulb, ListTodo, Loader2, Plug, RefreshCw,
-  Repeat, Sparkles, Target, Timer, type LucideIcon,
+  ArrowRight, Bot, Check, Lightbulb, Loader2, RefreshCw, Sparkles, Target, type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
@@ -34,12 +33,6 @@ export interface ProjectsIndex {
   projects: ProjectEntry[]; recommendations: Recommendation[]; recommendations_model?: string;
 }
 
-const REC_ICON: Record<Recommendation["kind"], LucideIcon> = {
-  task: ListTodo, skill: Sparkles, app: Plug, habit: Repeat, automation: Timer, project: FolderPlus,
-};
-const REC_LABEL: Record<Recommendation["kind"], string> = {
-  task: "Tasks", skill: "Skills to write", app: "Apps to connect", habit: "Habits", automation: "Automations", project: "Projects",
-};
 const STATUS_TONE: Record<ProjectEntry["status"], string> = {
   active: "bg-ok/15 text-ok", dormant: "bg-surface-warm text-text-muted", done: "bg-accent-soft text-accent",
 };
@@ -159,78 +152,6 @@ function ListBlock({ icon: Icon, title, items }: { icon: LucideIcon; title: stri
   );
 }
 
-const recBtn = "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-[13px] text-text-secondary transition-colors hover:border-accent-border hover:text-accent disabled:border-transparent";
-
-// One recommendation: what, why, the project it serves, and two ways to act
-// on it: put it on that domain's task board, or copy it as a ready-to-paste
-// instruction for an agent (built by the engine from the recommendation and
-// the project's restart brief; no model call).
-function RecRow({ r, index, vaultPath, titles, onOpen, phone }: { r: Recommendation; index: number; vaultPath: string; titles: Map<string, string>; onOpen: (slug: string) => void; phone: boolean }) {
-  const [added, setAdded] = useState(false);
-  const [copy, setCopy] = useState<"idle" | "busy" | "done" | "error">("idle");
-  const domain = r.domain || "general";
-  const add = () => {
-    void invoke("tasks_add", { vault: vaultPath, domain, text: r.title, source: "projects" })
-      .then(() => { setAdded(true); window.dispatchEvent(new Event("prevail:tasks-changed")); })
-      .catch(() => {});
-  };
-  const copyInstruction = async () => {
-    setCopy("busy");
-    try {
-      const text = await invoke<string>("intent_instruction", { vault: vaultPath, index });
-      await navigator.clipboard.writeText(text);
-      setCopy("done");
-      setTimeout(() => setCopy("idle"), 1800);
-    } catch { setCopy("error"); setTimeout(() => setCopy("idle"), 2400); }
-  };
-  return (
-    <li className={`flex gap-3 px-4 py-3.5 ${phone ? "flex-col" : "items-start"}`} data-testid="rec-row">
-      <div className="min-w-0 flex-1">
-        <div className="text-[15px] font-medium leading-snug text-text-primary">{r.title}</div>
-        <div className="mt-1 text-[13px] leading-snug text-text-muted">{r.why}</div>
-        {r.project_slug && titles.has(r.project_slug) ? (
-          <div className="mt-1 text-[13px] text-text-secondary">Project: <button onClick={() => onOpen(r.project_slug!)} className="text-accent underline decoration-accent-border underline-offset-[3px] hover:decoration-accent">{titles.get(r.project_slug)}</button></div>
-        ) : r.project ? <div className="mt-1 text-[13px] text-text-secondary">{`Project: ${r.project}`}</div> : null}
-      </div>
-      <div className={`flex shrink-0 gap-2 ${phone ? "[&>button]:h-11 [&>button]:flex-1 [&>button]:justify-center" : ""}`}>
-        <button disabled={added} onClick={add} title={`Adds it to the ${titleCase(domain)} task board`} aria-label={`Add task: ${r.title}`} className={`${recBtn} ${added ? "text-ok" : ""}`}>
-          {added ? <><Check className="h-4 w-4" />Added</> : <><ListTodo className="h-4 w-4" />Add task</>}
-        </button>
-        <button onClick={() => void copyInstruction()} disabled={copy === "busy"}
-          title="Copies a ready-to-paste instruction for an agent: the task, why, and the project's goal and rules"
-          aria-label={`Copy instruction: ${r.title}`} className={`${recBtn} ${copy === "done" ? "text-ok" : copy === "error" ? "text-err" : ""}`}>
-          {copy === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : copy === "done" ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-          {copy === "done" ? "Copied" : copy === "error" ? "Could not copy" : "Copy instruction"}
-        </button>
-      </div>
-    </li>
-  );
-}
-
-function Recommendations({ recs, vaultPath, titles, onOpen, phone }: { recs: Recommendation[]; vaultPath: string; titles: Map<string, string>; onOpen: (slug: string) => void; phone: boolean }) {
-  const groups = useMemo(() => {
-    const order: Recommendation["kind"][] = ["task", "skill", "automation", "app", "habit", "project"];
-    return order.map((k) => ({ kind: k, items: recs.map((r, index) => ({ r, index })).filter((x) => x.r.kind === k) })).filter((g) => g.items.length);
-  }, [recs]);
-  if (!recs.length) return null;
-  // One column, one group after another.
-  return (
-    <div className="space-y-6" data-testid="recommendations">
-      {groups.map(({ kind, items }) => {
-        const Icon = REC_ICON[kind];
-        return (
-          <section key={kind}>
-            <h3 className="mb-2.5 flex items-center gap-2 font-display text-xl font-semibold text-text-primary"><Icon className="h-5 w-5 text-accent" />{REC_LABEL[kind]}</h3>
-            <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
-              {items.map(({ r, index }) => <RecRow key={`${r.kind}:${r.title}`} r={r} index={index} vaultPath={vaultPath} titles={titles} onOpen={onOpen} phone={phone} />)}
-            </ul>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
 export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; initialSlug?: string }) {
   const phone = useIsPhone();
   const [idx, setIdx] = useState<ProjectsIndex | null>(null);
@@ -293,7 +214,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
       </div>
       <button onClick={() => setSel(null)} className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left ${sel === null ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
         <Target className="h-4 w-4 shrink-0 text-accent" />
-        <span className={`text-[13px] ${sel === null ? "font-semibold text-text-primary" : "text-text-secondary"}`}>Overview and recommendations</span>
+        <span className={`text-[13px] ${sel === null ? "font-semibold text-text-primary" : "text-text-secondary"}`}>Overview</span>
       </button>
       {projects.map((p) => {
         const on = p.slug === sel;
@@ -365,11 +286,18 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     </div>
   ) : (
     <div className="max-w-3xl">
-      <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary">What would move you forward</h2>
+      <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary">Your projects</h2>
       <p className="mt-1.5 max-w-2xl text-[14px] leading-snug text-text-secondary">
-        Read from all {idx.projects.length} projects and the {idx.stats?.kept.toLocaleString() ?? ""} prompts behind them{idx.recommendations_model ? `, by ${modelName(idx.recommendations_model)}` : ""}.
+        {idx.projects.length} projects read from {idx.stats?.kept.toLocaleString() ?? "your"} prompts. Pick one on the left to see its arc and restart brief.
       </p>
-      <div className="mt-6"><Recommendations recs={idx.recommendations} vaultPath={vaultPath} titles={new Map(idx.projects.map((p) => [p.slug, p.title]))} onOpen={setSel} phone={phone} /></div>
+      {idx.recommendations.length > 0 && (
+        <button data-testid="recs-link" onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "recommendations" }))}
+          className="mt-6 flex w-full items-center gap-3 rounded-xl border border-border-subtle bg-surface px-4 py-3.5 text-left transition-colors hover:border-accent-border">
+          <Lightbulb className="h-5 w-5 shrink-0 text-accent" />
+          <span className="min-w-0 flex-1 text-[15px] text-text-primary">{idx.recommendations.length} next steps from your projects are in Recommendations</span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-accent" />
+        </button>
+      )}
     </div>
   );
 
