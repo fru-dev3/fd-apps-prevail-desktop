@@ -1,50 +1,62 @@
-# Prevail 0.3.121
+# Prevail 0.3.122
 
-Arena benchmarks now actually produce scores, and the Runtimes screen no
-longer reports zero when your runtimes are installed and working.
+Everything you have ever typed to an AI tool, grouped by what you were
+building, with a brief a newer model can rebuild each project from. Office
+green replaces gold across the app and the logo, and the newest models are in
+every picker.
 
-## Arena scoring
+## Projects in Retrospect
 
-A benchmark batch could finish, cost real tokens, and still leave every run
-unscored, with no way to recover it. Five separate faults, all ending in the
-same place:
+Retrospect now reads every prompt you typed, in every tool you use (Claude
+Code, Codex, Antigravity, opencode, Prevail itself), not just the newest 200.
+It has two views:
 
-- Bunker Mode disabled the judge on every scored batch. The app never names a
-  judge explicitly, and the check here treated that as a reason to skip
-  judging entirely, even with a local judge installed. The engine already
-  enforces Bunker Mode properly on its own, so only an explicitly named cloud
-  judge is blocked now.
-- A run whose judge produced nothing still wrote a score file, and the "has a
-  score file" check then skipped that run forever. Fifty two of fifty six runs
-  in one vault were stuck exactly this way. Those are picked back up now
-  whenever a judge is available.
-- One failing run abandoned every run after it in the batch. Each run now
-  stands alone, with a retry pass at the end and a named report for anything
-  that still could not be scored.
-- The judge got a single attempt, and any failure lost that question's score
-  silently. It now retries with backoff and records why it gave up.
-- The scoring pass ran once behind a flat ten minute watchdog, then marked
-  every job done regardless of the outcome. The budget now scales with the
-  size of the batch and the pass is retried.
+- **Projects** groups the prompts by what they were building. Each project
+  shows its arc, its intents, the lessons and ideas it left behind, and a
+  **replay brief**: one prompt that carries every requirement, every
+  correction you had to make, and every decision, written for a future model
+  to rebuild the project without the back-and-forth. Copy it alone, or with
+  every original prompt appended. Rewrite it with a newer model at any time;
+  earlier versions are kept.
+- **Time** shows where your attention went by day, week, month or year, now
+  broken down by project.
 
-A scoring pass also stops early when the judge runs out of quota, instead of
-retrying thousands of times against a judge that will not answer and writing a
-score file full of blanks.
+The overview recommends what would move you forward: tasks (one click adds
+them to your board), skills worth writing, automations, apps and habits, each
+tied to the project it came from.
 
-## Runtimes
+Your original prompts are never changed. They stay in the capture streams as
+they were, and each project keeps its own exact copy.
 
-Runtime detection could report zero runtimes on a Mac that has them installed.
-The version probe had no timeout, and although probes run in parallel the code
-still waited on all of them, so a single CLI that hung on startup left the
-Runtimes screen empty with nothing on screen to explain why. This also blocked
-picking models and starting benchmarks from the phone.
+## Cleaner history
 
-Every probe now has a ten second deadline and reports a timeout as the reason
-it is unusable. A probe that crashes outright now appears as a broken runtime
-rather than vanishing from the list.
+Most of what was being captured as "your prompts" was Prevail talking to
+models: benchmark scoring, council runs, the distillers themselves. The demo
+household used in benchmarks leaked from there into chats as if it were your
+own situation. Prevail's own model calls are no longer captured, and the
+existing ones are set aside when your history is read.
 
-## Under the hood
+## Richer replies
 
-The domain name guard held raw control bytes where escape sequences were
-intended. The check behaved correctly, but it made a security relevant file
-read as binary to search and review tools.
+Chat replies show the things they mention as chips you can click: a domain as
+its colored pill, a person with their initials, a task that opens on your
+board, a vault file that opens beside the chat, a date that opens the
+calendar, a place that opens a map. Web links open in your browser instead of
+inside the app.
+
+## Office green
+
+The accent, the logo and the app icon are office green. Dark mode uses a
+slightly lighter green so text stays easy to read.
+
+## New models
+
+Claude Opus 5.5 (the Opus pick), GPT-6 Sol (the new Codex default) and GPT-6
+Luna, Grok 4.7, Qwen3.8 Max Prime and GLM 5.3 Prime. Older picks you saved
+stay available.
+
+## Fixes
+
+- Arena pages no longer start flush against the header line, and the Presets
+  filters stay on one line on a phone.
+- Retrospect handles an empty timeline instead of showing a blank screen.
