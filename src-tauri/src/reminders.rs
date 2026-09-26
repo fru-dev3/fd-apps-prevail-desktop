@@ -16,6 +16,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tauri::async_runtime::JoinHandle;
 use tokio::sync::{watch, Mutex as AsyncMutex};
+use crate::now_secs;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DueTask {
@@ -216,13 +217,6 @@ pub fn reminders_check(app: tauri::AppHandle, vault: String) -> Result<Vec<DueTa
 #[tauri::command]
 pub fn reminders_due_today(vault: String) -> Result<Vec<DueTask>, String> {
     Ok(scan_due(&vault, &today_str()))
-}
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
 }
 
 // ── Background daemon ────────────────────────────────────────────────────────

@@ -69,8 +69,6 @@ mod integrations;
 
 use std::fs;
 use std::path::Path;
-#[allow(unused_imports)]
-use tauri_plugin_shell::ShellExt;
 
 // The spawned-child registry (register/unregister/snapshot/abort_sessions)
 // lives in children.rs.
@@ -90,6 +88,15 @@ pub(crate) const NON_DOMAIN_DIRS: &[&str] = &[
     "_archive",
     "_scratch",
 ];
+
+/// Seconds since the Unix epoch (0 if the clock is before it). Shared by the
+/// daemons and bridges that stamp status/cursor files.
+pub(crate) fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
 
 // Retry I/O on EINTR (os error 4). macOS sandboxing + Tauri's runtime
 // can interrupt syscalls; the fix is the standard retry-on-EINTR loop.
@@ -519,7 +526,6 @@ pub fn run() {
             idealstate::read_ideal_state,
             idealstate::write_ideal_state,
             appcmds::write_paste_attachment,
-            appcmds::write_paste_image,
             appcmds::write_voice_note,
             voice::transcribe_audio,
             voice::voice_note_capture,
@@ -589,7 +595,6 @@ pub fn run() {
             projects::projects_build,
             projects::projects_replay,
             favicon::app_favicon,
-            google::google_profile_login,
             google::google_profile_remove,
             google::google_scaffold,
             google::google_cli_install_stream,
@@ -608,13 +613,6 @@ pub fn run() {
             engine::engine_alignment,
             engine::engine_app_skills,
             engine::engine_app_skill_files,
-            engine::engine_app_set_pull_instructions,
-            engine::engine_app_gateway_capabilities,
-            engine::engine_vault_embed,
-            engine::engine_vault_migrate_data,
-            engine::engine_vault_archive_data,
-            engine::engine_vault_migrate_build,
-            engine::engine_vault_archive_build,
             engine::engine_appmode_get,
             engine::engine_appmode_set,
             engine::engine_config_vault,
@@ -695,9 +693,6 @@ pub fn run() {
             ingestion::ingestion_composio_set_key,
             ingestion::ingestion_composio_start,
             ingestion::ingestion_composio_stop,
-            ingestion::ingestion_keychain_set,
-            ingestion::ingestion_keychain_del,
-            ingestion::ingestion_mcp_config_path,
             ingestion::ingestion_mcp_config_init,
             ingestion::ingestion_mcp_reload,
             ingestion::ingestion_list_artifacts,
@@ -746,7 +741,6 @@ pub fn run() {
 
 #[cfg(test)]
 mod path_safety_tests {
-    use super::*;
     use crate::paths::{guard_managed_path, is_safe_domain, safe_domain_subdir};
 
     #[test]
@@ -829,7 +823,7 @@ mod env_scrub_tests {
 #[cfg(test)]
 mod usage_tests {
     use super::*;
-    use crate::intents::{decision_append, decision_feedback, decisions_read, intent_append, intents_read, journal_append};
+    use crate::intents::{decision_append, decision_feedback, decisions_read, intent_append, journal_append};
     use crate::usage::{
         map_eng_summary, migrate_legacy_usage, usage_record_payload, EngBucket, EngSummary,
         UsageRecord,

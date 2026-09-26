@@ -19,6 +19,7 @@ use tauri::async_runtime::JoinHandle;
 use tokio::sync::{watch, Mutex as AsyncMutex};
 
 use crate::telegram_bridge::{record_exchange, resolve_domain, run_cli_readonly, BridgeConfig, BridgeStatus, RouteRule};
+use crate::now_secs;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EmailConfig {
@@ -63,10 +64,6 @@ struct Inbound {
     from: String,
     subject: String,
     body: String,
-}
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 impl EmailState {

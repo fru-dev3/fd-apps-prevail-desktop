@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use tauri::async_runtime::JoinHandle;
 use tokio::sync::{watch, Mutex as AsyncMutex};
+use crate::now_secs;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct DistillConfig {
@@ -764,13 +765,6 @@ fn write_cursor(dir: &Path, c: &Cursor) {
 // Write via the shared crypto-aware, atomic, locked vault writer (C4).
 fn write_atomic(path: &Path, contents: &str) -> std::io::Result<()> {
     crate::vaultio::write_atomic(path, contents)
-}
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ use std::time::Duration;
 
 use tauri::async_runtime::JoinHandle;
 use tokio::sync::{watch, Mutex as AsyncMutex};
+use crate::now_secs;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct SkillGenConfig {
@@ -110,13 +111,6 @@ impl SkillGenState {
         inner.handle = Some(handle);
         inner.stop_tx = Some(stop_tx);
     }
-}
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

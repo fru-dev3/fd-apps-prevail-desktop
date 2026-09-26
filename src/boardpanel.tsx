@@ -8,20 +8,13 @@ import { invoke, listen } from "./bridge";
 import type { UnlistenFn } from "./bridge";
 import { SettingsHeader } from "./sectionutil";
 import { titleCase } from "./format";
-import { DOMAIN_PALETTE, isHarnessRuntime } from "./constants";
+import { isHarnessRuntime } from "./constants";
+import { domainColor } from "./helpers";
 import { PREF, cheapModel, getPref } from "./storage";
 import { DecisionInbox } from "./decisioninbox";
 import { TaskDetailPanel } from "./taskdetail";
 import { HarnessPicker } from "./harnesspicker";
 import type { BoardTask, CliInfo } from "./types";
-
-// Stable per-domain color (hashed into the shared palette) so each domain reads
-// at a glance on the board. Returns the hex; callers tint bg + text from it.
-function domainColor(domain: string): string {
-  let h = 0;
-  for (let i = 0; i < domain.length; i++) h = (h * 31 + domain.charCodeAt(i)) >>> 0;
-  return DOMAIN_PALETTE[h % DOMAIN_PALETTE.length];
-}
 
 type BoardView = "board" | "list" | "horizon" | "needs" | "trash" | "icebox";
 

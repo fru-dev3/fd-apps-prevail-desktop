@@ -1,5 +1,4 @@
 // Shared type definitions extracted from App.tsx.
-import type { LucideIcon } from "lucide-react";
 
 export interface ModelPick {
   id: string;
@@ -473,8 +472,6 @@ export type ModelVerifyStatus = "unknown" | "verifying" | "ok" | "failed";
 export type DaemonStatus = { running?: boolean; last_run_ts?: number | null; last_error?: string | null; lines_distilled?: number; tasks_generated?: number; skills_created?: number; domains_processed?: number; last_due_count?: number };
 
 export type DirectProvider = { name: string; path?: string; hex?: string; mono?: string };
-
-export type Connector = { name: string; domain: string; brand?: Brand; icon?: LucideIcon; color?: string };
 
 export type ConnectionHint = { method: string; server?: string; command?: string; install?: string; privacy?: "local" | "vendor-cloud"; readOnly?: boolean; note?: string };
 export type CatalogSkill = { id: string; title: string; description: string };

@@ -1,81 +1,9 @@
-// Settings sections extracted from App.tsx: the Connectors catalog (with its
-// CONNECTOR_GROUPS data) and the Vault encryption card.
+// Settings sections extracted from App.tsx: the Vault encryption card.
 import { useEffect, useState } from "react";
-import { Heart, Landmark, Loader2, Mail, MessageSquare, Shield } from "lucide-react";
-import { siAirtable, siAsana, siCalendly, siCoinbase, siDiscord, siDropbox, siFitbit, siGithub, siGitlab, siGmail, siGooglecalendar, siGoogledrive, siGooglesheets, siHubspot, siLinear, siNotion, siObsidian, siQuickbooks, siReddit, siRobinhood, siShopify, siSpotify, siStrava, siStripe, siTelegram, siTodoist, siTrello, siWhatsapp, siWise, siYoutube, siZoom } from "simple-icons";
+import { Loader2, Shield } from "lucide-react";
 import { invoke } from "./bridge";
 import { DesktopOnly } from "./emptystate";
 import { backupVaultNow } from "./backup";
-import type { Brand, Connector } from "./types";
-
-export const CONNECTOR_GROUPS: { category: string; items: Connector[] }[] = [
-  { category: "Finance", items: [
-    { name: "Plaid (banks & cards)", domain: "wealth", icon: Landmark, color: "#111111" },
-    { name: "Coinbase", domain: "wealth", brand: siCoinbase as Brand },
-    { name: "Robinhood", domain: "wealth", brand: siRobinhood as Brand },
-    { name: "Wise", domain: "wealth", brand: siWise as Brand },
-    { name: "QuickBooks", domain: "business", brand: siQuickbooks as Brand },
-    { name: "Stripe", domain: "business", brand: siStripe as Brand },
-    { name: "Shopify", domain: "business", brand: siShopify as Brand },
-  ]},
-  { category: "Email & Calendar", items: [
-    { name: "Gmail", domain: "general", brand: siGmail as Brand },
-    { name: "Outlook / IMAP", domain: "general", icon: Mail, color: "#0A66C2" },
-    { name: "Google Calendar", domain: "calendar", brand: siGooglecalendar as Brand },
-    { name: "Calendly", domain: "calendar", brand: siCalendly as Brand },
-  ]},
-  { category: "Files & Notes", items: [
-    { name: "Google Drive", domain: "general", brand: siGoogledrive as Brand },
-    { name: "Google Sheets", domain: "general", brand: siGooglesheets as Brand },
-    { name: "Dropbox", domain: "general", brand: siDropbox as Brand },
-    { name: "Notion", domain: "general", brand: siNotion as Brand },
-    { name: "Obsidian", domain: "general", brand: siObsidian as Brand },
-  ]},
-  { category: "Productivity", items: [
-    { name: "Slack", domain: "general", icon: MessageSquare, color: "#4A154B" },
-    { name: "Linear", domain: "career", brand: siLinear as Brand },
-    { name: "Trello", domain: "general", brand: siTrello as Brand },
-    { name: "Asana", domain: "general", brand: siAsana as Brand },
-    { name: "Todoist", domain: "general", brand: siTodoist as Brand },
-    { name: "Airtable", domain: "general", brand: siAirtable as Brand },
-    { name: "Zoom", domain: "general", brand: siZoom as Brand },
-    { name: "HubSpot", domain: "business", brand: siHubspot as Brand },
-  ]},
-  { category: "Developer", items: [
-    { name: "GitHub", domain: "career", brand: siGithub as Brand },
-    { name: "GitLab", domain: "career", brand: siGitlab as Brand },
-  ]},
-  { category: "Health & Fitness", items: [
-    { name: "Apple Health", domain: "health", icon: Heart, color: "#FF2D55" },
-    { name: "Strava", domain: "health", brand: siStrava as Brand },
-    { name: "Fitbit", domain: "health", brand: siFitbit as Brand },
-  ]},
-  { category: "Social & Media", items: [
-    { name: "Reddit", domain: "explore", brand: siReddit as Brand },
-    { name: "YouTube", domain: "content", brand: siYoutube as Brand },
-    { name: "Spotify", domain: "explore", brand: siSpotify as Brand },
-    { name: "Discord", domain: "general", brand: siDiscord as Brand },
-    { name: "WhatsApp", domain: "general", brand: siWhatsapp as Brand },
-    { name: "Telegram", domain: "general", brand: siTelegram as Brand },
-  ]},
-];
-
-
-// Catalog shapes - mirror resources/connectors/catalog.json. The Rust command
-// returns it verbatim, so the frontend owns the type.
-// A REAL app as the engine sees it (community/vault app with live state),
-// distinct from a catalog entry (a browseable directory listing).
-// Real brand SVG (simple-icons) when the app matched one at build time; else a
-// pattern-tinted dot. Keeps the row scannable for all 1,400+ apps.
-
-// Each connector PATTERN maps to one ingestion tier. Short label + tint so a
-// row scans at a glance without per-brand icons (the catalog has hundreds).
-
-// Friendly domain headings. Falls back to titleCase for anything unmapped.
-
-// App lock (F4 Phase 0) - set/change/remove the passcode that gates opening the
-// desktop app. Honest about scope: it locks the UI, it does NOT yet encrypt the
-// vault files on disk.
 
 // Vault encryption (F4 Phase 1) - encrypt the vault at rest, or decrypt it back.
 // Self-verifying in the engine (auto-rollback if anything is unreadable), and

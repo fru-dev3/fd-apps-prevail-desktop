@@ -97,35 +97,6 @@ export function FloatingChip({
   );
 }
 
-export function CycleChip({
-  label,
-  value,
-  active,
-  title,
-  onClick,
-}: {
-  label: string;
-  value: string;
-  active: boolean;
-  title: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${
-        active
-          ? "border-accent-border bg-accent-soft text-accent"
-          : "border-border bg-surface text-text-muted hover:bg-surface-warm"
-      }`}
-    >
-      <span>{label}:</span>
-      <span className="font-semibold">{value}</span>
-    </button>
-  );
-}
-
 export function DemoRibbon({ onSwitch }: { onSwitch: () => void }) {
   const [isDemo, setIsDemo] = useState(false);
   useEffect(() => {

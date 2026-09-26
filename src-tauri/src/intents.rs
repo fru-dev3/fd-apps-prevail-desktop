@@ -160,11 +160,13 @@ pub(crate) async fn intents_read_all(vault: String, limit: Option<usize>) -> Res
     intents_read_all_impl(vault, limit)
 }
 
-pub(crate) fn intents_read_all_impl(vault: String, limit: Option<usize>) -> Result<Vec<serde_json::Value>, String> {
-    let root = PathBuf::from(&vault);
+/// Every (domain, dir) whose journal ledger holds intents: general first, then
+/// v4, v3 and legacy domain dirs (first name wins).
+fn intent_ledger_dirs(vault: &str) -> Vec<(String, PathBuf)> {
+    let root = PathBuf::from(vault);
     // General resolves to its real home (v4 <vault>/data/domains/general, else
     // legacy vault root) - NOT build/, which never held the intent ledger.
-    let mut dirs: Vec<(String, PathBuf)> = vec![("general".into(), crate::paths::general_dir(&vault))];
+    let mut dirs: Vec<(String, PathBuf)> = vec![("general".into(), crate::paths::general_dir(vault))];
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     seen.insert("general".into());
     // Scan every layout, newest first so a v4 domain wins a name clash: v4
@@ -188,6 +190,11 @@ pub(crate) fn intents_read_all_impl(vault: String, limit: Option<usize>) -> Resu
             }
         }
     }
+    dirs
+}
+
+pub(crate) fn intents_read_all_impl(vault: String, limit: Option<usize>) -> Result<Vec<serde_json::Value>, String> {
+    let dirs = intent_ledger_dirs(&vault);
     let mut out: Vec<serde_json::Value> = Vec::new();
     for (dom, dir) in dirs {
         let Ok(text) = read_to_string_retry(&crate::paths::v4_content_path(&dir, ".system/journal.jsonl", "_intents.jsonl")) else { continue };
@@ -235,7 +242,19 @@ pub(crate) struct IntentsDistillCfg {
 /// Count every intent record across the vault. Cheap signal the daemon uses to
 /// decide whether enough NEW prompts have arrived to be worth a model pass.
 pub(crate) fn count_intents(vault: &str) -> usize {
-    intents_read_all_impl(vault.to_string(), None).map(|v| v.len()).unwrap_or(0)
+    // Same records intents_read_all_impl returns, counted without tagging,
+    // collecting or sorting them.
+    let mut n = 0;
+    for (_, dir) in intent_ledger_dirs(vault) {
+        let Ok(text) = read_to_string_retry(&crate::paths::v4_content_path(&dir, ".system/journal.jsonl", "_intents.jsonl")) else { continue };
+        n += text
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+            .filter(|v| v.get("kind").and_then(|k| k.as_str()) == Some("intent"))
+            .count();
+    }
+    n
 }
 
 // ── Capture streams as a distiller source ─────────────────────────────────────
@@ -530,5 +549,24 @@ mod capture_source_tests {
 
         let _ = fs::remove_dir_all(&vault);
     }
-}
 
+    #[test]
+    fn count_intents_matches_read_all() {
+        let vault = std::env::temp_dir().join(format!("prevail-count-intents-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&vault);
+        let dom = vault.join("health");
+        fs::create_dir_all(&dom).unwrap();
+        // Root (general) ledger: two intents, one non-intent, one junk line.
+        fs::write(
+            vault.join("_intents.jsonl"),
+            "{\"kind\":\"intent\",\"ts\":1}\n{\"kind\":\"decision\"}\nnot json\n\n{\"kind\":\"intent\",\"ts\":2}\n",
+        )
+        .unwrap();
+        fs::write(dom.join("_intents.jsonl"), "{\"kind\":\"intent\",\"ts\":3}\n{\"kind\":7}\n").unwrap();
+        let vs = vault.to_string_lossy().to_string();
+        let all = intents_read_all_impl(vs.clone(), None).unwrap();
+        assert_eq!(all.len(), 3);
+        assert_eq!(count_intents(&vs), all.len());
+        let _ = fs::remove_dir_all(&vault);
+    }
+}

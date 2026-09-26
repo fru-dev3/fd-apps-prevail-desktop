@@ -7,8 +7,6 @@ import { Archive, DatabaseBackup, ExternalLink, FolderCog, FolderOpen, FolderTre
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
 import { PALETTES } from "./constants";
-import { formatFreshness } from "./format";
-import { bytesHuman } from "./helpers";
 import { LS, lsGet, lsSet } from "./storage";
 import { Toggle } from "./ui";
 import { PaletteCard } from "./panels3";
@@ -399,126 +397,6 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
         </div>
       )}
     </>
-  );
-}
-
-export function BackupAutomationCard({ vault, onChange }: { vault: string; onChange?: () => void }) {
-  const [enabled, setEnabled] = useState(() => lsGet(BACKUP_CFG.enabled, "0") === "1");
-  const [freq, setFreq] = useState(() => lsGet(BACKUP_CFG.freq, "weekly") || "weekly");
-  const [backups, setBackups] = useState<{ name: string; path: string; bytes: number; mtime: number }[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-  // Where backups are written: a saved override (BACKUP_CFG.dest) or the default.
-  // We show the effective resolved path so it's never a mystery.
-  const [dest, setDest] = useState<string>(() => lsGet(BACKUP_CFG.dest) || "");
-  const [effectiveDir, setEffectiveDir] = useState<string>("");
-  const loadDir = () => invoke<string>("vault_backup_dir", { destDir: lsGet(BACKUP_CFG.dest) || null }).then(setEffectiveDir).catch(() => {});
-  useEffect(() => { loadDir(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [dest]);
-  const changeBackupDir = async () => {
-    const picked = await open({ directory: true, multiple: false, title: "Choose a backup folder" });
-    if (typeof picked === "string" && picked) { lsSet(BACKUP_CFG.dest, picked); setDest(picked); refresh(); }
-  };
-  const resetBackupDir = () => { lsSet(BACKUP_CFG.dest, ""); setDest(""); refresh(); };
-  const refresh = () =>
-    invoke<{ name: string; path: string; bytes: number; mtime: number }[]>("vault_backups_list", { destDir: lsGet(BACKUP_CFG.dest) || null })
-      .then((b) => setBackups(Array.isArray(b) ? b : []))
-      .catch(() => {});
-  useEffect(() => {
-    refresh();
-    const f = () => refresh();
-    window.addEventListener("prevail:backup-done", f);
-    return () => window.removeEventListener("prevail:backup-done", f);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const last = Number(lsGet(BACKUP_CFG.lastRun, "0")) || 0;
-  return (
-    <div className="mt-4 rounded-xl border border-border bg-surface p-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <RotateCw className="h-4 w-4 shrink-0 text-accent" />
-        <div className="min-w-0 flex-1">
-          <div className="font-display text-sm font-semibold tracking-tight">Automatic backups</div>
-          <div className="text-xs text-text-secondary">
-            Snapshots the whole vault on a schedule (and before risky operations like encryption or a mode switch), kept outside the vault. Old ones are pruned automatically.
-            {enabled && last > 0 && ` Last backup ${formatFreshness(Math.max(0, (Date.now() - last) / 1000))} ago.`}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <select value={/^custom:/.test(freq) ? "custom" : freq}
-            onChange={(e) => { const v = e.target.value === "custom" ? `custom:${/^custom:(\d+)$/.exec(freq)?.[1] ?? "3"}` : e.target.value; setFreq(v); lsSet(BACKUP_CFG.freq, v); }}
-            disabled={!enabled}
-            className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-text-secondary disabled:opacity-40">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="custom">every N days</option>
-          </select>
-          {/^custom:/.test(freq) && (
-            <div className="flex items-center gap-1">
-              <input type="number" min={1} max={365} value={/^custom:(\d+)$/.exec(freq)?.[1] ?? "3"} disabled={!enabled}
-                onChange={(e) => { const v = `custom:${Math.max(1, Math.min(365, parseInt(e.target.value, 10) || 1))}`; setFreq(v); lsSet(BACKUP_CFG.freq, v); }}
-                className="w-14 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-text-secondary disabled:opacity-40" />
-              <span className="font-mono text-[11px] text-text-muted">Days</span>
-            </div>
-          )}
-        </div>
-        {/* D4: minimal - a toggle (peel switch) + schedule selector. The "or every
-            N changes" input was the clutter the founder flagged; removed. */}
-        <button onClick={async () => { setBusy(true); setNote(null); const ok = await backupVaultNow(vault); setNote(ok ? "Backup created." : "Backup failed."); setBusy(false); }}
-          disabled={busy}
-          className="rounded-md border border-border px-3 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50">
-          {busy ? "…" : "Back up now"}
-        </button>
-        <Toggle on={enabled} onChange={(v) => { setEnabled(v); lsSet(BACKUP_CFG.enabled, v ? "1" : "0"); }} label="Automatic backups" />
-      </div>
-      {note && <div className="mt-2 text-xs text-text-secondary">{note}</div>}
-      {/* Backup location: the effective folder + change / reset. Kept OUTSIDE the
-          vault on purpose (a backup inside what it backs up is circular). */}
-      <div className="mt-3 flex items-center gap-2 border-t border-border-subtle pt-2.5">
-        <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-        <div className="min-w-0 flex-1">
-          <div className="font-mono text-[11px] text-text-muted">Backup location {dest ? "" : "· default"}</div>
-          <div className="truncate text-[11px] text-text-secondary" title={effectiveDir}>{effectiveDir || "…"}</div>
-        </div>
-        <button onClick={changeBackupDir} title="Choose a different backup folder" className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Change</button>
-        {dest && <button onClick={resetBackupDir} title="Reset to the default location" className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">Reset</button>}
-      </div>
-      {backups.length > 0 && (
-        <details className="mt-3 rounded-lg border border-border-subtle bg-background px-3 py-2">
-          <summary className="cursor-pointer text-[11px] text-text-muted">
-            Restore points · {backups.length}
-          </summary>
-          <div className="mt-2 flex flex-col gap-1">
-            {backups.map((b) => (
-              <div key={b.path} className="flex items-center gap-2 px-1 py-1">
-                <span className="flex-1 truncate text-[11px] text-text-secondary" title={b.path}>{b.name.replace("prevail-backup-", "").replace(".tar.gz", "")}</span>
-                <span className="shrink-0 text-[11px] text-text-muted">{bytesHuman(b.bytes)}</span>
-                <button
-                  onClick={async () => {
-                    const ok = await tauriConfirm(
-                      "Restore this backup over your current vault? Your current state is backed up first, so this is reversible.",
-                      { title: "Restore vault", kind: "warning", okLabel: "Restore", cancelLabel: "Cancel" },
-                    );
-                    if (!ok) return;
-                    setBusy(true); setNote(null);
-                    try {
-                      await backupVaultNow(vault); // snapshot current state first
-                      await invoke("vault_restore_archive", { vault, archive: b.path });
-                      setNote("Restored. Reloading…");
-                      onChange?.();
-                      setTimeout(() => window.location.reload(), 900);
-                    } catch (e) { setNote(`Restore failed: ${String(e)}`); }
-                    finally { setBusy(false); }
-                  }}
-                  disabled={busy}
-                  className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50">
-                  Restore
-                </button>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
-    </div>
   );
 }
 
