@@ -1,6 +1,6 @@
 // Prompt capture - record the prompts you type in each AI CLI into the vault.
 // Extracted out of the MCP/Integrations page so it lives under its own nav item
-// (Editor → Context & Memory → Prompt capture) rather than being conflated with
+// (now opened from Mirror's capture dots) rather than being conflated with
 // the MCP server config. Pure relocation: the capture behaviour is unchanged.
 //
 // Heavy lifting lives in the prevail engine (`prevail capture …`), reached
@@ -22,7 +22,7 @@ type Harness = {
   detail?: string;
 };
 type Stream = { tool: string; path: string; count: number };
-type CaptureStatus = {
+export type CaptureStatus = {
   meta?: string;
   streams?: Stream[];
   agent?: { plistPresent: boolean; loaded: boolean; supported: boolean; plist: string };
@@ -30,7 +30,7 @@ type CaptureStatus = {
 };
 type SyncSource = { tool: string; found: number; written: number; skipped: number };
 
-const LABELS: Record<string, string> = {
+export const CAPTURE_LABELS: Record<string, string> = {
   claude: "Claude Code",
   codex: "Codex",
   gemini: "Gemini",
@@ -94,10 +94,10 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
     setNote(null);
     try {
       await invoke("capture_set_enabled", { vault: vaultPath, tool, on });
-      setNote(`${LABELS[tool] ?? tool} capture turned ${on ? "on" : "off"}.`);
+      setNote(`${CAPTURE_LABELS[tool] ?? tool} capture turned ${on ? "on" : "off"}.`);
       await loadCapture();
     } catch (e) {
-      setNote(`Could not change ${LABELS[tool] ?? tool}: ${String(e).slice(0, 120)}`);
+      setNote(`Could not change ${CAPTURE_LABELS[tool] ?? tool}: ${String(e).slice(0, 120)}`);
     } finally {
       setTogglingTool("");
     }
@@ -185,7 +185,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
                   <td className="px-3 py-2">
                     <span className="group inline-flex items-center gap-1.5">
                       <span className={`inline-block h-1.5 w-1.5 rounded-full ${h.present ? "bg-ok" : "bg-border"}`} />
-                      {LABELS[h.tool] ?? h.tool}
+                      {CAPTURE_LABELS[h.tool] ?? h.tool}
                       {h.source && (
                         <button
                           onClick={() => reveal(h.source)}
@@ -220,7 +220,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
                         on={h.enabled !== false}
                         onChange={(v) => toggleCapture(h.tool, v)}
                         disabled={togglingTool !== ""}
-                        label={`Capture ${LABELS[h.tool] ?? h.tool}`}
+                        label={`Capture ${CAPTURE_LABELS[h.tool] ?? h.tool}`}
                       />
                     </div>
                   </td>

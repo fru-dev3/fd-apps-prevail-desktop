@@ -1,12 +1,12 @@
-// Retrospect > Projects. Everything the user has been building, from their
-// whole prompt history across every AI tool, each with a replay brief a future
+// Mirror > Projects. Everything the user has been building, from their
+// whole prompt history across every AI tool, each with a restart brief a future
 // model can rebuild it from. The engine does the work (`prevail projects`);
 // this view reads the index, shows a project's arc, and hands out the replay
 // prompt. The raw prompts stay untouched in the capture streams; each pack
 // keeps a readable copy (prompts.md) and an exact one (prompts.jsonl).
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bot, Check, ClipboardCopy, FileText, FolderPlus, History, Lightbulb, ListTodo, Loader2, Plug, RefreshCw,
+  Bot, Check, FolderPlus, Lightbulb, ListTodo, Loader2, Plug, RefreshCw,
   Repeat, Sparkles, Target, Timer, type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
@@ -14,6 +14,7 @@ import { titleCase } from "./format";
 import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { useIsPhone } from "./useisphone";
+import { RestartEditor } from "./mirrorrestart";
 
 export interface ProjectIntent { title: string; goal: string; status: string }
 export interface ProjectEntry {
@@ -145,23 +146,6 @@ function DomainPill({ domain }: { domain: string }) {
   );
 }
 
-function CopyButton({ label, busyLabel, get, primary }: { label: string; busyLabel: string; get: () => Promise<string>; primary?: boolean }) {
-  const [state, setState] = useState<"idle" | "busy" | "done" | "err">("idle");
-  return (
-    <button
-      onClick={async () => {
-        setState("busy");
-        try { await navigator.clipboard.writeText(await get()); setState("done"); setTimeout(() => setState("idle"), 1800); }
-        catch { setState("err"); setTimeout(() => setState("idle"), 2500); }
-      }}
-      className={`inline-flex h-9 items-center gap-2 rounded-lg px-3.5 text-[13px] font-medium transition-colors ${primary ? "bg-accent text-background hover:bg-accent-hover" : "border border-border bg-background text-text-secondary hover:border-accent-border hover:text-accent"}`}
-    >
-      {state === "busy" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state === "done" ? <Check className="h-3.5 w-3.5" /> : <ClipboardCopy className="h-3.5 w-3.5" />}
-      {state === "busy" ? busyLabel : state === "done" ? "Copied" : state === "err" ? "Could not copy" : label}
-    </button>
-  );
-}
-
 function ListBlock({ icon: Icon, title, items }: { icon: LucideIcon; title: string; items: string[] }) {
   if (!items.length) return null;
   return (
@@ -226,12 +210,12 @@ function Recommendations({ recs, vaultPath, titles, onOpen }: { recs: Recommenda
   );
 }
 
-export function ProjectsView({ vaultPath }: { vaultPath: string }) {
+export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; initialSlug?: string }) {
   const phone = useIsPhone();
   const [idx, setIdx] = useState<ProjectsIndex | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [sel, setSel] = useState<string | null>(null); // slug, or "" = overview
+  const [sel, setSel] = useState<string | null>(initialSlug ?? null); // slug, or null = overview
   const [show, setShow] = useState<"active" | "all">("all");
   const [building, setBuilding] = useState<string | null>(null);
 
@@ -260,8 +244,6 @@ export function ProjectsView({ vaultPath }: { vaultPath: string }) {
     return monthSpan(Math.min(...all.map((p) => p.first_ts)), Math.max(...all.map((p) => p.last_ts))).slice(-12);
   }, [idx]);
   const cur = (idx?.projects ?? []).find((p) => p.slug === sel) ?? null;
-  const readPack = async (file: string) => invoke<string>("read_text_file", { path: `${vaultPath.replace(/\/+$/, "")}/${cur!.pack_dir}/${file}` });
-  const openCanvas = (title: string, body: string) => window.dispatchEvent(new CustomEvent("prevail:open-canvas", { detail: { title, body } }));
 
   if (loading && !idx) return <div className="p-8 text-[13px] text-text-muted">Reading your projects…</div>;
   if (!idx || idx.projects.length === 0) {
@@ -323,6 +305,12 @@ export function ProjectsView({ vaultPath }: { vaultPath: string }) {
       <div className="flex flex-wrap items-center gap-2">
         <DomainPill domain={cur.domain} />
         <span className={`rounded-md px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide ${STATUS_TONE[cur.status]}`}>{cur.status}</span>
+        {!phone && (
+          <button onClick={() => void build(cur.slug)} disabled={!!building}
+            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
+            {building === cur.slug ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {building === cur.slug ? "Rewriting" : "Rewrite brief"}
+          </button>
+        )}
       </div>
       <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-text-primary">{cur.title}</h2>
       {cur.summary && <p className="mt-1.5 text-[15px] leading-snug text-text-secondary">{cur.summary}</p>}
@@ -332,32 +320,7 @@ export function ProjectsView({ vaultPath }: { vaultPath: string }) {
 
       <ActivityChart p={cur} />
 
-      <section className="mt-6 rounded-xl border border-accent-border bg-accent-soft/40 p-4">
-        <h3 className="flex items-center gap-2 font-display text-lg font-semibold text-text-primary"><History className="h-4 w-4 text-accent" />Replay with a newer model</h3>
-        <p className="mt-1 text-[13px] leading-snug text-text-secondary">
-          {cur.brief_model
-            ? <>The brief packs every requirement, correction and decision from these {nPrompts(cur.prompt_count)} into one prompt. Paste it into any model or coding agent to rebuild {cur.title}. Written by {modelName(cur.brief_model)} on {fmtDay(cur.brief_ts)}.</>
-            : <>No brief yet: projects under five prompts get none. The prompts themselves are saved.</>}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {cur.brief_model && <CopyButton primary label="Copy replay brief" busyLabel="Copying" get={() => invoke<string>("projects_replay", { vault: vaultPath, slug: cur.slug, withPrompts: false })} />}
-          {cur.brief_model && <CopyButton label="Brief and every prompt" busyLabel="Copying" get={() => invoke<string>("projects_replay", { vault: vaultPath, slug: cur.slug, withPrompts: true })} />}
-          {cur.brief_model && (
-            <button onClick={() => { void readPack("brief.md").then((b) => openCanvas(`${cur.title}: replay brief`, b.replace(/^<!--.*?-->\n/, ""))).catch(() => {}); }}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent">
-              <FileText className="h-3.5 w-3.5" /> Read brief
-            </button>
-          )}
-          <button onClick={() => { void readPack("prompts.md").then((b) => openCanvas(`${cur.title}: every prompt`, b)).catch(() => {}); }}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent">
-            <FileText className="h-3.5 w-3.5" /> Every prompt
-          </button>
-          <button onClick={() => void build(cur.slug)} disabled={!!building}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
-            {building === cur.slug ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {building === cur.slug ? "Rewriting" : "Rewrite brief"}
-          </button>
-        </div>
-      </section>
+      <RestartEditor vaultPath={vaultPath} slug={cur.slug} phone={phone} />
 
       {cur.intents.length > 0 && (
         <section className="mt-7">

@@ -23,7 +23,6 @@ const CouncilPanel = lazy(() => import("./councilpanel").then((m) => ({ default:
 const SettingsPanel = lazy(() => import("./settingspanel").then((m) => ({ default: m.SettingsPanel })));
 const WorkPanel = lazy(() => import("./workpanel").then((m) => ({ default: m.WorkPanel })));
 const BenchmarkPanel = lazy(() => import("./benchpanel").then((m) => ({ default: m.BenchmarkPanel })));
-const RetrospectPanel = lazy(() => import("./retrospectpanel").then((m) => ({ default: m.RetrospectPanel })));
 const ToolsPanel = lazy(() => import("./toolspanel").then((m) => ({ default: m.ToolsPanel })));
 const MapPanel = lazy(() => import("./mappanel").then((m) => ({ default: m.MapPanel })));
 // The phone frame (bottom tab bar, big header, one full-width surface). Only
@@ -44,7 +43,7 @@ import { VaultEncryptPrompt, vaultEncryptOffered } from "./vault-encrypt-prompt"
 import { migrateModelPrefs } from "./helpers2";
 import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin, WebVaultLinking } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
-import { EDITOR_NAV, WORK_NAV } from "./navdefs";
+import { EDITOR_NAV, WORK_NAV, navSection } from "./navdefs";
 
 // Single source of truth for the version chip in title bar.
 
@@ -1195,10 +1194,13 @@ export default function App() {
 
   // Lets in-app links (e.g. the Demo ribbon) open a specific Settings section.
   const [settingsJump, setSettingsJump] = useState<{ section: string; n: number } | null>(null);
-  const openSettingsAt = (section: string) => {
+  const openSettingsAt = (raw: string) => {
+    const section = navSection(raw);
     setSettingsJump((j) => ({ section, n: (j?.n ?? 0) + 1 }));
     setTab("settings");
   };
+  // The old top-level Retrospect tab is Mirror now.
+  useEffect(() => { if (tab === "retrospect") openSettingsAt("mirror"); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   // Work mode jump — the operational sections (Work board / Insights / Spark)
   // moved out of Settings into Work mode, so deep-links to them route here.
   const [workJump, setWorkJump] = useState<{ section: string; n: number } | null>(null);
@@ -1810,13 +1812,6 @@ export default function App() {
                 />
               </div>
             )}
-            {/* Retrospect - cross-domain, full screen. Mounted on demand (no
-                in-flight state to preserve); reads the intent ledger rollup. */}
-            {tab === "retrospect" && (
-              <div className="h-full">
-                <RetrospectPanel vaultPath={vaultPath} />
-              </div>
-            )}
             {tab === "tools" && (
               <div className="h-full">
                 <ToolsPanel />
@@ -2112,15 +2107,6 @@ export default function App() {
                     }`}
                   >
                     <Swords className="h-3.5 w-3.5" /> Arena
-                  </button>
-                  <button
-                    onClick={() => setTab("retrospect")}
-                    title="Retrospect: where your attention went, by day / week / month / year"
-                    className={`flex items-center gap-1 rounded whitespace-nowrap px-1.5 py-0.5 text-[11px] transition-colors ${
-                      tab === "retrospect" ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-accent"
-                    }`}
-                  >
-                    <span className="text-[13px] leading-none">↺</span> Retrospect
                   </button>
                   <button
                     onClick={() => setTab("tools")}

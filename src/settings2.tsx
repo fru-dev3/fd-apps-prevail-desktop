@@ -2,8 +2,7 @@
 // Tasks, Intents, Memory & Context, and Skills. vaultPath-driven; no App-root
 // state closure.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IntentsWorkbench } from "./intentsworkbench";
-import { Archive, Bell, Brain, ChevronRight, Eye, Folder, FolderKanban, GraduationCap, Laptop, Lightbulb, ListChecks, MessageSquarePlus, Server, Sparkles, Upload, X } from "lucide-react";
+import { Archive, Bell, Brain, ChevronRight, Eye, Folder, GraduationCap, Laptop, Lightbulb, ListChecks, MessageSquarePlus, Server, Sparkles, Upload, X } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
@@ -461,96 +460,6 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
 
 // OpenAI dropped its logo from simple-icons (trademark), so we keep the glyph
 // path inline (same one ProviderMark uses for Codex).
-
-// Settings > Intents: every question ever asked, across every domain, in one
-// searchable browser. Each row is the exact ask plus the model settings in
-// effect (replayable provenance, kept on-device).
-
-type DistilledIntent = {
-  title?: string;
-  goal?: string;
-  underlying_need?: string;
-  domains?: string[];
-  /** Surfaces (tools/apps) whose prompts fed this intent: claude, codex,
-   *  gemini, prevail, … - the provenance shown as badges. */
-  sources?: string[];
-  status?: string;
-  confidence?: number;
-  open_questions?: string[];
-  evidence?: string[];
-  recommendations?: string[];
-  /** Timestamps of the prompts that fed this theme (stamped by the distiller);
-   *  lets the intents tree nest prompts under themes by exact match. */
-  prompt_ts?: number[];
-};
-
-type DistilledDoc = { generated_ts: number; source_count: number; intents: DistilledIntent[] };
-
-export function IntentsSection({ vaultPath }: { vaultPath: string }) {
-  type IntentRow = { message?: string; cli?: string; model?: string; model_id?: string; ts?: number; domain?: string; surface?: string; source?: string; host?: string; app_version?: string };
-  const [intents, setIntents] = useState<IntentRow[]>([]);
-  // Distilled layer: high-level intents + recommendations inferred from the log.
-  const [distilled, setDistilled] = useState<DistilledDoc>({ generated_ts: 0, source_count: 0, intents: [] });
-  useEffect(() => {
-    // The journal merges the native ledger (Prevail chats) with prompts captured
-    // from other tools (Claude Code, Codex, …), newest first, so "what you asked"
-    // spans every surface - the same union the distiller works from.
-    Promise.all([
-      invoke<IntentRow[]>("intents_read_all", { vault: vaultPath, limit: 500 }).catch(() => [] as IntentRow[]),
-      invoke<IntentRow[]>("capture_prompts_read", { vault: vaultPath, limit: 500 }).catch(() => [] as IntentRow[]),
-    ]).then(([native, captured]) => {
-      const merged = [...(Array.isArray(native) ? native : []), ...(Array.isArray(captured) ? captured : [])]
-        .sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
-      setIntents(merged);
-    });
-    invoke<DistilledDoc>("intents_distilled_read", { vault: vaultPath })
-      .then((d) => setDistilled(d ?? { generated_ts: 0, source_count: 0, intents: [] }))
-      .catch(() => {});
-  }, [vaultPath]);
-  // Captured rows carry a tool slug as their `domain`; keep those out of the
-  // life-domain filter so the dropdown stays meaningful (you filter them by
-  // surface badge instead).
-  return (
-    <>
-      <SettingsHeader
-        title="Intents"
-        icon={Lightbulb}
-        subtitle="The goal behind your questions."
-      />
-
-      {/* The distilled layer lives in Retrospect > Projects now: the whole
-          prompt history grouped by what it was building, with replay briefs
-          and recommendations. A second list here showed the same intents from
-          only the newest 200 prompts. */}
-      <div className="mb-8 flex flex-wrap items-center gap-4 rounded-xl border border-accent-border bg-accent-soft/40 p-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><FolderKanban className="h-5 w-5" /></span>
-        <div className="min-w-0 flex-1">
-          <div className="font-display text-lg font-semibold text-text-primary">Your intents live with your projects</div>
-          <div className="mt-0.5 text-[13px] leading-snug text-text-secondary">
-            {distilled.generated_ts > 0
-              ? `${distilled.intents.length} projects distilled from ${distilled.source_count.toLocaleString()} of your prompts, each with a replay brief and next steps.`
-              : "Every prompt you have typed, grouped by what you were building, each with a replay brief and next steps."}
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            try { localStorage.setItem("prevail.retrospect.lens", "projects"); } catch { /* storage off */ }
-            window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "retrospect" }));
-          }}
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-background hover:bg-accent-hover"
-        >
-          Open Projects <ChevronRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      {/* The raw "what you asked" ledger, made usable: recurring rollup, grouping,
-          filters, pinning, and reuse. Intents above are the semantic distillation. */}
-      <div className="mb-1 text-sm font-semibold text-text-primary">What you asked · reuse &amp; recurring</div>
-      <div className="mb-3 text-xs text-text-secondary">Your questions across every thread and tool. Repeats are automation candidates.</div>
-      <IntentsWorkbench vaultPath={vaultPath} intents={intents} themes={distilled.intents} />
-    </>
-  );
-}
 
 // Map an ideal-state section heading to an icon matching its theme, so the
 // rendered constitution reads as a visual map rather than a text wall.

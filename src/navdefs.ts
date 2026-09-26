@@ -6,7 +6,7 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, BarChart3, Bot, Briefcase, CalendarDays, Compass, Database, Dices, Download, FileText, Github, Hammer, History, Inbox, Layers, Lightbulb, MessagesSquare, Network, Plug, Repeat, Scale, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, UserRound, Webhook, Wrench, Zap } from "lucide-react";
+import { Activity, BarChart3, Bot, Briefcase, CalendarDays, Compass, Database, Dices, Download, FileText, Github, Hammer, Layers, Lightbulb, MessagesSquare, Network, Plug, Repeat, Scale, ScanFace, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, UserRound, Webhook, Wrench, Zap } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
@@ -38,13 +38,11 @@ export const EDITOR_NAV: NavGroup[] = [
     { id: "benchmark", label: "Arena", icon: Swords },
   ]},
   { heading: "Context & Memory", items: [
+    { id: "mirror", label: "Mirror", icon: ScanFace },
     { id: "ideal-state", label: "Ideals", icon: Compass },
-    { id: "intents", label: "Intents", icon: Lightbulb },
-    { id: "prompt-capture", label: "Prompts", icon: Inbox },
     { id: "daemons", label: "Daemons", icon: Zap },
     { id: "activity", label: "Activity", icon: Activity },
     { id: "usage", label: "Usage", icon: BarChart3 },
-    { id: "retrospect", label: "Retrospect", icon: History },
   ]},
   { heading: "Connections", items: [
     // Phone leads the group and is its own destination: mobile access used to
@@ -69,3 +67,10 @@ export const EDITOR_NAV: NavGroup[] = [
     { id: "about", label: "About", icon: Github },
   ]},
 ];
+
+// Mirror replaced three nav items (Intents, Prompts, Retrospect). Their ids
+// still arrive from deep links and saved state, so they land on Mirror.
+const MIRROR_ALIASES = new Set(["intents", "prompt-capture", "retrospect"]);
+export function navSection(id: string): string {
+  return MIRROR_ALIASES.has(id) ? "mirror" : id;
+}

@@ -1,4 +1,4 @@
-// Retrospect > Projects: the list, a project's replay actions, recommendations
+// Mirror > Projects: the list, a project's restart brief, recommendations
 // that become tasks, and the empty state that starts the first build.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
@@ -9,11 +9,13 @@ vi.mock("./bridge", () => ({
   invoke: async (cmd: string, args?: Record<string, unknown>) => {
     calls.push({ cmd, args });
     if (cmd === "projects_index") return index;
-    if (cmd === "projects_replay") return args?.withPrompts ? "BRIEF + PROMPTS" : "BRIEF";
+    if (cmd === "projects_restart") return { slug: args?.slug, title: "t", goal: "Ship it", requirements: [], rules: [], decisions: [], dead_ends: [], open_questions: [], brief_model: "claude-fable-5-1" };
+    if (cmd === "projects_restart_text") return `TEXT:${args?.format}`;
     if (cmd === "projects_build") return index;
     if (cmd === "read_text_file") return "<!-- prevail:replay-brief -->\n# Rebuild: fru.dev site";
     return null;
   },
+  isBrowser: () => true,
 }));
 let phone = false;
 vi.mock("./useisphone", () => ({ useIsPhone: () => phone, PHONE_MAX_PX: 767 }));
@@ -85,39 +87,22 @@ describe("ProjectsView", () => {
     expect(screen.getByRole("heading", { name: "fru.dev site" })).toBeTruthy();
   });
 
-  it("shows a project's arc and copies its replay brief", async () => {
+  it("shows a project's arc and copies its restart brief", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });
     render(<ProjectsView vaultPath="/v" />);
     fireEvent.click((await screen.findAllByText("fru.dev site"))[0]); // the list entry
     expect(screen.getByText(/697 prompts · Jun 3 to Sep 24, 2026 · Claude, Codex/)).toBeTruthy();
     expect(screen.getByText("Office green, never gold")).toBeTruthy();
-    expect(screen.getByText(/Written by Fable 5.1/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Copy replay brief/ }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("BRIEF"));
-    fireEvent.click(screen.getByRole("button", { name: /Brief and every prompt/ }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("BRIEF + PROMPTS"));
+    expect(await screen.findByText(/Distilled by Fable 5.1/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Copy restart brief/ }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("TEXT:handoff"));
   });
 
-  it("opens the brief without its generator header", async () => {
-    const seen: unknown[] = [];
-    const on = (e: Event) => seen.push((e as CustomEvent).detail);
-    window.addEventListener("prevail:open-canvas", on);
-    render(<ProjectsView vaultPath="/v/" />);
-    fireEvent.click((await screen.findAllByText("fru.dev site"))[0]); // the list entry
-    fireEvent.click(screen.getByRole("button", { name: /Read brief/ }));
-    await waitFor(() => expect(seen).toHaveLength(1));
-    window.removeEventListener("prevail:open-canvas", on);
-    expect(calls.find((c) => c.cmd === "read_text_file")?.args).toEqual({ path: "/v/data/domains/dev/memory/projects/fru-dev-site/brief.md" });
-    expect(seen[0]).toEqual({ title: "fru.dev site: replay brief", body: "# Rebuild: fru.dev site" });
-  });
-
-  it("a small project has its prompts but no brief to copy", async () => {
-    render(<ProjectsView vaultPath="/v" />);
-    fireEvent.click(await screen.findByText("Roof damage claim"));
-    expect(screen.getByText(/No brief yet/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Copy replay brief/ })).toBeNull();
-    expect(screen.getByRole("button", { name: /Every prompt/ })).toBeTruthy();
+  it("opens straight on a project when asked", async () => {
+    render(<ProjectsView vaultPath="/v" initialSlug="fru-dev-site" />);
+    expect(await screen.findByTestId("restart")).toBeTruthy();
+    expect(calls.find((c) => c.cmd === "projects_restart")?.args).toEqual({ vault: "/v", slug: "fru-dev-site" });
   });
 
   it("filters to active projects", async () => {

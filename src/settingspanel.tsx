@@ -7,10 +7,11 @@ import { SettingsHeader } from "./sectionutil";
 import { ProviderMark } from "./marks";
 import { FrameworksSection, IngestionSection, RemoteSection, ShortcutsSection } from "./settings1";
 import { PhoneSection } from "./remotepair";
-import { DaemonsSection, IntentsSection, MemoryContextSection, SkillsSection } from "./settings2";
+import { DaemonsSection, MemoryContextSection, SkillsSection } from "./settings2";
 import { AppsPanel } from "./appspanel";
 import { SystemActivity } from "./activitypanel";
-import { RetrospectPanel } from "./retrospectpanel";
+import { MirrorPanel } from "./mirror";
+import { navSection } from "./navdefs";
 import { ToolsPanel } from "./toolspanel";
 import { AutonomyPanel } from "./autonomypanel";
 import { LoopBoard } from "./loopboard";
@@ -19,7 +20,6 @@ import { CollapsibleSection } from "./collapsible";
 import { GeneralSection, IdealStateSection, SafetySection } from "./settings4";
 import { AboutSection, GatewayLogsCard, GatewaySection } from "./settings5";
 import { IntegrationsPanel } from "./integrationspanel";
-import { PromptCapturePanel } from "./promptcapturepanel";
 import { CouncilSettingsSection, PrivacyConnectivitySection } from "./settings6";
 import { UsageDashboard } from "./usagedashboard";
 import { track } from "./telemetry";
@@ -53,18 +53,18 @@ export function SettingsPanel({
   onVaultMoved?: (path: string) => void;
   jumpTo?: { section: string; n: number } | null;
 }) {
-  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intents" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "prompt-capture" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "retrospect" | "loopboard" | "hooks" | "profiles" | "tools" | "ingestion" | "usage";
+  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "mirror" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "ingestion" | "usage";
   // Editor lands on General. The operational surfaces (Work board / Insights /
   // Spark) moved to Work mode, so Editor opens on a config page. A specific
   // jumpTo (e.g. "connectors") still wins.
-  const [section, setSection] = useState<Section>(jumpTo?.section ? (jumpTo.section as Section) : "general");
+  const [section, setSection] = useState<Section>(jumpTo?.section ? (navSection(jumpTo.section) as Section) : "general");
   // Anonymous usage signal: WHICH surface opened (a name from the telemetry
   // enum), never what's in it. One event per section change.
   useEffect(() => { track("feature_used", { feature: section }); }, [section]);
   // Allow callers (e.g. the Demo ribbon's "Switch to Production" link) to jump
   // straight to a section. The nonce makes repeat jumps to the same section fire.
   useEffect(() => {
-    if (jumpTo?.section) setSection(jumpTo.section as Section);
+    if (jumpTo?.section) setSection(navSection(jumpTo.section) as Section);
   }, [jumpTo?.n]); // eslint-disable-line react-hooks/exhaustive-deps
   // Value is consumed by sections via the deep-link event; only the setter is
   // read here, so the state value itself is intentionally left unbound.
@@ -78,10 +78,10 @@ export function SettingsPanel({
       if (!raw) return;
       const colonIdx = raw.indexOf(":");
       if (colonIdx === -1) {
-        setSection(raw as Section);
+        setSection(navSection(raw) as Section);
         setSettingsDeepLink(null);
       } else {
-        setSection(raw.slice(0, colonIdx) as Section);
+        setSection(navSection(raw.slice(0, colonIdx)) as Section);
         setSettingsDeepLink(raw.slice(colonIdx + 1));
       }
     };
@@ -156,7 +156,6 @@ export function SettingsPanel({
           {/* "omega" kept as a deep-link target (no nav item) — folded into Ideals. */}
           {section === "omega" && <OmegaSection vaultPath={vaultPath} />}
           {section === "memory" && <MemoryContextSection vaultPath={vaultPath} />}
-          {section === "intents" && <IntentsSection vaultPath={vaultPath} />}
           {/* tasks / recommendations / spark are Work surfaces — the sidebar routes
               them to WorkPanel (App.tsx WORK_SECTIONS), so no Editor branch here. */}
           {/* B2-20 / image #29: Memory engine page deleted; Memory & Context now
@@ -165,7 +164,7 @@ export function SettingsPanel({
           {section === "daemons" && <DaemonsSection vaultPath={vaultPath} />}
           {section === "usage" && <UsageDashboard vaultPath={vaultPath} />}
           {section === "activity" && <SystemActivity vaultPath={vaultPath} />}
-          {section === "retrospect" && <RetrospectPanel vaultPath={vaultPath} />}
+          {section === "mirror" && <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5"><MirrorPanel vaultPath={vaultPath} /></div>}
           {section === "tools" && <ToolsPanel />}
           {section === "ingestion" && <IngestionSection />}
           {section === "loopboard" && <LoopBoard vaultPath={vaultPath} />}
@@ -178,7 +177,6 @@ export function SettingsPanel({
           {section === "autonomy" && <AutonomyPanel vaultPath={vaultPath} />}
           {section === "gateway" && <><GatewaySection /><GatewayLogsCard vaultPath={vaultPath} /></>}
           {section === "mcp" && <IntegrationsPanel vaultPath={vaultPath} clis={clis} />}
-          {section === "prompt-capture" && <PromptCapturePanel vaultPath={vaultPath} />}
           {section === "hooks" && <HooksSection vaultPath={vaultPath} />}
           {section === "profiles" && <ProfilesSection />}
           {section === "remote" && <RemoteSection />}
