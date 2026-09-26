@@ -3,18 +3,15 @@
 // the SettingsHeader; none close over App root state.
 import { Fragment, useEffect, useState } from "react";
 import { Aperture, ArrowRight, Diamond, Globe, MessageSquare } from "lucide-react";
-import { invoke, isBrowser, listen } from "./bridge";
+import { invoke, isBrowser } from "./bridge";
 import { FRAMEWORKS, LENSES } from "./constants";
 import { PREF, getPref, setPref } from "./storage";
 import { Toggle } from "./ui";
-import { IngestionAuditPanel, SettingsRowLite } from "./panels";
-import { IngestionBrowserRunner, PreambleColumn } from "./panels2";
-import { IngestionTierCard } from "./panels3";
+import { SettingsRowLite } from "./panels";
+import { PreambleColumn } from "./panels2";
 import { useFrameworkLens } from "./hooks";
 import { SettingsHeader } from "./sectionutil";
 import { DesktopOnly } from "./emptystate";
-import type { IngestionArtifact, IngestionMcpServer, IngestionTierStatus } from "./types";
-import type { UnlistenFn } from "./bridge";
 
 export function ShortcutsSection() {
   type Entry = { keys: string[]; label: string; desc: string };
@@ -228,159 +225,3 @@ export function RemoteSection() {
   );
 }
 
-// The MCP "expose" config is pasted into Claude Desktop and used long-term, so
-// it must reference a STABLE absolute path - not the transient location the app
-// happens to be running from. When launched straight off the mounted DMG
-// (/Volumes/…) or under macOS App Translocation (/private/var/folders/…), the
-// bundled-sidecar path would vanish the moment the volume ejects. Normalize
-// those to the canonical installed location. (feedback v0.4.1 B9)
-
-export function IngestionSection() {
-  const [tiers, setTiers] = useState<IngestionTierStatus[]>([]);
-  const [mcp, setMcp] = useState<IngestionMcpServer[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const [artifacts, setArtifacts] = useState<IngestionArtifact[]>([]);
-  const [ingestionTab, setIngestionTab] = useState<"api" | "composio" | "browser">("api");
-
-  async function refresh() {
-    try {
-      const [t, m] = await Promise.all([
-        invoke<IngestionTierStatus[]>("ingestion_status"),
-        invoke<IngestionMcpServer[]>("ingestion_mcp_list"),
-      ]);
-      setTiers(Array.isArray(t) ? t : []);
-      setMcp(m);
-      setErr(null);
-    } catch (e) {
-      setErr(String(e));
-    }
-  }
-  useEffect(() => {
-    void refresh();
-    const id = window.setInterval(() => void refresh(), 4000);
-    let unl: UnlistenFn | null = null;
-    (async () => {
-      unl = await listen<IngestionArtifact>(
-        "ingestion:artifact",
-        (e) => setArtifacts((cur) => [e.payload, ...cur].slice(0, 50)),
-      );
-    })();
-    return () => { window.clearInterval(id); if (unl) unl(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function openMcpConfig() {
-    try {
-      const p = await invoke<string>("ingestion_mcp_config_init");
-      await invoke("open_in_finder", { path: p });
-    } catch (e) { console.error(e); }
-  }
-  async function reloadMcp() {
-    try {
-      await invoke("ingestion_mcp_reload");
-      await refresh();
-    } catch (e) { console.error(e); }
-  }
-
-  return (
-    <>
-      <SettingsHeader
-        title="Ingestion"
-        subtitle="Pull your data into the right domain."
-      />
-      {err && (
-        <div className="mb-4 rounded border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{err}</div>
-      )}
-
-      {/* Separate the tiers into clear tabs by HOW they connect, so the page is
-          one focused mode at a time instead of a long mixed stack: programmatic
-          (API/MCP), the Composio tool gateway, or a headed browser. */}
-      {(() => {
-        const TABS = [
-          { id: "api", label: "API & MCP", match: (id: string) => /mcp|cli/.test(id), hint: "Programmatic connectors and MCP servers." },
-          { id: "composio", label: "Composio", match: (id: string) => /composio/.test(id), hint: "The Composio tool gateway: one integration, many apps." },
-          { id: "browser", label: "Browser", match: (id: string) => /browser/.test(id), hint: "Manual, headed browser automation." },
-        ] as const;
-        const active = ingestionTab;
-        const activeDef = TABS.find((t) => t.id === active) ?? TABS[0];
-        const shown = tiers.filter((t) => activeDef.match(t.id));
-        return (
-          <div className="space-y-4">
-            <div className="flex gap-1 rounded-lg border border-border bg-surface p-1">
-              {TABS.map((t) => {
-                const count = tiers.filter((x) => t.match(x.id)).length;
-                const on = t.id === active;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setIngestionTab(t.id)}
-                    className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${on ? "bg-accent-soft text-accent" : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"}`}
-                  >
-                    {t.label}{count > 0 && <span className="ml-1.5 font-mono text-[10px] text-text-muted">{count}</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="px-1 text-xs text-text-muted">{activeDef.hint}</p>
-            {shown.map((t) => (
-              <IngestionTierCard
-                key={t.id}
-                tier={t}
-                mcp={t.id === "tier_a_mcp" ? mcp : undefined}
-                onRefresh={refresh}
-                onOpenMcpConfig={openMcpConfig}
-                onReloadMcp={reloadMcp}
-              />
-            ))}
-            {tiers.length === 0 && (
-              <div className="rounded border border-dashed border-border bg-surface p-6 text-sm text-text-muted">
-                Loading tier status…
-              </div>
-            )}
-            {tiers.length > 0 && shown.length === 0 && active !== "browser" && (
-              <div className="rounded border border-dashed border-border bg-surface p-6 text-sm text-text-muted">
-                Nothing configured in this tier yet.
-              </div>
-            )}
-            {active === "browser" && <IngestionBrowserRunner />}
-          </div>
-        );
-      })()}
-
-      <div className="mt-6 space-y-6">
-        <IngestionAuditPanel />
-
-        {artifacts.length > 0 && (
-          <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="font-display text-base font-semibold tracking-tight">Recent artifacts</div>
-              <span className="rounded-full bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-secondary">{artifacts.length}</span>
-            </div>
-            <ul className="flex flex-col gap-1.5">
-              {artifacts.map((a, i) => (
-                <li key={`${a.path}_${i}`} className="flex items-center gap-3 rounded-md border border-border-subtle bg-background px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-mono text-sm text-text-primary">{a.original}</span>
-                      <span className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] text-accent">{a.domain}</span>
-                      <span className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] text-text-secondary">{a.source}</span>
-                    </div>
-                    <div className="mt-0.5 truncate font-mono text-[10px] text-text-muted">
-                      {a.path} · {a.sha256.slice(0, 12)}… · {(a.size / 1024).toFixed(1)} KB
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => invoke("open_in_finder", { path: a.path })}
-                    className="shrink-0 rounded border border-border bg-background px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
-                  >
-                    reveal
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}

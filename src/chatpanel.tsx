@@ -29,7 +29,7 @@ import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
 import { AgentPickerRail, ContextCanvas, DomainContextDrawer, DomainPrefsPanel } from "./domainpanels";
 import { HomeBriefing } from "./recommendationspanel";
-import type { BrandLogo, ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, LifeReadiness, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
+import type { ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, LifeReadiness, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { savePastedImages } from "./paste";
 
@@ -452,7 +452,7 @@ export function ChatPanel({
     const appTitle = label.startsWith("auto-app:") ? label.slice("auto-app:".length).replace(/\s+skill\s*$/i, "").trim()
       : label.startsWith("app:") ? label.slice("app:".length).trim()
       : null;
-    if (appTitle) return <AppRowLogo app={{ title: appTitle }} logos={logos} size={14} fallback="letter" />;
+    if (appTitle) return <AppRowLogo app={{ title: appTitle }} size={14} fallback="letter" />;
     const dom = label.match(/^(?:auto|extra(?:\s*\([^)]*\))?):\s*([^/]+)/);
     if (dom) { const I = domainIcon(dom[1].trim().toLowerCase()); return I ? <I className="h-3 w-3" /> : <Layers className="h-3 w-3" />; }
     return <BookOpen className="h-3 w-3" />;
@@ -828,8 +828,6 @@ export function ChatPanel({
   }, [vaultPath]);
   // Brand logos for app rows/chips in the `$` mention popover - same source the
   // Apps panel uses. Without this the chat composer can only show monograms.
-  const [logos, setLogos] = useState<Record<string, BrandLogo>>({});
-  useEffect(() => { invoke<Record<string, BrandLogo>>("ingestion_connector_logos").then(setLogos).catch(() => {}); }, []);
   // Pre-fetch apps so the `$` mention can offer them as context alongside
   // domains. Refreshed when the vault changes or apps are added/removed.
   useEffect(() => {
@@ -2623,7 +2621,7 @@ export function ChatPanel({
                         <div className="mt-3 flex flex-wrap gap-2">
                           {appsFeeding.slice(0, 8).map((a) => (
                             <div key={a.id} className="flex items-center gap-1.5 rounded-lg border border-border-subtle bg-background/50 px-2 py-1.5" title={a.title}>
-                              <AppRowLogo app={{ title: a.title }} logos={logos} size={16} fallback="letter" />
+                              <AppRowLogo app={{ title: a.title }} size={16} fallback="letter" />
                               <span className="max-w-[80px] truncate text-[11px] text-text-secondary">{a.title}</span>
                             </div>
                           ))}
@@ -3012,7 +3010,7 @@ export function ChatPanel({
                     ? (() => { const I = domainIcon(c.id); return I
                         ? <I className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted" />
                         : <Layers className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted" />; })()
-                    : <AppRowLogo app={{ id: c.id, title: c.label }} logos={logos} size={18} fallback="letter" />}
+                    : <AppRowLogo app={{ id: c.id, title: c.label }} size={18} fallback="letter" />}
                   <div className="min-w-0">
                     <div className={`font-mono text-xs ${i === dollarIdx ? "text-accent" : "text-text-primary"}`}>
                       ${c.id}

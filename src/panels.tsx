@@ -22,7 +22,7 @@ import { LS, PREF, cheapModel, getPref, lsGet, lsSet, setPref } from "./storage"
 import { Markdown } from "./Markdown";
 import { InsightsDisclosure } from "./widgets";
 import { AppRowLogo } from "./panels3";
-import type { AlignmentReport, BackupResult, BrandLogo, ContextScore, DaemonStatus, Domain, DomainTask, EngineApp, IngestionAuditEntry, PreambleOption, SkillEntry, SurfaceResult, TabId, ThreadMeta, UsageBucket } from "./types";
+import type { AlignmentReport, BackupResult, ContextScore, DaemonStatus, Domain, DomainTask, EngineApp, PreambleOption, SkillEntry, SurfaceResult, TabId, ThreadMeta, UsageBucket } from "./types";
 
 export function QuickSwitcher({
   vaultPath,
@@ -888,13 +888,11 @@ export function AppHeaderBar({ app, enabled, onOpenDomain, onClose }: { app: Eng
   // Show the app's brand logo (same mark the sidebar and Apps panel render) so
   // it's instantly clear which app this conversation is in. Loaded once; the
   // command is cheap and cached engine-side.
-  const [logos, setLogos] = useState<Record<string, BrandLogo>>({});
-  useEffect(() => { invoke<Record<string, BrandLogo>>("ingestion_connector_logos").then(setLogos).catch(() => {}); }, []);
   return (
     <div className="shrink-0 border-b border-border-subtle bg-surface px-4 py-2.5">
       <div className="flex items-center gap-2.5">
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: enabled ? tint : "#9aa0a6" }} title={enabled ? app.status : "disabled"} />
-        <AppRowLogo app={app} logos={logos} size={22} fallback="letter" />
+        <AppRowLogo app={app} size={22} fallback="letter" />
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center gap-2">
             <span className="truncate text-base font-semibold text-text-primary">{app.account?.label ? `${app.title} · ${app.account.label}` : app.title}</span>
@@ -2254,76 +2252,6 @@ export function PreambleCard({
             <p className="text-xs italic text-text-muted">no preamble: uses the model's default response shape</p>
           )}
         </div>
-      )}
-    </div>
-  );
-}
-
-export function IngestionAuditPanel() {
-  const [entries, setEntries] = useState<IngestionAuditEntry[]>([]);
-  const [open, setOpen] = useState(false);
-
-  async function refresh() {
-    try {
-      const r = await invoke<IngestionAuditEntry[]>("ingestion_audit_tail", { limit: 200 });
-      setEntries(r.reverse());
-    } catch { /* empty log is fine */ }
-  }
-  useEffect(() => { void refresh(); }, []);
-
-  return (
-    <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-      <button
-        onClick={() => { setOpen((v) => !v); if (!open) void refresh(); }}
-        className="flex w-full items-center justify-between gap-2 text-left"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-text-muted">{open ? "▾" : "▸"}</span>
-          <div className="font-display text-base font-semibold tracking-tight">Audit log</div>
-          <span className="rounded-full bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-secondary">{entries.length}</span>
-        </div>
-        <span className="font-mono text-[10px] text-text-muted">~/Library/Application Support/Prevail/ingestion.log</span>
-      </button>
-      {open && (
-        <ul className="mt-4 max-h-72 overflow-y-auto flex flex-col gap-1">
-          {entries.length === 0 && (
-            <li className="text-xs text-text-muted">No entries yet: captured ingests will appear here.</li>
-          )}
-          {entries.map((e, i) => {
-            const t = e.ts ? new Date(e.ts * 1000).toLocaleString() : "";
-            return (
-              <li key={`${e.path ?? "_"}_${i}`} className="flex items-center gap-3 rounded border border-border-subtle bg-background px-3 py-1.5">
-                <span className={`rounded px-1.5 py-0.5 text-[11px] ${
-                  e.type === "vacuum"
-                    ? "border border-warn/40 bg-warn/10 text-warn"
-                    : "border border-accent-border bg-accent-soft text-accent"
-                }`}>
-                  {e.type}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2 text-[11px]">
-                    {e.domain && <span className="font-mono text-text-primary">{e.domain}</span>}
-                    {e.source && <span className="font-mono text-text-secondary">· {e.source}</span>}
-                    {e.tier_id && <span className="font-mono text-text-muted">· {e.tier_id}</span>}
-                    {e.older_than_days != null && <span className="font-mono text-text-muted">· &gt;{e.older_than_days}d</span>}
-                  </div>
-                  {e.path && (
-                    <div className="truncate font-mono text-[10px] text-text-muted">{e.path}</div>
-                  )}
-                </div>
-                <span className="shrink-0 font-mono text-[10px] text-text-muted">{t}</span>
-                {e.path && (
-                  <button
-                    onClick={() => invoke("open_in_finder", { path: e.path })}
-                    className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
-                  >
-                    reveal
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
       )}
     </div>
   );

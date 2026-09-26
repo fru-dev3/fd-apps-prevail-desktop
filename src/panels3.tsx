@@ -1,6 +1,6 @@
 // Components extracted from App.tsx.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Boxes, Check, ChevronRight, Circle, ExternalLink, Globe, Loader2, Plug, Plus, RefreshCw, Settings as SettingsIcon, Sparkles, Terminal, X } from "lucide-react";
+import { AlertTriangle, Check, Circle, ExternalLink, Loader2, Plus, RefreshCw, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
 import { PrevailLogo } from "./PrevailLogo";
 import { invoke } from "./bridge";
 import { PALETTES, SCORE_DIMENSIONS, SETTINGS_ROW, SEVERITY_LABEL, SEVERITY_ORDER, STATUS_TINT } from "./constants";
@@ -8,63 +8,17 @@ import { formatFreshness, relTime, scoreColor, titleCase } from "./format";
 import { formatAuditedAt } from "./helpers";
 import { ScoreBar } from "./panels";
 import { Sparkline } from "./ui";
-import type { BrandLogo, CatalogApp, CliProvider, ConnectorCatalog, ContextScore, EngineApp, IngestionMcpServer, IngestionTierStatus, MissingItem, OnboardingRecommendation } from "./types";
+import type { ContextScore, EngineApp, MissingItem, OnboardingRecommendation } from "./types";
 
-// Brand tile from a plain product name (used for AI suggestions, which only
-// carry a name): slug the name, look it up in the simple-icons map, else a
-// monogram fallback.
-function BrandTile({ name, logos }: { name: string; logos: Record<string, BrandLogo> }) {
-  const logo = resolveAppLogo({ title: name }, logos);
-  if (logo) {
-    return (
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-white">
-        <svg width={18} height={18} viewBox="0 0 24 24" fill={`#${logo.hex}`} aria-hidden><path d={logo.path} /></svg>
-      </span>
-    );
-  }
-  const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-  return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-warm font-display text-[11px] font-bold text-text-secondary" aria-hidden>{initials}</span>
-  );
+// Tile for a plain product name (AI suggestions only carry a name): the site's
+// favicon when one resolves, else an initials monogram.
+function BrandTile({ name }: { name: string }) {
+  return <AppRowLogo app={{ title: name }} size={32} />;
 }
 
-// Resolve a connector's real brand logo from the simple-icons map by slugging
-// its title or id (trying a few normalizations so e.g. "Booking.com" ->
-// "bookingcom" -> "booking" still resolves). Returns the matched BrandLogo or
-// null - shared by every app surface so logos render identically everywhere.
-// Common brand short-names whose app title/id differs from the logo slug, so the
-// real brand mark still resolves (e.g. an app called "Amex" -> American Express).
-const BRAND_ALIAS: Record<string, string> = {
-  amex: "americanexpress",
-  bofa: "bankofamerica",
-  gcp: "googlecloud",
-  aws: "amazonaws",
-};
-
-export function resolveAppLogo(app: { title?: string; id?: string }, logos: Record<string, BrandLogo>): BrandLogo | null {
-  const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const strip = (s: string) => s.replace(/(connect|connector|app|inc|com|io|labs?)$/, "");
-  const title = app.title ?? "";
-  const id = app.id ?? "";
-  const cands = [
-    norm(title),
-    norm(id),
-    norm(id.split(/[-_:]/)[0] ?? ""),
-    strip(norm(title)),
-    strip(norm(id)),
-  ].filter((s) => s.length >= 2);
-  for (const s of cands) {
-    if (logos[s]) return logos[s];
-    const alias = BRAND_ALIAS[s];
-    if (alias && logos[alias]) return logos[alias];
-  }
-  return null;
-}
-
-// A connector's logo tile, sized for app rows/cards. Renders the resolved real
-// brand mark; only when nothing resolves does it fall back to the app's
-// letter/initials monogram. This is the single way logos render across all app
-// surfaces (rows, cards, connect flow) so they stay consistent.
+// A connector's logo tile, sized for app rows/cards: the site's real favicon,
+// else the app's letter/initials monogram. This is the single way vault-app
+// logos render (rows, chips, mentions) so they stay consistent.
 // Best-effort website host for an app, used to fetch its real favicon when no
 // crisp brand icon exists. Uses the curated map where we have it, else guesses
 // www.<slug>.<tld> — a wrong guess just triggers the letter fallback via onError.
@@ -80,15 +34,14 @@ function faviconHost(app: { title?: string; id?: string; website?: string }): st
   return known[slug] || `www.${slug}.com`;
 }
 
-export function AppRowLogo({ app, logos, size = 32, fallback = "initials" }: {
+export function AppRowLogo({ app, size = 32, fallback = "initials" }: {
   app: { title?: string; id?: string; website?: string };
-  logos: Record<string, BrandLogo>;
   size?: number;
   fallback?: "initials" | "letter";
 }) {
   // The site's real favicon (a base64 data: URI from the backend, cached to
-  // disk, CSP-safe). Fetched only when there's no crisp brand icon. Declared
-  // first so rules-of-hooks holds across the early returns below.
+  // disk, CSP-safe). Declared first so rules-of-hooks holds across the early
+  // returns below.
   const [faviconUri, setFaviconUri] = useState<string | null>(null);
   const wantFavicon = !!(app.id || app.title);
   useEffect(() => {
@@ -101,7 +54,6 @@ export function AppRowLogo({ app, logos, size = 32, fallback = "initials" }: {
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app.id, app.title]);
-  const glyph = Math.round(size * 0.56);
   const box = { height: size, width: size };
   // The real, colorful Google mark (not a flat monochrome glyph) for the Google
   // Workspace connector.
@@ -119,18 +71,9 @@ export function AppRowLogo({ app, logos, size = 32, fallback = "initials" }: {
       </span>
     );
   }
-  const logo = resolveAppLogo(app, logos);
-  if (logo) {
-    return (
-      <span className="flex shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-white" style={box}>
-        <svg width={glyph} height={glyph} viewBox="0 0 24 24" fill={`#${logo.hex}`} aria-hidden><path d={logo.path} /></svg>
-      </span>
-    );
-  }
   const name = app.title || app.id || "·";
-  // No crisp brand icon, but the backend returned the site's real favicon: show
-  // it (a data: URI, CSP-safe). This gives almost every app its actual logo
-  // (simple-icons dropped many brands like Canva). Falls to the letter otherwise.
+  // The backend returned the site's real favicon: show it (a data: URI,
+  // CSP-safe). Falls to the letter otherwise.
   if (faviconUri) {
     return (
       <span className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-subtle bg-white" style={box}>
@@ -385,13 +328,9 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
   const [addOpen, setAddOpen] = useState(false);
   const [addValue, setAddValue] = useState("");
   const [binding, setBinding] = useState<string | null>(null);
-  const [logos, setLogos] = useState<Record<string, BrandLogo>>({});
   // Learned app suggestions for this domain (the "you should connect X" layer).
   const [suggestions, setSuggestions] = useState<{ name: string; reason: string }[]>([]);
   const [suggesting, setSuggesting] = useState(false);
-  // The connector catalog, used to resolve a suggested name to a real app id /
-  // integration (and its logo) when the user adds it straight to this domain.
-  const [catalog, setCatalog] = useState<CatalogApp[]>([]);
   const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
   const loadSuggestions = () => {
     invoke<Record<string, { items?: { name: string; reason: string }[] }>>("app_suggestions_read", { vault: vaultPath })
@@ -400,8 +339,6 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
   };
   useEffect(() => {
     invoke<EngineApp[]>("engine_apps_list", { vault: vaultPath }).then(setApps).catch(() => setApps([]));
-    invoke<Record<string, BrandLogo>>("ingestion_connector_logos").then(setLogos).catch(() => {});
-    invoke<ConnectorCatalog>("ingestion_connector_catalog").then((c) => setCatalog(c?.apps ?? [])).catch(() => {});
     loadSuggestions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domain]);
@@ -431,34 +368,17 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
   // connection. Adding to a domain and configuring the connection are two
   // separate steps: this scaffolds the app (unconfigured) and binds it here, so
   // it shows up under "apps refreshing this domain" with a "set up" action the
-  // user can do later (or never). Resolves the suggestion name against the
-  // catalog to reuse the real id / integration / logo when we know the app.
+  // user can do later (or never). The connection itself is set up on Apps.
   async function addSuggestionToDomain(name: string) {
     setAddingSuggestion(name);
     try {
-      const match = catalog.find((c) => c.name.toLowerCase() === name.toLowerCase())
-        || catalog.find((c) => (c.iconSlug || "").toLowerCase() === name.toLowerCase());
-      const id = ((match?.iconSlug || match?.name || name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48)) || "app";
-      const method = match?.connection_hint?.method || match?.via;
-      const integration = ((): string => {
-        switch ((method || "").toLowerCase()) {
-          case "mcp": case "composio": return "mcp";
-          case "api": return "api";
-          case "oauth": return "oauth";
-          case "browser": return "browser";
-          default: return "manual";
-        }
-      })();
-      const isMcp = match?.connection_hint?.method === "mcp";
-      const mcpCommand = isMcp ? match?.connection_hint?.command : undefined;
-      const mcpInstall = isMcp ? match?.connection_hint?.install : undefined;
+      const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "app";
       try {
-        await invoke("engine_app_add", { vault: vaultPath, id, title: match?.name ?? name, integration, domains: [domain], mcpCommand, mcpInstall });
+        await invoke("engine_app_add", { vault: vaultPath, id, title: name, integration: "manual", domains: [domain], mcpCommand: null, mcpInstall: null });
       } catch (e) {
         // Already scaffolded: just make sure it feeds this domain (below).
         if (!/already exists/i.test(String(e))) throw e;
       }
-      if (match?.soul) { try { await invoke("engine_app_set_soul", { id, soul: match.soul }); } catch { /* best-effort */ } }
       // If the app already existed under this id without this domain, bind it.
       const list = await invoke<EngineApp[]>("engine_apps_list", { vault: vaultPath }).catch(() => apps ?? []);
       const added = list.find((a) => a.id === id);
@@ -578,7 +498,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
               const adding = addingSuggestion === s.name;
               return (
               <div key={s.name} className="flex items-center gap-3 rounded-md px-1 py-1.5">
-                <BrandTile name={s.name} logos={logos} />
+                <BrandTile name={s.name} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-text-primary">{s.name}</div>
                   <div className="truncate text-[11px] text-text-muted">{s.reason}</div>
@@ -587,7 +507,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
                     set up the connection later from the app's config page. */}
                 <button
                   onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))}
-                  title={`Set up the ${s.name} connection in the Apps catalog`}
+                  title={`Set up the ${s.name} connection on Apps`}
                   className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-2 py-0.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
                 >
                   <SettingsIcon className="h-3 w-3" /> set up
@@ -636,7 +556,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
                 the dot pulses so the row visibly reads as "working". */}
             <button onClick={openConfig} title={`Open ${app.title} configuration`} className="group flex min-w-0 flex-1 items-center gap-3 text-left">
               <span className="relative shrink-0">
-                <AppRowLogo app={app} logos={logos} />
+                <AppRowLogo app={app} />
                 <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface ${syncing ? "pulse-soft" : ""}`} style={{ backgroundColor: syncing ? "var(--color-accent)" : tint }} title={syncing ? "syncing…" : app.status} />
               </span>
               <div className="min-w-0 flex-1">
@@ -997,285 +917,6 @@ export function ContextScorePanel({
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-export function IngestionTierCard({
-  tier,
-  mcp,
-  onRefresh,
-  onOpenMcpConfig,
-  onReloadMcp,
-}: {
-  tier: IngestionTierStatus;
-  mcp?: IngestionMcpServer[];
-  onRefresh: () => void;
-  onOpenMcpConfig?: () => void;
-  onReloadMcp?: () => void;
-}) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [composioKey, setComposioKey] = useState<string>("");
-  const [stderr, setStderr] = useState<Record<string, string>>({});
-  const [cliProviders, setCliProviders] = useState<CliProvider[]>([]);
-  const [cliProbe, setCliProbe] = useState<Record<string, boolean>>({});
-  const [cliMsg, setCliMsg] = useState<Record<string, string>>({});
-  // Each connector type is its own collapsible card so the page reads as
-  // clearly separated sections; open by default only when this tier is active
-  // (running or ready) so the user lands focused on what they actually use.
-  const [open, setOpen] = useState<boolean>(() => tier.active || tier.running > 0);
-  const TierIcon = tier.id === "tier_a_mcp" ? Plug : tier.id === "tier_b_composio" ? Boxes : tier.id === "tier_c_browser" ? Globe : Terminal;
-
-  // Tier D - load the bundled providers and probe which CLIs are installed.
-  useEffect(() => {
-    if (tier.id !== "tier_d_cli") return;
-    (async () => {
-      try {
-        const ps = await invoke<CliProvider[]>("ingestion_cli_providers");
-        setCliProviders(Array.isArray(ps) ? ps : []);
-        for (const p of ps) {
-          try {
-            const ok = await invoke<boolean>("ingestion_cli_probe", { providerId: p.id });
-            setCliProbe((c) => ({ ...c, [p.id]: ok }));
-          } catch { /* probe is best-effort */ }
-        }
-      } catch (e) { console.error(e); }
-    })();
-  }, [tier.id]);
-
-  async function cliRun(id: string) {
-    setBusy(`cli:${id}`);
-    setCliMsg((m) => ({ ...m, [id]: "" }));
-    try {
-      const r = await invoke<{ app: string; domain: string; bytes: number }>("ingestion_cli_run", { providerId: id });
-      setCliMsg((m) => ({ ...m, [id]: `Pulled ${r.bytes.toLocaleString()} bytes into ${titleCase(r.domain)}` }));
-      await onRefresh();
-    } catch (e) { setCliMsg((m) => ({ ...m, [id]: `${e}` })); }
-    setBusy(null);
-  }
-
-  async function peekStderr(name: string) {
-    try {
-      const text = await invoke<string>("ingestion_mcp_stderr", { name });
-      setStderr((cur) => ({ ...cur, [name]: text || "(empty)" }));
-    } catch (e) {
-      setStderr((cur) => ({ ...cur, [name]: `error: ${e}` }));
-    }
-  }
-
-  async function doMcp(name: string, action: "start" | "stop") {
-    setBusy(`${action}:${name}`);
-    try {
-      await invoke(action === "start" ? "ingestion_mcp_start" : "ingestion_mcp_stop", { name });
-      await onRefresh();
-    } catch (e) { console.error(e); }
-    setBusy(null);
-  }
-  async function setComposio() {
-    setBusy("composio:set");
-    try {
-      await invoke("ingestion_composio_set_key", { key: composioKey });
-      setComposioKey("");
-      await onRefresh();
-    } catch (e) { console.error(e); }
-    setBusy(null);
-  }
-  async function composioRun(action: "start" | "stop") {
-    setBusy(`composio:${action}`);
-    try {
-      await invoke(action === "start" ? "ingestion_composio_start" : "ingestion_composio_stop");
-      await onRefresh();
-    } catch (e) { console.error(e); }
-    setBusy(null);
-  }
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
-      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-3 p-5 text-left">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <ChevronRight className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
-          <TierIcon className="h-4 w-4 shrink-0 text-text-muted" />
-          <div className="min-w-0">
-            <div className="font-display text-base font-semibold tracking-tight">{tier.label}</div>
-            <div className="mt-0.5 font-mono text-[11px] text-text-muted">{tier.state}</div>
-          </div>
-        </div>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${
-          tier.active
-            ? tier.running > 0
-              ? "border border-accent-border bg-accent-soft text-accent"
-              : "border border-border bg-background text-text-secondary"
-            : "border border-border bg-background text-text-muted"
-        }`}>
-          {tier.running > 0 ? `running · ${tier.running}` : tier.active ? "ready" : "inactive"}
-        </span>
-      </button>
-      {open && (
-      <div className="border-t border-border-subtle px-5 pb-5 pt-4">
-      {tier.last_error && (
-        <div className="mt-3 rounded border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
-          {tier.last_error}
-        </div>
-      )}
-
-      {/* Tier A - MCP server list */}
-      {tier.id === "tier_a_mcp" && mcp && (
-        <div className="mt-4">
-          <div className="mb-3 flex items-center gap-2">
-            <button
-              onClick={onOpenMcpConfig}
-              className="rounded border border-border bg-background px-2 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
-            >
-              edit mcp_config.json
-            </button>
-            <button
-              onClick={onReloadMcp}
-              className="rounded border border-border bg-background px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
-            >
-              reload
-            </button>
-            <span className="font-mono text-[11px] text-text-muted">
-              ~/Library/Application Support/Prevail/
-            </span>
-          </div>
-          {mcp.length === 0 ? (
-            <p className="text-xs text-text-muted">
-              No servers in config yet. Click "edit mcp_config.json" to create / edit.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-1.5">
-              {mcp.map((s) => (
-                <li key={s.name} className="flex items-center gap-3 rounded-md border border-border-subtle bg-background px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm text-text-primary">{s.name}</span>
-                      {s.running && s.pid != null && (
-                        <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent">pid {s.pid}</span>
-                      )}
-                    </div>
-                    <div className="font-mono text-[11px] text-text-muted">
-                      {s.command} {s.args.join(" ")}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {s.running && (
-                      <button
-                        onClick={() => peekStderr(s.name)}
-                        className="rounded border border-border bg-background px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
-                      >
-                        stderr
-                      </button>
-                    )}
-                    <button
-                      onClick={() => doMcp(s.name, s.running ? "stop" : "start")}
-                      disabled={busy?.endsWith(s.name) === true}
-                      className={`rounded border px-2 py-1 text-[11px] transition-colors ${
-                        s.running
-                          ? "border-border bg-background text-text-muted hover:border-warn hover:text-warn"
-                          : "border-accent-border bg-accent-soft text-accent hover:bg-accent hover:text-background"
-                      }`}
-                    >
-                      {s.running ? "stop" : "start"}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          {Object.entries(stderr).map(([name, text]) => (
-            <pre key={name} className="mt-2 max-h-32 overflow-auto rounded border border-border-subtle bg-background px-3 py-2 font-mono text-[10px] leading-relaxed text-text-secondary">
-              {`${name}:\n${text}`}
-            </pre>
-          ))}
-        </div>
-      )}
-
-      {/* Tier B - Composio key input + start */}
-      {tier.id === "tier_b_composio" && (
-        <div className="mt-4 flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <input
-              type="password"
-              value={composioKey}
-              onChange={(e) => setComposioKey(e.target.value)}
-              placeholder="COMPOSIO_API_KEY (stored in macOS keychain)"
-              className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-accent-border focus:outline-none"
-            />
-            <button
-              onClick={setComposio}
-              disabled={!composioKey.trim() || busy === "composio:set"}
-              className="rounded-md border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
-            >
-              save key
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => composioRun("start")}
-              disabled={!tier.active || tier.running > 0 || busy === "composio:start"}
-              className="rounded border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
-            >
-              start gateway
-            </button>
-            <button
-              onClick={() => composioRun("stop")}
-              disabled={tier.running === 0 || busy === "composio:stop"}
-              className="rounded border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-warn hover:text-warn disabled:opacity-50"
-            >
-              stop
-            </button>
-            <span className="font-mono text-[11px] text-text-muted">
-              spawns <code className="text-accent">npx @composio/mcp</code>
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Tier C - described inline; run UI is in IngestionBrowserRunner below */}
-      {tier.id === "tier_c_browser" && (
-        <p className="mt-3 text-xs text-text-muted">
-          Run a portal automation below. Browser opens in headed mode with a persistent profile per (domain, portal). Downloads are intercepted into the domain's <code className="text-accent">imports/</code> folder.
-        </p>
-      )}
-
-      {/* Tier D - official CLI connectors. Read-only pull of an installed CLI. */}
-      {tier.id === "tier_d_cli" && (
-        <div className="mt-4 flex flex-col gap-2">
-          <p className="text-xs text-text-muted">
-            Pull from a first-party CLI you have already installed and signed into. Runs a read-only command; output lands in the domain's <code className="text-accent">imports/</code> folder.
-          </p>
-          {cliProviders.length === 0 ? (
-            <p className="text-xs text-text-muted">No CLI providers bundled.</p>
-          ) : (
-            cliProviders.map((p) => {
-              const installed = cliProbe[p.id];
-              return (
-                <div key={p.id} className="flex items-center gap-3 rounded-md border border-border-subtle bg-background px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-text-primary">{p.label}</span>
-                      <span className="font-mono text-[11px] text-text-muted">→ {titleCase(p.domain)}</span>
-                      {installed === true && <span className="font-mono text-[11px] text-accent">Installed</span>}
-                      {installed === false && <span className="font-mono text-[11px] text-text-muted/60">not found on PATH</span>}
-                    </div>
-                    <div className="font-mono text-[11px] text-text-muted">{p.binary} {p.fetch_args.join(" ")}</div>
-                    {cliMsg[p.id] && <div className="mt-0.5 text-[11px] text-text-muted">{cliMsg[p.id]}</div>}
-                  </div>
-                  <button
-                    onClick={() => cliRun(p.id)}
-                    disabled={busy === `cli:${p.id}` || installed === false}
-                    className="shrink-0 rounded border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
-                  >
-                    {busy === `cli:${p.id}` ? "Pulling" : "Pull"}
-                  </button>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-      </div>
       )}
     </div>
   );

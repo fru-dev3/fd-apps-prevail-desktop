@@ -361,10 +361,6 @@ export interface BoardTask { domain: string; text: string; done: boolean; due?: 
 // a loop approval or an AI task awaiting review.
 export interface DecisionItem { id: string; domain: string; kind: "approval" | "review"; source: "loop" | "task"; loopId?: string; taskId?: string | null; text: string; why?: string | null; ts: number }
 
-export type AppRun = { ts: number; ok: boolean; skill: string; summary?: string; error?: string; duration_ms: number; artifacts: number };
-
-export type AppRunHistory = { runs: AppRun[]; nextDueTs: number | null; consecutiveFailures: number };
-
 export interface UsageBucket {
   key: string;
   turns: number;
@@ -473,12 +469,6 @@ export type DaemonStatus = { running?: boolean; last_run_ts?: number | null; las
 
 export type DirectProvider = { name: string; path?: string; hex?: string; mono?: string };
 
-export type ConnectionHint = { method: string; server?: string; command?: string; install?: string; privacy?: "local" | "vendor-cloud"; readOnly?: boolean; note?: string };
-export type CatalogSkill = { id: string; title: string; description: string };
-export type CatalogApp = { name: string; domain: string; tags?: string[]; pattern: string; fallback?: string; via?: string; note?: string; tier?: number; sources?: string[]; verified?: boolean; obscure?: boolean; iconSlug?: string; curated?: boolean; soul?: string; skills?: CatalogSkill[]; connection_hint?: ConnectionHint };
-
-export type BrandLogo = { hex: string; path: string };
-
 export type EngineApp = {
   id: string; title: string; integration: string; status: string; configured: boolean;
   domains: string[]; lastSuccessTs: number | null; lastError: string | null;
@@ -518,8 +508,6 @@ export type EngineApp = {
   mcpSetup?: { install?: string; command?: string } | null;
 };
 
-export type ConnectorCatalog = { version: number; domains?: string[]; apps: CatalogApp[]; patterns?: Record<string, { tier: string; label: string }> };
-
 export type AlignmentReport = { method: string; overall: number; pillars: { pillar: string; score: number; trend: string; rationale: string }[]; actions: string[] };
 
 export type PreambleOption = { id: string; label: string; blurb: string; instruction?: string };
@@ -534,55 +522,7 @@ export interface SkillEntry {
   enabled?: boolean;
 }
 
-export interface IngestionTierStatus {
-  id: string;
-  label: string;
-  state: string;
-  active: boolean;
-  running: number;
-  last_error: string | null;
-}
-
-export interface IngestionMcpServer {
-  name: string;
-  command: string;
-  args: string[];
-  running: boolean;
-  pid: number | null;
-}
-
-export interface IngestionArtifact {
-  tier_id: string;
-  domain: string;
-  source: string;
-  path: string;
-  sha256: string;
-  size: number;
-  original: string;
-  ts: number;
-}
-
 export type CliProvider = { id: string; label: string; app: string; domain: string; binary: string; version_args: string[]; fetch_args: string[] };
-
-export type IngestionAction =
-  | { type: "goto"; url: string; wait_until?: string }
-  | { type: "click"; selector: string; timeout_sec?: number }
-  | { type: "wait_for"; selector: string; timeout_sec?: number }
-  | { type: "select_option"; selector: string; value: string }
-  | { type: "download_all_links"; selector: string; max?: number }
-  | { type: "sleep"; seconds: number };
-
-export interface IngestionAuditEntry {
-  type: string;
-  tier_id?: string;
-  source?: string;
-  domain?: string;
-  sha256?: string;
-  size?: number;
-  ts?: number;
-  path?: string;
-  older_than_days?: number;
-}
 
 export type DiagCheck = { label: string; status: "ok" | "warn" | "fail" | "info"; detail: string; why: string };
 

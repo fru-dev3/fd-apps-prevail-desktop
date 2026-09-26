@@ -23,7 +23,7 @@ import { BrandMark } from "./brandmark";
 import { DomainStatusBar } from "./chatviews";
 import { ContextCanvas, DomainContextDrawer } from "./domainpanels";
 import { AppRowLogo } from "./panels3";
-import type { BrandLogo, CliInfo, Domain, DomainContextBundle, EngineApp, ModelPick, PanelistReply, PanelistSlot, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
+import type { CliInfo, Domain, DomainContextBundle, EngineApp, ModelPick, PanelistReply, PanelistSlot, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 
 export function CouncilPanel({
@@ -342,7 +342,6 @@ export function CouncilPanel({
   const [mentionDomains, setMentionDomains] = useState<Domain[]>([]);
   const [appsCache, setAppsCache] = useState<EngineApp[]>([]);
   const [allSkills, setAllSkills] = useState<SkillEntry[]>([]);
-  const [logos, setLogos] = useState<Record<string, BrandLogo>>({});
   useEffect(() => {
     if (!_vaultPath) { setMentionDomains([]); setAllSkills([]); return; }
     invoke<Domain[]>("scan_vault", { path: _vaultPath }).then((v) => setMentionDomains(Array.isArray(v) ? v : [])).catch(() => setMentionDomains([]));
@@ -356,7 +355,6 @@ export function CouncilPanel({
     window.addEventListener("prevail:apps-changed", load);
     return () => window.removeEventListener("prevail:apps-changed", load);
   }, [_vaultPath]);
-  useEffect(() => { invoke<Record<string, BrandLogo>>("ingestion_connector_logos").then(setLogos).catch(() => {}); }, []);
   // Attach a connected app as context (mirror of attachCouncilDomain - council
   // had no app-attach before). Compact identity card, same as Chat.
   const attachCouncilApp = useCallback(async (id: string) => {
@@ -456,7 +454,7 @@ export function CouncilPanel({
     const appTitle = label.startsWith("auto-app:") ? label.slice("auto-app:".length).replace(/\s+skill\s*$/i, "").trim()
       : label.startsWith("app:") ? label.slice("app:".length).trim()
       : null;
-    if (appTitle) return <AppRowLogo app={{ title: appTitle }} logos={logos} size={14} fallback="letter" />;
+    if (appTitle) return <AppRowLogo app={{ title: appTitle }} size={14} fallback="letter" />;
     const dom = label.match(/^(?:auto|extra(?:\s*\([^)]*\))?):\s*([^/]+)/);
     if (dom) { const I = domainIcon(dom[1].trim().toLowerCase()); return I ? <I className="h-3 w-3" /> : <Layers className="h-3 w-3" />; }
     return <BookOpen className="h-3 w-3" />;
@@ -1289,7 +1287,7 @@ export function CouncilPanel({
                 className={`flex w-full items-start gap-2 px-3 py-1.5 text-left ${i === dollarIdx ? "bg-accent-soft" : "hover:bg-surface-warm"}`}>
                 {c.kind === "domain"
                   ? (() => { const I = domainIcon(c.id); return I ? <I className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted" /> : <Layers className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted" />; })()
-                  : <AppRowLogo app={{ id: c.id, title: c.label }} logos={logos} size={18} fallback="letter" />}
+                  : <AppRowLogo app={{ id: c.id, title: c.label }} size={18} fallback="letter" />}
                 <div className="min-w-0">
                   <div className={`font-mono text-xs ${i === dollarIdx ? "text-accent" : "text-text-primary"}`}>${c.id}</div>
                   <div className="line-clamp-1 text-[10px] text-text-muted">{c.kind === "domain" ? "domain · attaches state.md" : `app · ${c.sub ?? "context card"}`}</div>

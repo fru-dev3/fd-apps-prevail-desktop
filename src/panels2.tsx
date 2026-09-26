@@ -275,21 +275,3 @@ export function PreambleColumn({
     </div>
   );
 }
-
-// Browser automation moved to the agentic Apps lane (connectors browser-learn /
-// browser-replay in the engine, surfaced by ConnectorRunPanel). The old per-
-// portal manual runner (desktop-side Playwright, tier_c) has been retired in
-// favor of one engine-owned browser path. This stub keeps the Settings tab a
-// pointer rather than a dead end.
-export function IngestionBrowserRunner() {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-4 text-sm text-text-secondary">
-      <div className="mb-1 font-medium text-text-primary">Browser sync moved to Apps</div>
-      <p className="text-[13px] text-text-muted">
-        Per-portal browser automation now lives under <span className="font-medium text-text-secondary">Apps</span>. Connect an
-        app on the browser lane, then use <span className="font-medium text-text-secondary">Connect &amp; learn</span> to log in
-        once and let the agent record the steps; later syncs replay automatically with no AI.
-      </p>
-    </div>
-  );
-}

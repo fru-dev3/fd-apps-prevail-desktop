@@ -5,7 +5,7 @@ import { Compass, Sigma, Target } from "lucide-react";
 import { useAppearance } from "./hooks";
 import { SettingsHeader } from "./sectionutil";
 import { ProviderMark } from "./marks";
-import { FrameworksSection, IngestionSection, RemoteSection, ShortcutsSection } from "./settings1";
+import { FrameworksSection, RemoteSection, ShortcutsSection } from "./settings1";
 import { PhoneSection } from "./remotepair";
 import { DaemonsSection, MemoryContextSection, SkillsSection } from "./settings2";
 import { AppsMirrorPanel } from "./appsmirror";
@@ -53,7 +53,7 @@ export function SettingsPanel({
   onVaultMoved?: (path: string) => void;
   jumpTo?: { section: string; n: number } | null;
 }) {
-  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intent" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "ingestion" | "usage";
+  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intent" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "usage";
   // Editor lands on General. The operational surfaces (Work board / Insights /
   // Spark) moved to Work mode, so Editor opens on a config page. A specific
   // jumpTo (e.g. "connectors") still wins.
@@ -166,7 +166,6 @@ export function SettingsPanel({
           {section === "activity" && <SystemActivity vaultPath={vaultPath} />}
           {section === "intent" && <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5"><MirrorPanel vaultPath={vaultPath} /></div>}
           {section === "tools" && <ToolsPanel />}
-          {section === "ingestion" && <IngestionSection />}
           {section === "loopboard" && <LoopBoard vaultPath={vaultPath} />}
           {section === "council" && <CouncilSettingsSection clis={clis} />}
           {section === "connectors" && <AppsMirrorPanel vaultPath={vaultPath} />}
