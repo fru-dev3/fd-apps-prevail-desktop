@@ -317,8 +317,9 @@ export function migrateModelPrefs() {
     }
     const ALIAS_REMAP: Record<string, string> = {
       // Concrete ids folded into their auto-upgrading aliases (one entry per
-      // model in the picker). opus -> claude-opus-5 now (4.8 is its own pinned pick).
-      "claude-opus-5": "opus",
+      // model in the picker). opus -> claude-opus-5-5 now (Opus 5 and 4.8 are
+      // their own pinned picks).
+      "claude-opus-5-5": "opus",
       "claude-fable-5-1": "fable",
       "claude-sonnet-5": "sonnet",
       "claude-haiku-4-5": "haiku",

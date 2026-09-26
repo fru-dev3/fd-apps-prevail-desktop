@@ -140,9 +140,10 @@ export const MODELS: Record<string, ModelPick[]> = {
     // these run the right model; bump the label when Anthropic ships a new one.
     // Claude Code exposes no machine-readable model list (verified), so this is a
     // curated list by necessity.
-    { id: "opus",            label: "Opus 5",    blurb: "flagship · complex tasks", resolved: "claude-opus-5" },
+    { id: "opus",            label: "Opus 5.5",  blurb: "flagship · complex tasks", resolved: "claude-opus-5-5" },
     { id: "fable",           label: "Fable 5.1", blurb: "most capable · long-horizon work", resolved: "claude-fable-5-1" },
-    { id: "claude-opus-4-8", label: "Opus 4.8",  blurb: "previous flagship" },
+    { id: "claude-opus-5",   label: "Opus 5",    blurb: "previous flagship" },
+    { id: "claude-opus-4-8", label: "Opus 4.8",  blurb: "legacy flagship" },
     { id: "claude-opus-4-7", label: "Opus 4.7",  blurb: "legacy flagship" },
     { id: "claude-opus-4-6", label: "Opus 4.6",  blurb: "legacy flagship" },
     { id: "claude-fable-5",  label: "Fable 5",   blurb: "previous frontier" },
@@ -150,25 +151,31 @@ export const MODELS: Record<string, ModelPick[]> = {
     { id: "haiku",           label: "Haiku 4.5", blurb: "fast + cheap", resolved: "claude-haiku-4-5" },
   ],
   codex: [
-    // GPT-5.6 family (GA 2026-07-09): three tiers — Sol (flagship), Terra
-    // (balanced/cheaper), Luna (fastest/cheapest) — each accepting a reasoning
+    // GPT-6 family: Astra (flagship, GA 2026-09-03), then Sol (everyday
+    // default) and Luna (fastest/cheapest), both GA 2026-09-22. There is no
+    // GPT-6 Terra, so GPT-5.6 Terra stays as the balanced tier. The older 5.6
+    // tiers stay listed so a saved pick is never reset. Each accepts a reasoning
     // effort. The "@<effort>" suffix is parsed in cli_args() (lib.rs) into
     // `-c model_reasoning_effort=<effort>`; minimal effort 400s, so only
     // default / medium / high are offered.
     // NOTE on Codex-with-ChatGPT-login: which models this account accepts is
-    // ACCOUNT-SPECIFIC. 5.6 is confirmed working on the production Codex login;
-    // some accounts return 400 "model not supported" until the rollout reaches
-    // them (older codex CLIs / lower plan tiers). gpt-5.5 is kept as a fallback
-    // for those accounts.
+    // ACCOUNT-SPECIFIC. GPT-6 Sol/Astra/Luna are confirmed working on the
+    // production Codex login (2026-09-25); some accounts return 400 "model not
+    // supported" until the rollout reaches them (older codex CLIs / lower plan
+    // tiers). The 5.6 tiers and gpt-5.5 are kept as fallbacks for those accounts.
     { id: "auto",             label: "Auto",              blurb: "route to the best model" },
-    { id: "gpt-5.6-sol",      label: "GPT-5.6 Sol",       blurb: "Codex default · fast" },
+    { id: "gpt-6-sol",        label: "GPT-6 Sol",         blurb: "Codex default · fast" },
+    { id: "gpt-6-sol@medium", label: "GPT-6 Sol (medium)", blurb: "balanced reasoning" },
+    { id: "gpt-6-sol@high",   label: "GPT-6 Sol (high)",  blurb: "more reasoning" },
     { id: "gpt-6-astra",      label: "GPT-6 Astra",       blurb: "flagship · most capable" },
     { id: "gpt-6-astra@high", label: "GPT-6 Astra (high)", blurb: "flagship · max reasoning" },
-    { id: "gpt-5.6-sol@medium", label: "GPT-5.6 Sol (medium)", blurb: "flagship · balanced reasoning" },
-    { id: "gpt-5.6-sol@high", label: "GPT-5.6 Sol (high)", blurb: "flagship · max reasoning" },
+    { id: "gpt-6-luna",       label: "GPT-6 Luna",        blurb: "fastest · cheapest" },
     { id: "gpt-5.6-terra",    label: "GPT-5.6 Terra",     blurb: "balanced · lower cost" },
     { id: "gpt-5.6-terra@high", label: "GPT-5.6 Terra (high)", blurb: "balanced · more reasoning" },
-    { id: "gpt-5.6-luna",     label: "GPT-5.6 Luna",      blurb: "fastest · cheapest" },
+    { id: "gpt-5.6-sol",      label: "GPT-5.6 Sol",       blurb: "previous default" },
+    { id: "gpt-5.6-sol@medium", label: "GPT-5.6 Sol (medium)", blurb: "previous · balanced reasoning" },
+    { id: "gpt-5.6-sol@high", label: "GPT-5.6 Sol (high)", blurb: "previous · max reasoning" },
+    { id: "gpt-5.6-luna",     label: "GPT-5.6 Luna",      blurb: "previous fast tier" },
     { id: "gpt-5.5",          label: "GPT-5.5",           blurb: "previous flagship (fallback)" },
     { id: "gpt-5.5@high",     label: "GPT-5.5 (high)",    blurb: "previous · max reasoning" },
   ],
@@ -192,21 +199,28 @@ export const MODELS: Record<string, ModelPick[]> = {
     { id: "mistral",  label: "Mistral 7B", blurb: "local · mistral" },
   ],
   openrouter: [
-    // Ids verified live against openrouter.ai/api/v1/models on 2026-09-11.
-    { id: "anthropic/claude-opus-5",         label: "Claude Opus 5",     blurb: "flagship · via OpenRouter" },
+    // Ids verified live against openrouter.ai/api/v1/models on 2026-09-25. The
+    // models they replaced stay at the bottom so a saved pick is never reset.
+    { id: "anthropic/claude-opus-5.5",       label: "Claude Opus 5.5",   blurb: "flagship · via OpenRouter" },
     { id: "anthropic/claude-fable-5.1",      label: "Claude Fable 5.1",  blurb: "most capable · via OpenRouter" },
     { id: "anthropic/claude-sonnet-5",       label: "Claude Sonnet 5",   blurb: "via OpenRouter" },
     { id: "openai/gpt-6-astra",              label: "GPT-6 Astra",       blurb: "flagship · via OpenRouter" },
-    { id: "openai/gpt-5.6-sol",              label: "GPT-5.6 Sol",       blurb: "via OpenRouter" },
+    { id: "openai/gpt-6-sol",                label: "GPT-6 Sol",         blurb: "via OpenRouter" },
+    { id: "openai/gpt-6-luna",               label: "GPT-6 Luna",        blurb: "fast + cheap · via OpenRouter" },
     { id: "openai/gpt-5.6-terra",            label: "GPT-5.6 Terra",     blurb: "balanced · via OpenRouter" },
-    { id: "openai/gpt-5.6-luna",             label: "GPT-5.6 Luna",      blurb: "fast + cheap · via OpenRouter" },
     { id: "google/gemini-3.8-flash",         label: "Gemini 3.8 Flash",  blurb: "via OpenRouter" },
-    { id: "x-ai/grok-4.6",                   label: "Grok 4.6",          blurb: "via OpenRouter" },
+    { id: "x-ai/grok-4.7",                   label: "Grok 4.7",          blurb: "via OpenRouter" },
     { id: "moonshotai/kimi-k3",              label: "Kimi K3",           blurb: "via OpenRouter" },
     { id: "deepseek/deepseek-v4-pro-0813",   label: "DeepSeek V4 Pro",   blurb: "via OpenRouter" },
-    { id: "qwen/qwen3.8-max-0902",           label: "Qwen3.8 Max",       blurb: "via OpenRouter" },
-    { id: "z-ai/glm-5.3",                    label: "GLM 5.3",           blurb: "via OpenRouter" },
+    { id: "qwen/qwen3.8-max-prime",          label: "Qwen3.8 Max Prime", blurb: "via OpenRouter" },
+    { id: "z-ai/glm-5.3-prime",              label: "GLM 5.3 Prime",     blurb: "via OpenRouter" },
     { id: "meta-llama/llama-4-maverick",     label: "Llama 4 Maverick",  blurb: "via OpenRouter" },
+    { id: "anthropic/claude-opus-5",         label: "Claude Opus 5",     blurb: "previous · via OpenRouter" },
+    { id: "openai/gpt-5.6-sol",              label: "GPT-5.6 Sol",       blurb: "previous · via OpenRouter" },
+    { id: "openai/gpt-5.6-luna",             label: "GPT-5.6 Luna",      blurb: "previous · via OpenRouter" },
+    { id: "x-ai/grok-4.6",                   label: "Grok 4.6",          blurb: "previous · via OpenRouter" },
+    { id: "qwen/qwen3.8-max-0902",           label: "Qwen3.8 Max",       blurb: "previous · via OpenRouter" },
+    { id: "z-ai/glm-5.3",                    label: "GLM 5.3",           blurb: "previous · via OpenRouter" },
   ],
 };
 
@@ -229,7 +243,7 @@ export const DEAD_MODELS = new Set([
 // pin to a Codex model (the old behaviour) changed the domain's vendor.
 export const DEAD_MODEL_REPLACEMENT: Record<string, string> = {
   claude: "opus",
-  codex: "gpt-5.6-sol",
+  codex: "gpt-6-sol",
   antigravity: "Gemini 3.8 Flash (High)",
 };
 
