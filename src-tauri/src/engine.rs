@@ -1761,6 +1761,12 @@ pub fn engine_app_remove(id: String) -> Result<serde_json::Value, String> {
 /// nothing's been synced yet.
 #[tauri::command]
 pub fn app_data_files(vault: String, app_id: String) -> Result<Vec<serde_json::Value>, String> {
+    // The id is joined into a path and the result is walked recursively, so an
+    // id like "../../../../.." listed (and sized) any `data/` directory on the
+    // disk. Ids are slugs; refuse anything that is not one.
+    if !is_safe_app_id(&app_id) {
+        return Err(format!("invalid app id: {app_id}"));
+    }
     let base = crate::paths::data_root(&vault).join("apps").join(&app_id).join("data");
     fn walk(dir: &std::path::Path, base: &std::path::Path, out: &mut Vec<serde_json::Value>) {
         let Ok(rd) = std::fs::read_dir(dir) else { return };
@@ -1783,6 +1789,15 @@ pub fn app_data_files(vault: String, app_id: String) -> Result<Vec<serde_json::V
     walk(&base, &base, &mut out);
     out.sort_by(|a, b| b["mtime"].as_u64().unwrap_or(0).cmp(&a["mtime"].as_u64().unwrap_or(0)));
     Ok(out)
+}
+
+/// One path segment that names an app: `[A-Za-z0-9._-]`, not starting with a
+/// dot (so never `.`, `..` or a hidden dir), and not absolute.
+pub(crate) fn is_safe_app_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && !id.starts_with('.')
+        && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
 }
 
 /// Run an OAuth app's sign-in flow (`connectors oauth <id>`): opens the browser
@@ -3570,5 +3585,21 @@ mod vault_key_state_tests {
         let args2 = build_engine_chat_argv("/v", "general", Some(""), Some(""), false);
         assert!(!args2.iter().any(|a| a == "--cli"));
         assert!(!args2.iter().any(|a| a == "--model"));
+    }
+}
+
+#[cfg(test)]
+mod app_id_tests {
+    use super::*;
+
+    #[test]
+    fn app_data_files_refuses_an_id_that_leaves_the_apps_folder() {
+        assert!(is_safe_app_id("google"));
+        assert!(is_safe_app_id("composio-notion"));
+        assert!(is_safe_app_id("fru.dev"));
+        for bad in ["", ".", "..", "../../../../..", "a/b", "/Users/x", ".ssh", "a\\b"] {
+            assert!(!is_safe_app_id(bad), "{bad:?} must be refused");
+        }
+        assert!(app_data_files("/tmp/v".into(), "../../../..".into()).is_err());
     }
 }

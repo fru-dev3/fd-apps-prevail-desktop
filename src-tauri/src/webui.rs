@@ -175,10 +175,59 @@ fn vault_scoped_write_ok(args: &serde_json::Value) -> bool {
 /// only when the result is inside the vault.
 fn vault_path_arg(args: &serde_json::Value) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
     let raw = args.get("path").and_then(|v| v.as_str())?;
-    let vault = crate::appcmds::bootstrap_vault()?;
-    let root = std::fs::canonicalize(&vault).ok()?;
+    let root = active_vault_root()?;
     let target = resolve_existing_prefix(std::path::Path::new(raw))?;
     if path_inside(&root, &target) { Some((root, target)) } else { None }
+}
+
+/// The Mac's active vault, canonicalized.
+fn active_vault_root() -> Option<std::path::PathBuf> {
+    let vault = crate::appcmds::bootstrap_vault()?;
+    std::fs::canonicalize(&vault).ok()
+}
+
+/// Argument names (as the frontend sends them, camelCase, plus the snake_case
+/// spelling Tauri also accepts) that carry a filesystem location.
+const WEBUI_PATH_ARGS: &[&str] = &["path", "runDir", "run_dir", "destDir", "dest_dir"];
+/// Commands whose `path` is not a vault path and is validated by the command
+/// itself (transcribe_audio only accepts its own upload staging dir).
+const WEBUI_OWN_PATH_CHECK: &[&str] = &["transcribe_audio"];
+
+/// Nearly every allowlisted command takes the vault (or a file inside it) as a
+/// plain argument and trusts it. Allowlisting the command name alone therefore
+/// let a signed-in web client aim it anywhere: `delete_thread` could remove any
+/// `*.md` under any `threads/` folder on the disk, `read_skill` could read any
+/// README.md, `skill_create` / `save_thread` / `tasks_set` / `journal_append`
+/// could write into any directory the app can reach. Pin them at the boundary:
+/// a `vault` argument must BE the active vault, and every path argument must
+/// resolve inside it.
+fn web_args_pinned_to_vault(cmd: &str, args: &serde_json::Value, root: Option<&std::path::Path>) -> bool {
+    let Some(obj) = args.as_object() else { return true };
+    let str_arg = |k: &str| obj.get(k).and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+    let vault_keys = obj.get("vault").map(|v| !v.is_null()).unwrap_or(false);
+    let path_keys: Vec<&str> = WEBUI_PATH_ARGS.iter().copied()
+        .filter(|k| !(*k == "path" && WEBUI_OWN_PATH_CHECK.contains(&cmd)))
+        .filter(|k| obj.get(*k).map(|v| !v.is_null()).unwrap_or(false))
+        .collect();
+    if !vault_keys && path_keys.is_empty() {
+        return true;
+    }
+    let Some(root) = root else { return false };
+    if vault_keys {
+        let Some(v) = str_arg("vault") else { return false };
+        match resolve_existing_prefix(std::path::Path::new(v)) {
+            Some(t) if t == root => {}
+            _ => return false,
+        }
+    }
+    for k in path_keys {
+        let Some(v) = str_arg(k) else { return false };
+        match resolve_existing_prefix(std::path::Path::new(v)) {
+            Some(t) if path_inside(root, &t) => {}
+            _ => return false,
+        }
+    }
+    true
 }
 
 /// Canonicalize as much of `p` as exists and re-append the rest. Any `..`
@@ -1026,6 +1075,7 @@ fn handle(
             vault_scoped_write_ok(&r.args)
         } else {
             WEBUI_ALLOWED.contains(&r.cmd.as_str())
+                && web_args_pinned_to_vault(&r.cmd, &r.args, active_vault_root().as_deref())
         };
         if !allowed {
             let _ = req.respond(json_response(403, &serde_json::json!({ "error": format!("command '{}' is not permitted over the WebUI", r.cmd) })));
@@ -1378,6 +1428,38 @@ mod tests {
         assert!(resolve_existing_prefix(std::path::Path::new("/tmp/../etc/passwd")).is_none());
         // So is a relative path.
         assert!(resolve_existing_prefix(std::path::Path::new("notes.json")).is_none());
+    }
+
+    #[test]
+    fn web_commands_cannot_be_aimed_outside_the_active_vault() {
+        let tmp = std::env::temp_dir().join(format!("prevail-webpin-{}", std::process::id()));
+        let vault = tmp.join("Vault");
+        std::fs::create_dir_all(vault.join("data/domains/health/memory/threads")).unwrap();
+        std::fs::create_dir_all(tmp.join("Other/threads")).unwrap();
+        let root = std::fs::canonicalize(&vault).unwrap();
+        let v = root.to_string_lossy().to_string();
+        let other = std::fs::canonicalize(tmp.join("Other")).unwrap().to_string_lossy().to_string();
+        let r = Some(root.as_path());
+        // Legitimate calls: the active vault, and paths inside it.
+        assert!(web_args_pinned_to_vault("tasks_set", &serde_json::json!({ "vault": v, "domain": "health" }), r));
+        assert!(web_args_pinned_to_vault("delete_thread", &serde_json::json!({ "path": format!("{v}/data/domains/health/memory/threads/x.md") }), r));
+        assert!(web_args_pinned_to_vault("engine_apps_list", &serde_json::json!({ "vault": null }), r));
+        assert!(web_args_pinned_to_vault("vault_backups_list", &serde_json::json!({ "destDir": null }), r));
+        assert!(web_args_pinned_to_vault("webui_status", &serde_json::json!({}), r));
+        // Another directory named as the vault, a subfolder posing as the vault,
+        // or a path outside it: refused.
+        assert!(!web_args_pinned_to_vault("skill_create", &serde_json::json!({ "vault": other, "name": "x", "body": "y" }), r));
+        assert!(!web_args_pinned_to_vault("skill_create", &serde_json::json!({ "vault": format!("{v}/data") }), r));
+        assert!(!web_args_pinned_to_vault("delete_thread", &serde_json::json!({ "path": format!("{other}/threads/x.md") }), r));
+        assert!(!web_args_pinned_to_vault("read_skill", &serde_json::json!({ "path": "/Users/x/project" }), r));
+        assert!(!web_args_pinned_to_vault("benchmark_run_detail", &serde_json::json!({ "runDir": "/tmp/benchmark/run" }), r));
+        assert!(!web_args_pinned_to_vault("load_thread", &serde_json::json!({ "path": format!("{v}/../Other/threads/x.md") }), r));
+        assert!(!web_args_pinned_to_vault("tasks_set", &serde_json::json!({ "vault": 7 }), r));
+        // No active vault: anything that names a location is refused.
+        assert!(!web_args_pinned_to_vault("tasks_set", &serde_json::json!({ "vault": v }), None));
+        // transcribe_audio validates its own staging path.
+        assert!(web_args_pinned_to_vault("transcribe_audio", &serde_json::json!({ "path": "/tmp/prevail-upload/a.webm" }), r));
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

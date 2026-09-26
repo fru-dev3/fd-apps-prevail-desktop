@@ -49,11 +49,11 @@ pub(crate) async fn telegram_send(
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("telegram request failed: {e}"))?;
+        .map_err(|e| format!("telegram request failed: {}", e.without_url()))?;
     let v: serde_json::Value = resp
         .json()
         .await
-        .map_err(|e| format!("parse response: {e}"))?;
+        .map_err(|e| format!("parse response: {}", e.without_url()))?;
     let ok = v.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
     let desc = v.get("description").and_then(|x| x.as_str()).map(String::from);
     Ok(TelegramResult { ok, description: desc })

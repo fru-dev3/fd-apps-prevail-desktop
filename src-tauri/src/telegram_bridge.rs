@@ -418,8 +418,8 @@ async fn download_tg_file(token: &str, file_id: &str) -> Result<std::path::PathB
     let resp = reqwest::Client::new()
         .get(&info_url)
         .timeout(std::time::Duration::from_secs(30))
-        .send().await.map_err(|e| format!("getFile: {e}"))?;
-    let body = resp.text().await.map_err(|e| format!("getFile body: {e}"))?;
+        .send().await.map_err(|e| format!("getFile: {}", e.without_url()))?;
+    let body = resp.text().await.map_err(|e| format!("getFile body: {}", e.without_url()))?;
     let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| format!("getFile json: {e}"))?;
     let file_path = v.get("result").and_then(|r| serde_json::from_value::<TgFilePath>(r.clone()).ok())
         .and_then(|f| f.file_path)
@@ -428,8 +428,8 @@ async fn download_tg_file(token: &str, file_id: &str) -> Result<std::path::PathB
     let bytes = reqwest::Client::new()
         .get(&dl_url)
         .timeout(std::time::Duration::from_secs(60))
-        .send().await.map_err(|e| format!("download: {e}"))?
-        .bytes().await.map_err(|e| format!("download body: {e}"))?;
+        .send().await.map_err(|e| format!("download: {}", e.without_url()))?
+        .bytes().await.map_err(|e| format!("download body: {}", e.without_url()))?;
     let ext = std::path::Path::new(&file_path).extension().and_then(|s| s.to_str()).unwrap_or("ogg");
     let secs = now_secs();
     let out = std::env::temp_dir().join(format!("prevail-tg-voice-{secs}.{ext}"));
@@ -525,11 +525,11 @@ async fn fetch_updates(token: &str, offset: i64) -> Result<Vec<TgUpdate>, String
         .timeout(std::time::Duration::from_secs(60))
         .send()
         .await
-        .map_err(|e| format!("getUpdates request: {e}"))?;
+        .map_err(|e| format!("getUpdates request: {}", e.without_url()))?;
     let body = resp
         .text()
         .await
-        .map_err(|e| format!("getUpdates read: {e}"))?;
+        .map_err(|e| format!("getUpdates read: {}", e.without_url()))?;
     let parsed: UpdatesResponse =
         serde_json::from_str(&body).map_err(|e| format!("parse getUpdates: {e}"))?;
     if !parsed.ok {
@@ -552,7 +552,7 @@ async fn send_message(token: &str, chat_id: &str, text: &str, html: bool) -> Res
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("sendMessage request: {e}"))?;
+        .map_err(|e| format!("sendMessage request: {}", e.without_url()))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let detail = resp.text().await.unwrap_or_default();
@@ -571,7 +571,7 @@ async fn send_chat_action(token: &str, chat_id: &str, action: &str) -> Result<()
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("sendChatAction request: {e}"))?;
+        .map_err(|e| format!("sendChatAction request: {}", e.without_url()))?;
     if !resp.status().is_success() {
         return Err(format!("sendChatAction: {}", resp.status()));
     }
@@ -952,6 +952,26 @@ pub async fn telegram_bridge_status(
 #[cfg(test)]
 mod tg_format_tests {
     use super::*;
+
+    // The bot token rides in the request URL, and reqwest's error Display
+    // includes that URL. A network blip used to land the token in
+    // BridgeStatus.last_error, which the UI shows and telegram_bridge_status
+    // hands to any signed-in phone.
+    #[test]
+    fn a_network_error_never_carries_the_bot_token() {
+        let token = "123456:SECRET-bot-token";
+        let err = tauri::async_runtime::block_on(async {
+            reqwest::Client::new()
+                .get(format!("http://127.0.0.1:9/bot{token}/getUpdates"))
+                .timeout(std::time::Duration::from_secs(5))
+                .send()
+                .await
+                .expect_err("nothing listens on port 9")
+        });
+        assert!(err.to_string().contains(token), "precondition: reqwest puts the url in its message");
+        let shown = format!("getUpdates request: {}", err.without_url());
+        assert!(!shown.contains(token), "{shown}");
+    }
 
     #[test]
     fn converts_bold_and_inline_code() {
