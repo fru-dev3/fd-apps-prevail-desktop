@@ -18,7 +18,7 @@ import { Toggle } from "./ui";
 import { ConnectAppFlow } from "./appconnect";
 import { ObsidianImportModal, ObsidianLogo } from "./obsidianmodal";
 import { AppRowLogo } from "./panels3";
-import { GoogleWorkspacePanel } from "./googlepanel";
+import { GoogleWorkspacePanel, skillMethod, type AppSkill } from "./googlepanel";
 import { favKeyOf, toggleFavorite, useFavorites } from "./appfavorites";
 import { AppFacetPanel } from "./shell";
 import type { BrandLogo, CatalogApp, CatalogSkill, ChatEvent, ConnectorCatalog, Domain, DomainContextBundle, EngineApp } from "./types";
@@ -2349,33 +2349,6 @@ function catalogToApp(c: CatalogApp): EngineApp {
 // the second group (runs/settings/domains/loops) are the operational facets ported
 // from AppFacetPanel so this is the SINGLE canonical app-detail component.
 export type AppTab = "welcome" | "soul" | "journal" | "skills" | "connections" | "chat" | "runs" | "settings" | "domains" | "loops";
-
-// A runnable skill as the UI displays it. The engine now returns the richer
-// contract shape (id/name/method/primary/source/trigger/summary) and includes
-// shipped STARTER packs even before connect; older fields (runner/favorite) are
-// kept optional for back-compat. We only DISPLAY what the engine returns.
-type AppSkill = {
-  id: string;
-  name?: string;
-  method?: "browser" | "mcp" | "api" | "other" | string;
-  primary?: boolean;
-  source?: "starter" | "learned";
-  trigger?: string;
-  summary?: string;
-  // Back-compat with the previous schema.
-  runner?: string;
-  favorite?: boolean;
-};
-
-// Method badge for a skill row: Browser / MCP / API / Other, derived from the
-// skill's declared method when present, else inferred from its runner.
-function skillMethod(s: AppSkill): "Browser" | "MCP" | "API" | "Other" {
-  const m = (s.method || s.runner || "").toLowerCase();
-  if (m.includes("mcp")) return "MCP";
-  if (m.includes("api") || m.includes("http") || m.includes("oauth")) return "API";
-  if (m === "other") return "Other";
-  return "Browser";
-}
 
 // Bespoke, researched Soul text for the headline connectors people actually
 // reach for first. Each entry reads like instructions: what the app is, what

@@ -79,13 +79,16 @@ export function buildConnectorTurn(goal: string): ConnectorTurn {
 }
 
 // A runnable skill as the UI displays it (same contract the engine returns for
-// every app). We only DISPLAY what the engine returns.
-type AppSkill = {
+// every app; shared with AppDetail). We only DISPLAY what the engine returns.
+// runner/favorite are back-compat fields from the previous schema.
+export type AppSkill = {
   id: string; name?: string; method?: string; primary?: boolean;
   source?: "starter" | "learned"; trigger?: string; summary?: string;
   runner?: string; favorite?: boolean;
 };
-function skillMethod(s: AppSkill): "Browser" | "MCP" | "API" | "Other" {
+// Method badge for a skill row: Browser / MCP / API / Other, derived from the
+// skill's declared method when present, else inferred from its runner.
+export function skillMethod(s: AppSkill): "Browser" | "MCP" | "API" | "Other" {
   const m = (s.method || s.runner || "").toLowerCase();
   if (m.includes("mcp")) return "MCP";
   if (m.includes("api") || m.includes("http") || m.includes("oauth")) return "API";
