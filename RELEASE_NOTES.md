@@ -1,6 +1,20 @@
-# Prevail 0.3.129
+# Prevail 0.3.130
 
-Intent sidebars collapse and expand again. The Noticed and History week
-lists and the Projects list each fold to a thin strip with one button to
-open them back up, giving the detail the full width. Each view remembers
-how you left it. On a phone the period picker is unchanged.
+No more side cards. Clicking a person, place, company or thing anywhere,
+in chat or elsewhere, now opens the Entities view with it selected: the
+list sits in a sidebar that collapses like Projects and Intent, and the
+detail holds what the card had (what you've discussed, your notes, where
+it was mentioned, what it comes up with, Save, Ask about it, Open map).
+In Intent, the Capture button opens the capture setup in the page instead
+of a drawer.
+
+Every entity now has a page in your vault under data/entities, with its
+conversations listed and room for your notes. Summaries are written for
+the ones you save or that come up in three or more conversations.
+
+Crash reports, when you turn them on, now carry only the error type and
+where in the app it happened: never the message, which can quote a prompt,
+a chat, a name or a vault path. Usage analytics pass only the fixed list
+of anonymous events.
+
+Engine 1.9.29.
