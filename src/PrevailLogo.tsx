@@ -5,7 +5,7 @@ import { motion, MotionConfig } from "framer-motion";
  * inline SVG so it stays crisp at any size and the guiding star can animate on
  * its own.
  *
- * The mark mirrors public/logo.svg exactly: a dark tile, two gold chevrons
+ * The mark mirrors public/logo.svg exactly: a dark tile, two office-green chevrons
  * climbing toward a cyan star lifted clear of the apex. When animated, the
  * whole mark does a slow "rise" (gentle float + soft 3D tilt + glow) and the
  * star bounces above the chevrons like a guiding beacon.
@@ -57,8 +57,8 @@ export function PrevailLogo({
     >
       <rect x="0" y="0" width="512" height="512" rx="116" fill="#141416" />
       <g fill="none" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M116 312 L256 176 L396 312" stroke="#C4A35A" strokeWidth="56" />
-        <path d="M156 392 L256 296 L356 392" stroke="#6E5C32" strokeWidth="34" />
+        <path d="M116 312 L256 176 L396 312" stroke="#2E9E2E" strokeWidth="56" />
+        <path d="M156 392 L256 296 L356 392" stroke="#1A5C1A" strokeWidth="34" />
       </g>
       {Star}
     </svg>
@@ -91,9 +91,9 @@ export function PrevailLogo({
           rotateX: [7, 2, 7],
           rotateY: [-5, 5, -5],
           filter: [
-            "drop-shadow(0 2px 6px rgba(196,163,90,0.35))",
+            "drop-shadow(0 2px 6px rgba(46,158,46,0.35))",
             "drop-shadow(0 8px 18px rgba(60,216,255,0.45))",
-            "drop-shadow(0 2px 6px rgba(196,163,90,0.35))",
+            "drop-shadow(0 2px 6px rgba(46,158,46,0.35))",
           ],
         }}
         transition={{ duration: T, ease: "easeInOut", repeat: Infinity }}

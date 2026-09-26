@@ -68,7 +68,7 @@
   --color-warn: #c05621;
   --color-err: #c62828;
   --color-logo-bg: #141416;
-  --color-logo-teal: #c4a35a;
+  --color-logo-teal: #2e9e2e;
   --color-logo-cyan: #3cd8ff;
 }
 :root[data-palette="prevail"][data-theme="dark"] {
@@ -92,7 +92,7 @@
   --color-warn: #f97316;
   --color-err: #ff5a5f;
   --color-logo-bg: #141416;
-  --color-logo-teal: #c4a35a;
+  --color-logo-teal: #2e9e2e;
   --color-logo-cyan: #3cd8ff;
 }
 
