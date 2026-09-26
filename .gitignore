@@ -33,6 +33,9 @@ src-tauri/gen/
 # Bundled engine sidecar — built by scripts/prepare-sidecar.sh
 src-tauri/binaries/
 src-tauri/binaries
+# Default skill packs, copied from the engine repo by scripts/prepare-sidecar.sh
+# (the engine is the source of truth; never edit or commit a copy here)
+src-tauri/resources/skill-packs/
 
 # Private planning + launch material — local only, never publish
 docs/
