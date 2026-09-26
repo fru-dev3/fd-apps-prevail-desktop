@@ -107,6 +107,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     // Intent: findings, the prompt history and a project's restart brief
     // (read side; verdicts, refresh and rebuild checks stay on the desktop).
     "mirror_findings", "mirror_history", "projects_restart", "projects_restart_text",
+    // Entities: the list and one entity's card (read side; save, notes and
+    // refresh write the vault or run a model, so they stay on the desktop).
+    "entities_list", "entities_show",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.

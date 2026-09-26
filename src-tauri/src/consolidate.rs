@@ -1,5 +1,6 @@
 // Vault consolidation: move the duplicate root-level domains/ and apps/ into the
-// canonical <vault>/data/ container. Per the rule, data/ holds ONLY apps + domains;
+// canonical <vault>/data/ container. Per the rule, data/ holds ONLY apps, domains
+// and entities;
 // the General bucket's loose files stay at the vault root (untouched).
 //
 // SAFE by design (Hard Rule: never lose user data):
@@ -46,10 +47,12 @@ pub fn vault_consolidate_plan(vault: String) -> Result<Vec<ConsolidateOp>, Strin
     let root = PathBuf::from(&vault);
     let data = root.join("data");
     let mut ops: Vec<ConsolidateOp> = Vec::new();
-    // ONLY domains + apps belong in data/. Merge any root-level copies in (missing
-    // files only); General loose files at the root are intentionally left alone.
+    // ONLY domains, apps and entities belong in data/. Merge any root-level
+    // copies in (missing files only); General loose files at the root are
+    // intentionally left alone.
     plan_copy(&root.join("domains"), &data.join("domains"), "domains", &mut ops);
     plan_copy(&root.join("apps"), &data.join("apps"), "apps", &mut ops);
+    plan_copy(&root.join("entities"), &data.join("entities"), "entities", &mut ops);
     Ok(ops)
 }
 
@@ -83,7 +86,7 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn moves_only_domains_and_apps_into_data_never_overwrites() {
+    fn moves_only_domains_apps_and_entities_into_data_never_overwrites() {
         let vault = std::env::temp_dir().join(format!("prevail-consolidate-{}", std::process::id()));
         let _ = fs::remove_dir_all(&vault);
         // Root-level duplicates: a domain + an app, plus a loose General file that
@@ -92,6 +95,8 @@ mod tests {
         fs::write(vault.join("domains").join("wealth").join("_state.md"), "wealth state").unwrap();
         fs::create_dir_all(vault.join("apps").join("paypal")).unwrap();
         fs::write(vault.join("apps").join("paypal").join("manifest.json"), "{}").unwrap();
+        fs::create_dir_all(vault.join("entities").join("people")).unwrap();
+        fs::write(vault.join("entities").join("people").join("sam.md"), "---\nname: Sam\n---\n").unwrap();
         fs::write(vault.join("_journal.md"), "# Journal").unwrap();
         // data/ already has the domain file with different content -> must NOT overwrite.
         fs::create_dir_all(vault.join("data").join("domains").join("wealth")).unwrap();
@@ -100,6 +105,7 @@ mod tests {
         let v = vault.to_string_lossy().to_string();
         let plan = vault_consolidate_plan(v.clone()).unwrap();
         assert!(plan.iter().any(|o| o.label == "apps/paypal/manifest.json"));
+        assert!(plan.iter().any(|o| o.label == "entities/people/sam.md"));
         assert!(!plan.iter().any(|o| o.label == "domains/wealth/_state.md"), "must not overwrite existing");
         assert!(!plan.iter().any(|o| o.label.contains("journal")), "General loose files stay at root");
 

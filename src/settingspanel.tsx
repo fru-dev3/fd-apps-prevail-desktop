@@ -11,6 +11,7 @@ import { DaemonsSection, MemoryContextSection, SkillsSection } from "./settings2
 import { AppsMirrorPanel } from "./appsmirror";
 import { SystemActivity } from "./activitypanel";
 import { MirrorPanel } from "./mirror";
+import { EntitiesView } from "./entitiesview";
 import { navSection } from "./navdefs";
 import { ToolsPanel } from "./toolspanel";
 import { AutonomyPanel } from "./autonomypanel";
@@ -53,7 +54,7 @@ export function SettingsPanel({
   onVaultMoved?: (path: string) => void;
   jumpTo?: { section: string; n: number } | null;
 }) {
-  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intent" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "usage";
+  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intent" | "entities" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "usage";
   // Editor lands on General. The operational surfaces (Work board / Insights /
   // Spark) moved to Work mode, so Editor opens on a config page. A specific
   // jumpTo (e.g. "connectors") still wins.
@@ -165,6 +166,7 @@ export function SettingsPanel({
           {section === "usage" && <UsageDashboard vaultPath={vaultPath} />}
           {section === "activity" && <SystemActivity vaultPath={vaultPath} />}
           {section === "intent" && <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5"><MirrorPanel vaultPath={vaultPath} /></div>}
+          {section === "entities" && <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5"><EntitiesView vaultPath={vaultPath} /></div>}
           {section === "tools" && <ToolsPanel />}
           {section === "loopboard" && <LoopBoard vaultPath={vaultPath} />}
           {section === "council" && <CouncilSettingsSection clis={clis} />}

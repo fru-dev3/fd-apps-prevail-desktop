@@ -6,7 +6,7 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, BarChart3, Bot, Briefcase, CalendarDays, Compass, Database, Dices, FileText, Github, Hammer, Layers, Lightbulb, MessagesSquare, Network, Plug, Repeat, Scale, ScanFace, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, UserRound, Webhook, Wrench, Zap } from "lucide-react";
+import { Activity, BarChart3, BookUser, Bot, Briefcase, CalendarDays, Compass, Database, Dices, FileText, Github, Hammer, Layers, Lightbulb, MessagesSquare, Network, Plug, Repeat, Scale, ScanFace, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, UserRound, Webhook, Wrench, Zap } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
@@ -39,6 +39,7 @@ export const EDITOR_NAV: NavGroup[] = [
   ]},
   { heading: "Context & Memory", items: [
     { id: "intent", label: "Intent", icon: ScanFace },
+    { id: "entities", label: "Entities", icon: BookUser },
     { id: "ideal-state", label: "Ideals", icon: Compass },
     { id: "daemons", label: "Daemons", icon: Zap },
     { id: "activity", label: "Activity", icon: Activity },

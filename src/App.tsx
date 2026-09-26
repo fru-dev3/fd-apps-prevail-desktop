@@ -44,6 +44,8 @@ import { migrateModelPrefs } from "./helpers2";
 import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin, WebVaultLinking } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
 import { EDITOR_NAV, WORK_NAV, navSection } from "./navdefs";
+import { EntityCardHost } from "./entitycard";
+import { setEntityVault } from "./entitystore";
 
 // Single source of truth for the version chip in title bar.
 
@@ -1263,6 +1265,22 @@ export default function App() {
     window.addEventListener("prevail:open-vault-file", onOpenVaultFile as EventListener);
     return () => window.removeEventListener("prevail:open-vault-file", onOpenVaultFile as EventListener);
   }, [vaultPath]);
+  // An entity card's "Mentioned in" row opens that chat thread in its domain.
+  useEffect(() => {
+    const onOpenThread = (e: Event) => {
+      const d = (e as CustomEvent<{ domain?: string; ref?: string }>).detail;
+      if (!vaultPath || !d?.domain || !d.ref || d.ref.startsWith("/") || d.ref.split("/").includes("..")) return;
+      const full = `${vaultPath.replace(/\/+$/, "")}/${d.ref}`;
+      try { localStorage.setItem(`prevail.domain.${d.domain}.lastThread`, full); } catch { /* storage off */ }
+      openDomain(d.domain);
+      window.setTimeout(() => setActiveThreadPath(full), 0);
+    };
+    window.addEventListener("prevail:open-thread", onOpenThread as EventListener);
+    return () => window.removeEventListener("prevail:open-thread", onOpenThread as EventListener);
+  }, [vaultPath, openDomain]);
+  // Entity chips read the vault's pages (for the green dot and the chat
+  // directive) from one shared store.
+  useEffect(() => { setEntityVault(vaultPath || null); }, [vaultPath]);
   // Lifted from ChatPanel so the top bar owns the domain Insights / Preferences
   // toggles. ChatPanel receives these as props and renders the matching view.
   const [domainTab, setDomainTab] = useState<DomainTab>("chat");
@@ -2136,6 +2154,7 @@ export default function App() {
         />
       )}
       {quickCaptureOn && <QuickCapture vaultPath={vaultPath} />}
+      <EntityCardHost vaultPath={vaultPath} />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { domainColor } from "./helpers";
 import { Markdown } from "./Markdown";
 import { CAPTURE_LABELS, PromptCapturePanel, type CaptureStatus } from "./promptcapturepanel";
 import { ProjectsView } from "./projectsview";
+import { EntitiesView } from "./entitiesview";
 import { useIsPhone } from "./useisphone";
 
 // ── Engine shapes (see the mirror contract) ─────────────────────────────────
@@ -41,11 +42,12 @@ export interface Sitting { id: string; tool: string; project: string; project_ti
 export interface HistWeek { week: string; label: string; intent_line: string | null; sittings: Sitting[] }
 export interface HistoryDoc { total: number; tools: string[]; weeks: HistWeek[] }
 
-export type MirrorView = "noticed" | "history" | "projects";
+export type MirrorView = "noticed" | "history" | "projects" | "entities";
 const VIEWS: { id: MirrorView; label: string }[] = [
-  { id: "noticed", label: "Noticed" }, { id: "history", label: "History" }, { id: "projects", label: "Projects" },
+  { id: "noticed", label: "Noticed" }, { id: "history", label: "History" }, { id: "projects", label: "Projects" }, { id: "entities", label: "Entities" },
 ];
 const VIEW_KEY = "prevail.mirror.view";
+const FOCUS_KEY = "prevail.intent.focus";
 
 export const toolLabel = (t: string) => CAPTURE_LABELS[t] ?? titleCase(t || "other");
 const fmtDate = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -131,13 +133,32 @@ function CaptureDrawer({ vaultPath, onClose }: { vaultPath: string; onClose: () 
 export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   const phone = useIsPhone();
   const [view, setViewState] = useState<MirrorView>(() => {
-    try { const v = localStorage.getItem(VIEW_KEY); return v === "history" || v === "projects" ? v : "noticed"; } catch { return "noticed"; }
+    try {
+      if (localStorage.getItem(FOCUS_KEY)) return "history";
+      const v = localStorage.getItem(VIEW_KEY);
+      return v === "history" || v === "projects" || v === "entities" ? v : "noticed";
+    } catch { return "noticed"; }
   });
   const setView = (v: MirrorView) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage off */ } };
   const [capture, setCapture] = useState(false);
   const [focus, setFocus] = useState<{ ts: number; n: number } | null>(null);
   const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(null);
   const jumpToPrompt = (ts: number) => { setFocus((f) => ({ ts, n: (f?.n ?? 0) + 1 })); setView("history"); };
+  // An entity card's "Mentioned in" row lands on that sitting in History,
+  // whether Intent was already open (event) or opens because of it (pending).
+  useEffect(() => {
+    const take = () => {
+      try {
+        const ts = Number(localStorage.getItem(FOCUS_KEY));
+        localStorage.removeItem(FOCUS_KEY);
+        if (ts > 0) jumpToPrompt(ts);
+      } catch { /* storage off */ }
+    };
+    take();
+    window.addEventListener("prevail:intent-focus", take);
+    return () => window.removeEventListener("prevail:intent-focus", take);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const openProject = (slug: string) => { setProjectSlug((p) => ({ slug, n: (p?.n ?? 0) + 1 })); setView("projects"); };
 
   return (
@@ -161,6 +182,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
         {view === "noticed" && <NoticedView vaultPath={vaultPath} phone={phone} onReceipt={jumpToPrompt} onProject={openProject} />}
         {view === "history" && <HistoryView vaultPath={vaultPath} phone={phone} focus={focus} onClearFocus={() => setFocus(null)} />}
         {view === "projects" && <ProjectsView vaultPath={vaultPath} initialSlug={projectSlug?.slug} key={projectSlug?.n ?? 0} />}
+        {view === "entities" && <EntitiesView vaultPath={vaultPath} embedded />}
       </div>
       {capture && <CaptureDrawer vaultPath={vaultPath} onClose={() => setCapture(false)} />}
     </div>

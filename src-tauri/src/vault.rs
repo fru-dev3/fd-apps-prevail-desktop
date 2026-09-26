@@ -292,13 +292,16 @@ pub(crate) fn vault_migrate_layout(path: String) -> Result<u64, String> {
         }
     }
 
-    // (3) v3 containers: move each child dir of root/domains + root/apps into the
-    // canonical data/ home (skip-conflict), then remove the container if emptied.
-    for (container_name, dest_parent) in [("domains", &domains_root), ("apps", &apps_root)] {
+    // (3) v3 containers: move each child dir of root/domains, root/apps and
+    // root/entities (people/, places/, orgs/, things/) into the canonical data/
+    // home (skip-conflict), then remove the container if emptied.
+    let entities_root = data.join("entities");
+    for (container_name, dest_parent) in [("domains", &domains_root), ("apps", &apps_root), ("entities", &entities_root)] {
         let container = root.join(container_name);
         if !container.is_dir() {
             continue;
         }
+        std::fs::create_dir_all(dest_parent).map_err(|e| format!("mkdir data/{container_name}: {e}"))?;
         if let Ok(es) = read_dir_retry(&container) {
             for entry in es.flatten() {
                 let cname = entry.file_name().to_string_lossy().to_string();

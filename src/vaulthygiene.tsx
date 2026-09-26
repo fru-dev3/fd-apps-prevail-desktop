@@ -21,7 +21,7 @@ const META: Record<Kind, { title: string; desc: string; planCmd: string; applyCm
   },
   consolidate: {
     title: "Consolidate vault layout",
-    desc: "Moves stray root-level domains into data/. Never overwrites, so nothing is lost.",
+    desc: "Moves stray root-level domains, apps and entities into data/. Never overwrites, so nothing is lost.",
     planCmd: "vault_consolidate_plan",
     applyCmd: "vault_consolidate_apply",
     empty: "Your vault already uses the canonical data/ layout. Nothing to consolidate.",

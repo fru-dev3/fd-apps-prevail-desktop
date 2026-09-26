@@ -3,15 +3,19 @@
 // links on a prevail:// address (see ENTITY_LINK_DIRECTIVE), and the Markdown
 // renderer hands every link to EntityLink, which draws the object instead of a
 // bare underline: a domain as its coloured pill, a person with an avatar, a
-// file or task as a link that opens it in the app.
-import React from "react";
-import { Calendar, CheckSquare, ExternalLink, FileText, MapPin } from "lucide-react";
+// file or task as a link that opens it in the app. People, places, orgs and
+// things open the entity card (entitycard.tsx); a chip whose entity has a page
+// in the vault carries a small green dot.
+import React, { useEffect, useState } from "react";
+import { Boxes, Building2, Calendar, CheckSquare, ExternalLink, FileText, MapPin } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "./bridge";
+import { lookupEntity, slugifyName, useEntityStore } from "./entitystore";
 import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
 
-export type EntityKind = "domain" | "person" | "place" | "task" | "file" | "date";
+export type EntityKind = "domain" | "person" | "place" | "org" | "thing" | "task" | "file" | "date";
 
 export interface EntityRef {
   kind: EntityKind;
@@ -21,7 +25,19 @@ export interface EntityRef {
   domain?: string;
 }
 
-const KINDS = new Set<EntityKind>(["domain", "person", "place", "task", "file", "date"]);
+const KINDS = new Set<EntityKind>(["domain", "person", "place", "org", "thing", "task", "file", "date"]);
+
+// The kinds that are entities with a card (and maybe a vault page).
+export const CARD_KINDS = new Set<EntityKind>(["person", "place", "org", "thing"]);
+
+// The engine id for a chip: <kind>/<slug>.
+export function entityIdOf(ref: EntityRef): string {
+  return `${ref.kind}/${slugifyName(ref.value)}`;
+}
+
+export function mapUrl(place: string): string {
+  return `https://maps.apple.com/?q=${encodeURIComponent(place)}`;
+}
 
 // prevail://<kind>/<value...>. A task is prevail://task/<domain>/<id>.
 export function parseEntityHref(href: string | undefined | null): EntityRef | null {
@@ -82,12 +98,57 @@ export function openEntity(ref: EntityRef) {
     case "date":
       fire("prevail:work-section", "calendar");
       return;
-    case "place":
-      void openUrl(`https://maps.apple.com/?q=${encodeURIComponent(ref.value)}`).catch(() => {});
-      return;
     case "person":
+    case "place":
+    case "org":
+    case "thing":
+      fire("prevail:open-entity", { kind: ref.kind, value: ref.value });
       return;
   }
+}
+
+export function openMap(place: string) {
+  void openUrl(mapUrl(place)).catch(() => {});
+}
+
+// Company/product logos come from the company's own site (favicon command,
+// cached on disk), never a third-party logo service.
+const logoCache = new Map<string, Promise<string>>();
+export function useFavicon(host: string | undefined): string {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    let live = true;
+    setSrc("");
+    if (!host) return;
+    let p = logoCache.get(host);
+    if (!p) { p = invoke<string>("app_favicon", { host }).then((x) => x || "").catch(() => ""); logoCache.set(host, p); }
+    void p.then((x) => { if (live) setSrc(x); });
+    return () => { live = false; };
+  }, [host]);
+  return src;
+}
+
+// A company named like a domain ("acme.com") is its own logo host.
+export function orgHost(name: string, known?: string): string | undefined {
+  if (known) return known;
+  const m = name.trim().toLowerCase().match(/^(?:https?:\/\/)?(?:www\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})\/?$/);
+  return m ? m[1] : undefined;
+}
+
+export function OrgMark({ name, host, size = 16 }: { name: string; host?: string; size?: number }) {
+  const src = useFavicon(orgHost(name, host));
+  if (src) {
+    return (
+      <span aria-hidden className="inline-flex shrink-0 items-center justify-center self-center overflow-hidden rounded bg-white ring-1 ring-border-subtle" style={{ width: size, height: size }}>
+        <img src={src} alt="" width={Math.round(size * 0.75)} height={Math.round(size * 0.75)} className="object-contain" />
+      </span>
+    );
+  }
+  return <Building2 size={size - 3} aria-hidden className="shrink-0 self-center" />;
+}
+
+function VaultDot() {
+  return <span aria-label="In your vault" title="In your vault" data-vault-dot className="ml-0.5 inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full bg-accent" />;
 }
 
 function formatDate(iso: string): string {
@@ -110,6 +171,8 @@ const linkish = "cursor-pointer text-accent underline decoration-accent-border u
 export function EntityChip({ entity, children }: { entity: EntityRef; children: React.ReactNode }) {
   const label = children ?? entity.value;
   const onClick = (e: React.MouseEvent) => { e.preventDefault(); openEntity(entity); };
+  useEntityStore(); // re-render when the vault's pages change
+  const known = CARD_KINDS.has(entity.kind) ? lookupEntity(entity.kind, entity.value) : null;
   switch (entity.kind) {
     case "domain": {
       const color = domainColor(entity.value);
@@ -129,25 +192,44 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
       );
     }
     case "person": {
-      const { bg, fg } = pickSkillColor(entity.value);
+      const who = known?.name ?? entity.value;
+      const { bg, fg } = pickSkillColor(who);
       return (
-        <span data-entity="person" title={entity.value} className="inline-flex items-baseline gap-1">
+        <button type="button" onClick={onClick} data-entity="person" title={`About ${entity.value}`} className="inline-flex items-baseline gap-1 text-left">
           <span
             aria-hidden
             className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center self-center rounded-full text-[8.5px] font-bold leading-none tracking-tight"
             style={{ backgroundColor: bg, color: fg }}
           >
-            {initialsOf(entity.value)}
+            {initialsOf(who)}
           </span>
-          <span className="underline decoration-dotted decoration-text-muted underline-offset-[3px]">{label}</span>
-        </span>
+          <span className="underline decoration-dotted decoration-text-muted underline-offset-[3px] hover:decoration-accent">{label}</span>
+          {known?.has_page && <VaultDot />}
+        </button>
       );
     }
     case "place":
       return (
-        <a href="#" onClick={onClick} data-entity="place" title={`Show ${entity.value} on a map`} className={`inline-flex items-baseline gap-0.5 ${linkish}`}>
+        <a href="#" onClick={onClick} data-entity="place" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-0.5 ${linkish}`}>
           <MapPin size={13} aria-hidden className="shrink-0 self-center" />
           {label}
+          {known?.has_page && <VaultDot />}
+        </a>
+      );
+    case "org":
+      return (
+        <a href="#" onClick={onClick} data-entity="org" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-1 ${linkish}`}>
+          <OrgMark name={entity.value} host={known?.domain} size={15} />
+          {label}
+          {known?.has_page && <VaultDot />}
+        </a>
+      );
+    case "thing":
+      return (
+        <a href="#" onClick={onClick} data-entity="thing" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-0.5 ${linkish}`}>
+          <Boxes size={13} aria-hidden className="shrink-0 self-center" />
+          {label}
+          {known?.has_page && <VaultDot />}
         </a>
       );
     case "task":
@@ -211,18 +293,24 @@ function decodeURIComponentSafe(s: string): string {
 // worked example because a softer "please link things" was ignored outright
 // (Sonnet 5, 2026-09-25); this version was followed by Sonnet 5, Haiku 4.5 and
 // GPT-6 Luna.
-export function entityLinkDirective(domains: string[]): string {
+export function entityLinkDirective(domains: string[], saved: { name: string; id: string }[] = []): string {
   const slugs = domains.filter((d) => d && !d.startsWith("_")).slice(0, 60);
   const example = slugs.includes("career") ? "career" : (slugs[0] ?? "career");
+  const own = saved.filter((e) => e.name && /^(person|place|org|thing)\/[a-z0-9-]+$/.test(e.id)).slice(0, 40);
   return [
     "# OUTPUT FORMAT (required): LINK EVERY CONCRETE THING",
-    "This app turns special links into clickable chips. In every reply, write each person, place, life domain, task, vault file and specific date you mention as a markdown link with a prevail:// address. Plain names for these are a formatting error.",
+    "This app turns special links into clickable chips. In every reply, write each person, place, company or product, named thing, life domain, task, vault file and specific date you mention as a markdown link with a prevail:// address. Plain names for these are a formatting error.",
     "- person: [Seneca](prevail://person/Seneca)",
     "- place: [Rome](prevail://place/Rome)",
+    "- company or product: [Stripe](prevail://org/Stripe)",
+    "- named thing (a book, vehicle, device, property, event): [The Odyssey](prevail://thing/The%20Odyssey)",
     `- life domain: [${example}](prevail://domain/${example})` + (slugs.length ? `. Only these slugs exist: ${slugs.join(", ")}` : ""),
     "- task (only with a known id): [call the lender](prevail://task/<domain>/<id>)",
     "- vault file (only a path you have seen, relative to the vault root): [state](prevail://file/<path>)",
     "- date: [Nov 15](prevail://date/YYYY-MM-DD)",
+    ...(own.length
+      ? [`The user keeps pages on these; link them by exactly this address: ${own.map((e) => `${e.name} = prevail://${e.id}`).join("; ")}`]
+      : []),
     "Link each thing the first time it appears, inline in the sentence; later mentions stay plain. Never invent an id, slug or path. Percent-encode spaces (Marcus%20Aurelius).",
     "",
   ].join("\n");

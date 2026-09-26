@@ -2,13 +2,14 @@
 // the address grammar, that react-markdown keeps the prevail:// scheme (its
 // default filter blanks unknown protocols), and what each chip does on click.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { act, render, screen, cleanup, fireEvent } from "@testing-library/react";
 
 const openUrl = vi.fn((_u: string) => Promise.resolve());
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (u: string) => openUrl(u) }));
 
 import { Markdown } from "./Markdown";
-import { entityLinkDirective, markdownUrlTransform, parseEntityHref } from "./entities";
+import { entityIdOf, entityLinkDirective, markdownUrlTransform, parseEntityHref } from "./entities";
+import { __setEntityListForTest, slugifyName } from "./entitystore";
 
 beforeEach(() => { cleanup(); openUrl.mockClear(); localStorage.clear(); });
 
@@ -19,6 +20,14 @@ describe("parseEntityHref", () => {
     expect(parseEntityHref("prevail://task/wealth/abc1234")).toEqual({ kind: "task", domain: "wealth", value: "abc1234" });
     expect(parseEntityHref("prevail://file/data/domains/tax/memory/state.md")).toEqual({ kind: "file", value: "data/domains/tax/memory/state.md" });
     expect(parseEntityHref("prevail://date/2026-09-30")).toEqual({ kind: "date", value: "2026-09-30" });
+    expect(parseEntityHref("prevail://org/acme")).toEqual({ kind: "org", value: "acme" });
+    expect(parseEntityHref("prevail://thing/Blue%20kayak")).toEqual({ kind: "thing", value: "Blue kayak" });
+  });
+
+  it("maps a chip to the engine id", () => {
+    expect(slugifyName("Café Acme & Co.")).toBe("cafe-acme-and-co");
+    expect(entityIdOf({ kind: "person", value: "Sam Rivera" })).toBe("person/sam-rivera");
+    expect(entityIdOf({ kind: "place", value: "maple-st" })).toBe("place/maple-st");
   });
 
   it("rejects what it cannot open", () => {
@@ -52,12 +61,18 @@ describe("Markdown renders vault objects", () => {
     expect(seen).toEqual(["finance"]);
   });
 
-  it("draws a person with initials and no navigation", () => {
-    const { container } = render(<Markdown source="Ask [Jeff Smith](prevail://person/Jeff%20Smith) in accounting." />);
+  it("draws a person with initials that opens the entity card", () => {
+    const seen: unknown[] = [];
+    const on = (e: Event) => seen.push((e as CustomEvent).detail);
+    window.addEventListener("prevail:open-entity", on);
+    const { container } = render(<Markdown source="Ask [Sam Rivera](prevail://person/Sam%20Rivera) in accounting." />);
     const person = container.querySelector('[data-entity="person"]')!;
-    expect(person.textContent).toContain("JS");
-    expect(person.textContent).toContain("Jeff Smith");
+    expect(person.textContent).toContain("SR");
+    expect(person.textContent).toContain("Sam Rivera");
     expect(container.querySelector("a")).toBeNull();
+    fireEvent.click(person);
+    window.removeEventListener("prevail:open-entity", on);
+    expect(seen).toEqual([{ kind: "person", value: "Sam Rivera" }]);
   });
 
   it("opens a task on the board, even when the board mounts later", () => {
@@ -81,12 +96,30 @@ describe("Markdown renders vault objects", () => {
     expect(files).toEqual(["data/domains/tax/memory/state.md", "My Note.md"]);
   });
 
-  it("opens places and web links in the browser, not the app window", () => {
-    const { container } = render(<Markdown source="[Rome](prevail://place/Rome) and [docs](https://example.com/x)" />);
+  it("opens a place on its card and web links in the browser, not the app window", () => {
+    const seen: unknown[] = [];
+    const on = (e: Event) => seen.push((e as CustomEvent).detail);
+    window.addEventListener("prevail:open-entity", on);
+    const { container } = render(<Markdown source="[Maple St](prevail://place/Maple%20St) and [docs](https://example.com/x)" />);
     fireEvent.click(container.querySelector('[data-entity="place"]')!);
     fireEvent.click(screen.getByText("docs").closest("a")!);
-    expect(openUrl).toHaveBeenCalledWith("https://maps.apple.com/?q=Rome");
+    window.removeEventListener("prevail:open-entity", on);
+    expect(seen).toEqual([{ kind: "place", value: "Maple St" }]);
     expect(openUrl).toHaveBeenCalledWith("https://example.com/x");
+    expect(openUrl).not.toHaveBeenCalledWith(expect.stringContaining("maps.apple.com"));
+  });
+
+  it("draws org and thing chips, with a green dot when the vault has a page", () => {
+    act(() => __setEntityListForTest("/v", { generated_ts: 1, total: 1, entities: [
+      { id: "org/acme", name: "acme", kind: "org", aliases: [], mention_count: 3, conversations: 3, last_ts: 1, saved: true, has_page: true },
+    ] }));
+    const { container } = render(<Markdown source="[acme](prevail://org/acme) sold the [Blue kayak](prevail://thing/Blue%20kayak)." />);
+    const org = container.querySelector('[data-entity="org"]')!;
+    const thing = container.querySelector('[data-entity="thing"]')!;
+    expect(org.textContent).toContain("acme");
+    expect(org.querySelector("[data-vault-dot]")).not.toBeNull();
+    expect(thing.querySelector("[data-vault-dot]")).toBeNull();
+    act(() => __setEntityListForTest(null, null));
   });
 
   it("leaves an unknown prevail kind as plain text", () => {
@@ -100,7 +133,17 @@ describe("entityLinkDirective", () => {
   it("names the real domain slugs and every kind", () => {
     const d = entityLinkDirective(["tax", "real-estate", "_meta"]);
     expect(d).toContain("Only these slugs exist: tax, real-estate\n");
-    for (const k of ["domain", "person", "place", "task", "file", "date"]) expect(d).toContain(`prevail://${k}/`);
+    for (const k of ["domain", "person", "place", "org", "thing", "task", "file", "date"]) expect(d).toContain(`prevail://${k}/`);
     expect(d).not.toMatch(/—/);
+    expect(d).not.toContain("keeps pages");
+  });
+
+  it("lists the owner's saved entities by address, capped", () => {
+    const many = Array.from({ length: 50 }, (_, i) => ({ name: `Sam ${i}`, id: `person/sam-${i}` }));
+    const d = entityLinkDirective(["home"], [{ name: "Maple St", id: "place/maple-st" }, { name: "bad", id: "robot/x" }, ...many]);
+    expect(d).toContain("Maple St = prevail://place/maple-st");
+    expect(d).not.toContain("robot/x");
+    expect(d).toContain("Sam 38 = prevail://person/sam-38");
+    expect(d).not.toContain("Sam 39 =");
   });
 });

@@ -27,6 +27,7 @@ import { DomainHome, DomainStatusBar, MessageList } from "./chatviews";
 import { LoopsPanel } from "./loopspanel";
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
+import { savedEntitiesForDirective } from "./entitystore";
 import { AgentPickerRail, ContextCanvas, DomainContextDrawer, DomainPrefsPanel } from "./domainpanels";
 import { HomeBriefing } from "./recommendationspanel";
 import type { ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, LifeReadiness, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
@@ -1805,7 +1806,7 @@ export function ChatPanel({
     const skillsPreamble = await buildSkillsPreamble(attachedSkills, allSkills, domain ?? null);
     // Ask for people, places, domains, tasks, files and dates as prevail://
     // links, which the reply renders as chips that open the real thing.
-    const linkPreamble = entityLinkDirective(domains.map((d) => d.name));
+    const linkPreamble = entityLinkDirective(domains.map((d) => d.name), savedEntitiesForDirective());
     // Usage intelligence: tick the ledger for every skill riding this send
     // (fire-and-forget - accounting never delays or breaks the turn). Powers
     // the Skills page's popularity ranking + archive-the-bloat suggestions.

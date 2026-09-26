@@ -13,6 +13,7 @@
 
 mod benchmark;
 mod mirror;
+mod entities_bridge;
 mod appcmds;
 mod bunker;
 mod vault_lock;
@@ -79,6 +80,7 @@ use std::path::Path;
 
 pub(crate) const NON_DOMAIN_DIRS: &[&str] = &[
     "domains", // v3 container — its children are scanned separately, not it
+    "entities", // people, places, orgs and things (data/entities), never a domain
     "benchmark",
     "apps",
     ".git",
@@ -572,6 +574,11 @@ pub fn run() {
             mirror::projects_restart,
             mirror::projects_restart_text,
             mirror::projects_diff,
+            entities_bridge::entities_list,
+            entities_bridge::entities_show,
+            entities_bridge::entities_save,
+            entities_bridge::entities_note,
+            entities_bridge::entities_refresh,
             favicon::app_favicon,
             apps_mirror::apps_mirror_list,
             apps_mirror::apps_mirror_refresh,
