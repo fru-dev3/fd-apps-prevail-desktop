@@ -322,6 +322,42 @@ describe("Projects restart", () => {
   });
 });
 
+describe("collapsible sidebars", () => {
+  it("Noticed and History each collapse and remember it separately", async () => {
+    render(<MirrorPanel vaultPath="/v" />);
+    await screen.findByTestId("featured-finding");
+    expect(screen.getByTestId("period-list")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Collapse periods"));
+    expect(screen.queryByTestId("period-list")).toBeNull();
+    expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("collapsed");
+    expect(screen.getByTestId("featured-finding")).toBeTruthy();
+    expect(localStorage.getItem("prevail.intent.spine.noticed")).toBe("1");
+    cleanup();
+    localStorage.setItem("prevail.mirror.view", "history");
+    render(<MirrorPanel vaultPath="/v" />);
+    await screen.findAllByTestId("sitting");
+    expect(screen.getByTestId("period-list")).toBeTruthy();
+    cleanup();
+    localStorage.setItem("prevail.mirror.view", "noticed");
+    render(<MirrorPanel vaultPath="/v" />);
+    await screen.findByTestId("featured-finding");
+    expect(screen.queryByTestId("period-list")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Show periods"));
+    expect(screen.getByTestId("period-list")).toBeTruthy();
+    expect(localStorage.getItem("prevail.intent.spine.noticed")).toBe("0");
+  });
+
+  it("on a phone there is no spine toggle, only the period picker", async () => {
+    phone = true;
+    localStorage.setItem("prevail.intent.spine.noticed", "1");
+    render(<MirrorPanel vaultPath="/v" />);
+    await screen.findByTestId("featured-finding");
+    expect(screen.getByTestId("period-picker")).toBeTruthy();
+    expect(screen.queryByLabelText("Show periods")).toBeNull();
+    expect(screen.queryByTestId("spine-collapsed")).toBeNull();
+  });
+});
+
 describe("phone", () => {
   it("the sidebar folds into a period picker; Noticed shows one finding per screen", async () => {
     phone = true;

@@ -25,6 +25,7 @@ import { CAPTURE_LABELS, PromptCapturePanel, type CaptureStatus } from "./prompt
 import { ProjectsView } from "./projectsview";
 import { EntitiesView } from "./entitiesview";
 import { useIsPhone } from "./useisphone";
+import { SideSpine } from "./sidespine";
 
 // ── Engine shapes (see the mirror contract) ─────────────────────────────────
 export type FindingKind = "goals_drift" | "tooling_share" | "repeated_rules" | "open_loops" | "late_night";
@@ -217,7 +218,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
       );
     } else {
       body = (
-        <PeriodFrame periods={periods} sel={sel} onSelect={select} phone={phone}>
+        <PeriodFrame key={view} storageKey={`prevail.intent.spine.${view}`} periods={periods} sel={sel} onSelect={select} phone={phone}>
           {view === "noticed"
             ? <NoticedView key={`${sel.kind}:${sel.key}`} vaultPath={vaultPath} phone={phone} periods={periods} sel={sel} onSelect={select} onReceipt={jumpToPrompt} onProject={openProject} onPeriodsChanged={loadPeriods} />
             : <HistoryView vaultPath={vaultPath} phone={phone} periods={periods} sel={sel} focus={focus} />}
@@ -243,7 +244,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
         </div>
         <div className="ml-auto"><ToolDots vaultPath={vaultPath} onOpen={() => setCapture(true)} /></div>
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
         {periodView && body}
         {view === "projects" && <ProjectsView vaultPath={vaultPath} initialSlug={projectSlug?.slug} key={projectSlug?.n ?? 0} />}
         {view === "entities" && <EntitiesView vaultPath={vaultPath} embedded />}
@@ -505,7 +506,7 @@ function PeriodList({ weeks, sel, onSelect }: { weeks: PeriodWeek[]; sel: Period
   useEffect(() => { if (selWeek) setOpen((o) => (o.has(selWeek) ? o : new Set(o).add(selWeek))); }, [selWeek]);
   const toggle = (w: string) => setOpen((o) => { const n = new Set(o); if (n.has(w)) n.delete(w); else n.add(w); return n; });
   return (
-    <nav aria-label="Periods" data-testid="period-list" className="w-72 shrink-0 overflow-y-auto border-r border-border bg-surface/40 p-2">
+    <nav aria-label="Periods" data-testid="period-list" className="p-2">
       {weeks.map((w) => {
         const on = sel?.kind === "week" && sel.key === w.week;
         const isOpen = open.has(w.week);
@@ -564,7 +565,7 @@ function PeriodPicker({ weeks, sel, onSelect }: { weeks: PeriodWeek[]; sel: Peri
 }
 
 // The shared frame: list column (or picker) plus the detail for the selection.
-function PeriodFrame({ periods, sel, onSelect, phone, children }: { periods: PeriodsDoc; sel: PeriodSel | null; onSelect: (s: PeriodSel) => void; phone: boolean; children: React.ReactNode }) {
+function PeriodFrame({ storageKey, periods, sel, onSelect, phone, children }: { storageKey: string; periods: PeriodsDoc; sel: PeriodSel | null; onSelect: (s: PeriodSel) => void; phone: boolean; children: React.ReactNode }) {
   if (phone) {
     return (
       <div className="flex h-full min-h-0 flex-col">
@@ -574,10 +575,9 @@ function PeriodFrame({ periods, sel, onSelect, phone, children }: { periods: Per
     );
   }
   return (
-    <div className="flex h-full min-h-0">
+    <SideSpine storageKey={storageKey} title="Weeks" label="periods" testId="period-spine" detail={children}>
       <PeriodList weeks={periods.weeks} sel={sel} onSelect={onSelect} />
-      <div className="min-w-0 flex-1 overflow-y-auto">{children}</div>
-    </div>
+    </SideSpine>
   );
 }
 

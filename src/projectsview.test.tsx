@@ -51,7 +51,7 @@ const INDEX = {
   recommendations_model: "claude-fable-5-1",
 };
 
-beforeEach(() => { cleanup(); calls.length = 0; index = INDEX; phone = false; });
+beforeEach(() => { cleanup(); calls.length = 0; index = INDEX; phone = false; localStorage.clear(); });
 
 describe("helpers", () => {
   it("names models and spans months", () => {
@@ -135,5 +135,29 @@ describe("ProjectsView", () => {
     render(<ProjectsView vaultPath="/v" />);
     fireEvent.click(await screen.findByRole("button", { name: /Build my projects/ }));
     await waitFor(() => expect(calls.some((c) => c.cmd === "projects_build")).toBe(true));
+  });
+});
+
+describe("collapsible projects list", () => {
+  it("collapses, widens the detail, and remembers it", async () => {
+    render(<ProjectsView vaultPath="/v" />);
+    await screen.findByTestId("projects-list");
+    fireEvent.click(screen.getByLabelText("Collapse projects"));
+    expect(screen.queryByTestId("projects-list")).toBeNull();
+    expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("collapsed");
+    expect(screen.getByText("What would move you forward")).toBeTruthy();
+    expect(localStorage.getItem("prevail.intent.spine.projects")).toBe("1");
+    cleanup();
+    render(<ProjectsView vaultPath="/v" />);
+    await screen.findByTestId("spine-collapsed");
+    fireEvent.click(screen.getByLabelText("Show projects"));
+    expect(screen.getByTestId("projects-list")).toBeTruthy();
+  });
+
+  it("a phone keeps its plain list", async () => {
+    phone = true;
+    render(<ProjectsView vaultPath="/v" />);
+    await screen.findByText("Overview and recommendations");
+    expect(screen.queryByLabelText("Collapse projects")).toBeNull();
   });
 });

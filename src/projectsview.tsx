@@ -14,6 +14,7 @@ import { titleCase } from "./format";
 import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { useIsPhone } from "./useisphone";
+import { SideSpine } from "./sidespine";
 import { RestartEditor } from "./mirrorrestart";
 
 export interface ProjectIntent { title: string; goal: string; status: string }
@@ -282,7 +283,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
   }
 
   const list = (
-    <div className={`${phone ? "" : "w-72 shrink-0 border-r border-border"} overflow-y-auto bg-surface/40 p-2`}>
+    <div className={`${phone ? "overflow-y-auto bg-surface/40 " : ""}p-2`}>
       <div className="flex items-center gap-1 px-1.5 pb-2 pt-1">
         {(["all", "active"] as const).map((k) => (
           <button key={k} onClick={() => setShow(k)} className={`inline-flex h-7 items-center rounded-md px-2.5 text-[12px] ${show === k ? "bg-surface font-semibold text-text-primary shadow-sm ring-1 ring-black/5" : "text-text-muted hover:text-text-secondary"}`}>
@@ -385,10 +386,9 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
           </div>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1">
+        <SideSpine storageKey="prevail.intent.spine.projects" title="Projects" label="projects" testId="projects-list" detail={<div className="p-6">{detail}</div>}>
           {list}
-          <div className="min-w-0 flex-1 overflow-y-auto p-6">{detail}</div>
-        </div>
+        </SideSpine>
       )}
     </div>
   );
