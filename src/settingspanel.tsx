@@ -12,7 +12,7 @@ import { AppsMirrorPanel } from "./appsmirror";
 import { SystemActivity } from "./activitypanel";
 import { MirrorPanel } from "./mirror";
 import { EntitiesView } from "./entitiesview";
-import { navSection } from "./navdefs";
+import { VAULT_ALIASES, navSection } from "./navdefs";
 import { ToolsPanel } from "./toolspanel";
 import { AutonomyPanel } from "./autonomypanel";
 import { LoopBoard } from "./loopboard";
@@ -25,7 +25,8 @@ import { CouncilSettingsSection, PrivacyConnectivitySection } from "./settings6"
 import { UsageDashboard } from "./usagedashboard";
 import { track } from "./telemetry";
 import { ModelsSection } from "./settings7";
-import { AppearanceSection, WorkspaceSection } from "./settings8";
+import { AppearanceSection } from "./settings8";
+import { SourcesPanel } from "./sourcespanel";
 import { BenchmarkPanel } from "./benchpanel";
 import { HooksSection } from "./hookssection";
 import { ProfilesSection } from "./profilessection";
@@ -54,18 +55,22 @@ export function SettingsPanel({
   onVaultMoved?: (path: string) => void;
   jumpTo?: { section: string; n: number } | null;
 }) {
-  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intent" | "entities" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "usage";
+  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intent" | "entities" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "sources" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "usage";
   // Editor lands on General. The operational surfaces (Work board / Insights /
   // Spark) moved to Work mode, so Editor opens on a config page. A specific
   // jumpTo (e.g. "connectors") still wins.
   const [section, setSection] = useState<Section>(jumpTo?.section ? (navSection(jumpTo.section) as Section) : "general");
+  // A jump to the old Vault page (workspace / vault / demo) opens Sources on
+  // the vault itself; the nonce remounts the page so a repeat jump re-opens it.
+  const [sourcesOpen, setSourcesOpen] = useState<{ id?: string; n: number }>(() => ({ id: jumpTo?.section && VAULT_ALIASES.has(jumpTo.section) ? "vault" : undefined, n: 0 }));
+  const noteJump = (raw: string) => setSourcesOpen((p) => ({ id: VAULT_ALIASES.has(raw) ? "vault" : undefined, n: p.n + 1 }));
   // Anonymous usage signal: WHICH surface opened (a name from the telemetry
   // enum), never what's in it. One event per section change.
   useEffect(() => { track("feature_used", { feature: section }); }, [section]);
   // Allow callers (e.g. the Demo ribbon's "Switch to Production" link) to jump
   // straight to a section. The nonce makes repeat jumps to the same section fire.
   useEffect(() => {
-    if (jumpTo?.section) setSection(navSection(jumpTo.section) as Section);
+    if (jumpTo?.section) { setSection(navSection(jumpTo.section) as Section); noteJump(jumpTo.section); }
   }, [jumpTo?.n]); // eslint-disable-line react-hooks/exhaustive-deps
   // Value is consumed by sections via the deep-link event; only the setter is
   // read here, so the state value itself is intentionally left unbound.
@@ -80,6 +85,7 @@ export function SettingsPanel({
       const colonIdx = raw.indexOf(":");
       if (colonIdx === -1) {
         setSection(navSection(raw) as Section);
+        noteJump(raw);
         setSettingsDeepLink(null);
       } else {
         setSection(navSection(raw.slice(0, colonIdx)) as Section);
@@ -179,10 +185,12 @@ export function SettingsPanel({
           {section === "profiles" && <ProfilesSection />}
           {section === "remote" && <RemoteSection />}
           {section === "phone" && <PhoneSection />}
-          {/* IA-1: "workspace" is the umbrella; "vault"/"demo" remain as
-              deep-link aliases (e.g. the demo ribbon's jump) → same section. */}
-          {(section === "workspace" || section === "vault" || section === "demo") && (
-            <WorkspaceSection vaultPath={vaultPath} onSetupDomains={onSetupDomains} onVaultMoved={onVaultMoved} />
+          {/* Sources replaced the Vault page. "workspace", "vault" and "demo"
+              stay as deep-link aliases (navSection) and open the vault's row. */}
+          {section === "sources" && (
+            <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5">
+              <SourcesPanel key={sourcesOpen.n} vaultPath={vaultPath} initialDetail={sourcesOpen.id} onSetupDomains={onSetupDomains} onVaultMoved={onVaultMoved} />
+            </div>
           )}
           {section === "appearance" && <AppearanceSection appearance={appearance} />}
           {section === "frameworks" && <FrameworksSection />}

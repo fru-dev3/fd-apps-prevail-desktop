@@ -16,6 +16,7 @@ import { domainIcon } from "./icons";
 import { ThinkingDots, ThinkingWord, useFrameworkLens } from "./hooks";
 import { extractCliError, renderSkillTokens } from "./textutil";
 import { ProviderMark } from "./marks";
+import { SourcesCited } from "./sourceslib";
 import type { ChatMessage, DomainContextBundle, DomainToggle, RouteInfo } from "./types";
 
 export const MESSAGE_WINDOW = 80;
@@ -481,6 +482,7 @@ export function ChatBubble({
             </div>
           )}
           {msg.streaming && msg.content && <span className="cursor-blink text-accent">▌</span>}
+          <SourcesCited sources={msg.sources} />
         </div>
         {msg.content && (
           <div className="mt-1 flex h-5 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

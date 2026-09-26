@@ -40,7 +40,7 @@ const ALLOWED_PROPS = new Set([
 // allowlisted key can't smuggle content (e.g. feature must be a known feature).
 const ENUM_VALUES: Record<string, Set<string>> = {
   os: new Set(["mac", "win", "linux", "unknown"]),
-  feature: new Set(["chat", "council", "benchmark", "skills", "intents", "ideal_state", "apps", "memory", "loops", "tasks", "journal", "notes", "automations", "domains", "privacy", "models", "tools", "profile", "settings", "work", "home"]),
+  feature: new Set(["chat", "council", "benchmark", "skills", "intents", "ideal_state", "apps", "memory", "loops", "tasks", "journal", "notes", "automations", "domains", "privacy", "models", "tools", "profile", "settings", "work", "home", "sources"]),
   provider: new Set(["openrouter", "anthropic", "openai", "google", "ollama", "lmstudio", "bedrock", "other"]),
   daemon: new Set(["distill", "reminders", "taskgen", "skillgen", "headless_learn"]),
 };

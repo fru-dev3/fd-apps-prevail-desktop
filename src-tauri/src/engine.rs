@@ -2611,6 +2611,10 @@ pub async fn engine_chat(
     // (their claude.ai connectors, e.g. PayPal) to this turn. Forwarded as
     // --inherit-user-mcp when true; absent/false keeps the strict surface.
     #[allow(non_snake_case)] inheritUserMcp: Option<bool>,
+    // Sources retrieval. Some(false) => the desktop already placed a cited
+    // sources block in the message, so the engine skips its own (--no-sources).
+    // None => the engine retrieves (older frontends, or a failed desktop lookup).
+    sources: Option<bool>,
 ) -> Result<(), String> {
     // Build the arg vector. `--vault V` goes BEFORE the subcommand,
     // matching every other engine command here.
@@ -2683,6 +2687,9 @@ pub async fn engine_chat(
     }
     if inheritUserMcp.unwrap_or(false) {
         args.push("--inherit-user-mcp".to_string());
+    }
+    if sources == Some(false) {
+        args.push("--no-sources".to_string());
     }
 
     run_engine_stream_stdin(app, session, args, message, "engine-chat", extra_env).await

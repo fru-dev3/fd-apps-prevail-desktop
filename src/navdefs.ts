@@ -6,7 +6,7 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, BarChart3, BookUser, Bot, Briefcase, CalendarDays, Compass, Database, Dices, FileText, Github, Hammer, Layers, Lightbulb, MessagesSquare, Network, Plug, Repeat, Scale, ScanFace, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, UserRound, Webhook, Wrench, Zap } from "lucide-react";
+import { Activity, BarChart3, BookUser, Bot, Briefcase, CalendarDays, Compass, Database, Dices, FileText, Github, Hammer, Layers, Lightbulb, MessagesSquare, Network, Plug, Repeat, Scale, ScanFace, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, UserRound, Waypoints, Webhook, Wrench, Zap } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
@@ -38,6 +38,10 @@ export const EDITOR_NAV: NavGroup[] = [
     { id: "benchmark", label: "Arena", icon: Swords },
   ]},
   { heading: "Context & Memory", items: [
+    // Sources replaced the Vault page: the vault is the default source, next to
+    // Obsidian vaults, folders and websites. Its location and backups live in
+    // the vault's own row.
+    { id: "sources", label: "Sources", icon: Waypoints },
     { id: "intent", label: "Intent", icon: ScanFace },
     { id: "entities", label: "Entities", icon: BookUser },
     { id: "ideal-state", label: "Ideals", icon: Compass },
@@ -62,7 +66,6 @@ export const EDITOR_NAV: NavGroup[] = [
   ]},
   { heading: "Settings", items: [
     { id: "profiles", label: "Profiles", icon: UserRound },
-    { id: "workspace", label: "Vault", icon: Database },
     { id: "general", label: "General", icon: SettingsIcon },
     { id: "about", label: "About", icon: Github },
   ]},
@@ -72,6 +75,10 @@ export const EDITOR_NAV: NavGroup[] = [
 // briefly called Mirror. Those ids still arrive from deep links and saved
 // state, so they land on Intent.
 const INTENT_ALIASES = new Set(["intents", "prompt-capture", "retrospect", "mirror"]);
+// The Vault / Workspace / Context page became Sources; its old ids (deep links,
+// the demo ribbon, saved state) open Sources on the vault.
+export const VAULT_ALIASES = new Set(["workspace", "vault", "demo", "context"]);
 export function navSection(id: string): string {
+  if (VAULT_ALIASES.has(id)) return "sources";
   return INTENT_ALIASES.has(id) ? "intent" : id;
 }

@@ -308,6 +308,9 @@ export interface ChatMessage {
   // event fills this in with the model it chose and why. Renders as a routing
   // chip with a one-click override. Absent on non-auto turns.
   route?: RouteInfo;
+  // The excerpts from the user's Sources this turn was given, cited in the
+  // reply as [S1].. and listed under it. Absent when nothing matched.
+  sources?: SourceCitationInfo[];
 }
 
 export interface RouteInfo {
@@ -338,6 +341,19 @@ export interface ChatEvent {
   error?: string;
   // Present only on the `route` event (auto model routing): the chosen model + why.
   route?: RouteInfo;
+  // Present only on the `sources` event: the excerpts the engine attached.
+  sources?: SourceCitationInfo[];
+}
+
+// One excerpt from the user's sources that a turn was given to cite ([S1]..).
+export interface SourceCitationInfo {
+  tag: string;
+  sourceName: string;
+  kind: string;
+  title: string;
+  location: string;
+  url?: string;
+  group?: string;
 }
 
 // One step in the live execution checklist shown while a chat turn runs.

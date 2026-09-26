@@ -33,6 +33,7 @@ import { HomeBriefing } from "./recommendationspanel";
 import type { ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, LifeReadiness, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { savePastedImages } from "./paste";
+import { sourcesForMessage } from "./sourceslib";
 
 // Per-domain cache of the cheap (no-audit) context score. engine_score spawns the
 // engine binary; users switch domains often, so re-opening a domain within the TTL
@@ -1473,6 +1474,18 @@ export function ChatPanel({
               });
               break;
             }
+            case "sources": {
+              // The engine attached cited excerpts itself (our lookup could not
+              // run): list them under the reply.
+              if (ev.sources && ev.sources.length) {
+                const cited = ev.sources;
+                setMessages((m) => {
+                  const last = m[m.length - 1];
+                  return last && last.streaming && !last.sources ? [...m.slice(0, -1), { ...last, sources: cited }] : m;
+                });
+              }
+              break;
+            }
             case "usage": {
               // Token / cost accounting - stash on the streaming bubble.
               setMessages((m) => {
@@ -1803,10 +1816,24 @@ export function ChatPanel({
       : "";
     // Load the attached skills' actual SKILL.md bodies so the model gets their
     // instructions, not just a reference to a name it can't see.
+    // Sources: cited excerpts from the user's vault, Obsidian vaults, folders and
+    // websites (the Sources page), retrieved for what they just typed. Started
+    // here so the lookup overlaps the skills read. null = retrieval could not
+    // run, so the engine is left to try; "" = it ran and nothing matched.
+    const sourcesPromise = sourcesForMessage(vaultPath, visible);
     const skillsPreamble = await buildSkillsPreamble(attachedSkills, allSkills, domain ?? null);
     // Ask for people, places, domains, tasks, files and dates as prevail://
     // links, which the reply renders as chips that open the real thing.
     const linkPreamble = entityLinkDirective(domains.map((d) => d.name), savedEntitiesForDirective());
+    const sourcesRes = await sourcesPromise;
+    const sourcesPreamble = sourcesRes?.context ?? "";
+    if (sourcesRes && sourcesRes.hits.length > 0) {
+      const cited = sourcesRes.hits;
+      setMessages((m) => {
+        const last = m[m.length - 1];
+        return last && last.streaming ? [...m.slice(0, -1), { ...last, sources: cited }] : m;
+      });
+    }
     // Usage intelligence: tick the ledger for every skill riding this send
     // (fire-and-forget - accounting never delays or breaks the turn). Powers
     // the Skills page's popularity ranking + archive-the-bloat suggestions.
@@ -1821,8 +1848,8 @@ export function ChatPanel({
     const history = buildChatContext(messages, 40000);
     const promptText = fwLens.buildPrompt(
       history
-        ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
-        : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
+        ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${sourcesPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
+        : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${sourcesPreamble}${visible}`
     );
     pushHistory(visible);
     setAttachments([]);
@@ -2027,6 +2054,9 @@ export function ChatPanel({
           // "connected via Claude Code" passthrough those apps advertise
           // (PayPal etc.). Domain chats keep the strict engine-managed surface.
           inheritUserMcp: isApp,
+          // The desktop already retrieved (and placed) the sources block, so the
+          // engine skips its own lookup. null when ours could not run.
+          sources: sourcesRes ? false : null,
         });
       } else {
         await invoke("chat_send", {

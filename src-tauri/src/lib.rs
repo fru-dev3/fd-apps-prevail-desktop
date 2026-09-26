@@ -66,6 +66,7 @@ mod webhook_bridge;
 mod webui;
 mod voice;
 mod integrations;
+mod sources;
 
 use std::fs;
 use std::path::Path;
@@ -353,6 +354,10 @@ pub fn run() {
             // runaway task and warns the UI.
             watchdog::start(app.handle().clone());
 
+            // Sources: keep due context sources (vault, Obsidian, folders,
+            // websites) indexed while the app runs.
+            sources::start_scheduler(app.handle().clone());
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -537,6 +542,12 @@ pub fn run() {
             engine::engine_domains,
             engine::engine_apps_list,
             engine::engine_obsidian_import,
+            sources::sources_list,
+            sources::sources_add,
+            sources::sources_remove,
+            sources::sources_set_enabled,
+            sources::sources_refresh,
+            sources::sources_context,
             engine::notify_user,
             engine::engine_app_add,
             engine::engine_app_set_domains,

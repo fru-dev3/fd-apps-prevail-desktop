@@ -464,6 +464,19 @@ function VaultRebuildCard({ vaultPath }: { vaultPath: string }) {
   );
 }
 
+// The vault's own upkeep: where it lives and its backups (the Your/Demo vault
+// cards), the structure rebuild and the hygiene tools. The Sources page shows
+// this under the Prevail vault, which is where the old Vault page went.
+export function VaultManageSection({ vaultPath, onSetupDomains, onVaultMoved }: { vaultPath: string; onSetupDomains?: () => void; onVaultMoved?: (path: string) => void }) {
+  return (
+    <>
+      <DemoModeSection vaultPath={vaultPath} onVaultMoved={onVaultMoved} onSetupDomains={onSetupDomains} headerless />
+      <VaultRebuildCard vaultPath={vaultPath} />
+      <VaultHygieneCard vaultPath={vaultPath} />
+    </>
+  );
+}
+
 export function WorkspaceSection({ vaultPath, onSetupDomains, onVaultMoved }: { vaultPath: string; onSetupDomains?: () => void; onVaultMoved?: (path: string) => void }) {
   return (
     <>

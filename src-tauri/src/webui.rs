@@ -41,6 +41,8 @@ const WEBUI_ALLOWED: &[&str] = &[
     "list_threads", "load_thread", "save_thread", "rename_thread", "delete_thread", "save_session",
     // memory / profile (read)
     "read_user_md", "read_memory_md",
+    // context sources (read): the list, and per-message retrieval for chat
+    "sources_list", "sources_context",
     // self-learning ledger
     "intent_append", "intents_read", "journal_append", "usage_append", "usage_summary",
     // usage analytics — domain-scoped roll-up for the per-domain Usage tab (read)
