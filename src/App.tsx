@@ -2002,11 +2002,7 @@ export default function App() {
                       call; opens the Board's "Needs you" view. */}
                   {decisionsCount > 0 && (
                     <button
-                      onClick={() => {
-                        localStorage.setItem("prevail.board.openNeeds", "1");
-                        window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "tasks" }));
-                        window.dispatchEvent(new CustomEvent("prevail:board-view", { detail: "needs" }));
-                      }}
+                      onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "inbox" }))}
                       title={`${decisionsCount} decision${decisionsCount === 1 ? "" : "s"} need you`}
                       className="flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] text-warn transition-colors hover:bg-surface-warm"
                     >

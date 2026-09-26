@@ -32,12 +32,8 @@ test("1 · home renders: headline, composer, and a trust ribbon that says only w
 
 test("2 · Needs You shows both approval queues; approving a connector act uses the token spine", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  // The approval inbox lives in the Work board's "Needs you" view.
-  await page.evaluate(() => {
-    localStorage.setItem("prevail.board.openNeeds", "1");
-    window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "tasks" }));
-    window.dispatchEvent(new CustomEvent("prevail:board-view", { detail: "needs" }));
-  });
+  // The approval inbox is the Inbox row: the Work board's "Needs you" view.
+  await page.getByTestId("nav-inbox").click();
   const actCard = page.getByText("PayPal: create_invoice");
   await expect(actCard).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("Gmail: send")).toBeVisible();
@@ -119,8 +115,8 @@ test("7 · Phone is a top-level section and turns itself on in one tap", async (
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 
-  // Reachable by name from the Editor sidebar, not only by deep link.
-  await page.getByRole("button", { name: "Editor" }).click();
+  // Reachable by name from the Settings sidebar, not only by deep link.
+  await page.getByRole("button", { name: "Settings" }).click();
   const phoneNav = page.getByRole("button", { name: "Phone", exact: true });
   await expect(phoneNav).toBeVisible({ timeout: 10_000 });
   await phoneNav.click();
