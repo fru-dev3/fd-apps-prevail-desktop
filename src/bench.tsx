@@ -368,49 +368,6 @@ export async function rerunLatestBatch(vault: string): Promise<boolean> {
   return true;
 }
 
-function modelKeyLabel(k: string): string {
-  const [cli, model] = k.split(MODEL_SEP);
-  const ml = modelLabel(cli, model) || "default";
-  return `${titleCase(cli)} ${ml}`;
-}
-function domainScopeLabel(domains: string[]): string {
-  return domains.length === 0 ? "All domains" : domains.length <= 2 ? domains.map(titleCase).join(", ") : `${domains.length} domains`;
-}
-
-// BENCH-2: a scope-aware preview of EXACTLY what the scheduled run will execute.
-// "latest" repeats the most recent batch (derived from benchmark_runs, so we can
-// also flag the single-model trap); "all"/"custom" reflect the decoupled scope.
-export async function scheduledRunPreview(vault: string): Promise<{ models: string[]; scopeLabel: string; council: boolean; empty: boolean; mode: string }> {
-  const mode = lsGet(BENCH_SCHED.scopeMode, "latest");
-  if (mode === "all") {
-    return { models: [`all models (${allBenchModelKeys().length})`], scopeLabel: "All domains", council: false, empty: false, mode };
-  }
-  if (mode === "custom") {
-    const keys = lsGet(BENCH_SCHED.scopeModels, "").split(",").map((s) => s.trim()).filter(Boolean);
-    const doms = lsGet(BENCH_SCHED.scopeDomains, "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    return { models: keys.map(modelKeyLabel), scopeLabel: domainScopeLabel(doms), council: false, empty: keys.length === 0, mode };
-  }
-  const runsRaw = await invoke<BenchmarkRun[]>("benchmark_runs", { vault }).catch(() => [] as BenchmarkRun[]);
-  const runs = Array.isArray(runsRaw) ? runsRaw : [];
-  if (runs.length === 0) return { models: [], scopeLabel: "", council: false, empty: true, mode };
-  const newest = runs[0];
-  const group = newest.batch_id
-    ? runs.filter((r) => r.batch_id === newest.batch_id)
-    : runs.filter((r) => Math.abs(r.created_ms - newest.created_ms) < 5 * 60_000);
-  const models: string[] = [];
-  let council = false;
-  const seen = new Set<string>();
-  for (const r of group) {
-    if (r.council) { council = true; continue; }
-    if (!r.cli) continue;
-    const k = `${r.cli}::${r.model ?? ""}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    models.push(modelKeyLabel(`${r.cli}${MODEL_SEP}${r.model ?? ""}`));
-  }
-  return { models, scopeLabel: domainScopeLabel(newest.domains ?? []), council, empty: false, mode };
-}
-
 // BENCH-2: build jobs from the DECOUPLED scheduled scope (all / custom). Returns
 // null for "latest" mode (the caller falls back to rerunLatestBatch). Filters to
 // installed CLIs + Bunker-permitted models at build time.

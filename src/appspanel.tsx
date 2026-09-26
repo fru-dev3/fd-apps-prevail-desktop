@@ -3874,12 +3874,3 @@ export function AppDetail({ app, vaultPath, logos, status, busy, onSync, onSetEn
     </div>
   );
 }
-
-export function Detail({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-3">
-      <span className="w-24 shrink-0 text-[11px] text-text-muted">{label}</span>
-      <span className="min-w-0 flex-1 text-text-secondary">{children}</span>
-    </div>
-  );
-}

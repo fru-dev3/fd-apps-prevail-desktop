@@ -124,9 +124,6 @@ export const APP_AUTONOMY_TINT: Record<string, string> = {
   "read-only": "#2fb87a", draft: "#d8a657", act: "#e06c75",
 };
 export const STATUS_TINT: Record<string, string> = { connected: "#2fb87a", expired: "#d8a657", error: "#e06c75", "not-configured": "#2fb87a" };
-export const PATTERN_LABEL: Record<string, string> = { api: "API", oauth: "OAuth", cli: "CLI", browser: "Web" };
-export const PATTERN_TINT: Record<string, string> = { api: "#2fb87a", oauth: "#b07ce8", cli: "#6b7cff", browser: "#9aa0a6" };
-export const PATTERN_TIER: Record<string, string> = { api: "Tier A · API/MCP", oauth: "Tier B · OAuth gateway", cli: "Tier D · CLI", browser: "Tier C · browser" };
 export const LOCAL_CLI_IDS = new Set(["ollama", "lmstudio", "mlx"]);
 
 export const MODELS: Record<string, ModelPick[]> = {

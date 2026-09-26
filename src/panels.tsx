@@ -1803,28 +1803,6 @@ export function Field({ label, children }: { label: string; children: React.Reac
   );
 }
 
-export function SubsectionHeader({
-  icon: Icon,
-  children,
-  hint,
-  className = "",
-}: {
-  icon?: LucideIcon;
-  children: React.ReactNode;
-  hint?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`mb-3 flex items-center gap-2 border-b border-border-subtle/70 pb-2 ${className}`}>
-      {Icon && <Icon className="h-4 w-4 shrink-0 text-accent" />}
-      <h3 className="font-display text-[15px] font-semibold leading-tight tracking-tight text-text-primary">
-        {children}
-      </h3>
-      {hint != null && <span className="ml-auto font-mono text-[11px] text-text-muted">{hint}</span>}
-    </div>
-  );
-}
-
 export function DaemonCard({
   name,
   status,
@@ -2347,26 +2325,6 @@ export function IngestionAuditPanel() {
           })}
         </ul>
       )}
-    </div>
-  );
-}
-
-export function SettingRow({
-  label,
-  desc,
-  children,
-}: {
-  label: string;
-  desc?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-6 border-b border-border-subtle py-4">
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-text-primary">{label}</div>
-        {desc && <div className="mt-0.5 text-xs text-text-secondary">{desc}</div>}
-      </div>
-      <div className="shrink-0">{children}</div>
     </div>
   );
 }
