@@ -1,7 +1,7 @@
 // Intent > Projects: the list, a project's restart brief, recommendations
 // that become tasks, and the empty state that starts the first build.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 
 const calls: { cmd: string; args?: Record<string, unknown> }[] = [];
 let index: unknown = null;
@@ -77,9 +77,11 @@ describe("ProjectsView", () => {
     expect(screen.getByText("Tasks")).toBeTruthy();
     expect(screen.getByText("Skills to write")).toBeTruthy();
     expect(screen.getByText(/4,313 of your prompts, 2 projects/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add task: Follow up with the adjuster" }));
+    const add = screen.getAllByRole("button", { name: "Add task to the Insurance board" })[0];
+    fireEvent.click(add);
     await waitFor(() => expect(calls.find((c) => c.cmd === "tasks_add")?.args).toMatchObject({ vault: "/v", domain: "insurance", text: "Follow up with the adjuster" }));
-    expect(await screen.findByText("Added")).toBeTruthy();
+    await waitFor(() => expect(add.getAttribute("data-state")).toBe("done"));
+    expect(add.getAttribute("title")).toBe("Added");
   });
 
   it("one column; every recommendation can become a task or an agent instruction", async () => {
@@ -89,15 +91,19 @@ describe("ProjectsView", () => {
     const recs = await screen.findByTestId("recommendations");
     expect(recs.className).not.toMatch(/grid-cols/);
     expect(screen.getAllByTestId("rec-row")).toHaveLength(2);
-    const add = screen.getByRole("button", { name: "Add task: Write a ship-to-Vercel skill" });
-    expect(add.getAttribute("title")).toBe("Adds it to the Dev task board");
-    const copy = screen.getByRole("button", { name: "Copy instruction: Write a ship-to-Vercel skill" });
-    expect(copy.getAttribute("title")).toMatch(/ready-to-paste instruction for an agent/);
+    // Row actions are small icons at the row's top right, text beneath them.
+    const row = screen.getAllByTestId("rec-row")[1];
+    expect(row.className).toMatch(/\bflow-root\b/);
+    const add = within(row).getByRole("button", { name: "Add task to the Dev board" });
+    expect(add.className).toMatch(/\bh-7\b/);
+    expect(add.textContent).toBe("");
+    const copy = within(row).getByRole("button", { name: "Copy instruction for an agent" });
+    expect(copy.getAttribute("title")).toBe("Copy instruction for an agent");
     fireEvent.click(copy);
     // The index is the recommendation's place in the engine's list, not the row's.
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("INSTRUCTION:1"));
     expect(calls.find((c) => c.cmd === "intent_instruction")?.args).toEqual({ vault: "/v", index: 1 });
-    expect(await screen.findByText("Copied")).toBeTruthy();
+    await waitFor(() => expect(copy.getAttribute("title")).toBe("Copied"));
   });
 
   it("a recommendation links to its project under the current title", async () => {

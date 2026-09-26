@@ -976,12 +976,8 @@ export default function App() {
     const v = parseInt(lsGet("prevail.domainRailWidth"), 10);
     return Number.isFinite(v) && v > 0 ? v : 240;
   });
-  const [threadsRailWidth, setThreadsRailWidth] = useState<number>(() => {
-    const v = parseInt(lsGet("prevail.threadsRailWidth"), 10);
-    return Number.isFinite(v) && v > 0 ? v : 240;
-  });
+
   useEffect(() => { lsSet("prevail.domainRailWidth", String(domainRailWidth)); }, [domainRailWidth]);
-  useEffect(() => { lsSet("prevail.threadsRailWidth", String(threadsRailWidth)); }, [threadsRailWidth]);
   const refreshThreads = useCallback(async () => {
     if (!vaultPath) return;
     try {
@@ -1907,11 +1903,6 @@ export default function App() {
               onNew={() => void newThread()}
               onRefresh={() => void refreshThreads()}
               runningThreadPaths={runningThreadPaths}
-              railWidth={threadsRailWidth}
-            />
-            <ResizeHandle
-              ariaLabel="Resize threads rail"
-              onChange={(dx) => setThreadsRailWidth((w) => Math.max(180, Math.min(480, w + dx)))}
             />
           </>
         )}

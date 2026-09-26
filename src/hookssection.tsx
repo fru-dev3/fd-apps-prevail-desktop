@@ -101,7 +101,7 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
       />
 
       {draft && (
-        <div className="mb-4 max-w-xl rounded-lg border border-border bg-surface-warm p-4">
+        <div className="mb-4 rounded-lg border border-border bg-surface-warm p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-display text-base font-semibold text-text-primary">{hooks.some((h) => h.id === draft.id) ? "Edit hook" : "New hook"}</h3>
             <button onClick={() => { setDraft(null); setErr(null); }} className="rounded p-1 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>
@@ -141,13 +141,13 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
       {!draft && err && <div className="mb-3 text-xs text-err">{err}</div>}
 
       {empty && (
-        <div className="max-w-xl rounded-lg border border-dashed border-border bg-surface-warm p-6 text-center">
+        <div className="rounded-lg border border-dashed border-border bg-surface-warm p-6 text-center">
           <Webhook className="mx-auto mb-2 h-7 w-7 text-text-muted opacity-50" />
           <p className="text-sm text-text-secondary">No hooks yet. Add one to run a command when a task is created, a chat reply lands, or on demand.</p>
         </div>
       )}
 
-      <ul className="grid max-w-xl grid-cols-1 gap-2">
+      <ul className="grid grid-cols-1 gap-2">
         {hooks.map((h) => (
           <li key={h.id} className={`rounded-lg border bg-surface p-3 ${h.enabled ? "border-border-subtle" : "border-border-subtle opacity-60"}`}>
             <div className="flex items-start gap-3">

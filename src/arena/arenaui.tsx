@@ -3,54 +3,20 @@
 // right-rail stat card, a tiny score-distribution bar chart, an insight row and
 // the heatmap tint used by the Model x domain matrix. The data wiring stays in
 // benchpanel.tsx; this file only owns how that data looks.
-import { useEffect, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { scoreColor } from "../format";
-import { lsGet, lsSet } from "../storage";
 import { Sparkline } from "../ui";
 
-// Shared collapsible right-hand insights rail for every Arena view that has one
-// (Leaderboard, Chart, Model x domain, Run summary). Renders the <aside> shell
-// plus a collapse-to-the-right toggle pinned at the rail's top-left edge. The
-// collapsed/expanded choice is stored under one localStorage key so it stays
-// consistent as the user moves between Arena tabs.
-const RAIL_COLLAPSED_KEY = "prevail.arena.railCollapsed";
-
+// The insights block every Arena view that has one (Leaderboard, Chart,
+// Model x domain, Run summary) shows UNDER its main content, full width: one
+// content column, nothing docked on the right.
 export function ArenaRightRail({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState<boolean>(() => lsGet(RAIL_COLLAPSED_KEY, "0") === "1");
-  useEffect(() => { lsSet(RAIL_COLLAPSED_KEY, collapsed ? "1" : "0"); }, [collapsed]);
-
-  if (collapsed) {
-    return (
-      <aside className="relative flex w-8 shrink-0 flex-col items-center border-l border-border-subtle bg-surface-warm/30 py-2">
-        <button
-          onClick={() => setCollapsed(false)}
-          title="Expand insights"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-warm hover:text-text-primary"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span
-          className="mt-3 select-none text-[11px] text-text-muted"
-          style={{ writingMode: "vertical-rl" }}
-        >
-          Insights
-        </span>
-      </aside>
-    );
-  }
   return (
-    <aside className="relative w-full shrink-0 space-y-3 pt-8 xl:w-72">
-      <button
-        onClick={() => setCollapsed(true)}
-        title="Collapse insights"
-        className="absolute left-0 top-0 inline-flex h-6 w-6 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-warm hover:text-text-primary"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
+    <section aria-label="Insights" data-testid="arena-insights" className="w-full space-y-3">
+      <h2 className="font-display text-xl font-semibold text-text-primary">Insights</h2>
       {children}
-    </aside>
+    </section>
   );
 }
 
@@ -89,8 +55,8 @@ export function ArenaHeader({
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-text-primary">{title}</h1>
-        {subtitle && <p className="mt-1 max-w-2xl text-sm text-text-secondary">{subtitle}</p>}
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-text-primary">{title}</h1>
+        {subtitle && <p className="mt-1 text-[14px] text-text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>

@@ -511,7 +511,7 @@ export function PhoneSection() {
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
               <div className="min-w-0">
                 <div className="text-base font-semibold text-text-primary">Bunker Mode is on, so phones cannot connect</div>
-                <p className="mt-1 max-w-xl text-sm text-text-secondary">
+                <p className="mt-1 text-sm text-text-secondary">
                   Bunker Mode promises that nothing leaves this Mac, and a phone on your network is another way off it. The bridge stays on this machine only, and sharing over the internet is refused, until you turn Bunker Mode off.
                 </p>
                 <button

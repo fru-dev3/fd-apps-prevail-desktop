@@ -2511,7 +2511,7 @@ export function ChatPanel({
                   </div>
 
                   {/* MAIN GRID - fills the screen with rich, clickable cards. */}
-                  <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="grid gap-4">
                     {/* What this domain is / why it matters -> Ideal State. */}
                     <button
                       onClick={() => setDomainTab("soul")}
@@ -2642,7 +2642,7 @@ export function ChatPanel({
                 read_domain_ideal / write_domain_ideal contract as DomainPrefsPanel;
                 Generate calls domain_draft_ideal (same command the Prefs panel uses). */}
             {domainTab === "soul" && (
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+              <div className="grid grid-cols-1 gap-4">
                 {/* LEFT: the editable Ideal State note + Generate with AI. */}
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col rounded-2xl border border-border-subtle bg-surface/50 p-5">

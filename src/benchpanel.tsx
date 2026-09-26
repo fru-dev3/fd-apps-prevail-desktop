@@ -3,7 +3,7 @@
 // run registry + executor live in ./bench; this is the presentation layer.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm, open, save as saveFileDialog } from "@tauri-apps/plugin-dialog";
-import { Activity, AlertTriangle, Archive, Award, Bookmark, BrainCircuit, CalendarClock, Check, ChevronLeft, ChevronRight, Circle, Coins, Crown, DollarSign, Download, ExternalLink, FileText, Gauge, Layers, LineChart, Loader2, MessagesSquare, Pencil, Play, Plus, RotateCw, Scale, ShieldCheck, Sparkles, Swords, Target, Trash2, TrendingUp, Upload, X, Zap } from "lucide-react";
+import { Activity, AlertTriangle, Archive, Award, Bookmark, BrainCircuit, CalendarClock, Check, ChevronRight, Circle, Coins, Crown, DollarSign, Download, ExternalLink, FileText, Gauge, Layers, LineChart, Loader2, MessagesSquare, Pencil, Play, Plus, RotateCw, Scale, ShieldCheck, Sparkles, Swords, Target, Trash2, TrendingUp, Upload, X, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke, listen } from "./bridge";
@@ -15,6 +15,9 @@ import { PREF, cheapModel, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
 import { BenchCrumbs, Field, ScoreBar } from "./panels";
 import { RowMenu, Sparkline, Toggle } from "./ui";
 import type { RowMenuItem } from "./ui";
+import { SpineColumn, useSpineCollapsed } from "./sidespine";
+import { PAGE_HEADER_ROW } from "./sectionutil";
+import { useIsPhone } from "./useisphone";
 import { ArenaBars, ArenaHeader, ArenaInsight, ArenaMetric, ArenaRightRail, ArenaStatCard, heatBg } from "./arena/arenaui";
 import { domainIcon } from "./icons";
 import { BENCH_CLI_OPTIONS, benchBatches, benchFreqLabel, benchFreqMs, benchNotify, cancelBenchBatch, executeBenchBatch, runBenchModels, startQuestionSuggest, useBenchBatches, useQuestionSuggest } from "./bench";
@@ -625,7 +628,7 @@ export function BenchQuestions({
             { label: editing === "new" ? "New question" : draft.id },
           ]}
         />
-        <div className="max-w-3xl space-y-4">
+        <div className="space-y-4">
         <h2 className="font-display text-xl font-bold tracking-tight">{editing === "new" ? "New question" : draft.id}</h2>
         <Field label={editing === "new" ? "Domain(s): comma-separated to add to several at once" : "Domain"}>
           <input value={draft.domain} onChange={(e) => setDraft({ ...draft, domain: e.target.value })} list="bench-domains" placeholder={editing === "new" ? "wealth, health, career" : "wealth"} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
@@ -2002,7 +2005,7 @@ export function BenchRunConfig({
         );
 
         return (
-        <div className="mx-auto max-w-4xl space-y-4">
+        <div className="space-y-4">
           <div className="overflow-hidden rounded-2xl border border-border bg-surface">
             {/* Scoreboard strip: the match header. Reads like a chart, not a line. */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-strong/40 px-5 py-3">
@@ -2672,7 +2675,7 @@ export function BenchResults({
       {/* LEADERBOARD - the page leads with the ANSWER: which model wins.
           Podium for the top three, then full standings, one row per model. */}
       {resultsView === "board" && visibleRuns.length > 0 && (
-        <div className="flex flex-col gap-5 xl:flex-row">
+        <div className="flex flex-col gap-5">
           <div className="min-w-0 flex-1">
           {finishedBatch && (() => {
             const batchRuns = runs.filter((r) => r.batch_id === finishedBatch.id);
@@ -2914,13 +2917,13 @@ export function BenchResults({
       )}
 
       {resultsView === "matrix" && visibleRuns.length > 0 && (
-        <div className="flex flex-col gap-5 xl:flex-row">
+        <div className="flex flex-col gap-5">
           <div className="min-w-0 flex-1"><BenchMatrix matrix={matrix} allDomains={allDomains} onPick={loadRun} currentDomain={currentDomain} runs={runs} /></div>
           <MatrixInsights matrix={matrix} allDomains={allDomains} />
         </div>
       )}
       {resultsView === "frontier" && visibleRuns.length > 0 && (
-        <div className="flex flex-col gap-5 xl:flex-row">
+        <div className="flex flex-col gap-5">
           <div className="min-w-0 flex-1">
             <BenchFrontier
               models={modelAgg}
@@ -3258,8 +3261,9 @@ export function BenchmarkPanel({
   const [domainFilter, setDomainFilter] = useState<string>(initialDomain ? initialDomain.toLowerCase() : "all");
   // Whether the left section-nav rail is collapsed to an icon-only strip. Choice
   // persists so the Arena reopens the way the user left it.
-  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => lsGet("prevail.arena.navCollapsed", "0") === "1");
-  useEffect(() => { lsSet("prevail.arena.navCollapsed", navCollapsed ? "1" : "0"); }, [navCollapsed]);
+  const [navCollapsed, toggleNav] = useSpineCollapsed("prevail.arena.spine");
+  // On a phone the sections are a picker above the page, as in Intent.
+  const phone = useIsPhone();
   // Set when a batch just finished: the Leaderboard shows a "batch finished"
   // banner linking to it in History (answer first, filing one click away).
   const [finishedBatch, setFinishedBatch] = useState<{ label: string; id: string } | null>(null);
@@ -3585,50 +3589,37 @@ export function BenchmarkPanel({
   const showDomains = !initialDomain && allDomains.length > 0 && (view === "board" || view === "history");
   return (
     <div className="flex h-full">
-      {/* Left section-nav rail (mockups' navigation), with a DOMAINS filter.
-          Collapsible to an icon-only strip; the choice persists in localStorage. */}
-      <nav className={`flex shrink-0 flex-col border-r border-border-subtle bg-surface-warm/30 transition-all ${navCollapsed ? "w-12" : "w-52"}`}>
-        <div className={`flex items-center gap-2 py-4 ${navCollapsed ? "flex-col px-2" : "px-4"}`}>
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent font-display text-sm font-bold text-background">A</span>
-          {!navCollapsed && <span className="font-display text-base font-bold tracking-tight text-text-primary">Arena</span>}
-          {!navCollapsed && initialDomain && <span className="ml-auto rounded-full bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] text-accent" title={`Scoped to ${titleCase(initialDomain)}`}>{titleCase(initialDomain)}</span>}
-          <button
-            onClick={() => setNavCollapsed((c) => !c)}
-            title={navCollapsed ? "Expand navigation" : "Collapse navigation"}
-            className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-warm hover:text-text-primary ${navCollapsed ? "" : "ml-auto"}`}
-          >
-            {navCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </button>
-        </div>
-        <div className={`min-h-0 flex-1 overflow-y-auto pb-3 ${navCollapsed ? "px-1.5" : "px-2"}`}>
+      {/* The canonical SideSpine column: the Arena's sections, then the
+          Domains filter. Collapses to a thin strip like every other screen. */}
+      {!phone && <SpineColumn collapsed={navCollapsed} onToggle={toggleNav} title="Arena" label="Arena sections" testId="arena-nav"
+        actions={initialDomain ? <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[12px] text-accent" title={`Scoped to ${titleCase(initialDomain)}`}>{titleCase(initialDomain)}</span> : undefined}>
+        <nav aria-label="Arena sections" className="px-2 pb-3 pt-2">
           <div className="space-y-0.5">
             {NAV.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setView(id)}
-                title={navCollapsed ? label : undefined}
-                className={`flex w-full items-center rounded-lg text-left text-[13px] transition-colors ${
-                  navCollapsed ? "justify-center px-0 py-2" : "gap-2.5 px-2.5 py-1.5"
-                } ${
+                aria-current={view === id ? "page" : undefined}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors ${
                   view === id
-                    ? "bg-surface font-semibold text-accent shadow-sm ring-1 ring-black/5"
-                    : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"
+                    ? "bg-surface-warm font-semibold text-text-primary"
+                    : "text-text-secondary hover:bg-surface-warm/50 hover:text-text-primary"
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!navCollapsed && <span className="truncate">{label}</span>}
+                <Icon className={`h-4 w-4 shrink-0 ${view === id ? "text-accent" : ""}`} />
+                <span className="truncate">{label}</span>
               </button>
             ))}
           </div>
-          {!navCollapsed && showDomains && (
+          {showDomains && (
             <div className="mt-5">
-              <div className="px-2.5 pb-1.5 text-[11px] text-text-muted/60">Domains</div>
+              <div className="px-2.5 pb-1 text-[13px] font-semibold text-text-secondary">Domains</div>
               <div className="space-y-0.5">
                 <button
                   onClick={() => setDomainFilter("all")}
-                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1 text-left text-[12px] transition-colors ${domainFilter === "all" ? "bg-accent font-semibold text-background" : "text-text-secondary hover:bg-surface-warm"}`}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors ${domainFilter === "all" ? "bg-surface-warm font-semibold text-text-primary" : "text-text-secondary hover:bg-surface-warm/50"}`}
                 >
-                  <Layers className="h-3.5 w-3.5 shrink-0" /> All
+                  <Layers className={`h-4 w-4 shrink-0 ${domainFilter === "all" ? "text-accent" : ""}`} /> All
                 </button>
                 {allDomains.map((d) => {
                   const Icon = domainIcon(d) ?? Circle;
@@ -3637,17 +3628,17 @@ export function BenchmarkPanel({
                     <button
                       key={d}
                       onClick={() => setDomainFilter(d)}
-                      className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1 text-left text-[12px] transition-colors ${on ? "bg-accent font-semibold text-background" : "text-text-secondary hover:bg-surface-warm"}`}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors ${on ? "bg-surface-warm font-semibold text-text-primary" : "text-text-secondary hover:bg-surface-warm/50"}`}
                     >
-                      <Icon className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{titleCase(d)}</span>
+                      <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : ""}`} /> <span className="truncate">{titleCase(d)}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
           )}
-        </div>
-      </nav>
+        </nav>
+      </SpineColumn>}
 
       {/* Content column: the per-view header + the routed view + footer. */}
       <div className="flex min-w-0 flex-1 flex-col">
@@ -3655,7 +3646,13 @@ export function BenchmarkPanel({
         {/* Header lives OUTSIDE the scroll area (a fixed flex row above it) so it
             stays visible on long pages regardless of scroll-container height,
             instead of relying on position:sticky which the nested layout broke. */}
-        <div className="shrink-0 border-b border-border-subtle bg-background px-8 pb-5 pt-6">
+        <div data-testid="page-header" className={PAGE_HEADER_ROW}>
+          {phone && (
+            <select aria-label="Arena section" data-testid="arena-picker" value={view} onChange={(e) => setView(e.target.value as typeof view)}
+              className="mb-3 h-12 w-full rounded-lg border border-border bg-surface px-3 text-[16px] font-semibold text-text-primary focus:border-accent-border focus:outline-none">
+              {NAV.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          )}
           <ArenaHeader
             title={HEAD[view].title}
             subtitle={HEAD[view].subtitle}

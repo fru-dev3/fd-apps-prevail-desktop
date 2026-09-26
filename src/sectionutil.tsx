@@ -1,7 +1,8 @@
 // Pure settings-section helpers extracted from App.tsx: CLI login-command map,
 // auth-error detection, section-header / ideal-state icon pickers, the MCP engine
 // path resolver, and the skill-avatar color palette + hash picker.
-import type { ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useIsPhone } from "./useisphone";
 import { Activity, Award, Brain, Briefcase, Coins, Compass, Folder, Github, Globe, GraduationCap, Heart, Home, Layers, Lightbulb, MessagesSquare, Monitor, Plug, Scale, Settings as SettingsIcon, Shield, ShieldCheck, Sparkles, Target, Users, Wrench } from "lucide-react";
 
@@ -106,41 +107,75 @@ export function pickSkillColor(name: string): { bg: string; fg: string } {
 // The level-1 header at the top of every Settings page: a big icon tile + title
 // + optional subtitle, with a hairline rule. Picks an icon from the title when
 // one isn't supplied.
+// Where a page's header goes. Inside the Settings and Work panes this is a
+// fixed row above the scrolling content (an element to portal into), so the
+// header never scrolls away; "bare" means the caller already wrapped the
+// header in its own fixed row (PageHeaderBar); null means render in place.
+export const HeaderSlot = createContext<HTMLElement | "bare" | null>(null);
+
+// The fixed header row every page uses, laid out like Intent's: full width,
+// a rule under it, outside the scroll area.
+export const PAGE_HEADER_ROW = "sticky top-0 z-20 shrink-0 border-b border-border bg-background px-8 py-5 max-md:px-4 max-md:py-3";
+
+export function PageHeaderBar({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <div data-testid="page-header" className={`${PAGE_HEADER_ROW} ${className}`}>
+      <HeaderSlot.Provider value="bare">{children}</HeaderSlot.Provider>
+    </div>
+  );
+}
+
+// A scrolling page with its header held above the scroll: the page's
+// SettingsHeader portals into the fixed row, the rest scrolls under it, full
+// width with even padding. Every Settings and Work section renders in one.
+// `flush` pages (a SideSpine screen) fill the area themselves: no padding,
+// and their column and detail scroll on their own.
+export function ScrollPage({ children, testId, flush = false }: { children: ReactNode; testId?: string; flush?: boolean }) {
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" data-testid={testId}>
+      <div ref={setSlot} data-testid="page-header" className={`${PAGE_HEADER_ROW} empty:hidden`} />
+      <HeaderSlot.Provider value={slot}>
+        {flush ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="page-flush">{children}</div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto" data-testid="page-scroll">
+            <div className="w-full px-8 py-6">{children}</div>
+          </div>
+        )}
+      </HeaderSlot.Provider>
+    </div>
+  );
+}
+
 export function SettingsHeader({ title, subtitle, icon, right }: { title: string; subtitle?: string; icon?: typeof Folder; right?: ReactNode }) {
   const Icon = icon ?? settingsHeaderIcon(title);
   const phone = useIsPhone();
+  const slot = useContext(HeaderSlot);
   // On a phone the shell already puts this page's name in the header bar with
   // the back button, so rendering the big title again printed it twice, one
   // under the other. Keep the one line that adds something.
-  if (phone) {
-    return subtitle || right ? (
-      <div className="mb-3 flex items-center gap-2 border-b border-border-subtle pb-3">
-        {subtitle && <p className="min-w-0 flex-1 text-[13px] text-text-muted">{subtitle}</p>}
-        {right && <div className="shrink-0">{right}</div>}
+  const body = phone ? (
+    subtitle || right ? (
+      <div data-settings-header className="flex flex-wrap items-center gap-2">
+        {subtitle && <p className="min-w-0 flex-1 basis-40 text-[13px] text-text-muted">{subtitle}</p>}
+        {right && <div className="min-w-0 max-w-full">{right}</div>}
       </div>
-    ) : null;
-  }
-  return (
-    <div className="relative mb-4 overflow-hidden border-b border-border-subtle pb-4">
-      {/* Purely decorative right-side flourish: a soft gradient wash plus a large
-          ghosted copy of the page icon. Adapts per page via the same icon prop.
-          Sits behind content, ignores pointer events, and is clipped by the
-          parent's overflow-hidden so it never pushes the title/subtitle layout
-          or covers any right-aligned controls. */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-0 w-1/2 bg-gradient-to-l from-accent-soft/40 to-transparent" />
-      <div aria-hidden="true" className="pointer-events-none absolute -right-4 top-1/2 z-0 -translate-y-1/2 text-accent/[0.06]">
-        <Icon className="h-28 w-28" strokeWidth={1.25} />
-      </div>
-      <div className="relative z-10 flex items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent ring-1 ring-accent-border/50">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 pt-0.5">
-          <h2 className="font-display text-[26px] font-bold leading-tight tracking-tight">{title}</h2>
-          {subtitle && <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-text-secondary">{subtitle}</p>}
-        </div>
-        {right && <div className="ml-auto hidden shrink-0 items-center self-center sm:flex">{right}</div>}
-      </div>
+    ) : null
+  ) : (
+    // Same header as Intent: the icon and a big title, controls on the
+    // right, one calm line under it.
+    <div data-settings-header className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+      <h1 className="flex min-w-0 items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><Icon className="h-5 w-5" /></span>
+        <span className="min-w-0 truncate">{title}</span>
+      </h1>
+      {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
+      {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
     </div>
   );
+  if (!body) return null;
+  if (slot === "bare") return body;
+  if (slot) return createPortal(body, slot);
+  return <div className="mb-4 border-b border-border-subtle pb-4">{body}</div>;
 }

@@ -438,7 +438,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
     const grouped: Record<string, CalEvent[]> = {};
     for (const e of quarterEvents) (grouped[e.dateKey] ??= []).push(e);
     return (
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         {/* Mini month overviews */}
         <div className="space-y-3">
           {months.map((mDate) => {
@@ -506,7 +506,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
 
       {/* Controls: view switcher + sources + sync */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex rounded-md border border-border p-0.5">
             {(["day", "week", "month", "quarter"] as ViewMode[]).map((v) => (
               <button key={v} onClick={() => setView(v)} className={`rounded px-2.5 py-1 text-xs font-semibold capitalize transition-colors ${view === v ? "bg-accent text-background" : "text-text-secondary hover:text-text-primary"}`}>{v}</button>
@@ -515,7 +515,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
           <h3 className="font-display text-lg font-semibold text-text-primary">{periodLabel}</h3>
           {loading && <span className="font-mono text-[11px] text-text-muted">loading…</span>}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Source id="loop" label="Loops" color="color-mix(in srgb, var(--color-ai, #3CD8FF) 40%, transparent)" />
           <Source id="task" label="Tasks" color="var(--color-accent, #0d7a6e)" />
           <Source id="google" label="Google" color="#a855f7" />

@@ -357,39 +357,33 @@ export function ModelsSection({
     </div>
   ) : undefined;
 
-  return (
-    <>
-      <SettingsHeader
-        title="Models"
-        icon={Layers}
-        subtitle="A model plus a way to run it."
-        right={logoCluster}
-      />
-      {/* Category tab bar (segmented control, Arena-consistent styling): selecting
-          a tab shows ONLY that category's content below. */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        {TABS.map(({ id, label, icon: Icon }) => {
+  // Laid out like Intent: the view tabs sit in the page header, CLI runtimes
+  // is a SideSpine screen (Cloud / Local / Harnesses in the column, the
+  // runtime on the right), the key pages scroll in one full-width column.
+  const tabs = (
+    <div className="flex flex-wrap items-center gap-3">
+      <div role="tablist" aria-label="Models view" className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:w-full">
+        {TABS.map(({ id, label }) => {
           const active = tab === id;
           const count = id === "clis"
             ? clis.filter((c) => c.id !== "openrouter" && c.id !== "bedrock" && c.available).length
             : undefined;
           return (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              aria-pressed={active}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${active ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:bg-surface-warm hover:text-accent"}`}
-            >
-              <Icon className="h-3.5 w-3.5" />
+            <button key={id} role="tab" aria-selected={active} onClick={() => setTab(id)}
+              className={`inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-1.5 max-sm:text-[13px] ${active ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
               {label}
-              {count !== undefined && (
-                <span className={`rounded-full px-1.5 py-px font-mono text-[10px] ${active ? "bg-accent/15 text-accent" : "bg-surface-warm text-text-muted"}`}>{count}</span>
-              )}
+              {count !== undefined && <span className="text-[12px] font-normal tabular-nums text-text-muted">{count}</span>}
             </button>
           );
         })}
       </div>
-      {tab === "clis" && (
+      <div className="max-xl:hidden">{logoCluster}</div>
+    </div>
+  );
+  return (
+    <>
+      <SettingsHeader title="Models" icon={Layers} subtitle="A model plus a way to run it." right={tabs} />
+      {tab === "clis" ? (
         <AgentsSection
           clis={clis}
           onStartChatWith={onStartChatWith}
@@ -398,17 +392,18 @@ export function ModelsSection({
           vaultPath={vaultPath}
           embedded
         />
-      )}
-      {tab === "api" && (
-        <>
-          <p className="mb-4 text-xs text-text-muted">One key, many models. OpenRouter or your own AWS account.</p>
-          <ProvidersSection onActivated={onActivated} embedded />
-        </>
-      )}
-      {tab === "direct" && (
-        <>
-          <DirectProvidersSection onActivated={onActivated} />
-        </>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto" data-testid="models-scroll">
+          <div className="w-full px-8 py-6">
+            {tab === "api" && (
+              <>
+                <p className="mb-4 text-[14px] text-text-muted">One key, many models. OpenRouter or your own AWS account.</p>
+                <ProvidersSection onActivated={onActivated} embedded />
+              </>
+            )}
+            {tab === "direct" && <DirectProvidersSection onActivated={onActivated} />}
+          </div>
+        </div>
       )}
     </>
   );

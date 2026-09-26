@@ -66,7 +66,7 @@ export function SafetySection({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader icon={ShieldCheck} title="Safety" subtitle="What the agent may do, and what gets stored." />
       <SafetyGroup icon={Lock} label="Access protection" desc="Lock the app · encrypt the vault at rest">
         {/* D3: two compact columns instead of two tall stacked blocks. */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3">
           <AppLockCard />
           <VaultEncryptionCard vaultPath={vaultPath} />
         </div>
@@ -314,7 +314,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
               <h2 className={`font-display font-extrabold leading-tight tracking-tight text-text-primary ${headerless ? "text-lg" : "mt-2 text-3xl"}`}>{parsed.title}</h2>
             )}
             {parsed.intro && (
-              <div className="mt-3 max-w-2xl text-[15px] leading-relaxed text-text-secondary">
+              <div className="mt-3 text-[15px] leading-relaxed text-text-secondary">
                 <Markdown source={parsed.intro} compact />
               </div>
             )}

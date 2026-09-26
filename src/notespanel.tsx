@@ -6,6 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Plus, Search, Trash2 } from "lucide-react";
 import { relTime } from "./format";
 import { SettingsHeader } from "./sectionutil";
+import { SideSpine } from "./sidespine";
+import { useIsPhone } from "./useisphone";
+import { RowAction } from "./rowaction";
 import { loadNotes, newNoteId as newId, saveNotes, type Note } from "./notesstore";
 import { toast } from "./toast";
 import { EmptyState } from "./emptystate";
@@ -14,6 +17,9 @@ export function NotesPanel({ vaultPath }: { vaultPath: string }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const phone = useIsPhone();
+  // On a phone the list shows first; a pick (or a new note) opens the editor.
+  const [phonePicked, setPhonePicked] = useState(false);
   const [loaded, setLoaded] = useState(false);
   // Real save state so the footer never claims "Saved" when the write failed
   // (a locked vault / full disk would otherwise lose the note silently).
@@ -80,6 +86,7 @@ export function NotesPanel({ vaultPath }: { vaultPath: string }) {
     const n: Note = { id: newId(), title: "", body: "", updated: Date.now() };
     setNotes((cur) => [n, ...cur]);
     setSelectedId(n.id);
+    setPhonePicked(true);
   }, []);
 
   const updateSelected = (patch: Partial<Pick<Note, "title" | "body">>) => {
@@ -121,10 +128,8 @@ export function NotesPanel({ vaultPath }: { vaultPath: string }) {
           </button>
         }
       />
-      <div className="flex min-h-[60vh] gap-4">
-        {/* List + search */}
-        <div className="flex w-72 shrink-0 flex-col rounded-lg border border-border-subtle bg-surface-warm">
-          <div className="border-b border-border-subtle p-2">
+      <SideSpine storageKey="prevail.notes.spine" title="Notes" label="notes" testId="notes-list"
+        toolbar={
             <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
               <Search className="h-3.5 w-3.5 text-text-muted" />
               <input
@@ -134,47 +139,10 @@ export function NotesPanel({ vaultPath }: { vaultPath: string }) {
                 className="min-w-0 flex-1 bg-transparent text-sm focus:outline-none"
               />
             </div>
-          </div>
-          <ul className="min-h-0 flex-1 overflow-y-auto p-1.5">
-            {filtered.length === 0 ? (
-              <li>
-                {notes.length === 0 ? (
-                  <EmptyState icon={FileText} title="No notes yet" body="Capture a thought here, or hit the global capture hotkey from anywhere." action={{ label: "New note", onClick: createNote }} />
-                ) : (
-                  <EmptyState icon={Search} title="No matches" body="No notes match your search." />
-                )}
-              </li>
-            ) : filtered.map((n) => (
-              <li key={n.id}>
-                <button
-                  onClick={() => setSelectedId(n.id)}
-                  className={`group flex w-full items-start gap-2 rounded-md px-2.5 py-2 text-left transition-colors ${
-                    n.id === selectedId ? "bg-accent-soft" : "hover:bg-surface-strong"
-                  }`}
-                >
-                  <FileText className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${n.id === selectedId ? "text-accent" : "text-text-muted"}`} />
-                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <span className={`truncate text-[13px] ${n.id === selectedId ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{titleOf(n)}</span>
-                    <span className="truncate text-[10px] text-text-muted">{relTime(n.updated)}</span>
-                  </span>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); deleteNote(n.id); }}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); deleteNote(n.id); } }}
-                    title="Delete note"
-                    className="shrink-0 rounded p-1 text-text-muted opacity-0 hover:bg-err/10 hover:text-err group-hover:opacity-100"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Editor */}
-        <div className="min-w-0 flex-1 rounded-lg border border-border-subtle bg-background p-4">
+        }
+        phone={phone} phoneDetail={phone && phonePicked && !!selected} onBack={() => setPhonePicked(false)} backLabel="All notes"
+        detail={
+          <div className="flex h-full min-h-[60vh] flex-col px-8 py-6">
           {selected ? (
             <div className="flex h-full flex-col">
               <input
@@ -203,8 +171,38 @@ export function NotesPanel({ vaultPath }: { vaultPath: string }) {
               <p className="text-sm">Select a note, or create one to start writing.</p>
             </div>
           )}
-        </div>
-      </div>
+          </div>
+        }>
+          <ul className="p-2">
+            {filtered.length === 0 ? (
+              <li>
+                {notes.length === 0 ? (
+                  <EmptyState icon={FileText} title="No notes yet" body="Capture a thought here, or hit the global capture hotkey from anywhere." action={{ label: "New note", onClick: createNote }} />
+                ) : (
+                  <EmptyState icon={Search} title="No matches" body="No notes match your search." />
+                )}
+              </li>
+            ) : filtered.map((n) => (
+              <li key={n.id} className="group relative">
+                <span className="absolute right-1.5 top-1.5 z-10 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100">
+                  <RowAction icon={Trash2} label="Delete note" onClick={() => deleteNote(n.id)} />
+                </span>
+                <button
+                  onClick={() => { setSelectedId(n.id); setPhonePicked(true); }}
+                  className={`flex w-full items-start gap-2 rounded-lg px-2.5 py-2 pr-9 text-left transition-colors ${
+                    n.id === selectedId ? "bg-surface-warm" : "hover:bg-surface-warm/50"
+                  }`}
+                >
+                  <FileText className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${n.id === selectedId ? "text-accent" : "text-text-muted"}`} />
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className={`truncate text-[14px] ${n.id === selectedId ? "font-semibold text-text-primary" : "font-medium text-text-primary"}`}>{titleOf(n)}</span>
+                    <span className="truncate text-[12px] text-text-muted">{relTime(n.updated)}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+      </SideSpine>
     </>
   );
 }

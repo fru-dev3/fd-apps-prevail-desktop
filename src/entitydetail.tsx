@@ -164,7 +164,7 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
   const notesDirty = notes !== (d?.found ? d.notes : "");
 
   return (
-    <div className="max-w-3xl" data-testid="entity-detail">
+    <div data-testid="entity-detail">
       <div className="flex items-start gap-4">
         <KindBadge kind={kind} name={displayName} domain={d?.found ? d.domain : known?.domain} size={56} />
         <div className="min-w-0 flex-1">
@@ -172,7 +172,7 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[14px] text-text-muted">
             <span>{KIND_LABEL[kind] ?? kind}</span>
             {d?.found && d.conversations > 0 && <><span aria-hidden>·</span><span>{d.conversations} {d.conversations === 1 ? "conversation" : "conversations"}</span></>}
-            {d?.found && d.saved && <span className="inline-flex items-center gap-1 text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />Saved</span>}
+            {d?.found && d.saved && <span className="inline-flex items-center gap-1 text-ok"><span data-vault-dot className="h-1.5 w-1.5 rounded-full bg-ok" aria-hidden />Saved</span>}
           </div>
           {d?.found && d.aliases.length > 0 && <div className="mt-1 truncate text-[14px] text-text-muted" title={d.aliases.join(", ")}>Also {d.aliases.slice(0, 4).join(", ")}</div>}
           {hasPage && <div className="mt-1 truncate text-[13px] text-text-muted" title={d!.page_path}>{d!.page_path}</div>}

@@ -223,7 +223,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
       {/* On a client the processing-daemon controls are disabled (presentation
           only; the CLI is the real enforcement). A disabled fieldset natively
           switches off every toggle, select, input and button it contains. */}
-      <fieldset disabled={isClient} className={isClient ? "pointer-events-none opacity-50" : ""}>
+      <fieldset disabled={isClient} className={`min-w-0 ${isClient ? "pointer-events-none opacity-50" : ""}`}>
       {/* One collapsible group per routine: status + tuning + run-now together. */}
       <DaemonGroup
         icon={Brain}
@@ -690,9 +690,9 @@ export function SkillsSection({ vaultPath }: { vaultPath: string }) {
         subtitle="The recipes your AI can follow."
       />
 
-      <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+      <div>
         {/* Toolbar: title · count · refresh · search */}
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <h3 className="font-display text-xl font-semibold tracking-tight">My Skills</h3>
           <span className="rounded-full bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-secondary">{skills.length}</span>
           <button

@@ -15,6 +15,7 @@ import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { useIsPhone } from "./useisphone";
 import { SideSpine } from "./sidespine";
+import { RowAction, RowActions } from "./rowaction";
 import { RestartEditor } from "./mirrorrestart";
 
 export interface ProjectIntent { title: string; goal: string; status: string }
@@ -159,55 +160,37 @@ function ListBlock({ icon: Icon, title, items }: { icon: LucideIcon; title: stri
   );
 }
 
-const recBtn = "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-[13px] text-text-secondary transition-colors hover:border-accent-border hover:text-accent disabled:border-transparent";
-
 // One recommendation: what, why, the project it serves, and two ways to act
 // on it: put it on that domain's task board, or copy it as a ready-to-paste
 // instruction for an agent (built by the engine from the recommendation and
 // the project's restart brief; no model call).
-function RecRow({ r, index, vaultPath, titles, onOpen, phone }: { r: Recommendation; index: number; vaultPath: string; titles: Map<string, string>; onOpen: (slug: string) => void; phone: boolean }) {
+function RecRow({ r, index, vaultPath, titles, onOpen }: { r: Recommendation; index: number; vaultPath: string; titles: Map<string, string>; onOpen: (slug: string) => void }) {
   const [added, setAdded] = useState(false);
-  const [copy, setCopy] = useState<"idle" | "busy" | "done" | "error">("idle");
   const domain = r.domain || "general";
-  const add = () => {
-    void invoke("tasks_add", { vault: vaultPath, domain, text: r.title, source: "projects" })
-      .then(() => { setAdded(true); window.dispatchEvent(new Event("prevail:tasks-changed")); })
-      .catch(() => {});
-  };
+  const add = () => invoke("tasks_add", { vault: vaultPath, domain, text: r.title, source: "projects" })
+    .then(() => { setAdded(true); window.dispatchEvent(new Event("prevail:tasks-changed")); });
   const copyInstruction = async () => {
-    setCopy("busy");
-    try {
-      const text = await invoke<string>("intent_instruction", { vault: vaultPath, index });
-      await navigator.clipboard.writeText(text);
-      setCopy("done");
-      setTimeout(() => setCopy("idle"), 1800);
-    } catch { setCopy("error"); setTimeout(() => setCopy("idle"), 2400); }
+    const text = await invoke<string>("intent_instruction", { vault: vaultPath, index });
+    await navigator.clipboard.writeText(text);
   };
+  // The two actions are small icons at the row's top-right; the text keeps
+  // the full width and wraps around them.
   return (
-    <li className={`flex gap-3 px-4 py-3.5 ${phone ? "flex-col" : "items-start"}`} data-testid="rec-row">
-      <div className="min-w-0 flex-1">
-        <div className="text-[15px] font-medium leading-snug text-text-primary">{r.title}</div>
-        <div className="mt-1 text-[13px] leading-snug text-text-muted">{r.why}</div>
-        {r.project_slug && titles.has(r.project_slug) ? (
-          <div className="mt-1 text-[13px] text-text-secondary">Project: <button onClick={() => onOpen(r.project_slug!)} className="text-accent underline decoration-accent-border underline-offset-[3px] hover:decoration-accent">{titles.get(r.project_slug)}</button></div>
-        ) : r.project ? <div className="mt-1 text-[13px] text-text-secondary">{`Project: ${r.project}`}</div> : null}
-      </div>
-      <div className={`flex shrink-0 gap-2 ${phone ? "[&>button]:h-11 [&>button]:flex-1 [&>button]:justify-center" : ""}`}>
-        <button disabled={added} onClick={add} title={`Adds it to the ${titleCase(domain)} task board`} aria-label={`Add task: ${r.title}`} className={`${recBtn} ${added ? "text-ok" : ""}`}>
-          {added ? <><Check className="h-4 w-4" />Added</> : <><ListTodo className="h-4 w-4" />Add task</>}
-        </button>
-        <button onClick={() => void copyInstruction()} disabled={copy === "busy"}
-          title="Copies a ready-to-paste instruction for an agent: the task, why, and the project's goal and rules"
-          aria-label={`Copy instruction: ${r.title}`} className={`${recBtn} ${copy === "done" ? "text-ok" : copy === "error" ? "text-err" : ""}`}>
-          {copy === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : copy === "done" ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-          {copy === "done" ? "Copied" : copy === "error" ? "Could not copy" : "Copy instruction"}
-        </button>
-      </div>
+    <li className="flow-root px-4 py-3.5" data-testid="rec-row">
+      <RowActions>
+        <RowAction icon={ListTodo} label={`Add task to the ${titleCase(domain)} board`} doneLabel="Added" done={added} onClick={add} testId="rec-add" />
+        <RowAction icon={ClipboardCopy} label="Copy instruction for an agent" doneLabel="Copied" onClick={copyInstruction} testId="rec-copy" />
+      </RowActions>
+      <div className="text-[15px] font-medium leading-snug text-text-primary">{r.title}</div>
+      <div className="mt-1 text-[13px] leading-snug text-text-muted">{r.why}</div>
+      {r.project_slug && titles.has(r.project_slug) ? (
+        <div className="mt-1 text-[13px] text-text-secondary">Project: <button onClick={() => onOpen(r.project_slug!)} className="text-accent underline decoration-accent-border underline-offset-[3px] hover:decoration-accent">{titles.get(r.project_slug)}</button></div>
+      ) : r.project ? <div className="mt-1 text-[13px] text-text-secondary">{`Project: ${r.project}`}</div> : null}
     </li>
   );
 }
 
-function Recommendations({ recs, vaultPath, titles, onOpen, phone }: { recs: Recommendation[]; vaultPath: string; titles: Map<string, string>; onOpen: (slug: string) => void; phone: boolean }) {
+function Recommendations({ recs, vaultPath, titles, onOpen }: { recs: Recommendation[]; vaultPath: string; titles: Map<string, string>; onOpen: (slug: string) => void }) {
   const groups = useMemo(() => {
     const order: Recommendation["kind"][] = ["task", "skill", "automation", "app", "habit", "project"];
     return order.map((k) => ({ kind: k, items: recs.map((r, index) => ({ r, index })).filter((x) => x.r.kind === k) })).filter((g) => g.items.length);
@@ -222,7 +205,7 @@ function Recommendations({ recs, vaultPath, titles, onOpen, phone }: { recs: Rec
           <section key={kind}>
             <h3 className="mb-2.5 flex items-center gap-2 font-display text-xl font-semibold text-text-primary"><Icon className="h-5 w-5 text-accent" />{REC_LABEL[kind]}</h3>
             <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
-              {items.map(({ r, index }) => <RecRow key={`${r.kind}:${r.title}`} r={r} index={index} vaultPath={vaultPath} titles={titles} onOpen={onOpen} phone={phone} />)}
+              {items.map(({ r, index }) => <RecRow key={`${r.kind}:${r.title}`} r={r} index={index} vaultPath={vaultPath} titles={titles} onOpen={onOpen} />)}
             </ul>
           </section>
         );
@@ -322,7 +305,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
   );
 
   const detail = cur ? (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex flex-wrap items-center gap-2">
         <DomainPill domain={cur.domain} />
         <span className={`rounded-md px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide ${STATUS_TONE[cur.status]}`}>{cur.status}</span>
@@ -364,12 +347,12 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
       <ListBlock icon={Target} title="Open questions" items={cur.open_questions} />
     </div>
   ) : (
-    <div className="max-w-3xl">
+    <div data-testid="projects-overview">
       <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary">What would move you forward</h2>
-      <p className="mt-1.5 max-w-2xl text-[14px] leading-snug text-text-secondary">
+      <p className="mt-1.5 text-[14px] leading-snug text-text-secondary">
         Read from all {idx.projects.length} projects and the {idx.stats?.kept.toLocaleString() ?? ""} prompts behind them{idx.recommendations_model ? `, by ${modelName(idx.recommendations_model)}` : ""}.
       </p>
-      <div className="mt-6"><Recommendations recs={idx.recommendations} vaultPath={vaultPath} titles={new Map(idx.projects.map((p) => [p.slug, p.title]))} onOpen={setSel} phone={phone} /></div>
+      <div className="mt-6"><Recommendations recs={idx.recommendations} vaultPath={vaultPath} titles={new Map(idx.projects.map((p) => [p.slug, p.title]))} onOpen={setSel} /></div>
     </div>
   );
 
@@ -377,19 +360,12 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     <div className="flex h-full min-h-0 flex-col">
       {header}
       {err && <div className="border-b border-border-subtle bg-surface px-6 py-2 text-[12px] text-err">{err}</div>}
-      {phone ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {sel === null && list}
-          <div className="p-4">
-            {sel !== null && <button onClick={() => setSel(null)} className="mb-3 text-[13px] text-accent">All projects</button>}
-            {detail}
-          </div>
-        </div>
-      ) : (
-        <SideSpine storageKey="prevail.intent.spine.projects" title="Projects" label="projects" testId="projects-list" detail={<div className="p-6">{detail}</div>}>
-          {list}
-        </SideSpine>
-      )}
+      <SideSpine storageKey="prevail.intent.spine.projects" title="Projects" label="projects" testId="projects-list"
+        phone={phone} phoneDetail={sel !== null} onBack={() => setSel(null)} backLabel="All projects"
+        detail={<div className={phone ? "p-4" : "p-6"}>{detail}</div>}>
+        {list}
+        {phone && sel === null && <div className="p-4">{detail}</div>}
+      </SideSpine>
     </div>
   );
 }

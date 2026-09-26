@@ -148,7 +148,7 @@ export function OrgMark({ name, host, size = 16 }: { name: string; host?: string
 }
 
 function VaultDot() {
-  return <span aria-label="Saved to your vault" title="Saved to your vault" data-vault-dot className="ml-0.5 inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full bg-accent" />;
+  return <span aria-label="Saved to your vault" title="Saved to your vault" data-vault-dot className="ml-0.5 inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full bg-ok" />;
 }
 
 function formatDate(iso: string): string {

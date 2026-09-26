@@ -208,3 +208,30 @@ describe("AppsMirrorPanel", () => {
     expect(sessionStorage.getItem("prevail.apps.mirror.select")).toBeNull();
   });
 });
+
+describe("Apps uses the canonical SideSpine", () => {
+  it("lists connectors grouped by runtime in the column, collapses to a strip, and remembers it", async () => {
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    await waitFor(() => expect(screen.getByTestId("mirror-row-acme-notes")).toBeTruthy());
+    const col = screen.getByTestId("apps-list");
+    expect(col.hasAttribute("data-spine-column")).toBe(true);
+    expect(col.className).toContain("w-72");
+    expect(within(col).getByText("Connectors")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Collapse connectors"));
+    expect(screen.queryByTestId("apps-list")).toBeNull();
+    expect(screen.getByTestId("spine-collapsed").className).toContain("w-9");
+    expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("collapsed");
+    expect(localStorage.getItem("prevail.apps.spine")).toBe("1");
+    fireEvent.click(screen.getByLabelText("Show connectors"));
+    expect(screen.getByTestId("apps-list")).toBeTruthy();
+  });
+
+  it("keeps the header outside the scroll and the detail in one column", async () => {
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    await waitFor(() => expect(screen.getByTestId("mirror-row-acme-notes")).toBeTruthy());
+    const header = screen.getByTestId("page-header");
+    expect(header.className).toMatch(/\bshrink-0\b/);
+    expect(header.contains(screen.getByTestId("spine-detail"))).toBe(false);
+    expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]|max-w-(2xl|3xl|4xl)/);
+  });
+});

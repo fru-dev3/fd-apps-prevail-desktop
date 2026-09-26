@@ -9,14 +9,16 @@ import { DISCOVERED_MODELS, RUNTIME_META, VENDOR_BRAND, isHarnessRuntime } from 
 import { isLocalCli } from "./helpers";
 import { modelsFor, prettyModelId } from "./helpers2";
 import { LS, PREF, getPref, isBunkerOn, lsGet, lsSet, setPref } from "./storage";
-import { Ghost } from "lucide-react";
+import { Ghost, MessageSquare } from "lucide-react";
 import { RowMenu, Toggle } from "./ui";
 import type { RowMenuItem } from "./ui";
 import { COUNCIL_CHAIR_KEY, COUNCIL_MEMBERS_KEY, councilModelsFor, councilSlotKey, readCouncilChair, readCouncilMembers } from "./council";
 import { SettingsHeader, authLoginCmd } from "./sectionutil";
 import { cliVerifyLive, loadVerifyMap, recheckCli, saveVerifyMap, setCliVerify, useCliVerifyLive } from "./verify";
 import { ProviderMark } from "./marks";
-import { MasterDetail } from "./masterdetail";
+import { SideSpine } from "./sidespine";
+import { useIsPhone } from "./useisphone";
+import { RowAction } from "./rowaction";
 import { TelemetrySettings } from "./settings4";
 import type { CliInfo, ModelVerifyStatus, UsageSummary } from "./types";
 
@@ -1176,12 +1178,7 @@ export function AgentCard({
                     {m.blurb && <div className={`truncate text-xs ${failed ? "text-text-muted/60" : "text-text-muted"}`}>{m.blurb}</div>}
                   </div>
                   {chattable && (
-                    <button
-                      onClick={() => onStartChat?.(cli.id, m.id)}
-                      className={`${btnSecondary} ${isDef ? "border-accent-border text-accent" : ""}`}
-                    >
-                      Chat
-                    </button>
+                    <RowAction icon={MessageSquare} label={`Chat with ${m.label}`} doneLabel="Opening chat" onClick={() => onStartChat?.(cli.id, m.id)} testId="model-chat" />
                   )}
                   <RowMenu items={menu} reveal label={`More actions for ${m.label}`} />
                 </div>
@@ -1394,6 +1391,7 @@ export function AgentsSection({
   const all = groups.flatMap((g) => g.list);
   const verify = useCliVerifyLive();
   const [selectedId, setSelectedId] = useState("");
+  const phone = useIsPhone();
   const selectedEff = selectedId || defaultChatCli || all.find((c) => c.available)?.id || all[0]?.id || "";
   const selected = all.find((c) => c.id === selectedEff) ?? null;
   // Collapsible sub-groups (Cloud / Local / Harnesses), matching the Arena rail's
@@ -1420,13 +1418,13 @@ export function AgentsSection({
             <button
               onClick={() => toggleGroup(g.key)}
               aria-expanded={open}
-              className="flex w-full items-baseline justify-between rounded-md px-1 py-0.5 transition-colors hover:bg-surface-warm"
+              className="flex w-full items-baseline justify-between rounded-md px-2.5 pb-1 pt-2 transition-colors hover:bg-surface-warm"
             >
-              <span className="flex items-center gap-1 text-xs font-medium text-text-secondary">
-                <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
-                {g.label} <span className="font-normal text-text-muted">{g.list.length}</span>
+              <span className="flex items-center gap-1.5 text-[15px] font-semibold text-text-primary">
+                <ChevronRight className={`h-3.5 w-3.5 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
+                {g.label} <span className="text-[13px] font-normal text-text-muted">{g.list.length}</span>
               </span>
-              <span className="text-[11px] text-text-muted">{ready} of {g.list.length} set up</span>
+              <span className="text-[12px] text-text-muted">{ready} of {g.list.length} set up</span>
             </button>
             {open && g.list.map((c) => (
               <RuntimeRow
@@ -1442,23 +1440,6 @@ export function AgentsSection({
         );
       })}
     </div>
-  );
-
-  // Collapsed icon rail: each runtime's mark, clickable to select (so collapsing
-  // keeps every runtime reachable, not hidden).
-  const railEl = (
-    <>
-      {all.map((c) => (
-        <button
-          key={c.id}
-          onClick={() => setSelectedId(c.id)}
-          title={`${c.label}${c.available ? "" : " (not installed)"}`}
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${c.id === selectedEff ? "ring-2 ring-accent" : "hover:bg-surface-strong"} ${c.available ? "" : "opacity-50"}`}
-        >
-          <ProviderMark vendor={c.id} size={26} />
-        </button>
-      ))}
-    </>
   );
 
   const detailEl = selected ? (
@@ -1484,7 +1465,11 @@ export function AgentsSection({
           subtitle="The runtimes detected on this Mac."
         />
       )}
-      <MasterDetail title="Runtimes" storageKey="prevail.runtimes.listCollapsed" list={listEl} rail={railEl} detail={detailEl} />
+      <SideSpine storageKey="prevail.runtimes.spine" title="Runtimes" label="runtimes" testId="runtimes-list"
+        phone={phone} phoneDetail={phone && !!selectedId} onBack={() => setSelectedId("")} backLabel="All runtimes"
+        detail={<div className="px-2 pb-10 pt-2">{detailEl}</div>}>
+        <div className="p-2">{listEl}</div>
+      </SideSpine>
     </>
   );
 }

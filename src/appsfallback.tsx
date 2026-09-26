@@ -130,7 +130,7 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
         )}
         {desktop && (adding ? (
           <div className="space-y-2 p-4">
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2">
               <input aria-label="Site name" placeholder="Name, e.g. Acme Billing" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted/70 focus:border-accent-border focus:outline-none" />
               <input aria-label="Website" placeholder="Website, e.g. acme.example" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })}

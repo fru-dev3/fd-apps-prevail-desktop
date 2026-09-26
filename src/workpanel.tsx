@@ -13,6 +13,7 @@ import { SparkPanel } from "./spark";
 import { LoopBoard } from "./loopboard";
 import { CalendarView } from "./calendarview";
 import { NotesPanel } from "./notespanel";
+import { ScrollPage } from "./sectionutil";
 import type { CliInfo } from "./types";
 
 export type WorkSection = "tasks" | "recommendations" | "spark" | "automations" | "calendar" | "notes";
@@ -52,15 +53,13 @@ export function WorkPanel({
   }, []);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="w-full px-8 py-10">
+    <ScrollPage key={section} testId="work-page" flush={section === "notes"}>
         {section === "tasks" && <BoardPanel vaultPath={vaultPath} clis={clis} />}
         {section === "recommendations" && <RecommendationsPanel vaultPath={vaultPath} />}
         {section === "spark" && <SparkPanel vaultPath={vaultPath} clis={clis} />}
         {section === "automations" && <LoopBoard vaultPath={vaultPath} />}
         {section === "calendar" && <CalendarView vaultPath={vaultPath} />}
         {section === "notes" && <NotesPanel vaultPath={vaultPath} />}
-      </div>
-    </div>
+    </ScrollPage>
   );
 }

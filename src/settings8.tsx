@@ -19,15 +19,8 @@ import type { Mode } from "./types";
 
 export function AppearanceSection({ appearance }: { appearance: ReturnType<typeof useAppearance> }) {
   return (
-    <section className="mt-10">
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <h2 className="font-display text-xl font-semibold tracking-tight">Appearance</h2>
-          <p className="mt-1 max-w-2xl text-sm text-text-secondary">
-            Mode controls brightness; theme controls the accent palette and surface styling.
-          </p>
-        </div>
-      </div>
+    <section>
+      <SettingsHeader title="Appearance" subtitle="Mode controls brightness; theme controls the accent palette and surface styling." />
 
       {/* Color Mode segmented control */}
       <div className="mt-6 rounded-xl border border-border bg-surface p-5">
@@ -71,7 +64,7 @@ export function AppearanceSection({ appearance }: { appearance: ReturnType<typeo
         <p className="mb-4 text-sm text-text-secondary">
           Desktop palettes. The selected mode is applied on top.
         </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3">
           {PALETTES.map((p) => (
             <PaletteCard
               key={p.id}
@@ -331,7 +324,7 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
           subtitle="Explore with sample data before using your own."
         />
       )}
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mb-5 grid grid-cols-1 gap-3">
         <div className={`rounded-xl border p-4 transition-all ${!isDemo ? "border-2 border-warn bg-warn/10 shadow-sm" : "border border-border bg-surface opacity-55"}`}>
           {/* Header: shield + title + Active, toggle hard-right. */}
           <div className="flex items-center gap-2">
