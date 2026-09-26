@@ -345,20 +345,23 @@ pub(crate) fn list_threads(vault: String, domain: Option<String>) -> Result<Vec<
     // but differ afterward are not prefixes of each other, so both survive.
     // Empty threads (no turns) are kept as-is so a fresh "+ New" stub shows.
     rows.sort_by(|a, b| b.0.turn_count.cmp(&a.0.turn_count).then(b.0.updated.cmp(&a.0.updated)));
-    let mut kept: Vec<(ThreadMeta, Vec<(String, String)>)> = Vec::new();
+    // A non-empty prefix shares its first turn with the longer thread, so kept
+    // signatures are bucketed by (domain, first turn): each row is compared only
+    // against its own bucket instead of every kept thread (was O(n^2)).
+    let mut out: Vec<ThreadMeta> = Vec::new();
+    let mut buckets: std::collections::HashMap<(Option<String>, (String, String)), Vec<Vec<(String, String)>>> =
+        std::collections::HashMap::new();
     for (meta, sig) in rows.into_iter() {
-        if sig.is_empty() {
-            kept.push((meta, sig));
+        let Some(first) = sig.first().cloned() else {
+            out.push(meta);
             continue;
-        }
-        let subsumed = kept.iter().any(|(km, ksig)| {
-            km.domain == meta.domain && !ksig.is_empty() && is_prefix_of(&sig, ksig)
-        });
-        if !subsumed {
-            kept.push((meta, sig));
+        };
+        let bucket = buckets.entry((meta.domain.clone(), first)).or_default();
+        if !bucket.iter().any(|ksig| is_prefix_of(&sig, ksig)) {
+            bucket.push(sig);
+            out.push(meta);
         }
     }
-    let mut out: Vec<ThreadMeta> = kept.into_iter().map(|(m, _)| m).collect();
     out.sort_by(|a, b| b.updated.cmp(&a.updated));
     Ok(out)
 }
@@ -857,6 +860,25 @@ mod tests {
         let list = list_threads(v, dom).unwrap();
         assert_eq!(list.len(), 2, "both the v4 thread and the legacy _threads/ thread list");
         assert!(list.iter().any(|m| m.title == "Legacy"), "legacy thread not orphaned");
+    }
+
+    // list_threads hides a thread whose turns are a strict prefix of another
+    // thread in the same domain (a shorter duplicate save), but keeps a thread
+    // that shares only the opener.
+    #[test]
+    fn list_hides_prefix_duplicates_only() {
+        let v = fresh_vault("prefixdup");
+        let dom = Some("work".to_string());
+        let full = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a")]).unwrap();
+        let dir = Path::new(&full).parent().unwrap().to_path_buf();
+        let fm = |t: &str| format!("---\ntitle: {t}\ndomain: work\ncreated: 2020-01-01T00:00:00Z\nupdated: 2020-01-01T00:00:00Z\nturns: 1\n---\n\n");
+        fs::write(dir.join("2020-01-01_00-00-00_aaaaaaaa.md"), fm("Short") + "## You\n\nq\n\n").unwrap();
+        let list = list_threads(v.clone(), dom.clone()).unwrap();
+        assert_eq!(list.len(), 1, "shorter duplicate save is hidden");
+        assert!(list.iter().all(|m| m.title != "Short"));
+        fs::write(dir.join("2020-01-01_00-00-01_bbbbbbbb.md"), fm("Other") + "## You\n\nq\n\n## claude\n\nb\n\n").unwrap();
+        let list = list_threads(v, dom).unwrap();
+        assert_eq!(list.len(), 2, "same opener, different reply: both list");
     }
 
     #[test]
