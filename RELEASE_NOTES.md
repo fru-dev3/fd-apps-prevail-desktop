@@ -1,32 +1,27 @@
-# Prevail 0.3.127
+# Prevail 0.3.128
 
-Prevail now remembers the people, places, companies and things you talk
-about, and what you said about each of them.
+Intent now reads like Projects: pick a week or a day on the left, see it on
+the right.
 
-## Entities
+## Noticed, week by week
 
-People, places, companies and products, and named things in a reply are now
-chips you can click. A chip opens a side card with what your conversations
-say about it, your own notes (edit them right there), every conversation
-that mentioned it, newest first, and what it tends to come up with. Save it
-to your vault, ask about it in a new chat that already carries the context,
-or open a place on the map.
+The sidebar lists your weeks going back in time, newest first, and each one
+opens to its days. A week shows its letter, what the week went to and the
+findings for that week. A day shows what you were after that day, what it
+went to and the findings that apply. Letters for past weeks are written the
+first time you open them. Your answers to findings work as before.
 
-Companies show their logo when their site is known. A small green dot means
-the vault already has a page for it.
+## History, exactly as typed
 
-## In your vault
+History follows the same sidebar. Every prompt shows exactly as you typed
+it, spaces and line breaks included, never reformatted. Prompts written by
+other agents or by Prevail itself no longer show up as yours.
 
-Each entity can have a page under data/entities, beside your domains and
-apps. A page appears when you save something, or on its own once it has
-come up in three separate conversations. Your notes section is yours: the
-app never rewrites it.
+## Projects
 
-## Entities view
+"What would move you forward" is one column again. Every recommendation can
+go on its domain's task board, or be copied as a ready-to-paste instruction
+for an agent, with the why, the project and its goal and rules.
 
-A new Entities item in the sidebar, and a tab in Intent, lists everything
-by kind with how often it came up. Search by name or filter by kind.
-
-Intent now tags each new session of prompts with the entities it mentions,
-using a small, inexpensive model, once per session. Requires engine 1.9.27,
-bundled with this release.
+On a phone, the week and day list becomes a single picker. Requires engine
+1.9.28, bundled with this release.
