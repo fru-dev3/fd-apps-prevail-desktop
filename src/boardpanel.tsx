@@ -132,6 +132,14 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
   const [addDomain, setAddDomain] = useState("");
   const [addDue, setAddDue] = useState("");
   const [addModalOpen, setAddModalOpen] = useState(false);
+  // The sidebar's Work "+" opens this dialog; a flag covers a board that is
+  // still mounting when the event fires.
+  useEffect(() => {
+    const open = () => setAddModalOpen(true);
+    try { if (localStorage.getItem("prevail.board.openAdd") === "1") { localStorage.removeItem("prevail.board.openAdd"); open(); } } catch { /* storage off */ }
+    window.addEventListener("prevail:board-add", open);
+    return () => window.removeEventListener("prevail:board-add", open);
+  }, []);
   const [running, setRunning] = useState(false);
   // Collapsed board columns - free real estate for the columns you care about.
   // Persisted; Icebox starts collapsed since it's a rarely-touched parking lot.

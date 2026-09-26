@@ -6,28 +6,37 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, BarChart3, BookUser, Bot, Briefcase, CalendarDays, Compass, Database, Dices, FileText, Github, Hammer, Layers, Lightbulb, MessagesSquare, Network, Plug, Repeat, Scale, ScanFace, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, UserRound, Webhook, Wrench, Zap } from "lucide-react";
+import { Activity, BarChart3, BookUser, Bot, Briefcase, CalendarDays, Compass, Database, Dices, FileText, FolderKanban, Github, Hammer, Layers, Lightbulb, ListChecks, MessagesSquare, Network, Plug, Repeat, Scale, ScanFace, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, Target, UserRound, Webhook, Wrench, Zap } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
 
-// Work mode — operational surfaces.
+// Home sidebar: the operational surfaces, in two groups. The top group sits
+// directly under Home and Inbox (which the sidebar renders itself, since they
+// are not Work sections); the "Work" group holds the planning screens. Every id
+// here is a WorkPanel section.
+//   insights  -> Intent (what your prompts say about you)
+//   projects  -> Intent's Projects view
+//   task-list -> the Work board's list view
+//   goals     -> the ideal-state constitution
 export const WORK_NAV: NavGroup[] = [
-  { heading: "Board", items: [
-    { id: "tasks", label: "Work board", icon: Briefcase },
-    { id: "recommendations", label: "Insights", icon: Sparkles },
+  { heading: "Home", items: [
+    { id: "insights", label: "Insights", icon: ScanFace },
+    { id: "recommendations", label: "Recommendations", icon: Lightbulb },
     { id: "spark", label: "Spark", icon: Dices },
-  ]},
-  { heading: "Automations", items: [
     { id: "automations", label: "Automations", icon: Repeat },
     { id: "calendar", label: "Calendar", icon: CalendarDays },
-  ]},
-  { heading: "Notes", items: [
     { id: "notes", label: "Notes", icon: FileText },
+  ]},
+  { heading: "Work", items: [
+    { id: "tasks", label: "Work board", icon: Briefcase },
+    { id: "projects", label: "Projects", icon: FolderKanban },
+    { id: "task-list", label: "Tasks", icon: ListChecks },
+    { id: "goals", label: "Goals", icon: Target },
   ]},
 ];
 
-// Editor mode — configuration.
+// Editor mode: configuration.
 export const EDITOR_NAV: NavGroup[] = [
   { heading: "Intelligence", items: [
     { id: "models", label: "Models", icon: Layers },

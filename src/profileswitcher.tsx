@@ -1,13 +1,16 @@
-// Profile switcher — a compact control pinned in the sidebar that shows the
+// Profile switcher: a compact control pinned in the sidebar that shows the
 // active profile and lets you switch between fully-isolated profiles (each its
 // own vault). Self-contained: it reads/writes the local profile registry and
 // dispatches `prevail:switch-profile` (App performs the vault swap + re-lock).
 // Gated profiles require their passcode inline before switching.
-import { useEffect, useRef, useState } from "react";
-import { Check, ChevronsUpDown, Lock, Plus, Settings2 } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Lock, Plus, Settings2 } from "lucide-react";
 import { getActiveId, initials, loadProfiles, setActiveId, setDefaultId, verifyPasscode, type Profile } from "./profiles";
 
-export function ProfileSwitcher({ collapsed }: { collapsed: boolean }) {
+// The sidebar header: avatar with a presence dot, the profile name, a second
+// line naming the workspace (with the switcher chevron), and a `trailing` slot
+// on the right (the sidebar puts its settings button there).
+export function ProfileSwitcher({ collapsed, trailing }: { collapsed: boolean; trailing?: ReactNode }) {
   const [profiles, setProfiles] = useState<Profile[]>(() => loadProfiles());
   const [activeId, setActive] = useState<string | null>(() => getActiveId());
   const [open, setOpen] = useState(false);
@@ -57,41 +60,52 @@ export function ProfileSwitcher({ collapsed }: { collapsed: boolean }) {
     else void doSwitch(p);
   };
 
-  // Nothing to show until a default profile is established (App bootstraps one).
-  if (!active) return null;
-
-  const avatar = (p: Profile, size: number) =>
-    p.image ? (
+  const avatar = (p: Profile | null, size: number) =>
+    p?.image ? (
       <img src={p.image} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
     ) : (
       <span
-        className="flex shrink-0 items-center justify-center rounded-full font-semibold text-background"
-        style={{ width: size, height: size, fontSize: size * 0.42, background: p.color || "#008000" }}
+        className="flex shrink-0 items-center justify-center rounded-full font-semibold text-on-accent"
+        style={{ width: size, height: size, fontSize: size * 0.42, background: p?.color || "var(--color-accent)" }}
       >
-        {initials(p)}
+        {p ? initials(p) : "P"}
       </span>
     );
+  // The dot says this profile is the one open on this machine.
+  const withPresence = (p: Profile | null, size: number) => (
+    <span className="relative shrink-0">
+      {avatar(p, size)}
+      <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-ok ring-2 ring-surface-strong" />
+    </span>
+  );
+  const name = active?.label ?? "Prevail";
+  const second = active?.email || "Personal workspace";
 
   return (
-    <div ref={ref} className="relative border-b border-border-subtle">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        title={`Profile: ${active.label}${active.email ? ` (${active.email})` : ""}, click to switch`}
-        className={`flex w-full items-center transition-colors hover:bg-surface-warm ${collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2"}`}
-      >
-        {avatar(active, collapsed ? 28 : 26)}
-        {!collapsed && (
-          <>
+    <div ref={ref} className="relative">
+      <div className={`flex items-center ${collapsed ? "flex-col gap-2 px-2 py-3" : "gap-1.5 py-3 pl-2 pr-3"}`}>
+        <button
+          onClick={() => active && setOpen((v) => !v)}
+          disabled={!active}
+          title={active ? `Profile: ${active.label}, click to switch` : "Prevail"}
+          aria-label="Switch profile"
+          className={`flex min-w-0 items-center rounded-lg transition-colors hover:bg-surface-warm disabled:hover:bg-transparent ${collapsed ? "justify-center p-1" : "flex-1 gap-2 px-1 py-1"}`}
+        >
+          {withPresence(active, collapsed ? 30 : 32)}
+          {!collapsed && (
             <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
-              <span className="truncate text-[13px] font-semibold text-text-primary">{active.label}</span>
-              {active.email && <span className="truncate text-[10px] text-text-muted">{active.email}</span>}
+              <span className="w-full truncate text-left text-[15px] font-semibold text-text-primary">{name}</span>
+              <span className="flex w-full min-w-0 items-center gap-1 text-[12px] text-text-muted">
+                <span className="truncate">{second}</span>
+                {active && <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+              </span>
             </span>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 text-text-muted" />
-          </>
-        )}
-      </button>
+          )}
+        </button>
+        {trailing}
+      </div>
 
-      {open && (
+      {open && active && (
         <div className={`absolute top-full z-50 mt-1 w-60 rounded-lg border border-border bg-surface p-1 shadow-2xl ${collapsed ? "left-2" : "left-3 right-3 w-auto"}`}>
           <div className="px-2 py-1 text-[11px] text-text-muted">Profiles</div>
           <ul className="max-h-72 overflow-y-auto">
