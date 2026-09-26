@@ -1199,8 +1199,8 @@ export default function App() {
     setSettingsJump((j) => ({ section, n: (j?.n ?? 0) + 1 }));
     setTab("settings");
   };
-  // The old top-level Retrospect tab is Mirror now.
-  useEffect(() => { if (tab === "retrospect") openSettingsAt("mirror"); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The old top-level Retrospect tab is Intent now.
+  useEffect(() => { if (tab === "retrospect") openSettingsAt("intent"); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   // Work mode jump — the operational sections (Work board / Insights / Spark)
   // moved out of Settings into Work mode, so deep-links to them route here.
   const [workJump, setWorkJump] = useState<{ section: string; n: number } | null>(null);

@@ -1,9 +1,9 @@
-// Mirror: one place to look back at yourself through your own prompts.
+// Intent (module name mirror.tsx): one place to look back at yourself through your own prompts.
 //   Noticed   a few findings the engine drew from every prompt you typed
-//             (`prevail mirror findings`), one featured, each with receipts and
+//             (`prevail intent findings`), one featured, each with receipts and
 //             a verdict you can give it (make it a rule, resume, let go...).
 //   History   the play-by-play: every sitting in every tool, week by week, the
-//             prompts exactly as typed (`prevail mirror history`).
+//             prompts exactly as typed (`prevail intent history`).
 //   Projects  what those prompts were building, each with a restart brief a
 //             newer model can rebuild it from (projectsview.tsx).
 // The header's tool dots show which tools are captured; a click opens the
@@ -145,9 +145,9 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
       <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border ${phone ? "px-4 py-3" : "px-8 py-5"}`}>
         <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><ScanFace className="h-5 w-5" /></span>
-          Mirror
+          Intent
         </h1>
-        <div role="tablist" aria-label="Mirror view" className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:order-3 max-sm:w-full">
+        <div role="tablist" aria-label="Intent view" className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:order-3 max-sm:w-full">
           {VIEWS.map((v) => (
             <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => setView(v.id)}
               className={`h-9 rounded-md px-4 text-[14px] max-sm:flex-1 ${view === v.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
@@ -172,60 +172,108 @@ function num(v: unknown): number { const n = Number(v); return Number.isFinite(n
 
 // The small picture each finding carries. `data` is loosely typed by the
 // engine, so every shape reads defensively and draws nothing it cannot read.
+// Engine shapes: dots = [{domain, prompts, share}] (one dot per domain, lit
+// when it came up); bar = [{label, value, prompts}] (value is a percent);
+// split = {tooling, outcome, tooling_projects, outcome_projects}; list =
+// [{label, count}]. Older numeric shapes still draw.
+type Rec = Record<string, unknown>;
+const isRec = (x: unknown): x is Rec => typeof x === "object" && x !== null && !Array.isArray(x);
+const SPLIT_LABELS: Record<string, string> = { tooling: "Tools and setup", outcome: "Things for their own sake" };
+
 export function FindingVisual({ visual }: { visual: Finding["visual"] }) {
   if (!visual) return null;
-  const d = visual.data as Record<string, unknown> | unknown[] | number | null;
+  const d = visual.data as Rec | unknown[] | number | null;
   if (visual.type === "dots") {
-    let dots: boolean[] = [];
-    if (Array.isArray(d)) dots = d.map((x) => (typeof x === "object" && x ? num((x as Record<string, unknown>).value ?? (x as Record<string, unknown>).count) : num(x)) > 0);
-    else if (d && typeof d === "object") { const t = Math.min(84, num(d.total)); const m = num(d.marked ?? d.value); dots = Array.from({ length: t }, (_, i) => i < m); }
+    let dots: { on: boolean; name: string; label: string }[] = [];
+    if (Array.isArray(d)) dots = d.map((x) => {
+      if (!isRec(x)) return { on: num(x) > 0, name: "", label: "" };
+      const name = String(x.domain ?? x.label ?? "");
+      return { on: num(x.prompts ?? x.value ?? x.count) > 0, name, label: x.prompts != null && name ? `${name}: ${num(x.prompts)} prompts` : name };
+    });
+    else if (isRec(d)) { const t = Math.min(84, num(d.total)); const m = num(d.marked ?? d.value); dots = Array.from({ length: t }, (_, i) => ({ on: i < m, name: "", label: "" })); }
     if (!dots.length) return null;
+    const lit = dots.filter((x) => x.on).length;
+    const named = dots.some((x) => x.name);
+    const quiet = dots.filter((x) => !x.on && x.name).map((x) => x.name);
     return (
-      <div className="flex flex-wrap gap-1.5" data-testid="visual-dots">
-        {dots.slice(0, 84).map((on, i) => <span key={i} className={`h-3 w-3 rounded-full ${on ? "bg-accent" : "bg-border"}`} />)}
+      <div>
+        <div className="flex flex-wrap gap-1.5" data-testid="visual-dots">
+          {dots.slice(0, 84).map((x, i) => <span key={i} title={x.label || undefined} aria-label={x.label || undefined} className={`h-3 w-3 rounded-full ${x.on ? "bg-accent" : "bg-border"}`} />)}
+        </div>
+        {named && <div className="mt-2 text-[13px] text-text-muted" data-testid="visual-dots-legend"><span className="tabular-nums">{lit}</span> of <span className="tabular-nums">{dots.length}</span> came up</div>}
+        {quiet.length > 0 && <div className="mt-1 break-words text-[13px] text-text-secondary" data-testid="visual-dots-quiet">Never came up: {quiet.map(titleCase).join(", ")}</div>}
       </div>
     );
   }
   if (visual.type === "bar") {
-    let frac = 0; let label = "";
-    if (typeof d === "number") frac = d > 1 ? d / 100 : d;
-    else if (d && typeof d === "object" && !Array.isArray(d)) { const max = num(d.max) || 1; frac = num(d.value) / max; label = String(d.label ?? ""); }
-    frac = Math.max(0, Math.min(1, frac));
+    let bars: { label: string; frac: number; value: number; note: string }[] = [];
+    if (typeof d === "number") bars = [{ label: "", frac: d > 1 ? d / 100 : d, value: d, note: "" }];
+    else if (Array.isArray(d)) bars = d.filter(isRec).map((x) => {
+      const v = num(x.value); const max = num(x.max) || 100;
+      return { label: String(x.label ?? ""), frac: v / max, value: v, note: x.prompts != null ? `${num(x.prompts)} prompts` : "" };
+    });
+    else if (isRec(d)) { const max = num(d.max) || 1; bars = [{ label: String(d.label ?? ""), frac: num(d.value) / max, value: num(d.value), note: "" }]; }
+    if (!bars.length) return null;
+    const multi = bars.length > 1 || Array.isArray(d);
     return (
-      <div data-testid="visual-bar">
-        <div className="h-4 w-full overflow-hidden rounded-full bg-surface-warm"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.round(frac * 100)}%` }} /></div>
-        {label && <div className="mt-1.5 text-[13px] text-text-muted">{label}</div>}
+      <div data-testid="visual-bar" className="space-y-3">
+        {bars.map((b, i) => {
+          const w = Math.round(Math.max(0, Math.min(1, b.frac)) * 100);
+          return (
+            <div key={i}>
+              {multi && <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]"><span className="min-w-0 truncate text-text-secondary">{b.label}</span><span className="shrink-0 tabular-nums text-text-muted">{b.value}%{b.note ? ` of ${b.note}` : ""}</span></div>}
+              <div className="h-4 w-full overflow-hidden rounded-full bg-surface-warm"><div className="h-full rounded-full bg-accent" style={{ width: `${w}%` }} /></div>
+              {!multi && b.label && <div className="mt-1.5 text-[13px] text-text-muted">{b.label}</div>}
+            </div>
+          );
+        })}
       </div>
     );
   }
   if (visual.type === "split") {
-    const parts = (Array.isArray(d) ? d : d && typeof d === "object" ? Object.entries(d).map(([label, value]) => ({ label, value })) : [])
-      .map((p) => ({ label: String((p as Record<string, unknown>).label ?? ""), value: num((p as Record<string, unknown>).value ?? (p as Record<string, unknown>).count) }))
-      .filter((p) => p.value > 0);
+    // Only numeric entries are segments; arrays such as tooling_projects are
+    // the names behind a segment and show under the bar.
+    const raw: { key: string; label: string; value: number }[] = Array.isArray(d)
+      ? d.filter(isRec).map((p) => ({ key: String(p.label ?? ""), label: String(p.label ?? ""), value: num(p.value ?? p.count) }))
+      : isRec(d) ? Object.entries(d).filter(([, v]) => typeof v === "number" && Number.isFinite(v)).map(([k, v]) => ({ key: k, label: SPLIT_LABELS[k] ?? titleCase(k), value: v as number })) : [];
+    const parts = raw.filter((p) => p.value > 0);
     const total = parts.reduce((a, p) => a + p.value, 0);
     if (!total) return null;
+    const namesFor = (key: string): string[] => {
+      if (!isRec(d)) return [];
+      const list = d[`${key}_projects`];
+      return Array.isArray(list) ? list.filter(isRec).map((x) => `${String(x.title ?? x.slug ?? "")}${x.sittings != null ? ` (${num(x.sittings)})` : ""}`).filter((t) => !t.startsWith(" (")) : [];
+    };
     const shade = (i: number) => i === 0 ? "var(--color-accent)" : `color-mix(in srgb, var(--color-accent) ${Math.max(18, 70 - i * 18)}%, var(--color-border))`;
     return (
       <div data-testid="visual-split">
         <div className="flex h-4 w-full overflow-hidden rounded-full bg-surface-warm">
-          {parts.map((p, i) => <div key={p.label + i} style={{ width: `${(p.value / total) * 100}%`, background: shade(i) }} title={`${p.label}: ${p.value}`} />)}
+          {parts.map((p, i) => <div key={p.key + i} style={{ width: `${(p.value / total) * 100}%`, background: shade(i) }} title={`${p.label}: ${p.value}`} />)}
         </div>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-text-secondary">
-          {parts.map((p, i) => <span key={p.label + i} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: shade(i) }} />{p.label} <span className="tabular-nums text-text-muted">{Math.round((p.value / total) * 100)}%</span></span>)}
+        <div className="mt-2 space-y-1.5 text-[13px] text-text-secondary">
+          {parts.map((p, i) => {
+            const names = namesFor(p.key);
+            return (
+              <div key={p.key + i} className="min-w-0">
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: shade(i) }} />{p.label} <span className="tabular-nums text-text-muted">{p.value} ({Math.round((p.value / total) * 100)}%)</span></span>
+                {names.length > 0 && <div className="mt-0.5 break-words pl-4 text-text-muted" data-testid={`split-names-${p.key}`}>{names.slice(0, 4).join(", ")}{names.length > 4 ? `, +${names.length - 4} more` : ""}</div>}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   }
   if (visual.type === "list") {
-    const rows = (Array.isArray(d) ? d : []).map((x) => typeof x === "string" ? { label: x, count: undefined as number | undefined } : { label: String((x as Record<string, unknown>)?.label ?? ""), count: (x as Record<string, unknown>)?.count as number | undefined }).filter((r) => r.label);
+    const rows = (Array.isArray(d) ? d : []).map((x) => typeof x === "string" ? { label: x, count: undefined as number | undefined } : { label: String(isRec(x) ? x.label ?? "" : ""), count: isRec(x) && x.count != null ? num(x.count) : undefined }).filter((r) => r.label);
     if (!rows.length) return null;
     const max = Math.max(1, ...rows.map((r) => num(r.count)));
     return (
       <ul className="space-y-1.5" data-testid="visual-list">
         {rows.slice(0, 6).map((r, i) => (
           <li key={i} className="flex items-center gap-3 text-[14px] text-text-secondary">
-            <span className="min-w-0 flex-1 truncate">{r.label}</span>
-            {r.count != null && <span className="flex w-28 items-center gap-2"><span className="h-2 rounded-full bg-accent" style={{ width: `${Math.max(6, (num(r.count) / max) * 80)}px` }} /><span className="tabular-nums text-text-muted">{r.count}</span></span>}
+            <span className="min-w-0 flex-1 truncate" title={r.label}>{r.label}</span>
+            {r.count != null && <span className="flex w-28 shrink-0 items-center gap-2"><span className="h-2 rounded-full bg-accent" style={{ width: `${Math.max(6, (num(r.count) / max) * 80)}px` }} /><span className="tabular-nums text-text-muted">{r.count}</span></span>}
           </li>
         ))}
       </ul>
@@ -308,7 +356,8 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
     <article data-testid="featured-finding" className={`rounded-2xl border border-border-subtle bg-surface transition-all duration-300 ${leaving ? "translate-y-2 opacity-0" : "opacity-100"} ${phone ? "p-5" : "p-8"}`}>
       <h2 className={`font-display font-semibold leading-tight tracking-tight text-text-primary ${phone ? "text-3xl" : "text-4xl"}`}>{f.headline}</h2>
       <p className="mt-3 max-w-2xl text-[16px] leading-relaxed text-text-secondary">{f.detail}</p>
-      <div className="mt-6 max-w-xl"><FindingVisual visual={f.visual} /></div>
+      {/* A list visual repeats the item rows below it; draw it only when there are no rows. */}
+      {!((isRules || isLoops) && f.visual?.type === "list" && items.length > 0) && <div className="mt-6 max-w-xl"><FindingVisual visual={f.visual} /></div>}
 
       {isRules && items.length > 0 && (
         <ul className="mt-6 space-y-2">
@@ -319,10 +368,10 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
         <ul className="mt-6 space-y-2">
           {items.map((it) => (
             <li key={it.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border-subtle bg-background px-3.5 py-3">
-              <span className={`min-w-0 flex-1 text-[15px] text-text-primary ${phone ? "basis-full" : ""}`}>{it.label}</span>
-              <button onClick={async () => { await onVerdict("resume", { item: it.id }); drop(it.id); if (it.project) onProject(it.project); }} className={`${btnPrimary} ${phone ? "h-12 px-4" : "h-9 px-3.5"}`}><Play className="h-4 w-4" />Resume</button>
-              <button onClick={async () => { await onVerdict("let_go", { item: it.id }); drop(it.id); }} className={`${btnGhost} ${phone ? "h-12 px-4" : "h-9 px-3.5"}`}><PauseCircle className="h-4 w-4" />Let go</button>
-              {it.project && <button onClick={() => onProject(it.project!)} className={`${btnGhost} ${phone ? "h-12 px-4" : "h-9 px-3.5"}`}><RotateCcw className="h-4 w-4" />Replay</button>}
+              <span className={`min-w-0 flex-1 text-[15px] text-text-primary ${phone ? "basis-full" : ""}`}>{it.label}{it.count != null && it.count > 0 && <span className="ml-2 text-[13px] tabular-nums text-text-muted">{it.count} prompts</span>}</span>
+              <button onClick={async () => { await onVerdict("resume", { item: it.id }); drop(it.id); if (it.project) onProject(it.project); }} className={`${btnPrimary} ${phone ? "h-12 min-w-0 flex-1 px-2" : "h-9 px-3.5"}`}><Play className="h-4 w-4" />Resume</button>
+              <button onClick={async () => { await onVerdict("let_go", { item: it.id }); drop(it.id); }} className={`${btnGhost} ${phone ? "h-12 min-w-0 flex-1 px-2" : "h-9 px-3.5"}`}><PauseCircle className="h-4 w-4" />Let go</button>
+              {it.project && <button onClick={() => onProject(it.project!)} className={`${btnGhost} ${phone ? "h-12 min-w-0 flex-1 px-2" : "h-9 px-3.5"}`}><RotateCcw className="h-4 w-4" />Replay</button>}
             </li>
           ))}
         </ul>
@@ -414,7 +463,7 @@ function NoticedView({ vaultPath, phone, onReceipt, onProject }: { vaultPath: st
           <ScanFace className="mx-auto h-10 w-10 text-accent" />
           <h2 className="mt-3 font-display text-3xl font-semibold text-text-primary">Nothing noticed yet</h2>
           <p className="mx-auto mt-2 max-w-lg text-[15px] leading-relaxed text-text-secondary">
-            Mirror reads every prompt you have typed, in every tool, and points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go. Findings you answer stay answered.
+            Intent reads every prompt you have typed, in every tool, and points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go. Findings you answer stay answered.
           </p>
           <button onClick={() => void refresh()} disabled={refreshing} className={`${btnPrimary} mt-5 h-11 px-5`}>
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{refreshing ? "Looking" : "Refresh"}

@@ -1,4 +1,4 @@
-// Mirror > Projects. Everything the user has been building, from their
+// Intent > Projects. Everything the user has been building, from their
 // whole prompt history across every AI tool, each with a restart brief a future
 // model can rebuild it from. The engine does the work (`prevail projects`);
 // this view reads the index, shows a project's arc, and hands out the replay

@@ -53,7 +53,7 @@ export function SettingsPanel({
   onVaultMoved?: (path: string) => void;
   jumpTo?: { section: string; n: number } | null;
 }) {
-  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "mirror" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "ingestion" | "usage";
+  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intent" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "ingestion" | "usage";
   // Editor lands on General. The operational surfaces (Work board / Insights /
   // Spark) moved to Work mode, so Editor opens on a config page. A specific
   // jumpTo (e.g. "connectors") still wins.
@@ -164,7 +164,7 @@ export function SettingsPanel({
           {section === "daemons" && <DaemonsSection vaultPath={vaultPath} />}
           {section === "usage" && <UsageDashboard vaultPath={vaultPath} />}
           {section === "activity" && <SystemActivity vaultPath={vaultPath} />}
-          {section === "mirror" && <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5"><MirrorPanel vaultPath={vaultPath} /></div>}
+          {section === "intent" && <div className="-mx-8 -my-10 max-md:-mx-4 max-md:-my-5"><MirrorPanel vaultPath={vaultPath} /></div>}
           {section === "tools" && <ToolsPanel />}
           {section === "ingestion" && <IngestionSection />}
           {section === "loopboard" && <LoopBoard vaultPath={vaultPath} />}

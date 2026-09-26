@@ -10,7 +10,7 @@ async fn json(args: Vec<String>) -> Result<serde_json::Value, String> {
         crate::engine::run_engine_json(&refs)
     })
     .await
-    .map_err(|e| format!("mirror task failed: {e}"))?
+    .map_err(|e| format!("intent task failed: {e}"))?
 }
 
 async fn raw(args: Vec<String>) -> Result<String, String> {
@@ -19,7 +19,7 @@ async fn raw(args: Vec<String>) -> Result<String, String> {
         crate::engine::run_engine_raw(&refs)
     })
     .await
-    .map_err(|e| format!("mirror task failed: {e}"))?
+    .map_err(|e| format!("intent task failed: {e}"))?
 }
 
 fn opt(args: &mut Vec<String>, flag: &str, v: Option<&str>) {
@@ -31,14 +31,14 @@ fn opt(args: &mut Vec<String>, flag: &str, v: Option<&str>) {
 
 #[tauri::command]
 pub async fn mirror_findings(vault: String) -> Result<serde_json::Value, String> {
-    json(vec!["mirror".into(), "findings".into(), "--vault".into(), vault]).await
+    json(vec!["intent".into(), "findings".into(), "--vault".into(), vault]).await
 }
 
 pub(crate) fn verdict_args(vault: &str, finding_id: &str, verdict: &str, item: Option<&str>, rule: Option<&str>) -> Result<Vec<String>, String> {
     if !matches!(verdict, "true" | "not_really" | "later" | "resume" | "let_go") {
         return Err(format!("unknown verdict: {verdict}"));
     }
-    let mut args: Vec<String> = vec!["mirror".into(), "verdict".into(), finding_id.into(), verdict.into()];
+    let mut args: Vec<String> = vec!["intent".into(), "verdict".into(), finding_id.into(), verdict.into()];
     opt(&mut args, "--item", item);
     opt(&mut args, "--rule", rule);
     args.push("--vault".into());
@@ -65,7 +65,7 @@ pub(crate) fn history_args(
     before: Option<i64>,
     limit: Option<u32>,
 ) -> Vec<String> {
-    let mut args: Vec<String> = vec!["mirror".into(), "history".into(), "--vault".into(), vault.into()];
+    let mut args: Vec<String> = vec!["intent".into(), "history".into(), "--vault".into(), vault.into()];
     opt(&mut args, "--q", q);
     opt(&mut args, "--tool", tool);
     opt(&mut args, "--project", project);
@@ -92,7 +92,7 @@ pub async fn mirror_history(
 
 #[tauri::command]
 pub async fn mirror_refresh(vault: String, model: Option<String>) -> Result<serde_json::Value, String> {
-    let mut args: Vec<String> = vec!["mirror".into(), "refresh".into(), "--vault".into(), vault];
+    let mut args: Vec<String> = vec!["intent".into(), "refresh".into(), "--vault".into(), vault];
     opt(&mut args, "--model", model.as_deref());
     json(args).await
 }
@@ -152,9 +152,9 @@ mod tests {
     fn verdict_args_carry_item_and_rule() {
         assert_eq!(
             verdict_args("/v", "repeated_rules:x", "true", Some("i1"), Some("Use pnpm")).unwrap(),
-            vec!["mirror", "verdict", "repeated_rules:x", "true", "--item", "i1", "--rule", "Use pnpm", "--vault", "/v"]
+            vec!["intent", "verdict", "repeated_rules:x", "true", "--item", "i1", "--rule", "Use pnpm", "--vault", "/v"]
         );
-        assert_eq!(verdict_args("/v", "f", "later", None, Some(" ")).unwrap(), vec!["mirror", "verdict", "f", "later", "--vault", "/v"]);
+        assert_eq!(verdict_args("/v", "f", "later", None, Some(" ")).unwrap(), vec!["intent", "verdict", "f", "later", "--vault", "/v"]);
         assert!(verdict_args("/v", "f", "rm -rf", None, None).is_err());
     }
 
@@ -162,7 +162,7 @@ mod tests {
     fn history_args_paginate() {
         assert_eq!(
             history_args("/v", Some("tests"), None, Some("acme"), Some(1700), None),
-            vec!["mirror", "history", "--vault", "/v", "--q", "tests", "--project", "acme", "--before", "1700", "--limit", "200"]
+            vec!["intent", "history", "--vault", "/v", "--q", "tests", "--project", "acme", "--before", "1700", "--limit", "200"]
         );
     }
 

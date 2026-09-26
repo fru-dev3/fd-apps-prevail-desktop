@@ -38,7 +38,7 @@ export const EDITOR_NAV: NavGroup[] = [
     { id: "benchmark", label: "Arena", icon: Swords },
   ]},
   { heading: "Context & Memory", items: [
-    { id: "mirror", label: "Mirror", icon: ScanFace },
+    { id: "intent", label: "Intent", icon: ScanFace },
     { id: "ideal-state", label: "Ideals", icon: Compass },
     { id: "daemons", label: "Daemons", icon: Zap },
     { id: "activity", label: "Activity", icon: Activity },
@@ -68,9 +68,10 @@ export const EDITOR_NAV: NavGroup[] = [
   ]},
 ];
 
-// Mirror replaced three nav items (Intents, Prompts, Retrospect). Their ids
-// still arrive from deep links and saved state, so they land on Mirror.
-const MIRROR_ALIASES = new Set(["intents", "prompt-capture", "retrospect"]);
+// Intent replaced three nav items (Intents, Prompts, Retrospect) and was
+// briefly called Mirror. Those ids still arrive from deep links and saved
+// state, so they land on Intent.
+const INTENT_ALIASES = new Set(["intents", "prompt-capture", "retrospect", "mirror"]);
 export function navSection(id: string): string {
-  return MIRROR_ALIASES.has(id) ? "mirror" : id;
+  return INTENT_ALIASES.has(id) ? "intent" : id;
 }

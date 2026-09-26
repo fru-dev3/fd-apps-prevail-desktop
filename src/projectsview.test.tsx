@@ -1,4 +1,4 @@
-// Mirror > Projects: the list, a project's restart brief, recommendations
+// Intent > Projects: the list, a project's restart brief, recommendations
 // that become tasks, and the empty state that starts the first build.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";

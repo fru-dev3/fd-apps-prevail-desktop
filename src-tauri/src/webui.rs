@@ -101,7 +101,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     // Projects: the index and a project's replay prompt (read side; building
     // runs the synthesis model, so it stays on the desktop).
     "projects_index", "projects_replay",
-    // Mirror: findings, the prompt history and a project's restart brief
+    // Intent: findings, the prompt history and a project's restart brief
     // (read side; verdicts, refresh and rebuild checks stay on the desktop).
     "mirror_findings", "mirror_history", "projects_restart", "projects_restart_text",
     // Settings the phone displays read-only: which machine this is, whether the

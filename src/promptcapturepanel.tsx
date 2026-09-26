@@ -1,6 +1,6 @@
 // Prompt capture - record the prompts you type in each AI CLI into the vault.
 // Extracted out of the MCP/Integrations page so it lives under its own nav item
-// (now opened from Mirror's capture dots) rather than being conflated with
+// (now opened from Intent's capture dots) rather than being conflated with
 // the MCP server config. Pure relocation: the capture behaviour is unchanged.
 //
 // Heavy lifting lives in the prevail engine (`prevail capture …`), reached

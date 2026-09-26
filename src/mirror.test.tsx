@@ -1,4 +1,4 @@
-// Mirror: nav routing, Noticed verdicts and rule edits, History search and
+// Intent: nav routing, Noticed verdicts and rule edits, History search and
 // receipt jumps, the Restart editor's exclude list, the rebuild check, and the
 // phone layout. The engine is mocked at the bridge.
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -89,7 +89,7 @@ vi.mock("./bridge", () => ({
 let phone = false;
 vi.mock("./useisphone", () => ({ useIsPhone: () => phone, PHONE_MAX_PX: 767 }));
 
-import { MirrorPanel, visibleFindings, type FindingsDoc } from "./mirror";
+import { FindingVisual, MirrorPanel, visibleFindings, type FindingsDoc } from "./mirror";
 import { EDITOR_NAV, navSection } from "./navdefs";
 
 const byCmd = (c: string) => calls.filter((x) => x.cmd === c);
@@ -104,12 +104,12 @@ beforeEach(() => {
 });
 
 describe("nav routing", () => {
-  it("has one Mirror item and routes the old ids to it", () => {
+  it("has one Intent item and routes the old ids to it", () => {
     const ids = EDITOR_NAV.flatMap((g) => g.items.map((i) => i.id));
-    expect(ids).toContain("mirror");
-    for (const old of ["intents", "prompt-capture", "retrospect"]) {
+    expect(ids).toContain("intent");
+    for (const old of ["intents", "prompt-capture", "retrospect", "mirror"]) {
       expect(ids).not.toContain(old);
-      expect(navSection(old)).toBe("mirror");
+      expect(navSection(old)).toBe("intent");
     }
     expect(navSection("models")).toBe("models");
   });
@@ -242,5 +242,60 @@ describe("phone", () => {
     expect(screen.queryByRole("button", { name: /Copy raw prompts/ })).toBeNull();
     expect(screen.queryByTestId("rebuild-check")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+});
+
+// Shapes copied from real `prevail mirror findings --json` output, labels invented.
+describe("FindingVisual engine shapes", () => {
+  it("goals_drift dots: one dot per domain, lit when it came up", () => {
+    render(<FindingVisual visual={{ type: "dots", data: [
+      { domain: "health", prompts: 0, share: 0 }, { domain: "acme", prompts: 69, share: 2 },
+      { domain: "garden", prompts: 0, share: 0 }, { domain: "maple-st", prompts: 723, share: 17 },
+    ] }} />);
+    const dots = screen.getByTestId("visual-dots").children;
+    expect(dots).toHaveLength(4);
+    expect(Array.from(dots).filter((d) => d.className.includes("bg-accent"))).toHaveLength(2);
+    expect(dots[1].getAttribute("title")).toBe("acme: 69 prompts");
+    expect(screen.getByTestId("visual-dots-legend").textContent).toBe("2 of 4 came up");
+    expect(screen.getByTestId("visual-dots-quiet").textContent).toBe("Never came up: Health, Garden");
+  });
+
+  it("tooling_share split: numeric keys are segments, project lists are names", () => {
+    render(<FindingVisual visual={{ type: "split", data: {
+      tooling: 57, outcome: 31,
+      tooling_projects: [{ slug: "acme-cli", title: "Acme CLI", sittings: 33 }, { slug: "sam-bot", title: "Sam bot", sittings: 19 }],
+      outcome_projects: [{ slug: "maple-st", title: "Maple St site", sittings: 17 }],
+    } }} />);
+    const bar = screen.getByTestId("visual-split").firstElementChild!;
+    expect(bar.children).toHaveLength(2);
+    expect((bar.children[0] as HTMLElement).style.width).toBe(`${(57 / 88) * 100}%`);
+    const text = screen.getByTestId("visual-split").textContent ?? "";
+    expect(text).toContain("Tools and setup");
+    expect(text).toContain("57 (65%)");
+    expect(text).not.toContain("tooling_projects");
+    expect(screen.getByTestId("split-names-tooling").textContent).toBe("Acme CLI (33), Sam bot (19)");
+    expect(screen.getByTestId("split-names-outcome").textContent).toBe("Maple St site (17)");
+  });
+
+  it("late_night bar: one bar per row, value is a percent", () => {
+    render(<FindingVisual visual={{ type: "bar", data: [
+      { label: "23:00 to 05:00", value: 40, prompts: 25 }, { label: "Daytime", value: 10, prompts: 300 },
+    ] }} />);
+    const root = screen.getByTestId("visual-bar");
+    expect(root.children).toHaveLength(2);
+    expect(root.textContent).toContain("40% of 25 prompts");
+    const fills = root.querySelectorAll(".bg-accent");
+    expect((fills[0] as HTMLElement).style.width).toBe("40%");
+    expect((fills[1] as HTMLElement).style.width).toBe("10%");
+  });
+
+  it("list rows ignore extra keys such as last_ts", () => {
+    render(<FindingVisual visual={{ type: "list", data: [
+      { label: "Maple St repairs", count: 34, last_ts: 1783895264643 }, { label: "Acme onboarding", count: 6, last_ts: 1787182129612 },
+    ] }} />);
+    const rows = screen.getByTestId("visual-list").children;
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toBe("Maple St repairs34");
+    expect(screen.getByTestId("visual-list").textContent).not.toContain("1783895264643");
   });
 });
