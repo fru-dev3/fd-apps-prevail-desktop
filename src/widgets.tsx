@@ -38,28 +38,6 @@ export function ResizeHandle({ onChange, ariaLabel }: { onChange: (deltaPx: numb
   );
 }
 
-export function AppCard({ icon: Icon, label, children, action }: { icon: LucideIcon; label: string; children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="mb-2.5 flex items-center gap-2">
-        <Icon className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="text-[11px] font-bold text-text-muted">{label}</span>
-        {action && <span className="ml-auto">{action}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-export function AppKV({ k, children }: { k: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline gap-3 py-1">
-      <span className="w-28 shrink-0 font-mono text-[11px] text-text-muted">{k}</span>
-      <span className="min-w-0 flex-1 text-sm text-text-primary">{children}</span>
-    </div>
-  );
-}
-
 export function FloatingChip({
   chip,
   sx,

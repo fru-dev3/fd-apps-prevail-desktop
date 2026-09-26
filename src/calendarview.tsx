@@ -12,11 +12,12 @@
 //              and writes this file, then we reload. Push back to Google
 //              (true two-way) is Stage B and not implemented yet.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, CalendarDays, Check, ChevronLeft, ChevronRight, ExternalLink, MessageSquare, Plus, RefreshCw, Repeat, Trash2, X } from "lucide-react";
+import { Bot, CalendarDays, Check, ChevronLeft, ChevronRight, ExternalLink, MessageSquare, Plus, RefreshCw, Repeat, Trash2, Users, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { makeLoop, readLoops, writeLoops } from "./loops";
 import { titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
+import { GoogleAccountsCard } from "./googleaccounts";
 import type { BoardTask, Domain } from "./types";
 import type { Loop, LoopCadence } from "./loops";
 
@@ -79,6 +80,7 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
   // Honest, visible outcome of the last Google pull so Sync is never a silent
   // spinner: "Pulled N events", "not connected yet", or a failure reason.
   const [syncMsg, setSyncMsg] = useState<string>("");
+  const [accountsOpen, setAccountsOpen] = useState(false);
 
   // New-event composer.
   const [composeDay, setComposeDay] = useState<string | null>(null);
@@ -521,8 +523,12 @@ export function CalendarView({ vaultPath }: { vaultPath: string }) {
           <button onClick={() => void syncGoogle()} disabled={syncing} title="Pull your Google Calendar events into Prevail (read-only). Requires the Google Workspace CLI (gws) to be installed and authenticated." className="ml-1 flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:bg-surface-warm hover:text-text-primary disabled:opacity-50">
             <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Sync"}
           </button>
+          <button onClick={() => setAccountsOpen((v) => !v)} aria-expanded={accountsOpen} title="Google accounts the calendar pull reads from" className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:bg-surface-warm hover:text-text-primary">
+            <Users className="h-3 w-3" /> Accounts
+          </button>
         </div>
       </div>
+      {accountsOpen && <GoogleAccountsCard vaultPath={vaultPath} onChanged={() => void syncGoogle()} />}
 
       {view === "month" && renderMonth()}
       {view === "week" && renderWeek()}

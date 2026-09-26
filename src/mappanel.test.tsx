@@ -28,7 +28,6 @@ const invokeMock = vi.fn(async (cmd: string) => {
     case "engine_apps_list": return apps;
     case "scan_vault": return domains;
     case "machine_host": return "test-host";
-    case "ingestion_connector_logos": return {};
     case "app_favicon": return "";
     case "engine_app_add": return { ok: true };
     case "engine_app_set_domains": return { ok: true, domains: [] };
@@ -143,12 +142,16 @@ describe("MapPanel renders and acts", () => {
     window.removeEventListener("prevail:open-domain", onDom);
   });
 
-  it("Add app opens a domain-scoped picker modal", async () => {
+  it("Add app opens the Apps screen", async () => {
+    const opened: string[] = [];
+    const onOpen = (e: Event) => opened.push(String((e as CustomEvent).detail));
+    window.addEventListener("prevail:open-settings", onOpen);
     render(<MapPanel vaultPath="/v" />);
     await waitFor(() => expect(screen.getByText("Dev")).toBeTruthy());
     expandAll();
     const addApp = await screen.findAllByText("Add app");
     fireEvent.click(addApp[0]!);
-    await waitFor(() => expect(screen.getByText(/Add an app to/)).toBeTruthy());
+    expect(opened).toContain("connectors");
+    window.removeEventListener("prevail:open-settings", onOpen);
   });
 });

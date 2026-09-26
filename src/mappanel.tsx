@@ -5,15 +5,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Waypoints, TriangleAlert, Plus, MoreHorizontal, X, Plug, ListPlus, ChevronDown, ChevronRight, Circle, ArrowUpRight } from "lucide-react";
-import { invoke } from "./bridge";
 import { loadMapModel } from "./maploader";
 import { acceptTool, acceptStack, suggestableCount, moveTool, removeToolFromDomain, fileGapTask, fileIdentityTask } from "./mapactions";
 import { AppRowLogo } from "./panels3";
-import { AddAppModal } from "./addappmodal";
 import { domainIcon } from "./icons";
 import { STATUS_LABEL, type MapModel, type MapDomain, type MapTool } from "./map";
 import type { ToolStatus } from "./mapseed";
-import type { EngineApp, BrandLogo } from "./types";
+import type { EngineApp } from "./types";
 
 const LEGEND: ToolStatus[] = ["connected", "cli", "mcp", "api", "research", "browser", "gap", "broken", "hardware"];
 
@@ -61,14 +59,12 @@ function loadExpanded(): Set<string> {
 export function MapPanel({ vaultPath }: { vaultPath: string }) {
   const [model, setModel] = useState<MapModel | null>(null);
   const [appsById, setAppsById] = useState<Record<string, EngineApp>>({});
-  const [logos, setLogos] = useState<Record<string, BrandLogo>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ slug: string; done: number; total: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<ToolStatus | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(loadExpanded);
-  const [addAppDomain, setAddAppDomain] = useState<{ slug: string; label: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,7 +85,6 @@ export function MapPanel({ vaultPath }: { vaultPath: string }) {
   }, [vaultPath]);
 
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { invoke<Record<string, BrandLogo>>("ingestion_connector_logos").then(setLogos).catch(() => {}); }, []);
 
   const act = useCallback(async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -232,7 +227,7 @@ export function MapPanel({ vaultPath }: { vaultPath: string }) {
             <DomainRow
               key={d.slug}
               domain={d}
-              logos={logos}
+             
               filtering={!!filter}
               expanded={expanded.has(d.slug) || !!filter}
               busy={busy}
@@ -247,7 +242,7 @@ export function MapPanel({ vaultPath }: { vaultPath: string }) {
               onOpen={(t) => t.appId && openApp(t.appId)}
               onFileGap={(t) => void act(() => fileGapTask(vaultPath, d.slug, t.name))}
               onFileIdentity={(id) => void act(() => fileIdentityTask(vaultPath, d.slug, id))}
-              onAddApp={() => setAddAppDomain({ slug: d.slug, label: d.label })}
+              onAddApp={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))}
               onOpenDomain={() => window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: d.slug }))}
             />
           ))}
@@ -264,15 +259,6 @@ export function MapPanel({ vaultPath }: { vaultPath: string }) {
         </div>
       </div>
 
-      {addAppDomain && (
-        <AddAppModal
-          vaultPath={vaultPath}
-          domainSlug={addAppDomain.slug}
-          domainLabel={addAppDomain.label}
-          onClose={() => setAddAppDomain(null)}
-          onAdded={() => { setAddAppDomain(null); void load(); }}
-        />
-      )}
     </div>
   );
 }
@@ -291,7 +277,6 @@ function WeightKey({ tone, weight, note }: { tone: string; weight: string; note:
 
 interface RowProps {
   domain: MapDomain;
-  logos: Record<string, BrandLogo>;
   filtering: boolean;
   expanded: boolean;
   busy: boolean;
@@ -317,7 +302,7 @@ const TILE_CAP = 8; // owned chips shown in an expanded row before "Show more"
 // name, coverage dots, score) so the list reads as a clean overview. Expand a
 // row for the full tool detail + recommendations + actions.
 function DomainRow(p: RowProps) {
-  const { domain, logos, filtering, expanded, busy, progress } = p;
+  const { domain, filtering, expanded, busy, progress } = p;
   const Icon = domainIcon(domain.slug) ?? Circle;
   const suggestable = suggestableCount(domain.tools);
   const [showAll, setShowAll] = useState(false);
@@ -331,7 +316,7 @@ function DomainRow(p: RowProps) {
     <Chip
       key={`${t.name}-${i}`}
       tool={t}
-      logos={logos}
+     
       busy={busy}
       domainSlug={domain.slug}
       allDomains={p.allDomains}
@@ -434,7 +419,7 @@ function DomainRow(p: RowProps) {
             )}
             <button
               onClick={p.onAddApp}
-              title="Connect another app to this domain"
+              title="Open Apps to connect another app to this domain"
               className="flex w-fit items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary transition-colors hover:border-accent-border hover:text-accent"
             >
               <Plus className="h-3 w-3" /> Add app
@@ -451,7 +436,6 @@ const CONNECTABLE = new Set<ToolStatus>(["browser", "api", "mcp", "research", "b
 
 interface ChipProps {
   tool: MapTool;
-  logos: Record<string, BrandLogo>;
   busy: boolean;
   domainSlug: string;
   allDomains: { slug: string; label: string }[];
@@ -463,7 +447,7 @@ interface ChipProps {
   onFileGap: () => void;
 }
 
-function Chip({ tool, logos, busy, domainSlug, allDomains, onAccept, onRemove, onMove, onConnect, onOpen, onFileGap }: ChipProps) {
+function Chip({ tool, busy, domainSlug, allDomains, onAccept, onRemove, onMove, onConnect, onOpen, onFileGap }: ChipProps) {
   const [menu, setMenu] = useState(false);
   const title = [STATUS_LABEL[tool.status], tool.note, tool.identity ? `identity: ${tool.identity}` : "", tool.suggested ? "recommended - click to add" : "click to open its detail page"]
     .filter(Boolean)
@@ -491,7 +475,7 @@ function Chip({ tool, logos, busy, domainSlug, allDomains, onAccept, onRemove, o
     >
       {/* App icon with a status-dot badge. */}
       <span className="relative flex shrink-0">
-        <AppRowLogo app={{ title: tool.name, id: tool.appId }} logos={logos} size={16} fallback="letter" />
+        <AppRowLogo app={{ title: tool.name, id: tool.appId }} size={16} fallback="letter" />
         <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-1 ring-surface ${DOT[tool.status]}`} />
       </span>
       <button

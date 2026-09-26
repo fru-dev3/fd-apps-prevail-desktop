@@ -1,6 +1,5 @@
 // Pure cross-component helpers extracted from App.tsx.
-import { titleCase } from "./format";
-import type { EngineApp, DomainToggle } from "./types";
+import type { DomainToggle } from "./types";
 import { DOMAIN_BLURBS, VENDOR_BRAND, DOMAIN_PALETTE, ANSI_RE, LOCAL_CLI_IDS } from "./constants";
 
 export function bytesHuman(n: number): string {
@@ -27,14 +26,6 @@ export function splitThinking(raw: string): { thinking: string; answer: string }
     return "";
   });
   return { thinking: thinking.trim(), answer: answer.trim() };
-}
-
-export function appScheduleText(app: EngineApp): string {
-  if (!app.refresh?.every) return "Manual. No schedule set.";
-  const parts = [`Every ${app.refresh.every}`];
-  if (app.refresh.on) parts.push(titleCase(app.refresh.on));
-  if (app.refresh.at) parts.push(`at ${app.refresh.at}`);
-  return parts.join(" · ");
 }
 
 export function compactNum(n: number): string {

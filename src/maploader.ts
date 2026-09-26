@@ -4,7 +4,7 @@
 import { invoke } from "./bridge";
 import { buildMapModel, seedOnlyModel, type RawApp, type RawDomain, type Probe } from "./mapbuild";
 import type { MapModel } from "./map";
-import { appStatus } from "./appspanel";
+import { appStatus } from "./appstatus";
 import type { EngineApp, Domain } from "./types";
 
 // Map the app's 5-state appStatus() to a probe result the builder understands.

@@ -117,12 +117,6 @@ export const DOMAIN_PALETTE = [
 export const INTEGRATION_LABEL: Record<string, string> = {
   api: "Direct API", oauth: "OAuth", browser: "Browser", mcp: "MCP server", manual: "Manual drop",
 };
-export const APP_AUTONOMY_LABEL: Record<string, string> = {
-  "read-only": "Read only", draft: "Can draft", act: "Can act",
-};
-export const APP_AUTONOMY_TINT: Record<string, string> = {
-  "read-only": "#2fb87a", draft: "#d8a657", act: "#e06c75",
-};
 export const STATUS_TINT: Record<string, string> = { connected: "#2fb87a", expired: "#d8a657", error: "#e06c75", "not-configured": "#2fb87a" };
 export const LOCAL_CLI_IDS = new Set(["ollama", "lmstudio", "mlx"]);
 
