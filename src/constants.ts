@@ -112,7 +112,7 @@ export const SYCOPHANCY_RE = /\b(you're absolutely right!?|you are absolutely ri
 export const SKILL_TOKEN_RE = /(^|\s)(\/[a-zA-Z][a-zA-Z0-9_-]*)/g;
 export const DOMAIN_PALETTE = [
   "#cc785c", "#2d7fe4", "#5fae74", "#2dd4bf", "#a78bfa", "#e0823d",
-  "#3fa6a0", "#c44e8a", "#7c83ff", "#6b8e23", "#d2674f", "#b8860b",
+  "#3fa6a0", "#c44e8a", "#7c83ff", "#6b8e23", "#d2674f", "#5b7a99",
 ];
 export const INTEGRATION_LABEL: Record<string, string> = {
   api: "Direct API", oauth: "OAuth", browser: "Browser", mcp: "MCP server", manual: "Manual drop",
