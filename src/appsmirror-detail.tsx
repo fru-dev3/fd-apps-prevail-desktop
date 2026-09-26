@@ -10,7 +10,7 @@ import {
   RUNTIME_LABEL, emptyDraft, recipeSavePayload, syncBlockedReason, syncableTools, toolBadge,
   type MirrorApp, type RecipeDraft, type Schedule, type SyncResult,
 } from "./appsmirror-model";
-import { AppLogo, SigninHelp, StatusPill, TONE_PILL } from "./appsmirror-parts";
+import { AppLogo, PinButton, SigninHelp, StatusPill, TONE_PILL } from "./appsmirror-parts";
 
 const card = "rounded-xl border border-border-subtle bg-surface p-4 sm:p-5";
 const SCHEDULES: { id: Schedule; label: string }[] = [
@@ -105,24 +105,27 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
         <AppLogo name={app.name} url={app.url} size={44} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="min-w-0 truncate text-xl font-bold text-text-primary">{app.name}</h3>
+            <h3 title={app.name} className="min-w-0 break-words text-xl font-bold text-text-primary [overflow-wrap:anywhere]">{app.name}</h3>
             <StatusPill status={app.status} />
           </div>
-          <p className="mt-0.5 truncate text-[13px] text-text-muted">
+          <p className="mt-0.5 text-[13px] text-text-muted [overflow-wrap:anywhere]">
             From {runtimeLabel}{app.status_detail ? `. ${app.status_detail}` : ""}
           </p>
           <p className="mt-0.5 text-[13px] text-text-secondary">{lastLine}</p>
         </div>
         <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
+          <div className="flex items-stretch gap-1.5">
+          <PinButton app={app} />
           <button
             type="button"
             onClick={syncNow}
             disabled={!!blocked || busy !== null || phone}
             title={blocked ?? (phone ? "Sync runs on your Mac" : "Run this recipe now")}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
           >
             {busy === "sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sync now
           </button>
+          </div>
           {(blocked || phone) && <span className="text-[12px] text-text-muted sm:max-w-[16rem] sm:text-right">{blocked ?? "Sync runs on your Mac."}</span>}
         </div>
       </div>
@@ -176,7 +179,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
             rows={4}
             value={draft.prompt}
             onChange={(e) => edit({ prompt: e.target.value })}
-            placeholder="e.g. Summarize last week's pages and list open action items."
+            placeholder="e.g. Pull what is new since the last sync and list anything that needs action."
             className="mt-1.5 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted/70 focus:border-accent-border focus:outline-none"
           />
 

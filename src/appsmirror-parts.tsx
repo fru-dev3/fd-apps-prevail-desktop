@@ -2,10 +2,11 @@
 // the sign-in help and an external-link opener that works on the desktop and
 // in the phone browser alike.
 import { useEffect, useState } from "react";
-import { Check, Copy, ExternalLink } from "lucide-react";
+import { Check, Copy, ExternalLink, Pin } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke, isBrowser } from "./bridge";
-import { faviconHost, signinAction, statusMeta, type MirrorApp, type MirrorStatus, type Tone } from "./appsmirror-model";
+import { favKeyOf, toggleFavorite, useFavorites } from "./appfavorites";
+import { logoHost, signinAction, statusMeta, type MirrorApp, type MirrorStatus, type Tone } from "./appsmirror-model";
 
 export function openExternal(href: string) {
   if (isBrowser()) { window.open(href, "_blank", "noopener,noreferrer"); return; }
@@ -20,8 +21,19 @@ export const TONE_PILL: Record<Tone, string> = {
 };
 export const TONE_DOT: Record<Tone, string> = { ok: "bg-ok", warn: "bg-warn", err: "bg-err", muted: "bg-text-muted/50" };
 
-export function StatusPill({ status }: { status: MirrorStatus }) {
+export const TONE_TEXT: Record<Tone, string> = { ok: "text-ok", warn: "text-warn", err: "text-err", muted: "text-text-muted" };
+
+// compact: a dot and a coloured label with no chip, for dense list rows.
+export function StatusPill({ status, compact = false }: { status: MirrorStatus; compact?: boolean }) {
   const m = statusMeta(status);
+  if (compact) {
+    return (
+      <span data-testid="status-pill" className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[12px] font-medium ${TONE_TEXT[m.tone]}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[m.tone]}`} aria-hidden />
+        {m.label}
+      </span>
+    );
+  }
   return (
     <span data-testid="status-pill" className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-medium ring-1 ${TONE_PILL[m.tone]}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[m.tone]}`} aria-hidden />
@@ -42,7 +54,7 @@ function favicon(host: string): Promise<string> {
 }
 
 export function AppLogo({ name, url, size = 32 }: { name: string; url?: string; size?: number }) {
-  const host = faviconHost(url);
+  const host = logoHost(name, url);
   const [src, setSrc] = useState("");
   useEffect(() => {
     let live = true;
@@ -110,4 +122,30 @@ export function SigninHelp({ app, compact = false }: { app: MirrorApp; compact?:
     );
   }
   return <CopyCommand command={a.command} />;
+}
+
+// Pinning a connector puts it in the sidebar Apps section, the same way a
+// starred app used to. The key is namespaced so a connector never collides
+// with a vault app folder of the same name.
+export const mirrorPinKey = (id: string) => favKeyOf(`mirror-${id}`);
+export const MIRROR_SELECT_KEY = "prevail.apps.mirror.select";
+
+export function PinButton({ app }: { app: MirrorApp }) {
+  const favs = useFavorites();
+  const key = mirrorPinKey(app.id);
+  const pinned = favs.has(key);
+  return (
+    <button
+      type="button"
+      data-testid="mirror-pin"
+      aria-pressed={pinned}
+      onClick={() => toggleFavorite(key)}
+      title={pinned ? `Unpin ${app.name} from the sidebar` : `Pin ${app.name} to the sidebar`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors ${
+        pinned ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"
+      }`}
+    >
+      <Pin className="h-4 w-4" /> {pinned ? "Pinned" : "Pin"}
+    </button>
+  );
 }

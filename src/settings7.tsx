@@ -284,10 +284,6 @@ export function DirectProvidersSection({ onActivated }: { onActivated?: () => Pr
   );
 }
 
-// Connectors - data sources that auto-build per-domain context, routed through
-// a connector hub (Composio). Real brand marks (simple-icons) where available,
-// else a tinted lucide fallback. Placeholders for now; live wiring next.
-
 export function ModelsSection({
   clis,
   onStartChatWith,

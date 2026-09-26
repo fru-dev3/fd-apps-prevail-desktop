@@ -8,7 +8,7 @@
 //
 // All secrets are stored as `generic-password` items scoped to
 // service="prevail.ingestion" by default, with a caller-supplied
-// account name (typically the integration: "fidelity", "composio", …).
+// account name (typically the integration: "fidelity", …).
 //
 // Errors are exposed as plain strings so the orchestrator can ferry
 // them to the UI for display.

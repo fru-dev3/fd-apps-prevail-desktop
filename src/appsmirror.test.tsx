@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import {
-  faviconHost, groupByRuntime, recipeSavePayload, signinAction, statusMeta, syncBlockedReason, syncableTools, toolBadge,
+  faviconHost, groupByRuntime, logoHost, recipeSavePayload, signinAction, statusMeta, syncBlockedReason, syncableTools, toolBadge,
   type MirrorApp, type MirrorList,
 } from "./appsmirror-model";
 
@@ -90,6 +90,11 @@ describe("apps mirror model", () => {
     expect(faviconHost(undefined)).toBeNull();
   });
 
+  it("uses the product site for connectors on a shared API host", () => {
+    expect(logoHost("Gmail", "https://gmailmcp.googleapis.com/mcp/v1")).toBe("mail.google.com");
+    expect(logoHost("Acme Notes", "https://mcp.acmenotes.example/mcp")).toBe("acmenotes.example");
+  });
+
   it("builds the save payload with only sync-allowed read tools", () => {
     const p = recipeSavePayload("/v", mail, {
       prompt: "  List new threads  ", domains: ["money", "money", " "], schedule: "weekly",
@@ -169,5 +174,31 @@ describe("AppsMirrorPanel", () => {
     render(<AppsMirrorPanel vaultPath="/v" />);
     await waitFor(() => expect(screen.getByText("Sites without a connector")).toBeTruthy());
     expect(screen.getByText("Obsidian import")).toBeTruthy();
+  });
+
+  it("shows the full name of a long connector on hover", async () => {
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    await waitFor(() => expect(screen.getByTestId("mirror-row-acme-notes")).toBeTruthy());
+    expect(screen.getByTestId("mirror-row-acme-notes").getAttribute("title")).toBe("Acme Notes");
+  });
+
+  it("pins a connector to the sidebar and back", async () => {
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    await waitFor(() => expect(screen.getByTestId("mirror-row-bar-mail")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("mirror-row-bar-mail"));
+    const pin = await screen.findByTestId("mirror-pin");
+    expect(pin.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(pin);
+    await waitFor(() => expect(screen.getByTestId("mirror-pin").getAttribute("aria-pressed")).toBe("true"));
+    expect(JSON.parse(localStorage.getItem("prevail.apps.favorites") || "[]")).toContain("mirrorbarmail");
+    fireEvent.click(screen.getByTestId("mirror-pin"));
+    await waitFor(() => expect(screen.getByTestId("mirror-pin").getAttribute("aria-pressed")).toBe("false"));
+  });
+
+  it("opens the connector the sidebar handed over", async () => {
+    sessionStorage.setItem("prevail.apps.mirror.select", "bar-mail");
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Bar Mail" })).toBeTruthy());
+    expect(sessionStorage.getItem("prevail.apps.mirror.select")).toBeNull();
   });
 });

@@ -472,12 +472,6 @@ export type DirectProvider = { name: string; path?: string; hex?: string; mono?:
 export type EngineApp = {
   id: string; title: string; integration: string; status: string; configured: boolean;
   domains: string[]; lastSuccessTs: number | null; lastError: string | null;
-  // When set, this app is fronted by a managed gateway (Composio / Nango) rather
-  // than connected directly. Keeps each connection mode's list separate (a Nango
-  // app must never appear under Direct) and labels the method in the sidebar.
-  gateway?: { provider: "composio" | "nango"; toolkit: string } | null;
-  // The user's free-text "what to pull" instruction (drives the gateway sync).
-  pullInstructions?: string | null;
   account: { label?: string; address?: string } | null;
   // Runtime pin: which AI runtime serves this app's chats (pass-through lanes).
   runtime?: string | null;

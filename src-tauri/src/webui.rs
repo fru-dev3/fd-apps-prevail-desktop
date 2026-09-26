@@ -1490,7 +1490,6 @@ mod tests {
             "engine_app_add", "engine_app_remove", "engine_app_run_skill",
             "engine_app_set_domains", "engine_app_set_schedule", "engine_app_set_soul",
             "engine_app_set_runtime", "engine_app_set_enabled", "engine_app_sync",
-            "composio_set_key", "composio_connect_app", "nango_set_key", "nango_connect",
             "engine_autonomy_set", "engine_budget_set", "engine_lock_set", "autonomy_policy_set",
             "google_scaffold", "open_in_finder",
         ] {

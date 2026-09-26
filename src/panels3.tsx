@@ -29,7 +29,6 @@ function faviconHost(app: { title?: string; id?: string; website?: string }): st
     canva: "canva.com", notion: "notion.so", slack: "slack.com", figma: "figma.com",
     linear: "linear.app", airtable: "airtable.com", canny: "canny.io", skyscanner: "skyscanner.net",
     calendly: "calendly.com", opentable: "opentable.com", alltrails: "alltrails.com",
-    composio: "composio.dev", nango: "nango.dev",
   };
   return known[slug] || `www.${slug}.com`;
 }

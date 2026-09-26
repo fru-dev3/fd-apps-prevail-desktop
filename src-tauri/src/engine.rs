@@ -176,9 +176,6 @@ pub fn run_engine_raw(args: &[&str]) -> Result<String, String> {
     for (k, v) in provider_env_pairs() {
         cmd.env(k, v);
     }
-    for (k, v) in gateway_env_pairs() {
-        cmd.env(k, v);
-    }
     if let Some(r) = vault_root() {
         cmd.env("PREVAIL_VAULT_ROOT", r);
     }
@@ -224,9 +221,6 @@ pub fn run_engine_json(args: &[&str]) -> Result<serde_json::Value, String> {
         cmd.env("PREVAIL_VAULT_KEY", k);
     }
     for (k, v) in provider_env_pairs() {
-        cmd.env(k, v);
-    }
-    for (k, v) in gateway_env_pairs() {
         cmd.env(k, v);
     }
     if let Some(r) = vault_root() {
@@ -294,9 +288,6 @@ pub fn run_engine_json_stdin(
         cmd.env("PREVAIL_VAULT_KEY", k);
     }
     for (k, v) in provider_env_pairs() {
-        cmd.env(k, v);
-    }
-    for (k, v) in gateway_env_pairs() {
         cmd.env(k, v);
     }
     if let Some(r) = vault_root() {
@@ -387,9 +378,6 @@ pub async fn run_engine_stream(
         scmd.env("PREVAIL_VAULT_KEY", k);
     }
     for (k, v) in provider_env_pairs() {
-        scmd.env(k, v);
-    }
-    for (k, v) in gateway_env_pairs() {
         scmd.env(k, v);
     }
     if let Some(r) = vault_root() {
@@ -538,11 +526,6 @@ fn apply_engine_env(
         // authenticate + fetch. Index of names lives at ~/.prevail/appsecrets.index
         // (names only, never values). Cloud creds → gated by Bunker, like above.
         for (k, v) in app_secret_env_pairs() {
-            cmd.env(k, v);
-        }
-        // Gateway connector keys (Composio / Nango) so the engine can authenticate
-        // its gateway calls. Cloud creds, so gated by Bunker like the keys above.
-        for (k, v) in gateway_env_pairs() {
             cmd.env(k, v);
         }
     }
@@ -1031,13 +1014,6 @@ pub fn engine_obsidian_import(vault: String, from: String, domain: Option<String
     let dom = domain.unwrap_or_else(|| "notes".to_string());
     run_engine_json(&["obsidian", "import", "--from", &from, "--into", &dom, "--vault", &vault, "--json"])
 }
-
-// ── Composio CLI (browser-OAuth setup, an alternative to the MCP key) ──────
-// These shell out to the official `composio` CLI rather than the prevail engine.
-// They are pure SETUP helpers: the agent still uses the Composio MCP under the
-// hood, so connecting an app stays on the existing composio_connect_app path.
-// PATH is built the same way build_cli_env() does (so a Finder-launched app can
-// find binaries) plus ~/.composio/bin where the official installer drops it.
 
 /// Scaffold a new app from a catalog pick — writes ~/.prevail/apps/<id>/ so it
 /// becomes a real connectable App. Returns { ok, path?, error? }.
@@ -1645,33 +1621,6 @@ pub(crate) fn provider_env_pairs() -> Vec<(String, String)> {
     out
 }
 
-/// Gateway connector keys (Composio / Nango) read from the Keychain, returned as
-/// engine env-var pairs. Only present, non-empty entries are returned. The engine
-/// reads COMPOSIO_API_KEY / NANGO_SECRET_KEY to authenticate its gateway calls.
-/// Applied to every engine spawn (including the long-running daemon spawns that
-/// run scheduled syncs) the same way provider_env_pairs() is.
-pub(crate) fn gateway_env_pairs() -> Vec<(&'static str, String)> {
-    let mut out = Vec::new();
-    // Bunker / local-only mode must not hand cloud-gateway secrets to any
-    // subprocess — injecting them unconditionally leaks Composio/Nango keys
-    // while the user believes the app is offline. Gated here so all five spawn
-    // sites are covered at once. (Critical: audit B4 / O14.)
-    if crate::bunker::bunker_enabled() {
-        return out;
-    }
-    if let Ok(key) = crate::ingestion::keychain::get("prevail.ingestion", "composio") {
-        if !key.is_empty() {
-            out.push(("COMPOSIO_API_KEY", key));
-        }
-    }
-    if let Ok(key) = crate::ingestion::keychain::get("prevail.ingestion", "nango") {
-        if !key.is_empty() {
-            out.push(("NANGO_SECRET_KEY", key));
-        }
-    }
-    out
-}
-
 /// Direct single-vendor providers (G1): (Keychain provider id, engine env var).
 /// Mirrors the engine's DIRECT_PROVIDERS table. The PREVAIL_ prefix keeps these
 /// out of the engine's scrubbedEnv strip list.
@@ -1715,7 +1664,7 @@ pub fn engine_config_vault() -> Option<String> {
 #[tauri::command]
 pub fn engine_set_config_vault(path: String) -> Result<(), String> {
     // Mirror the configured vault into the in-memory VAULT_ROOT so EVERY engine
-    // call (including no-arg ones like `connectors list` / `connectors composio`)
+    // call (including no-arg ones like `connectors list`)
     // injects PREVAIL_VAULT_ROOT and resolves the real vault, not a dev fallback.
     // Encrypted vaults also set this on unlock; plaintext vaults rely on this hook.
     set_vault_root(Some(path.clone()));
@@ -2862,7 +2811,7 @@ pub async fn engine_vault_migrate_v4(vault: String) -> Result<serde_json::Value,
     .map_err(|e| format!("join: {e}"))?
 }
 
-/// The Action Gateway queue: connector writes (claude.ai connectors, Composio)
+/// The Action Gateway queue: connector writes (claude.ai connectors)
 /// a PreToolUse hook held for approval. Approval mints a single-use grant the
 /// model's retry consumes - unlike gws, execution re-runs through the chat.
 #[tauri::command]

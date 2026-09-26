@@ -1,8 +1,8 @@
 // Favorites ("my list") shared across the Apps panel and the home sidebar. A
 // single localStorage-backed set of app keys (the app's normalized name / id)
-// that the user stars to pin an app to the home sidebar. It works identically
-// for Direct, Composio, and Nango apps - the star is the one control that
-// decides what shows on the home screen. Toggling a star anywhere notifies
+// that the user pins to the home sidebar (mirrored connectors use a
+// "mirror-" prefixed key). The pin is the one control that decides what shows
+// on the home screen. Toggling a star anywhere notifies
 // every listener so the sidebar and the Apps panel stay in sync live.
 import { useEffect, useState } from "react";
 

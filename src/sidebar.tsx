@@ -3,9 +3,9 @@
 // gateway/MCP/benchmark status strips from shared modules.
 import { Fragment, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
-import { ArrowUpRight, Activity, Archive, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Folder, Layers, Loader2, MessagesSquare, Monitor, Moon, MoreVertical, Pin, Plug, Plus, PowerOff, RotateCcw, Settings as SettingsIcon, Sparkles, StarOff, Sun, Waypoints, X } from "lucide-react";
+import { ArrowUpRight, Activity, Archive, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Folder, Layers, Loader2, MessagesSquare, Monitor, Moon, MoreVertical, Pin, PinOff, Plug, Plus, PowerOff, RotateCcw, Settings as SettingsIcon, Sparkles, StarOff, Sun, Waypoints, X } from "lucide-react";
 import { PrevailLogo } from "./PrevailLogo";
-import { invoke } from "./bridge";
+import { invoke, isBrowser } from "./bridge";
 import { STATUS_TINT } from "./constants";
 import { appName, scoreColor, titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
@@ -22,6 +22,8 @@ import { BACKUP_CFG } from "./backup";
 import { BrandMark } from "./brandmark";
 import { AppRowLogo } from "./panels3";
 import { ObsidianLogo } from "./obsidianmodal";
+import { AppLogo, MIRROR_SELECT_KEY, TONE_DOT, mirrorPinKey } from "./appsmirror-parts";
+import { RUNTIME_LABEL, statusMeta, type MirrorApp, type MirrorList } from "./appsmirror-model";
 import type { Domain, EngineApp, LifeReadiness, Mode, TabId } from "./types";
 
 // Shared "selected row" treatment for every selectable nav row in the sidebar
@@ -265,10 +267,10 @@ export function Sidebar({
   // Refresh when the active domain set changes (e.g. after archive/restore).
   useEffect(() => { void refreshArchived(); }, [refreshArchived, domains.length]);
 
-  // Apps section - peer to Domains in the sidebar. The home screen shows ONLY
-  // the apps the user has STARRED (favorited) - in the Apps panel, in any mode
-  // (Direct, Composio, Nango). The favorites set is the shared ./appfavorites
-  // store, so starring anywhere updates this list live.
+  // Apps section - peer to Domains in the sidebar. It shows ONLY the apps the
+  // user has pinned: mirrored connectors pinned in the Apps screen, plus any
+  // vault app starred earlier. The favorites set is the shared ./appfavorites
+  // store, so pinning anywhere updates this list live.
   const [sidebarApps, setSidebarApps] = useState<EngineApp[]>([]);
   const [appsOpen, setAppsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsOpen") !== "0");
   useEffect(() => { lsSet("prevail.sidebar.appsOpen", appsOpen ? "1" : "0"); }, [appsOpen]);
@@ -317,7 +319,55 @@ export function Sidebar({
       .sort((a, b) => a.title.localeCompare(b.title)),
     [sidebarApps, favs],
   );
-  const pinnedAppCount = favoritedSidebarApps.length;
+  // Mirrored connectors (Claude, Codex, Gemini) the user pinned in the Apps
+  // screen. Read from the engine's cached list, so this never probes a runtime.
+  const [mirrorApps, setMirrorApps] = useState<MirrorApp[]>([]);
+  useEffect(() => {
+    if (isBrowser()) return;
+    let alive = true;
+    const pull = () => { invoke<MirrorList>("apps_mirror_list", { vault: vaultPath }).then((l) => { if (alive) setMirrorApps(Array.isArray(l?.apps) ? l.apps : []); }).catch(() => {}); };
+    pull();
+    window.addEventListener("prevail:apps-changed", pull);
+    return () => { alive = false; window.removeEventListener("prevail:apps-changed", pull); };
+  }, [vaultPath]);
+  const pinnedMirrorApps = useMemo(
+    () => mirrorApps.filter((a) => favs.has(mirrorPinKey(a.id))).sort((a, b) => a.name.localeCompare(b.name)),
+    [mirrorApps, favs],
+  );
+  const openMirrorApp = (id: string) => {
+    try { sessionStorage.setItem(MIRROR_SELECT_KEY, id); } catch { /* ignore */ }
+    window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }));
+    window.dispatchEvent(new CustomEvent("prevail:mirror-select", { detail: id }));
+  };
+  const renderMirrorRow = (app: MirrorApp) => {
+    const tone = statusMeta(app.status).tone;
+    return (
+      <li key={`mirror-${app.id}`} className="group flex items-center gap-1 pl-6">
+        <button
+          onClick={() => openMirrorApp(app.id)}
+          title={`${app.name} · ${statusMeta(app.status).label}`}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary"
+        >
+          <span className="relative shrink-0">
+            <AppLogo name={app.name} url={app.url} size={18} />
+            <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-surface-strong ${TONE_DOT[tone]}`} />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col leading-tight">
+            <span className="truncate text-sm">{app.name}</span>
+            <span className="truncate text-[10px] text-text-muted">{RUNTIME_LABEL[app.runtime] ?? app.runtime}</span>
+          </span>
+        </button>
+        <button
+          onClick={() => toggleFavorite(mirrorPinKey(app.id))}
+          title={`Unpin ${app.name}`}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted opacity-0 hover:bg-surface-warm hover:text-accent group-hover:opacity-100"
+        >
+          <PinOff className="h-3.5 w-3.5" />
+        </button>
+      </li>
+    );
+  };
+  const pinnedAppCount = favoritedSidebarApps.length + pinnedMirrorApps.length;
   // Split the favorited list into pinned vs the rest so pinned apps rise to a
   // "Pinned" group at the top, exactly like pinned domains. The name sort is
   // kept within each group.
@@ -328,20 +378,6 @@ export function Sidebar({
     return { pinnedSidebar, restSidebar };
   }, [favoritedSidebarApps, pinnedApps]);
   const hasPinnedApps = appBuckets.pinnedSidebar.length > 0;
-  // The same app can be connected via Direct creds, Composio, or Nango (e.g.
-  // two "Notion" rows). Surface which one each row is so identical titles are
-  // distinguishable. The gateway provider is derived from the id prefix
-  // (composio-* / nango-*) since that's how gateway apps are namespaced.
-  const appMethod = (app: EngineApp): { label: string; toolkit: string } => {
-    const g = (app as EngineApp & { gateway?: { provider?: string; toolkit?: string } }).gateway;
-    if (g?.provider === "composio" || app.id.startsWith("composio-")) {
-      return { label: "Composio", toolkit: g?.toolkit ?? app.id.replace(/^composio-/, "") };
-    }
-    if (g?.provider === "nango" || app.id.startsWith("nango-")) {
-      return { label: "Nango", toolkit: g?.toolkit ?? app.id.replace(/^nango-/, "") };
-    }
-    return { label: "Direct", toolkit: app.id };
-  };
   // One app row, reused by the Favorites and All groups. Highlights when it's
   // the app currently open in the canvas so "which app am I in" is obvious.
   const renderAppRow = (app: EngineApp) => {
@@ -351,7 +387,6 @@ export function Sidebar({
     // the sync daemon. Surface that here so it reads as off at a glance: muted
     // styling, a grey status dot, and a small "Off" badge. Absent/true = enabled.
     const disabled = app.enabled === false;
-    const method = appMethod(app);
     // Pin key matches the favorite key the star writes (title preferred, id
     // fallback) so pinning lines up with whichever key favorited the row.
     const appPinKey = favKeyOf(app.title || app.id);
@@ -408,13 +443,12 @@ export function Sidebar({
                 ? "text-text-muted hover:bg-surface-warm"
                 : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"
           }`}
-          title={`${disabled ? `${app.title} is turned off and won't sync · ` : ""}Click to open ${app.title} (${method.label}) · drag into chat to attach as context${app.domains.length ? " · refreshes " + app.domains.map(titleCase).join(", ") : ""}`}
+          title={`${disabled ? `${app.title} is turned off and won't sync · ` : ""}Click to open ${app.title} · drag into chat to attach as context${app.domains.length ? " · refreshes " + app.domains.map(titleCase).join(", ") : ""}`}
         >
           {/* Brand mark + a tiny status dot anchored to it so connection state
-              stays visible. Gateway apps key the logo off the toolkit so e.g.
-              "composio-notion" still resolves the Notion mark. */}
+              stays visible. */}
           <span className={`relative shrink-0 ${disabled && !active ? "opacity-50" : ""}`}>
-            <AppRowLogo app={{ title: app.title, id: method.toolkit }} size={18} fallback="letter" />
+            <AppRowLogo app={{ title: app.title, id: app.id }} size={18} fallback="letter" />
             <span
               className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-surface-strong"
               style={{ backgroundColor: disabled ? "#9aa0a6" : tint }}
@@ -432,7 +466,7 @@ export function Sidebar({
                 </span>
               )}
             </span>
-            <span className={`truncate text-[10px] ${active ? "text-background/80" : "text-text-muted"}`}>{disabled ? "Off · " + method.label : method.label}</span>
+            <span className={`truncate text-[10px] ${active ? "text-background/80" : "text-text-muted"}`}>{disabled ? "Off" : app.domains.length ? app.domains.map(titleCase).join(", ") : "Vault app"}</span>
           </span>
         </button>
         {/* Row actions collapsed into a kebab (⋮), matching the domain rows: a
@@ -1091,6 +1125,7 @@ export function Sidebar({
                     removes it from home.
                     When any app is pinned, split into a "Pinned" group above an
                     "All" group - the exact parallel of the Domains section. */}
+                {pinnedMirrorApps.map(renderMirrorRow)}
                 {hasPinnedApps ? (
                   <>
                     {renderAppGroupHeader("Pinned", appsPinnedOpen, setAppsPinnedOpen, appBuckets.pinnedSidebar.length)}
@@ -1104,7 +1139,7 @@ export function Sidebar({
               </ul>
             ) : (
               <div className="px-2">
-                <p className="mt-0.5 px-4 py-1.5 text-[11px] leading-relaxed text-text-muted">Star an app in Apps to pin it here, or hover this header and hit +.</p>
+                <p className="mt-0.5 px-4 py-1.5 text-[11px] leading-relaxed text-text-muted">Pin a connector in Apps to keep it here.</p>
               </div>
             ))}
           </div>

@@ -32,46 +32,6 @@ pub struct ChatArgs {
     pub web: Option<bool>,
 }
 
-/// Materialize ~/.prevail/agent-mcp.json (the Composio HTTP MCP server with the
-/// X-CONSUMER-API-KEY header) from the Keychain key, and return its path so the
-/// chat agent can use the Composio gateway live (search + execute the connected
-/// apps' tools). Returns None when no Composio key is set, so a chat without
-/// Composio configured is byte-for-byte unchanged. Mirrors the CLI engine's
-/// agent-mcp.ts contract exactly.
-fn composio_agent_mcp_config() -> Option<String> {
-    let key = crate::ingestion::keychain::get("prevail.ingestion", "composio").ok()?;
-    let key = key.trim();
-    if key.is_empty() {
-        return None;
-    }
-    let base = std::env::var("PREVAIL_HOME")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| format!("{}/.prevail", std::env::var("HOME").unwrap_or_default()));
-    let dir = std::path::Path::new(&base);
-    let _ = std::fs::create_dir_all(dir);
-    let path = dir.join("agent-mcp.json");
-    let cfg = serde_json::json!({
-        "mcpServers": {
-            "composio": {
-                "type": "http",
-                "url": "https://connect.composio.dev/mcp",
-                "headers": { "X-CONSUMER-API-KEY": key }
-            }
-        }
-    });
-    let body = serde_json::to_string_pretty(&cfg).ok()?;
-    std::fs::write(&path, &body).ok()?;
-    // 0600 is a Unix concept; on Windows this is a no-op (NTFS ACLs differ).
-    // Mirrors the guarded pattern in ingestion/storage.rs so the Windows build compiles.
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    }
-    Some(path.to_string_lossy().to_string())
-}
-
 // Vault Lock guardrail for the chat agent. Mirrors the CLI bridge's preamble so
 // the desktop chat path (which spawns the agent CLI directly) enforces the same
 // hard filesystem scope. The agent must refuse anything outside the vault.
@@ -136,7 +96,7 @@ fn cli_args(cli: &str, prompt: &str, model: Option<&str>, web_denied: bool) -> (
     // --model <id>).
     // Vault Lock: when ON, the agent is confined to the vault. We (1) prepend a
     // hard scope rule, (2) drop the Bash escape hatch + confine file tools to the
-    // vault via --add-dir, and (3) skip the external Composio MCP - so a prompt
+    // vault via --add-dir, and (3) skip external MCP servers - so a prompt
     // like "scan my Mac for big files" cannot reach outside the vault.
     let locked = crate::vault_lock::vault_lock_enabled();
     let vault = crate::engine::vault_root();
@@ -164,15 +124,6 @@ fn cli_args(cli: &str, prompt: &str, model: Option<&str>, web_denied: bool) -> (
             if let Some(m) = model {
                 v.push("--model".to_string());
                 v.push(m.to_string());
-            }
-            // Give the chat agent the Composio gateway MCP when a key is set, so it
-            // can fetch live data for a connected app (Notion, PayPal, etc.) instead
-            // of guessing. Skipped when Vault Lock is on (external = out of scope).
-            if !locked {
-                if let Some(cfg) = composio_agent_mcp_config() {
-                    v.push("--mcp-config".to_string());
-                    v.push(cfg);
-                }
             }
             v.push("-p".to_string());
             // `--` ends option parsing so a prompt that starts with "--"

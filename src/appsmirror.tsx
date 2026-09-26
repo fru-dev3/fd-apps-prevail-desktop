@@ -15,7 +15,7 @@ import { ProviderMark } from "./marks";
 import { SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
 import { RUNTIME_MARK, groupByRuntime, type ArchiveResult, type MirrorApp, type MirrorList, type RuntimeGroup } from "./appsmirror-model";
-import { AppLogo, SigninHelp, StatusPill } from "./appsmirror-parts";
+import { AppLogo, MIRROR_SELECT_KEY, SigninHelp, StatusPill } from "./appsmirror-parts";
 import { MirrorDetail } from "./appsmirror-detail";
 import { AppsFallback } from "./appsfallback";
 
@@ -27,31 +27,34 @@ function rowSubline(app: MirrorApp): string {
 
 export function MirrorRow({ app, selected, onSelect }: { app: MirrorApp; selected: boolean; onSelect: () => void }) {
   const needsHelp = app.status === "needs_auth" || app.status === "disabled";
+  const sub = rowSubline(app);
+  // The name gets the full row width (status moved to the second line), so
+  // long connector names fit; anything still too long ends in an ellipsis
+  // with the full name on hover. Every row keeps the same two-line height.
   return (
     <div
       role="button"
       tabIndex={0}
       aria-current={selected ? "true" : undefined}
       data-testid={`mirror-row-${app.id}`}
+      title={app.name}
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
-      className={`flex min-h-[60px] w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${
+      className={`flex h-[60px] w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${
         selected ? "bg-accent-soft ring-1 ring-accent-border" : "hover:bg-surface-strong/60"
       }`}
     >
       <AppLogo name={app.name} url={app.url} size={32} />
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-[14px] font-semibold text-text-primary">{app.name}</span>
-          <StatusPill status={app.status} />
+        <div title={app.name} className="truncate text-[14px] font-semibold text-text-primary">{app.name}</div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] text-text-muted">
+          <StatusPill status={app.status} compact />
+          {needsHelp ? (
+            <span className="min-w-0 truncate">· <SigninHelp app={app} compact /></span>
+          ) : (
+            <span className="min-w-0 truncate" title={sub}>· {sub}</span>
+          )}
         </div>
-        {needsHelp ? (
-          <div className="mt-0.5 flex min-w-0 items-center">
-            <SigninHelp app={app} compact />
-          </div>
-        ) : (
-          <div className="mt-0.5 truncate text-[12px] text-text-muted">{rowSubline(app)}</div>
-        )}
       </div>
     </div>
   );
@@ -110,7 +113,7 @@ function ArchivePanel({ vaultPath, onClose }: { vaultPath: string; onClose: () =
       ) : plan?.error ? (
         <p className="mt-2 text-[13px] text-err">{plan.error}</p>
       ) : n === 0 ? (
-        <p className="mt-2 text-[13px] text-text-muted">Nothing to archive. Every app folder is in use.</p>
+        <p className="mt-2 text-[13px] text-text-muted">Nothing to archive. Every app folder holds data, code or a connector.</p>
       ) : (
         <>
           <p className="mt-1 text-[13px] text-text-muted">These folders are moved to an archive folder in the vault, not deleted.</p>
@@ -143,7 +146,26 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
   const [list, setList] = useState<MirrorList | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // A pinned connector clicked in the sidebar hands its id over here, either
+  // before this panel mounts (session storage) or while it is open (event).
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    try {
+      const id = sessionStorage.getItem(MIRROR_SELECT_KEY);
+      if (id) sessionStorage.removeItem(MIRROR_SELECT_KEY);
+      return id || null;
+    } catch { return null; }
+  });
+  useEffect(() => {
+    const onSelect = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (typeof id === "string" && id) {
+        setSelectedId(id);
+        try { sessionStorage.removeItem(MIRROR_SELECT_KEY); } catch { /* ignore */ }
+      }
+    };
+    window.addEventListener("prevail:mirror-select", onSelect);
+    return () => window.removeEventListener("prevail:mirror-select", onSelect);
+  }, []);
   const [domains, setDomains] = useState<string[]>([]);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const phone = useIsPhone();

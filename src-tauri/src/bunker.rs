@@ -79,7 +79,7 @@ fn set_bunker(enabled: bool) {
 }
 
 /// Gate a generic network/cloud action (web search, external MCP, telegram,
-/// composio, browser automation). `Err(BLOCKED)` when Bunker Mode is active.
+/// browser automation). `Err(BLOCKED)` when Bunker Mode is active.
 pub fn guard_cloud() -> Result<(), String> {
     if bunker_enabled() {
         Err(BLOCKED.to_string())
@@ -165,7 +165,7 @@ pub fn preferred_local_cli() -> Option<&'static str> {
 ///     UI can prompt the user to install/start one).
 ///
 /// Note: this applies to *model invocations* only. Network actions with no
-/// local equivalent (web search, Telegram, Composio) stay hard-blocked via
+/// local equivalent (web search, Telegram) stay hard-blocked via
 /// `guard_cloud` — there is nothing local to switch them to.
 pub fn resolve_cli(requested: &str) -> Result<String, String> {
     resolve_cli_forced(requested, false)

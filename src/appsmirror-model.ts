@@ -175,6 +175,19 @@ export function faviconHost(url?: string): string | null {
   return parts.slice(-keep).join(".");
 }
 
+// Connectors whose MCP endpoint sits on a shared API host (googleapis.com) or
+// a host with no icon of its own. Keyed by the lowercased connector name.
+const LOGO_HOSTS: Record<string, string> = {
+  gmail: "mail.google.com",
+  "google drive": "drive.google.com",
+  "google calendar": "calendar.google.com",
+  "cash app": "cash.app",
+  spotify: "spotify.com",
+};
+export function logoHost(name: string, url?: string): string | null {
+  return LOGO_HOSTS[(name || "").trim().toLowerCase()] ?? faviconHost(url);
+}
+
 export interface RecipeDraft {
   prompt: string;
   domains: string[];
