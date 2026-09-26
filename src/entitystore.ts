@@ -102,6 +102,39 @@ export function savedEntitiesForDirective(cap = 40): { name: string; id: string 
   return pages.slice(0, cap).map((e) => ({ name: e.name, id: e.id }));
 }
 
+// Opening an entity. There is no side card: an entity chip anywhere goes to
+// the Entities view (main pane) with that entity selected. When an Entities
+// view is already on screen it selects in place; otherwise the app navigates
+// to the Entities section, which picks the request up as it mounts.
+export interface EntityTarget { kind: EntityKindName; value: string }
+const OPEN_KEY = "prevail.entities.open";
+let mountedViews = 0;
+let pending: EntityTarget | null = null;
+
+export function registerEntitiesView(): () => void {
+  mountedViews++;
+  return () => { mountedViews = Math.max(0, mountedViews - 1); };
+}
+
+export function requestEntity(t: EntityTarget) {
+  pending = t;
+  try { localStorage.setItem(OPEN_KEY, JSON.stringify(t)); } catch { /* storage off */ }
+  window.dispatchEvent(new CustomEvent("prevail:open-entity", { detail: t }));
+  if (!mountedViews) window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "entities" }));
+}
+
+// The view takes a pending request once, on mount or on the event.
+export function takeRequestedEntity(): EntityTarget | null {
+  let t = pending;
+  pending = null;
+  try {
+    const raw = localStorage.getItem(OPEN_KEY);
+    localStorage.removeItem(OPEN_KEY);
+    if (!t && raw) t = JSON.parse(raw) as EntityTarget;
+  } catch { /* storage off */ }
+  return t && typeof t.value === "string" && t.value ? t : null;
+}
+
 // Test seam: install a list without the engine.
 export function __setEntityListForTest(vault: string | null, list: EntityList | null) {
   state = { ...index(list), vault };

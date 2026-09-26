@@ -44,7 +44,6 @@ import { migrateModelPrefs } from "./helpers2";
 import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin, WebVaultLinking } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
 import { EDITOR_NAV, WORK_NAV, navSection } from "./navdefs";
-import { EntityCardHost } from "./entitycard";
 import { setEntityVault } from "./entitystore";
 
 // Single source of truth for the version chip in title bar.
@@ -1265,7 +1264,7 @@ export default function App() {
     window.addEventListener("prevail:open-vault-file", onOpenVaultFile as EventListener);
     return () => window.removeEventListener("prevail:open-vault-file", onOpenVaultFile as EventListener);
   }, [vaultPath]);
-  // An entity card's "Mentioned in" row opens that chat thread in its domain.
+  // An entity's "Mentioned in" row (Entities view) opens that chat thread in its domain.
   useEffect(() => {
     const onOpenThread = (e: Event) => {
       const d = (e as CustomEvent<{ domain?: string; ref?: string }>).detail;
@@ -2154,7 +2153,6 @@ export default function App() {
         />
       )}
       {quickCaptureOn && <QuickCapture vaultPath={vaultPath} />}
-      <EntityCardHost vaultPath={vaultPath} />
     </div>
   );
 }

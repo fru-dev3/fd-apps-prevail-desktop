@@ -11,11 +11,11 @@
 //   Projects  what those prompts were building, each with a restart brief a
 //             newer model can rebuild it from (projectsview.tsx).
 // The header's tool dots show which tools are captured; a click opens the
-// capture setup in a drawer.
+// capture setup in place of the current view (in the page, never a drawer).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardCopy, Clock, FolderKanban, Loader2,
-  PauseCircle, Play, RefreshCw, RotateCcw, ScanFace, Search, Sparkles, Terminal, ThumbsDown, X,
+  PauseCircle, Play, RefreshCw, RotateCcw, ScanFace, Search, Sparkles, Terminal, ThumbsDown,
 } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
@@ -58,7 +58,7 @@ export interface PeriodDoc {
 }
 export type PeriodSel = { kind: "week" | "day"; key: string };
 
-export type MirrorView = "noticed" | "history" | "projects" | "entities";
+export type MirrorView = "noticed" | "history" | "projects" | "entities" | "capture";
 const VIEWS: { id: MirrorView; label: string }[] = [
   { id: "noticed", label: "Noticed" }, { id: "history", label: "History" }, { id: "projects", label: "Projects" }, { id: "entities", label: "Entities" },
 ];
@@ -103,7 +103,7 @@ function CopyIcon({ text, label = "Copy prompt" }: { text: string; label?: strin
 }
 
 // ── Header ──────────────────────────────────────────────────────────────────
-function ToolDots({ vaultPath, onOpen }: { vaultPath: string; onOpen: () => void }) {
+function ToolDots({ vaultPath, active, onOpen }: { vaultPath: string; active: boolean; onOpen: () => void }) {
   const [status, setStatus] = useState<CaptureStatus | null>(null);
   useEffect(() => {
     let alive = true;
@@ -112,8 +112,8 @@ function ToolDots({ vaultPath, onOpen }: { vaultPath: string; onOpen: () => void
   }, [vaultPath]);
   const tools = (status?.harnesses ?? []).filter((h) => h.present || h.wired);
   return (
-    <button onClick={onOpen} aria-label="Capture setup" title="Which tools are captured"
-      className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent">
+    <button onClick={onOpen} aria-label="Capture setup" aria-pressed={active} title="Which tools are captured"
+      className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[13px] hover:border-accent-border hover:text-accent ${active ? "border-accent-border bg-accent-soft text-accent" : "border-border bg-surface text-text-secondary"}`}>
       <span className="flex items-center gap-1.5">
         {tools.length === 0 && <span className="h-2.5 w-2.5 rounded-full bg-border" />}
         {tools.map((h) => {
@@ -127,36 +127,16 @@ function ToolDots({ vaultPath, onOpen }: { vaultPath: string; onOpen: () => void
   );
 }
 
-function CaptureDrawer({ vaultPath, onClose }: { vaultPath: string; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-      <div role="dialog" aria-label="Capture setup" onClick={(e) => e.stopPropagation()}
-        className="h-full w-full max-w-2xl overflow-y-auto border-l border-border bg-background px-6 py-6 shadow-xl">
-        <div className="mb-2 flex justify-end">
-          <button onClick={onClose} aria-label="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-warm hover:text-text-primary"><X className="h-5 w-5" /></button>
-        </div>
-        <PromptCapturePanel vaultPath={vaultPath} />
-      </div>
-    </div>
-  );
-}
-
 export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   const phone = useIsPhone();
   const [view, setViewState] = useState<MirrorView>(() => {
     try {
       if (localStorage.getItem(FOCUS_KEY)) return "history";
       const v = localStorage.getItem(VIEW_KEY);
-      return v === "history" || v === "projects" || v === "entities" ? v : "noticed";
+      return v === "history" || v === "projects" || v === "entities" || v === "capture" ? v : "noticed";
     } catch { return "noticed"; }
   });
   const setView = (v: MirrorView) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage off */ } };
-  const [capture, setCapture] = useState(false);
   const [focus, setFocus] = useState<{ ts: number; n: number } | null>(null);
   const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(null);
   const [periods, setPeriods] = useState<PeriodsDoc | null>(null);
@@ -175,7 +155,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   }, [vaultPath]);
   useEffect(loadPeriods, [loadPeriods]);
 
-  // A receipt, or an entity card's "Mentioned in" row, opens History on the
+  // A receipt, or an entity's "Mentioned in" row, opens History on the
   // day that prompt was typed, scrolled to it.
   const jumpToPrompt = (ts: number) => {
     setSel({ kind: "day", key: localDay(ts) });
@@ -211,7 +191,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
             <p className="mx-auto mt-2 max-w-lg text-[15px] leading-relaxed text-text-secondary">
               Turn on capture for your tools and every prompt you type shows up here, week by week. Intent then points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go.
             </p>
-            <button onClick={() => setCapture(true)} className={`${btnPrimary} mt-5 h-11 px-5`}>Set up capture</button>
+            <button onClick={() => setView("capture")} className={`${btnPrimary} mt-5 h-11 px-5`}>Set up capture</button>
             {periodsErr && <div className="mt-3 text-[13px] text-err">{periodsErr}</div>}
           </div>
         </div>
@@ -242,14 +222,21 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
             </button>
           ))}
         </div>
-        <div className="ml-auto"><ToolDots vaultPath={vaultPath} onOpen={() => setCapture(true)} /></div>
+        <div className="ml-auto"><ToolDots vaultPath={vaultPath} active={view === "capture"} onOpen={() => setView("capture")} /></div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
         {periodView && body}
         {view === "projects" && <ProjectsView vaultPath={vaultPath} initialSlug={projectSlug?.slug} key={projectSlug?.n ?? 0} />}
         {view === "entities" && <EntitiesView vaultPath={vaultPath} embedded />}
+        {view === "capture" && (
+          <div className={phone ? "p-4" : "mx-auto w-full max-w-4xl px-8 py-8"} data-testid="capture-view">
+            <button onClick={() => setView("noticed")} className="mb-4 inline-flex items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
+              <ArrowLeft className="h-4 w-4" />Back to Noticed
+            </button>
+            <PromptCapturePanel vaultPath={vaultPath} />
+          </div>
+        )}
       </div>
-      {capture && <CaptureDrawer vaultPath={vaultPath} onClose={() => setCapture(false)} />}
     </div>
   );
 }

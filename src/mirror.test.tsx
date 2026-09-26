@@ -182,8 +182,13 @@ describe("Noticed", () => {
     expect(byCmd("mirror_generate")).toHaveLength(0);
     await waitFor(() => expect(screen.getByTestId("tool-dot-claude").dataset.on).toBe("1"));
     expect(screen.getByTestId("tool-dot-codex").dataset.on).toBe("0");
+    // The capture setup opens in the page, not in a drawer or dialog.
     fireEvent.click(screen.getByRole("button", { name: "Capture setup" }));
-    expect(screen.getByRole("dialog", { name: "Capture setup" })).toBeTruthy();
+    expect(screen.getByTestId("capture-view")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Capture setup" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /back to noticed/i }));
+    expect(screen.queryByTestId("capture-view")).toBeNull();
   });
 
   it("last week's letter is one click away, and opens with its week", async () => {

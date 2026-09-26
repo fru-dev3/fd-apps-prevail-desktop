@@ -1,9 +1,9 @@
-// The entity card: what the vault knows about one person, place, company or
-// thing. Opened by any entity chip (prevail:open-entity) and by the Entities
-// view. Everything comes from `prevail entities show`; the owner's notes are
-// edited here and written back to the page's "Your notes" section only.
+// One entity's detail: what the vault knows about one person, place, company
+// or thing, shown in the Entities view's detail pane (never a side card).
+// Everything comes from `prevail entities show`; the owner's notes are edited
+// here and written back to the page's "Your notes" section only.
 import { useCallback, useEffect, useState } from "react";
-import { Boxes, BookmarkCheck, BookmarkPlus, FileText, Loader2, MapPin, MessageSquarePlus, MessagesSquare, Terminal, X } from "lucide-react";
+import { Boxes, BookmarkCheck, BookmarkPlus, FileText, Loader2, MapPin, MessageSquarePlus, MessagesSquare, Terminal } from "lucide-react";
 import { invoke } from "./bridge";
 import { CARD_KINDS, EntityChip, OrgMark, entityIdOf, openMap, type EntityKind } from "./entities";
 import { entitySnapshot } from "./entitystore";
@@ -71,14 +71,14 @@ function openMention(m: EntityMention) {
   fire("prevail:open-vault-file", m.ref);
 }
 
-function MentionRow({ m, onDone }: { m: EntityMention; onDone: () => void }) {
+function MentionRow({ m }: { m: EntityMention }) {
   const Icon = m.source === "prompt" ? Terminal : m.source === "brief" ? FileText : MessagesSquare;
   const where = m.source === "prompt"
     ? `${m.tool ? `${m.tool[0].toUpperCase()}${m.tool.slice(1)}` : "Prompt"}${m.title && m.title !== "Other" ? ` · ${m.title}` : ""}`
     : m.title || m.ref.split("/").pop();
   return (
     <li>
-      <button type="button" onClick={() => { openMention(m); onDone(); }} data-testid="entity-mention"
+      <button type="button" onClick={() => openMention(m)} data-testid="entity-mention"
         className="flex w-full gap-3 rounded-lg px-2 py-2 text-left hover:bg-surface-warm">
         <Icon className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" aria-hidden />
         <span className="min-w-0 flex-1">
@@ -104,14 +104,14 @@ function seedText(d: EntityDetail): string {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-border-subtle px-5 py-4">
-      <h3 className="mb-2 font-display text-[17px] font-semibold text-text-primary">{title}</h3>
+    <section className="mt-8">
+      <h3 className="mb-3 font-display text-xl font-semibold text-text-primary">{title}</h3>
       {children}
     </section>
   );
 }
 
-export function EntityCardView({ vaultPath, target, onClose }: { vaultPath: string; target: { kind: EntityKind; value: string }; onClose: () => void }) {
+export function EntityDetailView({ vaultPath, target }: { vaultPath: string; target: { kind: EntityKind; value: string } }) {
   const id = entityIdOf({ kind: target.kind, value: target.value });
   const [d, setD] = useState<EntityDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -157,7 +157,6 @@ export function EntityCardView({ vaultPath, target, onClose }: { vaultPath: stri
     try { localStorage.setItem("prevail.compose.pending", text); } catch { /* storage off */ }
     fire("prevail:new-chat");
     fire("prevail:compose-seed", text);
-    onClose();
   };
 
   const kind = (d?.found ? d.kind : target.kind) as EntityKind;
@@ -165,100 +164,74 @@ export function EntityCardView({ vaultPath, target, onClose }: { vaultPath: stri
   const notesDirty = notes !== (d?.found ? d.notes : "");
 
   return (
-    <div className="flex h-full flex-col" data-testid="entity-card">
-      <div className="flex items-start gap-3 px-5 pb-4 pt-5">
-        <KindBadge kind={kind} name={displayName} domain={d?.found ? d.domain : known?.domain} />
+    <div className="max-w-3xl" data-testid="entity-detail">
+      <div className="flex items-start gap-4">
+        <KindBadge kind={kind} name={displayName} domain={d?.found ? d.domain : known?.domain} size={56} />
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-2xl font-semibold leading-tight tracking-tight text-text-primary [overflow-wrap:anywhere]">{displayName}</h2>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[13px] text-text-muted">
+          <h2 className="font-display text-3xl font-semibold leading-tight tracking-tight text-text-primary [overflow-wrap:anywhere]">{displayName}</h2>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[14px] text-text-muted">
             <span>{KIND_LABEL[kind] ?? kind}</span>
             {d?.found && d.conversations > 0 && <><span aria-hidden>·</span><span>{d.conversations} {d.conversations === 1 ? "conversation" : "conversations"}</span></>}
-            {hasPage && <span className="inline-flex items-center gap-1 text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />In your vault</span>}
+            {d?.found && d.saved && <span className="inline-flex items-center gap-1 text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />Saved</span>}
           </div>
-          {d?.found && d.aliases.length > 0 && <div className="mt-1 truncate text-[13px] text-text-muted" title={d.aliases.join(", ")}>Also {d.aliases.slice(0, 4).join(", ")}</div>}
+          {d?.found && d.aliases.length > 0 && <div className="mt-1 truncate text-[14px] text-text-muted" title={d.aliases.join(", ")}>Also {d.aliases.slice(0, 4).join(", ")}</div>}
+          {hasPage && <div className="mt-1 truncate text-[13px] text-text-muted" title={d!.page_path}>{d!.page_path}</div>}
         </div>
-        <button onClick={onClose} aria-label="Close" className="-mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-muted hover:bg-surface-warm hover:text-text-primary"><X className="h-5 w-5" /></button>
       </div>
 
-      <div className="flex flex-wrap gap-2 px-5 pb-4">
+      <div className="mt-4 flex flex-wrap gap-2">
         {d?.found && d.saved
-          ? <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 text-[13px] font-medium text-accent"><BookmarkCheck className="h-4 w-4" />Saved</span>
-          : <button onClick={save} disabled={!d || busy !== null} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-60">
+          ? <span className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3.5 text-[14px] font-medium text-accent"><BookmarkCheck className="h-4 w-4" />Saved</span>
+          : <button onClick={save} disabled={!d || busy !== null} className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[14px] font-medium text-white hover:bg-accent-hover disabled:opacity-60">
               {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookmarkPlus className="h-4 w-4" />}Save to vault
             </button>}
-        <button onClick={ask} disabled={!d} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
+        <button onClick={ask} disabled={!d} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[14px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
           <MessageSquarePlus className="h-4 w-4" />Ask about it
         </button>
         {kind === "place" && (
-          <button onClick={() => openMap(displayName)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent">
+          <button onClick={() => openMap(displayName)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[14px] font-medium text-text-secondary hover:border-accent-border hover:text-accent">
             <MapPin className="h-4 w-4" />Open map
           </button>
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-        {kind === "place" && <div className="px-5 pb-4"><PlaceMap name={displayName} /></div>}
-        {err && <div className="mx-5 mb-3 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-[13px] text-red-600">{err}</div>}
-        {!d && !err && <div className="flex items-center gap-2 px-5 py-6 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your vault</div>}
-        {d && (
-          <>
-            <Section title="In your vault">
-              {d.found && d.digest
-                ? <div className="text-[14px] leading-relaxed text-text-primary"><Markdown source={d.digest} /></div>
-                : <p className="text-[14px] text-text-muted">{hasPage ? "No summary yet. It is written after the next Intent refresh." : "Not in your vault yet. Save it, or add a note, to give it a page."}</p>}
-              <label className="mt-3 block text-[13px] font-medium text-text-secondary" htmlFor="entity-notes">Your notes</label>
-              <textarea id="entity-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="Anything you want remembered. Only you write here."
-                className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary outline-none focus:border-accent-border" />
-              <div className="mt-2 flex items-center gap-2">
-                <button onClick={saveNotes} disabled={!notesDirty || busy !== null} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
-                  {busy === "notes" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Save notes
-                </button>
-                {savedNote && <span className="text-[13px] text-accent">Saved to {d.page_path}</span>}
+      {kind === "place" && <div className="mt-5"><PlaceMap name={displayName} /></div>}
+      {err && <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-[13px] text-red-600">{err}</div>}
+      {!d && !err && <div className="flex items-center gap-2 py-8 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your vault</div>}
+      {d && (
+        <>
+          <Section title="In your vault">
+            {d.found && d.digest
+              ? <div className="text-[15px] leading-relaxed text-text-primary"><Markdown source={d.digest} /></div>
+              : <p className="text-[14px] text-text-muted">{!hasPage ? "Not in your vault yet. Save it, or add a note, to give it a page."
+                  : d.saved || d.conversations >= 3 ? "No summary yet. It is written on the next refresh."
+                  : "No summary yet. One is written once it comes up in 3 conversations, or when you save it."}</p>}
+            <label className="mt-4 block text-[14px] font-medium text-text-secondary" htmlFor="entity-notes">Your notes</label>
+            <textarea id="entity-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="Anything you want remembered. Only you write here."
+              className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary outline-none focus:border-accent-border" />
+            <div className="mt-2 flex items-center gap-2">
+              <button onClick={saveNotes} disabled={!notesDirty || busy !== null} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
+                {busy === "notes" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Save notes
+              </button>
+              {savedNote && <span className="min-w-0 truncate text-[13px] text-accent">Saved to {d.page_path}</span>}
+            </div>
+          </Section>
+          <Section title="Mentioned in">
+            {d.found && d.mentions.length
+              ? <ul className="-mx-2">{d.mentions.slice(0, 40).map((m, i) => <MentionRow key={`${m.source}:${m.ref}:${i}`} m={m} />)}</ul>
+              : <p className="text-[14px] text-text-muted">No conversations mention it yet.</p>}
+          </Section>
+          {d.found && d.co_mentions.length > 0 && (
+            <Section title="Often mentioned with">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-[15px]">
+                {d.co_mentions.filter((c) => CARD_KINDS.has(c.kind)).slice(0, 8).map((c) => (
+                  <EntityChip key={c.id} entity={{ kind: c.kind, value: c.id.slice(c.id.indexOf("/") + 1) }}>{c.name}</EntityChip>
+                ))}
               </div>
             </Section>
-            <Section title="Mentioned in">
-              {d.found && d.mentions.length
-                ? <ul className="-mx-2">{d.mentions.slice(0, 40).map((m, i) => <MentionRow key={`${m.source}:${m.ref}:${i}`} m={m} onDone={onClose} />)}</ul>
-                : <p className="text-[14px] text-text-muted">No conversations mention it yet.</p>}
-            </Section>
-            {d.found && d.co_mentions.length > 0 && (
-              <Section title="Often mentioned with">
-                <div className="flex flex-wrap gap-x-3 gap-y-2 text-[14px]">
-                  {d.co_mentions.filter((c) => CARD_KINDS.has(c.kind)).slice(0, 5).map((c) => (
-                    <EntityChip key={c.id} entity={{ kind: c.kind, value: c.id.slice(c.id.indexOf("/") + 1) }}>{c.name}</EntityChip>
-                  ))}
-                </div>
-              </Section>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Mounted once by the App: a side card over the right edge.
-export function EntityCardHost({ vaultPath }: { vaultPath: string }) {
-  const [target, setTarget] = useState<{ kind: EntityKind; value: string; n: number } | null>(null);
-  useEffect(() => {
-    const onOpen = (e: Event) => {
-      const t = (e as CustomEvent<{ kind?: string; value?: string }>).detail;
-      if (t && typeof t.value === "string" && t.value && CARD_KINDS.has(t.kind as EntityKind)) {
-        setTarget((p) => ({ kind: t.kind as EntityKind, value: t.value!, n: (p?.n ?? 0) + 1 }));
-      }
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setTarget(null); };
-    window.addEventListener("prevail:open-entity", onOpen as EventListener);
-    window.addEventListener("keydown", onKey);
-    return () => { window.removeEventListener("prevail:open-entity", onOpen as EventListener); window.removeEventListener("keydown", onKey); };
-  }, []);
-  if (!target || !vaultPath) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/20" onClick={() => setTarget(null)}>
-      <aside role="dialog" aria-label="Entity" onClick={(e) => e.stopPropagation()}
-        className="h-full w-full max-w-[440px] border-l border-border bg-background shadow-xl">
-        <EntityCardView key={target.n} vaultPath={vaultPath} target={target} onClose={() => setTarget(null)} />
-      </aside>
+          )}
+        </>
+      )}
     </div>
   );
 }

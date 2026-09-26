@@ -61,7 +61,7 @@ describe("Markdown renders vault objects", () => {
     expect(seen).toEqual(["finance"]);
   });
 
-  it("draws a person with initials that opens the entity card", () => {
+  it("draws a person with initials that opens it in Entities", () => {
     const seen: unknown[] = [];
     const on = (e: Event) => seen.push((e as CustomEvent).detail);
     window.addEventListener("prevail:open-entity", on);
@@ -96,7 +96,7 @@ describe("Markdown renders vault objects", () => {
     expect(files).toEqual(["data/domains/tax/memory/state.md", "My Note.md"]);
   });
 
-  it("opens a place on its card and web links in the browser, not the app window", () => {
+  it("opens a place in Entities and web links in the browser, not the app window", () => {
     const seen: unknown[] = [];
     const on = (e: Event) => seen.push((e as CustomEvent).detail);
     window.addEventListener("prevail:open-entity", on);
@@ -109,7 +109,7 @@ describe("Markdown renders vault objects", () => {
     expect(openUrl).not.toHaveBeenCalledWith(expect.stringContaining("maps.apple.com"));
   });
 
-  it("draws org and thing chips, with a green dot when the vault has a page", () => {
+  it("draws org and thing chips, with a green dot when saved to the vault", () => {
     act(() => __setEntityListForTest("/v", { generated_ts: 1, total: 1, entities: [
       { id: "org/acme", name: "acme", kind: "org", aliases: [], mention_count: 3, conversations: 3, last_ts: 1, saved: true, has_page: true },
     ] }));

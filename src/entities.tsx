@@ -4,13 +4,13 @@
 // renderer hands every link to EntityLink, which draws the object instead of a
 // bare underline: a domain as its coloured pill, a person with an avatar, a
 // file or task as a link that opens it in the app. People, places, orgs and
-// things open the entity card (entitycard.tsx); a chip whose entity has a page
-// in the vault carries a small green dot.
+// things open the Entities view with that entity selected (entitiesview.tsx);
+// a chip whose entity is saved to the vault carries a small green dot.
 import React, { useEffect, useState } from "react";
 import { Boxes, Building2, Calendar, CheckSquare, ExternalLink, FileText, MapPin } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "./bridge";
-import { lookupEntity, slugifyName, useEntityStore } from "./entitystore";
+import { lookupEntity, requestEntity, slugifyName, useEntityStore } from "./entitystore";
 import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
@@ -102,7 +102,7 @@ export function openEntity(ref: EntityRef) {
     case "place":
     case "org":
     case "thing":
-      fire("prevail:open-entity", { kind: ref.kind, value: ref.value });
+      requestEntity({ kind: ref.kind, value: ref.value });
       return;
   }
 }
@@ -148,7 +148,7 @@ export function OrgMark({ name, host, size = 16 }: { name: string; host?: string
 }
 
 function VaultDot() {
-  return <span aria-label="In your vault" title="In your vault" data-vault-dot className="ml-0.5 inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full bg-accent" />;
+  return <span aria-label="Saved to your vault" title="Saved to your vault" data-vault-dot className="ml-0.5 inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full bg-accent" />;
 }
 
 function formatDate(iso: string): string {
@@ -204,7 +204,7 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
             {initialsOf(who)}
           </span>
           <span className="underline decoration-dotted decoration-text-muted underline-offset-[3px] hover:decoration-accent">{label}</span>
-          {known?.has_page && <VaultDot />}
+          {known?.saved && <VaultDot />}
         </button>
       );
     }
@@ -213,7 +213,7 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
         <a href="#" onClick={onClick} data-entity="place" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-0.5 ${linkish}`}>
           <MapPin size={13} aria-hidden className="shrink-0 self-center" />
           {label}
-          {known?.has_page && <VaultDot />}
+          {known?.saved && <VaultDot />}
         </a>
       );
     case "org":
@@ -221,7 +221,7 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
         <a href="#" onClick={onClick} data-entity="org" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-1 ${linkish}`}>
           <OrgMark name={entity.value} host={known?.domain} size={15} />
           {label}
-          {known?.has_page && <VaultDot />}
+          {known?.saved && <VaultDot />}
         </a>
       );
     case "thing":
@@ -229,7 +229,7 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
         <a href="#" onClick={onClick} data-entity="thing" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-0.5 ${linkish}`}>
           <Boxes size={13} aria-hidden className="shrink-0 self-center" />
           {label}
-          {known?.has_page && <VaultDot />}
+          {known?.saved && <VaultDot />}
         </a>
       );
     case "task":
