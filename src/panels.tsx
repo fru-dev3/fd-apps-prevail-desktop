@@ -1,7 +1,7 @@
 // Components extracted from App.tsx.
 import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm, open as openFileDialog } from "@tauri-apps/plugin-dialog";
-import { Archive, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Cpu, Download, Folder, Lightbulb, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, Shield, Sparkles, Wrench, X } from "lucide-react";
+import { Archive, Link2, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Cpu, Download, Folder, Lightbulb, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, Shield, Sparkles, Wrench, X } from "lucide-react";
 import { siWhatsapp } from "simple-icons";
 import { PrevailLogo } from "./PrevailLogo";
 import { ProviderMark } from "./marks";
@@ -690,6 +690,11 @@ export function ThreadsRail({
                         <span className={`truncate text-sm ${active ? "font-medium text-text-primary" : "text-text-secondary"}`}>
                           {t.title}
                         </span>
+                        {t.linked_from && (
+                          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[10px] text-text-muted" title="Started in General and filed here. Same conversation, not a copy.">
+                            <Link2 className="h-2.5 w-2.5" />from General
+                          </span>
+                        )}
                       </div>
                       <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-muted">
                         {runningThreadPaths.has(t.path) ? (

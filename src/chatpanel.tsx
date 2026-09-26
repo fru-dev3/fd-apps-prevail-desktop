@@ -24,6 +24,9 @@ import { domainIcon } from "./icons";
 import { useFrameworkLens } from "./hooks";
 import { ProviderMark } from "./marks";
 import { DomainHome, DomainStatusBar, MessageList } from "./chatviews";
+import { RouteChips } from "./routechips";
+import { GeneralSearch } from "./generalsearch";
+import { ROUTE_WAIT_MS, buildRoutedContext, correctRoute, decodeRouteTurns, encodeRouteTurns, routeText, routeThreshold, routingEnabled, splitRoute, threadIdOf, threadRoutes } from "./routing";
 import { LoopsPanel } from "./loopspanel";
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
@@ -111,6 +114,7 @@ export function ChatPanel({
   onStreamStart,
   onStreamEnd,
   domains,
+  onPickDomain,
   domainTab,
   setDomainTab,
   active = true,
@@ -1106,6 +1110,20 @@ export function ChatPanel({
   // Current messages, read by the load effect without subscribing to them (so
   // the effect doesn't re-run on every streamed chunk).
   const messagesRef = useRef(messages);
+  // Domains a General message can be filed in (General itself is not one).
+  const routableDomains = useMemo(
+    () => domains.map((d) => d.name.toLowerCase()).filter((n) => n && n !== "general"),
+    [domains],
+  );
+  // The user corrected where message `i` was filed: record it so routing
+  // learns, and let the save carry the new tags to the thread.
+  const correctMessageRoute = useCallback((i: number, next: string[]) => {
+    const m = messagesRef.current[i];
+    if (!m || m.role !== "user") return;
+    const prev = m.domainRoute?.tagged ?? [];
+    setMessages((cur) => cur.map((x, j) => (j === i ? { ...x, domainRoute: { tagged: next, suggested: [] } } : x)));
+    correctRoute(vaultPath, threadIdOf(activeThreadRef.current), next, prev, m.content);
+  }, [vaultPath]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   // Any thread pick returns to the chat view - even re-clicking the active
   // thread (which doesn't change activeThreadPath), so you can always escape
@@ -1142,11 +1160,13 @@ export function ChatPanel({
         if (cancelled) return;
         displayedPathRef.current = activeThreadPath;
         setThreadTitle(t.meta?.title?.trim() || "Untitled");
-        setMessages(t.turns.map((tn) => ({
+        const routes = decodeRouteTurns(t.meta?.route_turns);
+        setMessages(t.turns.map((tn, i) => ({
           role: tn.role,
           cli: tn.cli ?? undefined,
           content: tn.content,
           ts: Date.now(),
+          ...(routes.has(i) ? { domainRoute: { tagged: routes.get(i) ?? [], suggested: [] } } : {}),
         })));
       })
       .catch((e) => console.error("load_thread", e));
@@ -1197,6 +1217,8 @@ export function ChatPanel({
             model: m.model ?? null,
             content: m.content,
           })),
+          // General owns routing; any other scope leaves what is on disk.
+          ...(tDomain ? {} : { routed: threadRoutes(messages), routeTurns: encodeRouteTurns(messages) }),
         });
         // Adopt the returned path so the NEXT save reuses the same slug.
         if (!activeThreadRef.current) {
@@ -1762,7 +1784,10 @@ export function ChatPanel({
     // it). Non-breaking: any concrete model id is unchanged.
     const nativeModel = chatModel === "auto" ? null : chatModel;
     const visible = input.trim();
-    const userMsg: ChatMessage = { role: "user", content: visible, ts: Date.now() };
+    // General routing: ask which domains this is about, without holding the
+    // turn hostage. Incognito and Bunker Mode skip it (no context, no cloud).
+    const routeOn = !domain && !tDomain && !isApp && routingEnabled() && !incognitoActive("chat") && !isBunkerOn();
+    const userMsg: ChatMessage = { role: "user", content: visible, ts: Date.now(), ...(routeOn ? { domainRoute: { tagged: [], suggested: [], pending: true } } : {}) };
     const replyMsg: ChatMessage = { role: "assistant", cli: chatCli, model: chatModel || undefined, framework: fwLens.framework ?? undefined, lens: fwLens.lens ?? undefined, content: "", ts: Date.now(), streaming: true };
     setMessages((m) => [...m, userMsg, replyMsg]);
     // Attach file paths to the prompt so the CLI can read them.
@@ -1818,11 +1843,28 @@ export function ChatPanel({
     // single text payload because the CLIs spawn fresh each turn and
     // have no shared session. Cap at ~40K characters (~10K tokens) and
     // drop the oldest turns to fit, keeping at least the most recent.
+    let routedPreamble = "";
+    if (routeOn) {
+      const routeP = routeText(vaultPath, visible, threadIdOf(activeThreadRef.current)).then((res) => {
+        const known = new Set(routableDomains);
+        const r = splitRoute(res, routeThreshold(), known);
+        setMessages((m) => m.map((x) => (x === userMsg || (x.role === "user" && x.ts === userMsg.ts) ? { ...x, domainRoute: r } : x)));
+        return r;
+      });
+      // A fast answer shapes this turn; a slow one still files the thread and
+      // shapes the next.
+      const early = await Promise.race([routeP, new Promise<null>((r) => window.setTimeout(() => r(null), ROUTE_WAIT_MS))]);
+      const include = [...threadRoutes(messages)];
+      for (const d of early?.tagged ?? []) if (!include.includes(d)) include.push(d);
+      routedPreamble = await buildRoutedContext(vaultPath, include).catch(() => "");
+    } else if (!domain && !tDomain && !isApp && !incognitoActive("chat")) {
+      routedPreamble = await buildRoutedContext(vaultPath, threadRoutes(messages)).catch(() => "");
+    }
     const history = buildChatContext(messages, 40000);
     const promptText = fwLens.buildPrompt(
       history
-        ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
-        : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
+        ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
+        : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
     );
     pushHistory(visible);
     setAttachments([]);
@@ -2359,6 +2401,13 @@ export function ChatPanel({
             <p className={`max-w-md text-balance text-center text-text-muted ${phone ? "mt-1.5 text-[13px]" : "mt-3 text-sm"}`}>
               An AI that learns you, gets sharper, and surfaces what you'd have missed.
             </p>
+            <GeneralSearch
+              vaultPath={vaultPath}
+              domains={routableDomains}
+              compact={phone}
+              onPickThread={(p) => onActiveThreadChange(p)}
+              onPickDomain={(n) => onPickDomain(domains.find((d) => d.name.toLowerCase() === n)?.name ?? n)}
+            />
             {lifeReadiness && lifeReadiness.life_readiness !== null && (
               <div
                 className="mt-3 flex items-center gap-3 rounded-full border px-4 py-1.5"
@@ -2857,8 +2906,11 @@ export function ChatPanel({
           </div>
         )}
         {!domain && domainTab === "chat" && messages.length > 0 && (
-          <div className="mx-auto w-full max-w-3xl px-6 py-8">
+          <div className={`mx-auto w-full max-w-3xl ${phone ? "px-4 py-5" : "px-6 py-8"}`}>
             <MessageList
+              userFooter={tDomain || isApp ? undefined : (m, i) => (
+                <RouteChips route={m.domainRoute} domains={routableDomains} onChange={(next) => correctMessageRoute(i, next)} />
+              )}
               messages={messages}
               resetKey={chatViewNonce}
               onCopy={copyToClipboard}

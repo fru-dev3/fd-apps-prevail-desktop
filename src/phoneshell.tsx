@@ -505,7 +505,7 @@ export function PhoneShell({
                       className={`flex min-h-[56px] w-full flex-col justify-center rounded-xl px-3 py-2 text-left ${active ? "bg-accent-soft ring-1 ring-accent-border" : "active:bg-surface-warm"}`}
                     >
                       <span className={`truncate text-[15px] font-medium ${active ? "text-accent" : "text-text-primary"}`}>{t.title || "Untitled"}</span>
-                      <span className="truncate text-[12px] text-text-muted">{relTime(t.updated)}{t.preview ? ` · ${t.preview}` : ""}</span>
+                      <span className="truncate text-[12px] text-text-muted">{t.linked_from ? "from General · " : ""}{relTime(t.updated)}{t.preview ? ` · ${t.preview}` : ""}</span>
                     </button>
                   </li>
                 );

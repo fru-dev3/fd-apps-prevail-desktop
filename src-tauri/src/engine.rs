@@ -3017,3 +3017,45 @@ mod app_id_tests {
         assert!(app_data_files("/tmp/v".into(), "../../../..".into()).is_err());
     }
 }
+
+/// Which vault domains a General message is about (`prevail route`). The text
+/// rides on stdin, never argv, so it does not show up in a process listing,
+/// and nothing here logs it. Runs off the main thread: the model fallback can
+/// take seconds and the chat send path must never wait on it.
+#[tauri::command]
+pub async fn engine_route(vault: String, text: String, thread: Option<String>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut args: Vec<&str> = vec!["route", "--text", "-", "--vault", &vault];
+        if let Some(t) = thread.as_deref().filter(|t| !t.trim().is_empty()) {
+            args.push("--thread");
+            args.push(t);
+        }
+        run_engine_json_stdin(&args, &text)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+}
+
+/// Record the user's correction of a route (`prevail route correct`), logged
+/// to General's decision log inside the vault and fed back as examples.
+#[tauri::command]
+pub async fn engine_route_correct(
+    vault: String,
+    thread: String,
+    domains: Vec<String>,
+    from: Option<Vec<String>>,
+    text: Option<String>,
+) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let doms = domains.join(",");
+        let from = from.unwrap_or_default().join(",");
+        let body = text.unwrap_or_default();
+        let args: Vec<&str> = vec![
+            "route", "correct", "--thread", &thread, "--domains", &doms, "--from", &from,
+            "--text", "-", "--source", "desktop", "--vault", &vault,
+        ];
+        run_engine_json_stdin(&args, &body)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+}

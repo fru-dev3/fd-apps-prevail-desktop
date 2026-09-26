@@ -155,7 +155,7 @@ pub(crate) fn general_dir(vault: &str) -> PathBuf {
     }
 }
 
-fn is_general(d: &str) -> bool {
+pub(crate) fn is_general(d: &str) -> bool {
     d.is_empty() || d == "general" || d == "__general__"
 }
 

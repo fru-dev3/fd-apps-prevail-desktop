@@ -467,6 +467,8 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
 export function MemoryContextSection({ headerless }: { vaultPath: string; headerless?: boolean }) {
   const [persistent, setPersistent] = useState(() => getPref(PREF.persistentMemory, "1") === "1");
   const [memBudget, setMemBudget] = useState(() => getPref(PREF.memoryBudgetChars, "4000"));
+  const [routeOn, setRouteOn] = useState(() => getPref(PREF.routeDomains, "1") === "1");
+  const [routeMin, setRouteMin] = useState(() => getPref(PREF.routeThreshold, "0.75"));
   const [status, setStatus] = useState<{ running?: boolean; last_run_ts?: number | null; last_error?: string | null; lines_distilled?: number } | null>(null);
 
   useEffect(() => {
@@ -526,6 +528,10 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
           control={<Toggle on={persistent} onChange={(v) => { setPersistent(v); setPref(PREF.persistentMemory, v ? "1" : "0"); }} />} />
         <Row title="Memory budget" desc="Hard cap (characters) on the distilled memory injected into each prompt."
           control={<Num value={memBudget} set={setMemBudget} pref={PREF.memoryBudgetChars} w="w-24" />} />
+        <Row title="File General chats in domains" desc="When a General conversation is about a domain, tag it there and include that domain's context. Only the message text is sent to the routing model."
+          control={<Toggle on={routeOn} onChange={(v) => { setRouteOn(v); setPref(PREF.routeDomains, v ? "1" : "0"); }} />} />
+        <Row title="Filing confidence" desc="How sure routing must be (0 to 1) before it files a conversation. Below this it only suggests."
+          control={<Num value={routeMin} set={setRouteMin} pref={PREF.routeThreshold} w="w-24" step="0.05" />} />
         <Row title="Context engine" desc="Strategy for managing long conversations near the context limit."
           control={
             <select value={getPref(PREF.contextEngine, "compressor")} onChange={(e) => setPref(PREF.contextEngine, e.target.value)}

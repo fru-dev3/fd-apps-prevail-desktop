@@ -263,7 +263,10 @@ export function ChatBubble({
   onPinMemory,
   onMakeLoop,
   onMakeSkill,
+  footer,
 }: {
+  // Rendered right under a user bubble (the routing chip row in General).
+  footer?: React.ReactNode;
   msg: ChatMessage;
   onCopy?: (text: string) => void;
   onRetry?: () => void;
@@ -315,6 +318,7 @@ export function ChatBubble({
         <div className="max-w-[78%] rounded-2xl rounded-br-md border border-accent-border bg-surface-strong px-4 py-3 text-[15px] leading-relaxed text-text-primary shadow-sm">
           <div className="whitespace-pre-wrap">{renderSkillTokens(msg.content)}</div>
         </div>
+        {footer}
         <div className="mt-1 flex h-5 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <ActionButton
             title="Copy message"
@@ -540,7 +544,9 @@ export function ChatBubble({
 // ─────────────────────────────────────────────────────────────────────
 // COUNCIL PANEL
 
-export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMakeTask, onSaveNote, onPinMemory, onMakeLoop, onMakeSkill }: {
+export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMakeTask, onSaveNote, onPinMemory, onMakeLoop, onMakeSkill, userFooter }: {
+  // Extra row under a user message, by index (General's routing chips).
+  userFooter?: (m: ChatMessage, i: number) => React.ReactNode;
   messages: ChatMessage[];
   resetKey: number;
   onCopy: (text: string) => void;
@@ -584,6 +590,7 @@ export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMak
             onPinMemory={m.role === "assistant" ? onPinMemory : undefined}
             onMakeLoop={m.role === "user" ? onMakeLoop : undefined}
             onMakeSkill={m.role === "assistant" ? onMakeSkill : undefined}
+            footer={m.role === "user" && userFooter ? userFooter(m, i) : undefined}
           />
         );
       })}

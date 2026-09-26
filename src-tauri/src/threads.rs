@@ -28,6 +28,26 @@ pub struct ThreadMeta {
     // from the most recent turn that recorded a CLI.
     pub cli: Option<String>,
     pub model: Option<String>,
+    // Domains a General thread was routed to (frontmatter `routed:`), so it is
+    // listed in each of those domains as a linked entry.
+    pub routed: Vec<String>,
+    // Set on a domain's list for a thread that lives elsewhere and is only
+    // linked there ("general"). None for the domain's own threads.
+    pub linked_from: Option<String>,
+    // Per-turn routing chips (frontmatter `route_turns:`), opaque to Rust.
+    pub route_turns: String,
+}
+
+// Parse a frontmatter `routed:` value ("real-estate, finance") into slugs.
+pub(crate) fn parse_routed(v: Option<&String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for part in v.map(|s| s.as_str()).unwrap_or("").split(',') {
+        let d = part.trim().to_lowercase();
+        if !d.is_empty() && crate::paths::is_safe_domain(&d) && !out.contains(&d) {
+            out.push(d);
+        }
+    }
+    out
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -270,6 +290,9 @@ fn thread_meta_from(
         preview,
         cli,
         model,
+        routed: parse_routed(meta.get("routed")),
+        linked_from: None,
+        route_turns: meta.get("route_turns").cloned().unwrap_or_default(),
     }
 }
 
@@ -362,8 +385,49 @@ pub(crate) fn list_threads(vault: String, domain: Option<String>) -> Result<Vec<
             out.push(meta);
         }
     }
+    // A named domain also lists the General threads routed to it, as linked
+    // entries: the same file, never moved or copied.
+    if let Some(d) = domain.as_deref().filter(|d| !crate::paths::is_general(d)) {
+        let want = d.to_lowercase();
+        let own: std::collections::HashSet<String> = out.iter().map(|m| m.path.clone()).collect();
+        for m in list_general_threads(&vault) {
+            if m.routed.contains(&want) && !own.contains(&m.path) {
+                out.push(ThreadMeta { linked_from: Some("general".into()), ..m });
+            }
+        }
+    }
     out.sort_by(|a, b| b.updated.cmp(&a.updated));
     Ok(out)
+}
+
+// Every General thread's meta, read straight from its dirs (no dedup needed:
+// callers only look for routed ones).
+fn list_general_threads(vault: &str) -> Vec<ThreadMeta> {
+    let mut out: Vec<ThreadMeta> = Vec::new();
+    let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+    for dir in thread_search_dirs(vault, &None).unwrap_or_default() {
+        let Ok(entries) = read_dir_retry(&dir) else { continue };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if entry.file_name().to_str().map(|n| n.starts_with('.')).unwrap_or(true) {
+                continue;
+            }
+            if p.extension().and_then(|s| s.to_str()) != Some("md") {
+                continue;
+            }
+            if !seen.insert(p.canonicalize().unwrap_or_else(|_| p.clone())) {
+                continue;
+            }
+            let Ok(raw) = read_to_string_retry(&p) else { continue };
+            let (fm, body) = split_frontmatter(&raw);
+            if fm.get("routed").map(|v| v.trim().is_empty()).unwrap_or(true) {
+                continue;
+            }
+            let turns = parse_thread_body(&body);
+            out.push(thread_meta_from(&p, &fm, &body, &turns));
+        }
+    }
+    out
 }
 
 #[tauri::command]
@@ -433,7 +497,27 @@ pub(crate) fn save_thread(
     slug: Option<String>,
     title: String,
     turns: Vec<ThreadTurn>,
+    routed: Option<Vec<String>>,
+    route_turns: Option<String>,
 ) -> Result<String, String> {
+    // A thread opened from a domain's list may be a linked General thread. Its
+    // slug is not in the domain's dirs, so without this the save would fork a
+    // copy into the domain. Write it back where it lives, as General.
+    let mut domain = domain;
+    if let (Some(d), Some(s)) = (domain.clone(), slug.as_ref()) {
+        if !crate::paths::is_general(&d) {
+            let stem = sanitize_existing_slug(s);
+            let in_domain = thread_search_dirs(&vault, &domain)
+                .map(|dirs| dirs.iter().any(|dir| dir.join(format!("{stem}.md")).exists()))
+                .unwrap_or(false);
+            let in_general = thread_search_dirs(&vault, &None)
+                .map(|dirs| dirs.iter().any(|dir| dir.join(format!("{stem}.md")).exists()))
+                .unwrap_or(false);
+            if !in_domain && in_general {
+                domain = None;
+            }
+        }
+    }
     // Allow empty turns so the UI can pre-create a thread file when
     // the user clicks "+ New thread" — they want the entry to appear
     // in the rail immediately and be renameable BEFORE typing the
@@ -562,10 +646,26 @@ pub(crate) fn save_thread(
     // a user's manual rename — the frontend always sends a freshly
     // derived title from the first user message, but if the file
     // already exists with a different title, the user's choice wins.
+    let existing_fm = if file_path.exists() {
+        read_to_string_retry(&file_path).ok().map(|raw| split_frontmatter(&raw).0)
+    } else {
+        None
+    };
+    // Routing is owned by General's chat; any other writer (a domain view of a
+    // linked thread, council) passes None and keeps what is on disk.
+    let routed: Vec<String> = match routed {
+        Some(list) => parse_routed(Some(&list.join(","))),
+        None => parse_routed(existing_fm.as_ref().and_then(|m| m.get("routed"))),
+    };
+    let route_turns: String = match route_turns {
+        Some(s) => s,
+        None => existing_fm.as_ref().and_then(|m| m.get("route_turns").cloned()).unwrap_or_default(),
+    }
+    .chars()
+    .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':' | ';' | '|'))
+    .collect();
     let (created_secs, preserved_title) = if file_path.exists() {
-        let fm = read_to_string_retry(&file_path)
-            .ok()
-            .map(|raw| split_frontmatter(&raw).0);
+        let fm = existing_fm.clone();
         let created = fm
             .as_ref()
             .and_then(|m| m.get("created").map(|s| parse_iso8601_z(s)))
@@ -601,6 +701,12 @@ pub(crate) fn save_thread(
     body.push_str(&format!("created: {}\n", iso8601_z(created_secs)));
     body.push_str(&format!("updated: {}\n", iso8601_z(now)));
     body.push_str(&format!("turns: {}\n", turns.len()));
+    if !routed.is_empty() {
+        body.push_str(&format!("routed: {}\n", routed.join(", ")));
+    }
+    if !route_turns.is_empty() {
+        body.push_str(&format!("route_turns: {}\n", route_turns));
+    }
     body.push_str("---\n\n");
     for t in &turns {
         let speaker = if t.role == "user" {
@@ -768,8 +874,8 @@ mod tests {
     fn distinct_first_messages_never_collide() {
         let v = fresh_vault("distinct");
         let dom = Some("health".to_string());
-        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("weather?"), asst("sunny")]).unwrap();
-        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("stocks?"), asst("up")]).unwrap();
+        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("weather?"), asst("sunny")], None, None).unwrap();
+        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("stocks?"), asst("up")], None, None).unwrap();
         assert_ne!(pa, pb, "different openers -> different files");
         assert_eq!(load_thread(pa).unwrap().turns[0].content, "weather?");
         assert_eq!(load_thread(pb).unwrap().turns[0].content, "stocks?");
@@ -784,8 +890,8 @@ mod tests {
     fn same_opener_distinct_conversation_does_not_clobber() {
         let v = fresh_vault("sameopener");
         let dom = Some("health".to_string());
-        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("hi"), asst("hello, I am A")]).unwrap();
-        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("hi"), asst("hello, I am B")]).unwrap();
+        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("hi"), asst("hello, I am A")], None, None).unwrap();
+        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("hi"), asst("hello, I am B")], None, None).unwrap();
         assert_ne!(pa, pb, "same opener but distinct convo -> distinct files, no reuse");
         assert_eq!(load_thread(pa.clone()).unwrap().turns[1].content, "hello, I am A", "A not clobbered");
         assert_eq!(load_thread(pb.clone()).unwrap().turns[1].content, "hello, I am B");
@@ -800,9 +906,9 @@ mod tests {
     fn same_conversation_extended_reuses_file() {
         let v = fresh_vault("extend");
         let dom = Some("work".to_string());
-        let p1 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week")]).unwrap();
+        let p1 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week")], None, None).unwrap();
         // Same conversation, now with the assistant reply appended.
-        let p2 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week"), asst("here is a plan")]).unwrap();
+        let p2 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week"), asst("here is a plan")], None, None).unwrap();
         assert_eq!(p1, p2, "extension of the same conversation reuses the file");
         assert_eq!(turn_count_on_disk(&p2), 2);
         assert_eq!(list_threads(v, dom).unwrap().len(), 1, "no duplicate row");
@@ -814,8 +920,8 @@ mod tests {
     fn empty_stub_never_overwrites_real_thread() {
         let v = fresh_vault("stub");
         let dom = Some("health".to_string());
-        let real = save_thread(v.clone(), dom.clone(), None, "real".into(), vec![user("important"), asst("noted")]).unwrap();
-        let stub = save_thread(v.clone(), dom.clone(), None, "Untitled".into(), vec![]).unwrap();
+        let real = save_thread(v.clone(), dom.clone(), None, "real".into(), vec![user("important"), asst("noted")], None, None).unwrap();
+        let stub = save_thread(v.clone(), dom.clone(), None, "Untitled".into(), vec![], None, None).unwrap();
         assert_ne!(real, stub);
         assert_eq!(turn_count_on_disk(&real), 2, "real thread untouched by the empty stub");
     }
@@ -826,10 +932,10 @@ mod tests {
     fn create_never_reduces_disk_turns() {
         let v = fresh_vault("noreduce");
         let dom = Some("work".to_string());
-        let p = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a1"), asst("a2")]).unwrap();
+        let p = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a1"), asst("a2")], None, None).unwrap();
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
         // A KNOWN-slug update MAY shrink (edit / retry rewinds) - same live convo.
-        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "t".into(), vec![user("q")]).unwrap();
+        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "t".into(), vec![user("q")], None, None).unwrap();
         assert_eq!(p, p2);
         assert_eq!(turn_count_on_disk(&p2), 1, "known-slug edit legitimately rewinds");
     }
@@ -847,7 +953,7 @@ mod tests {
         fs::write(dpath.join(crate::paths::V4_MARKER), "1").unwrap();
         let dom = Some("health".to_string());
         // A save lands in memory/threads and round-trips through list + load.
-        let p = save_thread(v.clone(), dom.clone(), None, "new".into(), vec![user("hello v4"), asst("hi")]).unwrap();
+        let p = save_thread(v.clone(), dom.clone(), None, "new".into(), vec![user("hello v4"), asst("hi")], None, None).unwrap();
         assert!(p.contains("memory/threads"), "v4 save goes to memory/threads: {p}");
         assert_eq!(load_thread(p.clone()).unwrap().turns[0].content, "hello v4");
         // A pre-existing legacy thread sitting in the flat _threads/ dir.
@@ -869,7 +975,7 @@ mod tests {
     fn list_hides_prefix_duplicates_only() {
         let v = fresh_vault("prefixdup");
         let dom = Some("work".to_string());
-        let full = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a")]).unwrap();
+        let full = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a")], None, None).unwrap();
         let dir = Path::new(&full).parent().unwrap().to_path_buf();
         let fm = |t: &str| format!("---\ntitle: {t}\ndomain: work\ncreated: 2020-01-01T00:00:00Z\nupdated: 2020-01-01T00:00:00Z\nturns: 1\n---\n\n");
         fs::write(dir.join("2020-01-01_00-00-00_aaaaaaaa.md"), fm("Short") + "## You\n\nq\n\n").unwrap();
@@ -879,6 +985,38 @@ mod tests {
         fs::write(dir.join("2020-01-01_00-00-01_bbbbbbbb.md"), fm("Other") + "## You\n\nq\n\n## claude\n\nb\n\n").unwrap();
         let list = list_threads(v, dom).unwrap();
         assert_eq!(list.len(), 2, "same opener, different reply: both list");
+    }
+
+    // A General thread routed to a domain lists in that domain as a linked
+    // entry (same file), keeps its routing across saves that do not pass it,
+    // and a save from the domain view writes back to General, not a copy.
+    #[test]
+    fn routed_general_thread_links_into_domain() {
+        let v = fresh_vault("routed");
+        fs::create_dir_all(PathBuf::from(&v).join("real-estate")).unwrap();
+        let p = save_thread(v.clone(), None, None, "Lease".into(), vec![user("renew the lease"), asst("ok")],
+            Some(vec!["Real-Estate".into(), "../x".into()]), Some("0:real-estate".into())).unwrap();
+        let meta = load_thread(p.clone()).unwrap().meta;
+        assert_eq!(meta.routed, vec!["real-estate".to_string()], "unsafe slug dropped, case folded");
+        assert_eq!(meta.route_turns, "0:real-estate");
+        let list = list_threads(v.clone(), Some("real-estate".into())).unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].path, p, "same file, not a copy");
+        assert_eq!(list[0].linked_from.as_deref(), Some("general"));
+        assert!(list_threads(v.clone(), None).unwrap()[0].linked_from.is_none());
+        // Continue from the domain view with no routing passed.
+        let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
+        let p2 = save_thread(v.clone(), Some("real-estate".into()), Some(slug), "Lease".into(),
+            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], None, None).unwrap();
+        assert_eq!(p2, p, "written back to General");
+        let again = load_thread(p2).unwrap();
+        assert_eq!(again.turns.len(), 3);
+        assert_eq!(again.meta.routed, vec!["real-estate".to_string()], "routing preserved");
+        assert!(again.meta.domain.is_none(), "still a General thread");
+        // Untagging removes it from the domain list.
+        save_thread(v.clone(), None, Some(Path::new(&p).file_stem().unwrap().to_string_lossy().to_string()), "Lease".into(),
+            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], Some(vec![]), Some(String::new())).unwrap();
+        assert!(list_threads(v, Some("real-estate".into())).unwrap().is_empty());
     }
 
     #[test]

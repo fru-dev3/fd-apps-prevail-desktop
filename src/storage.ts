@@ -188,6 +188,8 @@ export const PREF = {
   budgetSpentUsd: "prevail.pref.budgetSpentUsd",           // decimal USD estimate
   // Memory & Context — the self-learning layer. Persistent memory distills the
   // intent ledger into <vault>/<domain>/_memory.md and prepends it to prompts.
+  routeDomains: "prevail.pref.routeDomains",               // "1" | "0" - route General messages to domains
+  routeThreshold: "prevail.pref.routeThreshold",           // "0.75" - confidence needed to tag a thread
   persistentMemory: "prevail.pref.persistentMemory",       // "1" | "0" — master switch
   userProfile: "prevail.pref.userProfile",                 // "1" | "0" — prepend user.md
   incognito: "prevail.pref.incognito",                     // "1" | "0" — global master: plain model everywhere

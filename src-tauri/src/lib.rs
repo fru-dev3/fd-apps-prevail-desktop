@@ -542,6 +542,8 @@ pub fn run() {
             engine::engine_app_set_domains,
             engine::engine_app_set_account,
             engine::engine_skill_used,
+            engine::engine_route,
+            engine::engine_route_correct,
             engine::engine_skills_report,
             engine::engine_skill_archive,
             engine::engine_skill_draft,
