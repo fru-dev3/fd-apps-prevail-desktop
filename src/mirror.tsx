@@ -271,9 +271,9 @@ function RuleItem({ item, big, onConfirm }: { item: FindingItem; big: boolean; o
   return (
     <li className="rounded-lg border border-border-subtle bg-background px-3.5 py-3">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="min-w-0 flex-1 text-[15px] text-text-primary">{item.label}</span>
+        <span className={`min-w-0 flex-1 text-[15px] text-text-primary ${big ? "basis-full" : ""}`}>{item.label}</span>
         {item.count != null && <span className="text-[13px] tabular-nums text-text-muted">said {item.count} times</span>}
-        {!editing && <button onClick={() => setEditing(true)} className={`${btnPrimary} ${h}`}><Sparkles className="h-4 w-4" />Make it a rule</button>}
+        {!editing && <button onClick={() => setEditing(true)} className={`${btnPrimary} ${h} ${big ? "ml-auto" : ""}`}><Sparkles className="h-4 w-4" />Make it a rule</button>}
       </div>
       {editing && (
         <div className="mt-3">
@@ -319,7 +319,7 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
         <ul className="mt-6 space-y-2">
           {items.map((it) => (
             <li key={it.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border-subtle bg-background px-3.5 py-3">
-              <span className="min-w-0 flex-1 text-[15px] text-text-primary">{it.label}</span>
+              <span className={`min-w-0 flex-1 text-[15px] text-text-primary ${phone ? "basis-full" : ""}`}>{it.label}</span>
               <button onClick={async () => { await onVerdict("resume", { item: it.id }); drop(it.id); if (it.project) onProject(it.project); }} className={`${btnPrimary} ${phone ? "h-12 px-4" : "h-9 px-3.5"}`}><Play className="h-4 w-4" />Resume</button>
               <button onClick={async () => { await onVerdict("let_go", { item: it.id }); drop(it.id); }} className={`${btnGhost} ${phone ? "h-12 px-4" : "h-9 px-3.5"}`}><PauseCircle className="h-4 w-4" />Let go</button>
               {it.project && <button onClick={() => onProject(it.project!)} className={`${btnGhost} ${phone ? "h-12 px-4" : "h-9 px-3.5"}`}><RotateCcw className="h-4 w-4" />Replay</button>}
@@ -472,14 +472,16 @@ function NoticedView({ vaultPath, phone, onReceipt, onProject }: { vaultPath: st
 const LONG_CHARS = 600;
 const LONG_LINES = 10;
 
-function PromptText({ p, focused }: { p: HistPrompt; focused: boolean }) {
-  const long = p.text.length > LONG_CHARS || p.text.split("\n").length > LONG_LINES;
+function PromptText({ p, focused, phone }: { p: HistPrompt; focused: boolean; phone: boolean }) {
+  const chars = phone ? LONG_CHARS / 2 : LONG_CHARS;
+  const lines = phone ? LONG_LINES / 2 : LONG_LINES;
+  const long = p.text.length > chars || p.text.split("\n").length > lines;
   const [open, setOpen] = useState(false);
-  const shown = long && !open ? `${p.text.split("\n").slice(0, LONG_LINES).join("\n").slice(0, LONG_CHARS)}...` : p.text;
+  const shown = long && !open ? `${p.text.split("\n").slice(0, lines).join("\n").slice(0, chars)}...` : p.text;
   return (
-    <div data-prompt-ts={p.ts} className={`group flex gap-2 rounded-lg px-3 py-2 ${focused ? "bg-accent-soft ring-1 ring-accent-border" : "hover:bg-surface-warm/60"}`}>
-      <span className="w-16 shrink-0 pt-0.5 text-[12px] tabular-nums text-text-muted">{fmtTime(p.ts)}</span>
-      <div className="min-w-0 flex-1">
+    <div data-prompt-ts={p.ts} className={`group flex gap-2 rounded-lg px-3 py-2 ${phone ? "flex-wrap" : ""} ${focused ? "bg-accent-soft ring-1 ring-accent-border" : "hover:bg-surface-warm/60"}`}>
+      <span className={`shrink-0 pt-0.5 text-[12px] tabular-nums text-text-muted ${phone ? "order-first basis-[calc(100%-2.5rem)]" : "w-16"}`}>{fmtTime(p.ts)}</span>
+      <div className={`min-w-0 flex-1 ${phone ? "order-last basis-full" : ""}`}>
         <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-text-primary">{shown}</div>
         {long && <button onClick={() => setOpen((o) => !o)} className="mt-1 text-[13px] font-medium text-accent hover:underline">{open ? "Show less" : "Show all"}</button>}
       </div>
@@ -488,7 +490,7 @@ function PromptText({ p, focused }: { p: HistPrompt; focused: boolean }) {
   );
 }
 
-function SittingCard({ s, focusTs }: { s: Sitting; focusTs: number | null }) {
+function SittingCard({ s, focusTs, phone }: { s: Sitting; focusTs: number | null; phone: boolean }) {
   const same = fmtDate(s.start_ts) === fmtDate(s.end_ts);
   return (
     <div className="rounded-xl border border-border-subtle bg-surface" data-testid="sitting">
@@ -500,7 +502,7 @@ function SittingCard({ s, focusTs }: { s: Sitting; focusTs: number | null }) {
         </span>
       </div>
       <div className="space-y-0.5 p-1.5">
-        {s.prompts.map((p, i) => <PromptText key={`${p.ts}-${i}`} p={p} focused={focusTs === p.ts} />)}
+        {s.prompts.map((p, i) => <PromptText key={`${p.ts}-${i}`} p={p} focused={focusTs === p.ts} phone={phone} />)}
       </div>
     </div>
   );
@@ -616,7 +618,7 @@ function HistoryView({ vaultPath, phone, focus, onClearFocus }: { vaultPath: str
               {w.intent_line && <p className="mt-0.5 text-[15px] leading-snug text-text-secondary">{w.intent_line}</p>}
             </div>
             <div className="space-y-3">
-              {w.sittings.map((s) => <SittingCard key={s.id} s={s} focusTs={focusTs} />)}
+              {w.sittings.map((s) => <SittingCard key={s.id} s={s} focusTs={focusTs} phone={phone} />)}
             </div>
           </section>
         ))}
