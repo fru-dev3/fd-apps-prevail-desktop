@@ -1287,6 +1287,21 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    // A file link in a reply (prevail://file/<path>, or a relative .md link from
+    // an Obsidian import) carries a vault-relative path; read it and show it in
+    // the canvas pane.
+    const onOpenVaultFile = (e: Event) => {
+      const rel = (e as CustomEvent<string>).detail;
+      if (!vaultPath || typeof rel !== "string" || !rel || rel.startsWith("/") || rel.split("/").includes("..")) return;
+      const full = `${vaultPath.replace(/\/+$/, "")}/${rel}`;
+      invoke<string>("read_text_file", { path: full })
+        .then((body) => window.dispatchEvent(new CustomEvent("prevail:open-canvas", { detail: { title: rel.split("/").pop() || rel, body } })))
+        .catch((err) => window.dispatchEvent(new CustomEvent("prevail:open-canvas", { detail: { title: rel, body: `Could not open ${rel}: ${String(err)}` } })));
+    };
+    window.addEventListener("prevail:open-vault-file", onOpenVaultFile as EventListener);
+    return () => window.removeEventListener("prevail:open-vault-file", onOpenVaultFile as EventListener);
+  }, [vaultPath]);
   // Lifted from ChatPanel so the top bar owns the domain Insights / Preferences
   // toggles. ChatPanel receives these as props and renders the matching view.
   const [domainTab, setDomainTab] = useState<DomainTab>("chat");
