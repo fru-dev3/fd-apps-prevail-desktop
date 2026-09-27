@@ -28,29 +28,66 @@ test("1 · home renders: headline, composer, and a trust ribbon that says only w
   // And nothing tried to reach Google Fonts.
   const gf = await page.evaluate(() => performance.getEntriesByType("resource").map((r) => (r as PerformanceResourceTiming).name).filter((n) => n.includes("fonts.g")));
   expect(gf).toEqual([]);
+  // Home is the headline, the subtitle and the composer: no search box, no
+  // runtime strip, no waiting pill, no readiness pill.
+  await expect(page.getByPlaceholder("Search conversations and domains")).toHaveCount(0);
+  await expect(page.locator('[title*="validated"]')).toHaveCount(0);
+  await expect(page.getByTestId("home-waiting")).toHaveCount(0);
+  await expect(page.getByText(/Life Readiness/)).toHaveCount(0);
+  // What is waiting lives on the sidebar Inbox row instead, in the accent colour.
+  const inbox = page.getByTestId("nav-inbox");
+  await expect(inbox).toContainText("2", { timeout: 10_000 });
+  await expect(inbox.locator(".bg-accent")).toHaveCount(1);
+  // And the readiness score is one plain line on Insights.
+  await page.getByRole("button", { name: "Insights" }).click();
+  await expect(page.getByTestId("life-readiness")).toHaveText("Life Readiness 62 of 100 across 2 domains", { timeout: 10_000 });
 });
 
-test("2 · Needs You shows both approval queues; approving a connector act uses the token spine", async ({ page }) => {
+test("2 · the Inbox page: tabs filter the column, the detail is the picked item; approving uses the token spine", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  // The approval inbox is the Inbox row: the Work board's "Needs you" view.
   await page.getByTestId("nav-inbox").click();
-  const actCard = page.getByText("PayPal: create_invoice");
-  await expect(actCard).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("Gmail: send")).toBeVisible();
+  const inbox = page.getByTestId("inbox-page");
+  await expect(inbox).toBeVisible({ timeout: 10_000 });
+  // Header with tabs, then the column, then the detail.
+  const header = page.getByTestId("work-page").getByTestId("page-header").first();
+  await expect(header).toContainText("Inbox");
+  await expect(header.getByTestId("tab-all")).toContainText("2", { timeout: 10_000 });
+  await expect(header.getByTestId("tab-actions")).toContainText("1");
+  await expect(header.getByTestId("tab-google")).toContainText("1");
+  // Empty categories stay out of the way.
+  await expect(header.getByTestId("tab-automations")).toHaveCount(0);
+  await expect(header.getByTestId("tab-tasks")).toHaveCount(0);
+  const col = inbox.getByTestId("inbox-spine");
+  await expect(col).toHaveAttribute("data-spine-column");
+  await expect(col.getByTestId("inbox-row")).toHaveCount(2);
+  await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-inbox.png` });
+  // A tab filters the column.
+  await header.getByTestId("tab-actions").click();
+  await expect(col.getByTestId("inbox-row")).toHaveCount(1);
+  await expect(col.getByTestId("inbox-row")).toContainText("PayPal: create_invoice");
+  // The detail shows the picked item's card, not the others.
+  const detail = inbox.getByTestId("decision-inbox");
+  await expect(detail).toContainText("PayPal: create_invoice");
+  await expect(detail).not.toContainText("Gmail: send");
   // The sensitive act shows the explicit release wording, not a plain approve.
-  await expect(page.getByText(/Approve including sensitive info/i)).toBeVisible();
-  await page.getByText(/Approve including sensitive info/i).click();
+  await detail.getByText(/Approve including sensitive info/i).click();
   const cmds = await invokedCommands(page);
   expect(cmds).toContain("loop_request_approval");
-  expect(cmds).toContain("engine_acts_approve");
+  expect(cmds.indexOf("engine_acts_approve")).toBeGreaterThan(cmds.indexOf("loop_request_approval"));
 });
 
-test("3 · Privacy page: all four controls render; the guardrail toggle drives both engine flags", async ({ page }) => {
+test("3 · Privacy & Safety: each control has its own row; the guardrail toggle drives both engine flags", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" })));
-  await expect(page.getByText("Bunker Mode").first()).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("Vault Lock").first()).toBeVisible();
-  await expect(page.getByText("Outbound Guardrail").first()).toBeVisible();
+  // The old Privacy id opens the page on its first control.
+  await expect(page.getByTestId("hub-detail-bunker")).toContainText("Bunker Mode", { timeout: 10_000 });
+  const col = page.getByTestId("hub-privacy-safety");
+  for (const row of ["bunker", "vault-lock", "incognito", "guardrail", "always", "telemetry", "autonomy", "safety-access", "safety-guardrails"]) {
+    await expect(col.getByTestId(`hub-row-${row}`)).toBeVisible();
+  }
+  await col.getByTestId("hub-row-vault-lock").click();
+  await expect(page.getByTestId("hub-detail-vault-lock")).toContainText("Vault Lock");
+  await col.getByTestId("hub-row-guardrail").click();
   await expect(page.getByText(/nothing reaches another party without you/i)).toBeVisible();
   await page.getByLabel("Outbound guardrail").click();
   const cmds = await invokedCommands(page);
@@ -58,9 +95,9 @@ test("3 · Privacy page: all four controls render; the guardrail toggle drives b
   expect(cmds).toContain("egress_guard_set");
 });
 
-test("4 · Editor sections switch without crashing (tools, skills, apps)", async ({ page }) => {
+test("4 · Editor sections switch without crashing (tools, skills, usage, intent)", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  for (const section of ["tools", "skills", "connectors", "usage", "intents"]) {
+  for (const section of ["tools", "skills", "usage", "intents"]) {
     await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), section);
     await page.waitForTimeout(400); // sections lazy-load; a crash throws pageerror
   }
@@ -115,10 +152,13 @@ test("7 · Phone is a top-level section and turns itself on in one tap", async (
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 
-  // Reachable by name from the Settings sidebar, not only by deep link.
+  // Reachable by name from the Settings sidebar, not only by deep link: the
+  // Connections row, then Phone in its side column.
   await page.getByRole("button", { name: "Settings" }).click();
-  const phoneNav = page.getByRole("button", { name: "Phone", exact: true });
+  await page.getByTestId("app-sidebar").getByRole("button", { name: "Connections", exact: true }).click();
+  const phoneNav = page.getByTestId("hub-row-phone");
   await expect(phoneNav).toBeVisible({ timeout: 10_000 });
+  await expect(phoneNav).toContainText("Off");
   await phoneNav.click();
   await expect(page.getByText("Put Prevail on your phone")).toBeVisible();
 
@@ -356,17 +396,16 @@ test("14 · Always is hidden for an ineligible act; Deny declines without a foll
   expect(await sentFollowUp(page)).toBe(false);
 });
 
-test("15 · Waiting for you: the thread row says so, and the Home count opens the Inbox", async ({ page }) => {
+test("15 · Waiting for you: the thread row says so, and the sidebar Inbox count opens the Inbox", async ({ page }) => {
   await mockTauri(page, chatFixtures({ alwaysEligible: true }));
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   const row = page.getByTestId("threads-list").locator("li", { hasText: "Foo report" });
   await expect(row.getByTestId("waiting-chip")).toBeVisible({ timeout: 10_000 });
-  const home = page.getByTestId("home-waiting");
-  await expect(home).toBeVisible();
-  await expect(home).toContainText("1");
-  await home.click();
-  await expect(page.getByTestId("nav-inbox")).toHaveAttribute("aria-current", "page", { timeout: 10_000 });
+  const inbox = page.getByTestId("nav-inbox");
+  await expect(inbox).toContainText("1");
+  await inbox.click();
+  await expect(inbox).toHaveAttribute("aria-current", "page", { timeout: 10_000 });
   await expect(page.getByText("Foo: send_report")).toBeVisible();
   // Answering clears it everywhere: the next poll reports nothing waiting.
   await page.evaluate(() => { const fx = (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures; fx.engine_waiting = { total: 0, items: [] }; fx.engine_acts_pending = []; });
@@ -385,17 +424,38 @@ test("16 · the chat header schedules the conversation in the flow", async ({ pa
   await expect(panel.getByLabel("Prompt")).toHaveValue("Send the foo report");
   await panel.getByRole("radio", { name: "Weekdays" }).click();
   await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-schedule-panel.png` });
+  // The engine now lists it (and one for another thread, which stays out).
+  await page.evaluate(() => {
+    (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_schedule_list = [
+      { id: "s_foo", name: "Send the foo report", cron: "0 8 * * 1-5", enabled: true, last_run: null, thread: { domain: "general", session: "foo-thread" }, prompt: "Send the foo report" },
+      { id: "s_bar", name: "Bar digest", cron: "0 9 * * *", enabled: true, last_run: null, thread: { domain: "career", session: "bar-thread" }, prompt: "Bar digest" },
+    ];
+  });
   await panel.getByTestId("schedule-save").click();
   await expect(panel.getByTestId("schedule-saved")).toBeVisible();
   const call = await page.evaluate(() =>
     ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
       .find((e) => e.cmd === "engine_schedule_thread_add")?.args ?? null);
   expect(call).toMatchObject({ domain: "general", session: "foo-thread", prompt: "Send the foo report", cron: "0 8 * * 1-5" });
+  // This conversation's schedules are managed right here, with tiny icon actions.
+  const row = panel.getByTestId("thread-schedules").locator("[data-schedule=s_foo]");
+  await expect(row).toContainText("Weekdays at 8:00 AM");
+  await expect(panel.locator("[data-schedule=s_bar]")).toHaveCount(0);
+  await row.getByRole("button", { name: "Run now" }).click();
+  await row.getByRole("button", { name: "Pause" }).click();
+  await expect(row).toContainText("paused");
+  await row.getByRole("button", { name: "Remove" }).click();
+  await expect.poll(() => invokedCommands(page)).toEqual(expect.arrayContaining(["engine_schedule_run", "engine_schedule_set_enabled", "engine_schedule_remove"]));
+  const toggled = await page.evaluate(() =>
+    ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+      .find((e) => e.cmd === "engine_schedule_set_enabled")?.args ?? null);
+  expect(toggled).toMatchObject({ id: "s_foo", enabled: false });
 });
 
 test("17 · Privacy lists Always allowed rules with a revoke per row", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" })));
+  await page.getByTestId("hub-row-always").click();
   const list = page.getByTestId("always-allowed");
   await expect(list).toBeVisible({ timeout: 10_000 });
   await expect(list).toContainText("Foo: list items");
@@ -403,4 +463,593 @@ test("17 · Privacy lists Always allowed rules with a revoke per row", async ({ 
   await list.getByTestId("rule-revoke").click();
   expect(await invokedCommands(page)).toContain("engine_acts_rule_revoke");
   await expect(list).toContainText("Nothing yet");
+});
+
+test("18 · the Inbox approves a queued Google write with the token spine", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "inbox" })));
+  await page.getByTestId("tab-google").click();
+  await expect(page.getByTestId("inbox-row")).toHaveCount(1);
+  await page.getByTestId("inbox-row").click();
+  await expect(page.getByTestId("decision-inbox")).not.toContainText("PayPal: create_invoice");
+  await page.getByRole("button", { name: /Approve & run/ }).click();
+  await expect.poll(() => invokedCommands(page)).toContain("engine_gws_approve");
+  const cmds = await invokedCommands(page);
+  expect(cmds.indexOf("engine_gws_approve")).toBeGreaterThan(cmds.indexOf("loop_request_approval"));
+  const args = await page.evaluate(() =>
+    ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+      .find((e) => e.cmd === "engine_gws_approve")?.args ?? null);
+  expect(args).toMatchObject({ id: "gws_smoke1", approval: "smoke-approval-token" });
+});
+
+test("19 · the sidebar lists your apps; a click opens the Apps page in Home with it picked", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  const apps = page.getByTestId("sidebar-apps");
+  await expect(apps.getByTestId("sidebar-app-claude:foo")).toContainText("Foo", { timeout: 10_000 });
+  // A connector that needs sign-in carries a small dot.
+  await expect(apps.getByTestId("sidebar-app-claude:bar").getByTestId("app-signin-dot")).toBeVisible();
+  await expect(apps.getByTestId("sidebar-app-claude:foo").getByTestId("app-signin-dot")).toHaveCount(0);
+  await apps.getByTestId("sidebar-app-claude:bar").click();
+  await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("mirror-row-claude:bar")).toHaveAttribute("aria-current", "true");
+  // Still Home: the sidebar did not flip into Settings.
+  await expect(page.getByTestId("nav-home")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Back to Home/ })).toHaveCount(0);
+  await expect(apps.getByTestId("sidebar-app-claude:bar")).toHaveAttribute("aria-current", "page");
+  // The Settings group no longer carries a duplicate Apps row.
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByRole("button", { name: "Connections", exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "Apps", exact: true })).toHaveCount(0);
+});
+
+test("20 · links to removed screens land on Home; old ids reach their new pages", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  for (const gone of ["spark", "automations", "loopboard", "calendar", "notes"]) {
+    // Leave Home first, so landing back on it proves the route.
+    await page.getByTestId("nav-inbox").click();
+    await expect(page.getByTestId("inbox-page")).toBeVisible({ timeout: 10_000 });
+    await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), gone);
+    await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("nav-home")).toHaveAttribute("aria-current", "page");
+    await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: s })), gone);
+    await expect(page.getByText("What should we work on?")).toBeVisible();
+  }
+  // The Work board id opens Tasks; the old Settings Apps id opens the Home Apps page.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "tasks" })));
+  await expect(page.getByTestId("tasks-list")).toBeVisible({ timeout: 10_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: "connectors" })));
+  await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("nav-home")).toBeVisible();
+});
+
+test("21 · Tasks is a plain list: rows, the waiting chip, no board or view switcher", async ({ page }) => {
+  await mockTauri(page, {
+    tasks_read_all: [
+      { id: "t1", domain: "career", text: "Draft the foo plan", status: "todo", owner: "me", due: null, priority: null },
+      { id: "t2", domain: "health", text: "Book the bar check", status: "blocked", owner: "ai", due: null, priority: "high" },
+    ],
+  });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^Tasks/ }).click();
+  const list = page.getByTestId("tasks-list");
+  await expect(list).toBeVisible({ timeout: 10_000 });
+  await expect(list.getByTestId("task-row")).toHaveCount(2);
+  await expect(list.getByTestId("task-row").filter({ hasText: "Book the bar check" }).getByTestId("waiting-chip")).toBeVisible();
+  await expect(list.getByTestId("task-row").filter({ hasText: "Draft the foo plan" }).getByTestId("waiting-chip")).toHaveCount(0);
+  await expect(page.getByTitle("Board view")).toHaveCount(0);
+  await expect(page.getByTitle(/Horizon view/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Needs you/ })).toHaveCount(0);
+  await expect(page.getByText("Work board")).toHaveCount(0);
+  // Opening a task shows its detail.
+  await list.getByRole("button", { name: "Draft the foo plan" }).click();
+  await expect(page.getByRole("button", { name: /Discuss with AI/ })).toBeVisible();
+});
+
+test("22 · the Briefing: dismissing a row shares the Recommendations set; hiding flips the pref", async ({ page }) => {
+  const recs = [
+    { id: "r1", category: "rules", title: "Foo rule to adopt", detail: "You keep asking for foo.", action: { kind: "open_rules" } },
+    { id: "r2", category: "projects", title: "Bar project is stuck", detail: "No prompts in two weeks.", action: { kind: "open_projects" } },
+  ];
+  await mockTauri(page, { engine_recommendations: { ok: true, recommendations: recs } });
+  await page.addInitScript(() => localStorage.setItem("prevail.pref.showHomeBriefing", "1"));
+  await page.goto("/");
+  const briefing = page.getByTestId("home-briefing");
+  await expect(briefing).toBeVisible({ timeout: 15_000 });
+  await expect(briefing.getByTestId("briefing-row")).toHaveCount(2);
+  const first = briefing.locator("[data-rec=r1]");
+  await first.hover();
+  await first.getByTestId("briefing-dismiss").click();
+  await expect(briefing.locator("[data-rec=r1]")).toHaveCount(0);
+  await expect(briefing.getByTestId("briefing-row")).toHaveCount(1);
+  expect(await page.evaluate(() => localStorage.getItem("prevail.recs.dismissed"))).toContain("r1");
+  // The Recommendations page counts it as dismissed.
+  await page.getByTestId("app-sidebar").getByRole("button", { name: "Recommendations" }).click();
+  await expect(page.getByRole("button", { name: /Show dismissed 1/ })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Foo rule to adopt")).toHaveCount(0);
+  // Back Home, hide the whole Briefing: the Settings switch turns off.
+  await page.getByTestId("nav-home").click();
+  await expect(briefing).toBeVisible({ timeout: 10_000 });
+  await briefing.getByTestId("briefing-hide").click();
+  await expect(page.getByText("Briefing hidden. Turn it back on in Settings.")).toBeVisible();
+  await expect(briefing).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("prevail.pref.showHomeBriefing"))).toBe("0");
+});
+
+test("23 · Context: one click shows Memory, a Source file previews inline, the folder opens in Finder", async ({ page }) => {
+  await mockTauri(page, {
+    read_memory_md: "# Foo memory\nThe bar is open on weekdays.",
+    read_text_file: "# Foo goals\nShip the foo.",
+    domain_context: { state: "", journal: "", recent_logs: [], skills: [], layoutV4: true },
+  });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByTestId("open-context").first().click();
+  const view = page.getByTestId("context-view");
+  await expect(view).toBeVisible({ timeout: 10_000 });
+  await view.getByTestId("ctx-row-memory").click();
+  await expect(view.getByTestId("ctx-detail-memory").getByTestId("ctx-markdown")).toContainText("The bar is open on weekdays.");
+  await view.getByTestId("ctx-row-source").click();
+  await view.getByTestId("ctx-item-source/goals.md").click();
+  await expect(view.getByTestId("ctx-preview")).toContainText("Ship the foo.");
+  const folder = view.getByTestId("ctx-folder");
+  await expect(folder).toHaveText("tmp/smoke-vault");
+  await folder.click();
+  await expect.poll(() => invokedCommands(page)).toContain("open_in_finder");
+  const args = await page.evaluate(() =>
+    ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+      .find((e) => e.cmd === "open_in_finder")?.args ?? null);
+  expect(args).toEqual({ path: "/tmp/smoke-vault" });
+});
+
+test("24 · Council: pick a runtime, seat a model, make it chair; the saved config and the Panel follow", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "council" })));
+  // Models-page layout: header, then the column and the detail below it.
+  await expect(page.getByTestId("page-header")).toContainText("Council", { timeout: 10_000 });
+  const col = page.getByTestId("council-list");
+  await expect(col).toHaveAttribute("data-spine-column");
+  await expect(col.getByTestId("council-row-panel")).toHaveAttribute("aria-current", "true");
+  const summary = page.getByTestId("council-summary");
+  await expect(summary).toContainText(/^\d+ seats? · \d+ providers? · \d+ local · about /);
+  const seatsBefore = Number((await summary.innerText()).split(" ")[0]);
+  await expect(page.getByText("Changes save automatically")).toHaveCount(0);
+
+  await col.getByTestId("council-row-claude").click();
+  const detail = page.getByTestId("council-runtime");
+  await expect(detail).toContainText("Claude Code");
+  const off = detail.locator("[data-council-model][data-on='0']").first();
+  const modelId = await off.getAttribute("data-council-model");
+  await off.getByRole("button", { name: /^Add .* to the panel$/ }).click();
+  const row = detail.locator(`[data-council-model="${modelId}"]`);
+  await expect(row).toHaveAttribute("data-on", "1");
+  await row.getByRole("button", { name: /^Make .* the chair$/ }).click();
+  await expect(row.getByTestId("council-chair-mark")).toBeVisible();
+  await expect(col.getByTestId("council-row-claude")).toContainText("on panel");
+
+  // The same saved config as before, pushed through the prefs write.
+  const slot = `claude::${modelId}`;
+  await expect.poll(() => page.evaluate((k) => {
+    const log = (window as unknown as { __invokeLog: Array<{ cmd: string; args: { json?: string } }> }).__invokeLog ?? [];
+    const last = [...log].reverse().find((e) => e.cmd === "ui_prefs_set");
+    if (!last?.args.json) return false;
+    const prefs = JSON.parse(last.args.json) as Record<string, string>;
+    return prefs["prevail.council.defaultChair"] === k && (prefs["prevail.council.defaultMembers"] ?? "").includes(k);
+  }, slot), { timeout: 10_000 }).toBe(true);
+
+  // The Panel overview reflects it.
+  await col.getByTestId("council-row-panel").click();
+  await expect(summary).toContainText(`${seatsBefore + 1} seats`);
+  await expect(page.getByTestId("council-chair")).toContainText("Claude Code");
+});
+
+test("25 · Arena: the page header sits above the side column, and internal folders are not domains", async ({ page }) => {
+  await mockTauri(page, {
+    scan_vault: [
+      { name: "career", path: "/tmp/smoke-vault/data/domains/career", has_state: true, state_preview: null },
+      { name: "_log", path: "/tmp/smoke-vault/data/domains/_log", has_state: false, state_preview: null },
+      { name: "_meta", path: "/tmp/smoke-vault/data/domains/_meta", has_state: false, state_preview: null },
+    ],
+  });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "benchmark" })));
+  const arena = page.getByTestId("arena-page");
+  const header = arena.getByTestId("page-header").first();
+  await expect(header).toContainText("Arena", { timeout: 10_000 });
+  await expect(header.getByRole("button", { name: /New Run/ })).toBeVisible();
+  const nav = arena.getByTestId("arena-nav");
+  const hb = await header.boundingBox();
+  const nb = await nav.boundingBox();
+  expect(hb!.y + hb!.height).toBeLessThanOrEqual(nb!.y + 1);
+  // The Leaderboard title is the detail's section heading, not the page title.
+  await expect(arena.getByTestId("arena-section-head")).toContainText("Leaderboard");
+  await expect(nav.getByTestId("arena-domain-career")).toBeVisible();
+  await expect(nav.getByText(/^(Log|Meta)$/)).toHaveCount(0);
+  await expect(nav.locator("[data-testid^='arena-domain-_']")).toHaveCount(0);
+  // Only the active section carries the selected style; a picked domain does not.
+  await nav.getByTestId("arena-domain-career").click();
+  await expect(nav.getByTestId("arena-domain-career")).toHaveAttribute("aria-pressed", "true");
+  await expect(nav.getByTestId("arena-domain-career")).not.toHaveClass(/bg-surface-warm(?!\/)/);
+  await expect(nav.locator("[aria-current=page]")).toHaveCount(1);
+});
+
+const TOOLKIT_FX = {
+  scan_skills: [
+    { domain: "career", name: "foo-review", path: "/tmp/smoke-vault/data/domains/career/memory/skills/foo-review", description: "Review the foo", enabled: true },
+    { domain: "health", name: "bar-check", path: "/tmp/smoke-vault/data/domains/health/memory/skills/bar-check", description: "Check the bar", enabled: false },
+  ],
+  read_skill: "# Foo review\nCheck the foo twice.",
+  skill_set_enabled: null,
+};
+
+test("26 · Toolkit: one page with Skills, Tools and Frameworks; a skill turns off with the same command", async ({ page }) => {
+  await mockTauri(page, TOOLKIT_FX);
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Toolkit", exact: true }).click();
+  for (const gone of ["Skills", "Tools", "Frameworks"]) {
+    await expect(page.getByTestId("app-sidebar").getByRole("button", { name: gone, exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByTestId("page-header")).toContainText("Toolkit", { timeout: 10_000 });
+  const col = page.getByTestId("toolkit-list");
+  await expect(col.getByTestId("toolkit-group-skills")).toContainText("1 of 2 on");
+  await expect(col.getByTestId("toolkit-group-tools")).toBeVisible();
+  await expect(col.getByTestId("toolkit-group-frameworks")).toBeVisible();
+  await col.getByTestId("toolkit-skill-foo-review").click();
+  const detail = page.getByTestId("toolkit-detail-skill");
+  await expect(detail.getByTestId("toolkit-skill-body")).toContainText("Check the foo twice.");
+  await detail.getByLabel("Turn off foo-review").click();
+  await expect.poll(() => page.evaluate(() =>
+    ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+      .find((e) => e.cmd === "skill_set_enabled")?.args ?? null)).toMatchObject({ domain: "career", name: "foo-review", enabled: false });
+  await expect(col.getByTestId("toolkit-group-skills")).toContainText("0 of 2 on");
+  // A tool and a framework open in the same pane.
+  await col.getByTestId("toolkit-tool-Memory").click();
+  await expect(page.getByTestId("toolkit-detail-tool")).toContainText("Remember and recall durable facts");
+});
+
+test("27 · old Skills, Tools and Frameworks links open Toolkit on that group", async ({ page }) => {
+  await mockTauri(page, TOOLKIT_FX);
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "skills" })));
+  await expect(page.getByTestId("toolkit-list")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("toolkit-detail-skill")).toContainText("foo-review");
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "frameworks" })));
+  await expect(page.getByTestId("toolkit-detail-fw")).toBeVisible({ timeout: 10_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: "tools" })));
+  await expect(page.getByTestId("toolkit-detail-tool")).toBeVisible({ timeout: 10_000 });
+});
+
+// Context & Memory pages, laid out like Models: the header first, the side
+// column below it, and a pick in the column changes the detail.
+async function headerAboveColumn(page: import("@playwright/test").Page, title: string, columnId: string) {
+  const header = page.getByTestId("settings-page").getByTestId("page-header").first();
+  await expect(header).toContainText(title, { timeout: 10_000 });
+  const col = page.getByTestId(columnId);
+  await expect(col).toHaveAttribute("data-spine-column");
+  const hb = await header.boundingBox();
+  const cb = await col.boundingBox();
+  expect(hb!.y + hb!.height).toBeLessThanOrEqual(cb!.y + 1);
+  return col;
+}
+async function openSettings(page: import("@playwright/test").Page, section: string) {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), section);
+}
+
+test("28 · Ideals: mission first, then domains; picking a domain shows its ideal", async ({ page }) => {
+  await openSettings(page, "ideal-state");
+  const col = await headerAboveColumn(page, "Ideals", "ideals-list");
+  await expect(col.getByTestId("ideal-row-mission")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByTestId("ideal-detail-mission")).toBeVisible();
+  await col.getByTestId("ideal-row-domain:career").click();
+  const detail = page.getByTestId("ideal-detail-domain");
+  await expect(detail).toContainText("Career");
+  await expect(detail).toContainText("Financial security with a 6-month runway.");
+  await expect(page.getByTestId("ideal-detail-mission")).toHaveCount(0);
+});
+
+test("29 · Daemons live in Settings: each routine is a side row; picking one shows its controls", async ({ page }) => {
+  await openSettings(page, "daemons");
+  const col = await headerAboveColumn(page, "Settings", "hub-settings");
+  await expect(col.getByTestId("hub-row-daemon:distill")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByTestId("daemon-detail-distill")).toContainText("Hub only");
+  await col.getByTestId("hub-row-daemon:reminders").click();
+  await expect(page.getByTestId("daemon-detail-reminders")).toContainText("Reminders interval");
+  await expect(page.getByTestId("daemon-detail-distill")).toHaveCount(0);
+  await col.getByTestId("hub-row-daemon:role").click();
+  await expect(page.getByTestId("daemon-detail-role")).toContainText("This machine's role");
+});
+
+test("30 · Activity: kinds with counts; picking one filters the feed", async ({ page }) => {
+  await mockTauri(page, {
+    activity_read: [
+      { ts: Date.now() - 60_000, type: "briefing", domain: "career", title: "Foo briefing sent" },
+      { ts: Date.now() - 120_000, type: "sync", domain: "health", title: "Bar app synced" },
+      { ts: Date.now() - 180_000, type: "sync", domain: "health", title: "Bar app synced again" },
+    ],
+  });
+  await page.goto("/");
+  await openSettings(page, "activity");
+  const col = await headerAboveColumn(page, "Activity", "activity-list");
+  await expect(col.getByTestId("activity-kind-all")).toContainText("3");
+  await expect(col.getByTestId("activity-kind-sync")).toContainText("2");
+  await expect(col.getByTestId("activity-kind-loop_run")).toHaveCount(0);
+  const detail = page.getByTestId("activity-detail");
+  await expect(detail).toContainText("Foo briefing sent");
+  await col.getByTestId("activity-kind-sync").click();
+  await expect(detail.getByRole("heading", { level: 2 })).toContainText("Syncs");
+  await expect(detail).toContainText("Bar app synced");
+  await expect(detail).not.toContainText("Foo briefing sent");
+});
+
+test("31 · Usage is part of Activity: views in its column; a breakdown replaces the overview", async ({ page }) => {
+  await openSettings(page, "usage");
+  const col = await headerAboveColumn(page, "Activity", "activity-list");
+  await expect(col.getByTestId("usage-view-overview")).toHaveAttribute("aria-current", "true");
+  await page.getByTestId("settings-page").getByRole("button", { name: "All time" }).click();
+  const detail = page.getByTestId("activity-detail");
+  await expect(detail).toContainText("When you use it");
+  await col.getByTestId("usage-view-domain").click();
+  await expect(detail.getByRole("heading", { level: 2 })).toHaveText("By domain");
+  await expect(detail).toContainText("career");
+  await expect(detail).not.toContainText("When you use it");
+});
+
+const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Entities", "Ideals", "Activity", "Connections", "Privacy & Safety", "Settings"];
+
+test("32 · the Settings nav is 11 rows, and each opens a header above a side column", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Settings" }).click();
+  const nav = page.getByTestId("app-sidebar");
+  await expect(nav.getByRole("button", { name: "Back to Home" })).toBeVisible({ timeout: 10_000 });
+  const labels = await nav.locator("button[aria-current], button").evaluateAll((els) =>
+    els.map((e) => (e as HTMLElement).innerText.trim()));
+  for (const l of EDITOR_ROWS) expect(labels).toContain(l);
+  for (const gone of ["Phone", "Gateway", "MCP", "Hooks", "Network", "Autonomy", "Privacy", "Safety", "Profiles", "Vault", "General", "About", "Daemons", "Usage"]) {
+    expect(labels, `${gone} should be a side row now, not a nav row`).not.toContain(gone);
+  }
+  for (const l of EDITOR_ROWS) {
+    await nav.getByRole("button", { name: l, exact: true }).click();
+    const pageEl = page.getByTestId("settings-page");
+    const header = pageEl.getByTestId("page-header").filter({ hasText: l }).first();
+    await expect(header).toBeVisible({ timeout: 10_000 });
+    // Intent with no captured prompts shows its empty state, not a column.
+    if (l === "Intent") continue;
+    const col = pageEl.locator("[data-spine-column]").first();
+    await expect(col).toBeVisible();
+    const hb = await header.boundingBox();
+    const cb = await col.boundingBox();
+    expect(hb!.y + hb!.height, `${l}: header above the column`).toBeLessThanOrEqual(cb!.y + 1);
+  }
+});
+
+test("33 · old Settings ids land on the new page with the right row picked", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  const cases: Array<[string, string, string]> = [
+    ["privacy", "hub-privacy-safety", "hub-row-bunker"],
+    ["phone", "hub-connections", "hub-row-phone"],
+    ["usage", "activity-list", "usage-view-overview"],
+    ["daemons", "hub-settings", "hub-row-daemon:distill"],
+    ["about", "hub-settings", "hub-row-about"],
+    ["remote", "hub-connections", "hub-row-network"],
+    ["profiles", "hub-settings", "hub-row-profiles"],
+  ];
+  for (const [id, col, row] of cases) {
+    await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), id);
+    await expect(page.getByTestId(col).getByTestId(row), id).toHaveAttribute("aria-current", "true", { timeout: 10_000 });
+  }
+  // The sidebar highlight follows the page, not the old id.
+  await expect(page.getByTestId("app-sidebar").locator("[aria-current=page]")).toHaveText("Settings");
+});
+
+// ── Entity chat ────────────────────────────────────────────────────────────
+const FOO_ENTITY = {
+  entities_list: { generated_ts: 1, total: 1, entities: [{ id: "person/foo", name: "Foo Bar", kind: "person", aliases: [], mention_count: 1, conversations: 1, last_ts: 1, saved: true, has_page: true }] },
+  entities_show: { found: true, id: "person/foo", name: "Foo Bar", kind: "person", aliases: [], kinds: ["person"], mention_count: 1, conversations: 1, last_ts: 1783000000000, mentions: [], co_mentions: [], page_path: "data/entities/people/foo.md", saved: true, digest: "", notes: "" },
+  engine_entity_note_append: { ok: true },
+};
+const FOO_ENTITY_THREAD = "/tmp/smoke-vault/data/domains/general/_threads/foo-entity.md";
+const withThread = {
+  ...FOO_ENTITY,
+  engine_entity_threads: [{ slug: "foo-entity", domain: "general", title: "Lunch with Foo", updated: 1783000000000, turns: 2 }],
+  list_threads: [{ path: FOO_ENTITY_THREAD, slug: "foo-entity", title: "Lunch with Foo", domain: null, created: 1783000000, updated: 1783000000, turn_count: 2, preview: "", cli: "claude", model: null, entity: "person/foo" }],
+  load_thread: {
+    meta: { path: FOO_ENTITY_THREAD, slug: "foo-entity", title: "Lunch with Foo", domain: null, created: 1783000000, updated: 1783000000, turn_count: 2, preview: "", cli: "claude", model: null, entity: "person/foo" },
+    turns: [
+      { role: "user", cli: null, model: null, content: "Where should I take Foo for lunch?" },
+      { role: "assistant", cli: "claude", model: null, content: "Foo likes the bar by the river." },
+    ],
+  },
+};
+const invokeArgs = (page: import("@playwright/test").Page, cmd: string) => page.evaluate((c) =>
+  ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+    .filter((e) => e.cmd === c).map((e) => e.args), cmd);
+
+async function openFoo(page: import("@playwright/test").Page) {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "entities" })));
+  await expect(page.getByTestId("entity-detail")).toContainText("Foo Bar", { timeout: 10_000 });
+}
+
+test("34 · Chat on an entity opens in the detail pane and every turn carries --entity", async ({ page }) => {
+  await mockTauri(page, { ...FOO_ENTITY, read_ideal_state: "", read_omega: "", read_user_md: "", read_memory_md: "", engine_entity_threads: [], save_thread: "/tmp/smoke-vault/data/domains/general/_threads/foo-new.md" });
+  await page.goto("/");
+  await openFoo(page);
+  await page.getByTestId("entity-chat-open").click();
+  const chat = page.getByTestId("entity-chat");
+  await expect(chat).toBeVisible({ timeout: 10_000 });
+  await expect(chat).toContainText("Back to overview");
+  await expect(chat.getByTestId("entity-chat-empty")).toContainText("Foo Bar");
+  const box = chat.locator("[data-tour=composer] textarea");
+  await box.fill("What do I know about Foo?");
+  await box.press("Enter");
+  await expect.poll(async () => (await invokeArgs(page, "engine_chat"))[0] ?? null, { timeout: 10_000 })
+    .toMatchObject({ entity: "person/foo", domain: "general", message: expect.stringContaining("What do I know about Foo?") });
+  // Saved like a General thread, tagged with the entity.
+  await expect.poll(async () => (await invokeArgs(page, "save_thread"))[0] ?? null, { timeout: 10_000 })
+    .toMatchObject({ domain: null, entity: "person/foo" });
+  await chat.getByRole("button", { name: "Back to overview" }).click();
+  await expect(page.getByTestId("entity-detail")).toBeVisible();
+});
+
+test("35 · Add to notes appends a reply to the entity's notes", async ({ page }) => {
+  await mockTauri(page, withThread);
+  await page.goto("/");
+  await openFoo(page);
+  await page.getByTestId("entity-chat-open").click();
+  const chat = page.getByTestId("entity-chat");
+  const reply = chat.getByText("Foo likes the bar by the river.");
+  await expect(reply).toBeVisible({ timeout: 10_000 });
+  await reply.hover();
+  await chat.getByTitle("Add to notes").click();
+  await expect.poll(async () => (await invokeArgs(page, "engine_entity_note_append"))[0] ?? null)
+    .toEqual({ vault: "/tmp/smoke-vault", id: "person/foo", text: "Foo likes the bar by the river." });
+  await expect(page.getByText("Added to notes.")).toBeVisible();
+});
+
+test("36 · Your conversations lists the entity's threads and opens one; the General rail marks it", async ({ page }) => {
+  await mockTauri(page, withThread);
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await expect(page.getByTestId("threads-list").getByTestId("thread-entity-chip")).toContainText("Foo Bar", { timeout: 10_000 });
+  await openFoo(page);
+  const convo = page.getByTestId("entity-conversations").getByTestId("entity-conversation");
+  await expect(convo).toContainText("Lunch with Foo");
+  await convo.click();
+  const chat = page.getByTestId("entity-chat");
+  await expect(chat.getByText("Foo likes the bar by the river.")).toBeVisible({ timeout: 10_000 });
+  await expect(chat.getByTestId("entity-thread-picker")).toHaveValue("foo-entity");
+  await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-entity-chat.png` });
+  expect(await invokeArgs(page, "engine_entity_threads")).toContainEqual({ vault: "/tmp/smoke-vault", id: "person/foo" });
+});
+
+// ── Goals and Tasks, laid out like Intent > Projects ────────────────────────
+test("37 · Goals: Mission row, a new goal writes source/goals.md, a goal opens its detail", async ({ page }) => {
+  await mockTauri(page, {
+    read_ideal_state: "# Ideal\n\n## Mission\n\nLive a calm foo life.\n\n## Vision\n\nA quiet bar by the sea.\n",
+    goals_files_read: [{ domain: "health", path: "/tmp/smoke-vault/data/domains/health/source/goals.md", body: "- [ ] Run a foo marathon ~id:g-1 ~status:active ~due:2026-12-31 ~progress:40\n  why: Feel strong again.\n" }],
+    goals_file_write: "/tmp/smoke-vault/data/domains/general/source/goals.md",
+  });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Goals" }).click();
+  const page_ = page.getByTestId("goals-page");
+  await expect(page.getByTestId("work-page").getByTestId("page-header").first()).toContainText("Goals", { timeout: 10_000 });
+  await expect(page.getByTestId("tab-active")).toHaveAttribute("aria-selected", "true");
+  const col = page_.getByTestId("goals-list");
+  await expect(col.getByTestId("goal-row-mission")).toContainText("Live a calm foo life.");
+  await col.getByTestId("goal-row-mission").click();
+  await expect(page.getByTestId("goal-detail-mission")).toContainText("Live a calm foo life.");
+  // A goal row opens its detail.
+  await col.getByTestId("goal-row").filter({ hasText: "Run a foo marathon" }).click();
+  const detail = page.getByTestId("goal-detail");
+  await expect(detail.getByLabel("Goal title")).toHaveValue("Run a foo marathon");
+  await expect(detail.getByLabel("Why it matters")).toHaveValue("Feel strong again.");
+  await expect(detail.getByLabel("Target date")).toHaveValue("2026-12-31");
+  // New goal goes to General's source/goals.md.
+  await col.getByTestId("goal-new").click();
+  await expect.poll(() => page.evaluate(() =>
+    ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+      .find((e) => e.cmd === "goals_file_write")?.args ?? null)).toMatchObject({ vault: "/tmp/smoke-vault", domain: "general", body: expect.stringMatching(/^- \[ \] New goal ~id:g-\S+ ~status:active\n$/) });
+  await expect(page.getByTestId("goal-detail").getByLabel("Goal title")).toHaveValue("New goal");
+});
+
+test("38 · Tasks: a task opens in the right pane, and no fixed side panel exists", async ({ page }) => {
+  await mockTauri(page, {
+    tasks_read_all: [
+      { id: "t1", domain: "career", text: "Draft the foo plan", status: "todo", owner: "me", due: null, priority: null },
+      { id: "t2", domain: "career", text: "Answer the bar email", status: "blocked", owner: "ai", due: null, priority: null },
+      { id: "t3", domain: "health", text: "Old foo chore", status: "done", owner: "me", due: null, priority: null },
+    ],
+  });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^Tasks/ }).click();
+  const header = page.getByTestId("work-page").getByTestId("page-header").first();
+  await expect(header.getByTestId("tab-open")).toContainText("2", { timeout: 10_000 });
+  await expect(header.getByTestId("tab-waiting")).toContainText("1");
+  const list = page.getByTestId("tasks-list");
+  await expect(list.getByTestId("task-row")).toHaveCount(2);
+  await header.getByTestId("tab-waiting").click();
+  await expect(list.getByTestId("task-row")).toHaveCount(1);
+  await expect(list.getByTestId("task-row").getByTestId("waiting-chip")).toBeVisible();
+  await header.getByTestId("tab-open").click();
+  await list.getByTestId("task-row").filter({ hasText: "Draft the foo plan" }).click();
+  const detail = page.getByTestId("spine-detail").getByTestId("task-detail");
+  await expect(detail.getByLabel("Task title")).toHaveValue("Draft the foo plan");
+  await expect(detail.getByRole("button", { name: /Discuss with AI/ })).toBeVisible();
+  // Nothing floats over the page from the right.
+  const fixed = await page.evaluate(() => [...document.querySelectorAll("body *")].filter((el) => {
+    const cs = getComputedStyle(el);
+    return cs.position === "fixed" && el.getBoundingClientRect().width > 300 && el.getBoundingClientRect().left > window.innerWidth / 2;
+  }).length);
+  expect(fixed).toBe(0);
+});
+
+// ── The mission: edit a section in place, versions, restore ─────────────────
+const MISSION = "# Foo ideal\n\nLive a calm foo life.\n\n## Operating Vision\n\nQuiet mornings.\n\n## Core Principles\n\nBe kind to bar.\n";
+const missionFx = {
+  read_ideal_state: MISSION,
+  ideal_state_versions: [
+    { name: "2026-09-26T10-00-00Z", path: "/tmp/smoke-vault/build/ideal-state.versions/2026-09-26T10-00-00Z.md", ts: 1 },
+    { name: "2026-09-20T10-00-00Z", path: "/tmp/smoke-vault/build/ideal-state.versions/2026-09-20T10-00-00Z.md", ts: 0 },
+  ],
+  ideal_state_version_read: "# Foo ideal\n\nLive a calm foo life.\n\n## Operating Vision\n\nSlow mornings.\n",
+  write_ideal_state: null,
+};
+async function openMission(page: import("@playwright/test").Page) {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "ideal-state" })));
+  await expect(page.getByTestId("mission-editor-page")).toBeVisible({ timeout: 10_000 });
+}
+const writes = (page: import("@playwright/test").Page) => page.evaluate(() =>
+  ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+    .filter((e) => e.cmd === "write_ideal_state").map((e) => String(e.args.body)));
+
+test("39 · Mission: clicking a section edits it in place; saving writes it and refreshes the versions", async ({ page }) => {
+  await mockTauri(page, missionFx);
+  await page.goto("/");
+  await openMission(page);
+  const section = page.locator("[data-testid=mission-section][data-heading='Core Principles']");
+  await section.click();
+  const box = page.getByTestId("mission-editor").getByRole("textbox");
+  await expect(box).toHaveValue(/Be kind to bar\./);
+  await box.fill("## Core Principles\n\nBe very kind to bar.");
+  const before = (await invokedCommands(page)).filter((c) => c === "ideal_state_versions").length;
+  await box.press("Meta+Enter");
+  await expect.poll(() => writes(page)).toHaveLength(1);
+  const saved = (await writes(page))[0];
+  expect(saved).toContain("Be very kind to bar.");
+  expect(saved).toContain("Quiet mornings.");
+  // The backend keeps the old text as a version on that write; the list is re-read.
+  await expect.poll(async () => (await invokedCommands(page)).filter((c) => c === "ideal_state_versions").length).toBeGreaterThan(before);
+  await expect(page.getByTestId("mission-editor")).toHaveCount(0);
+  // Esc cancels without writing.
+  await page.locator("[data-testid=mission-section][data-heading='Operating Vision']").click();
+  await page.getByTestId("mission-editor").getByRole("textbox").press("Escape");
+  await expect(page.getByTestId("mission-editor")).toHaveCount(0);
+  expect(await writes(page)).toHaveLength(1);
+});
+
+test("40 · Mission versions: newest first with Latest on top; Restore saves a new latest", async ({ page }) => {
+  await mockTauri(page, missionFx);
+  await page.goto("/");
+  await openMission(page);
+  await page.getByTestId("tab-versions").click();
+  const rows = page.getByTestId("mission-versions").getByTestId("version-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.first().getByTestId("version-latest")).toHaveText("Latest");
+  await expect(rows.nth(1)).toContainText("Sep 26");
+  await expect(rows.nth(2)).toContainText("Sep 20");
+  await expect(rows.first()).toContainText(/Changed|words|Reworded/);
+  await rows.nth(1).click();
+  await expect(page.getByTestId("version-detail")).toContainText("Slow mornings.");
+  await page.getByTestId("version-restore").click();
+  await expect.poll(() => writes(page)).toHaveLength(1);
+  expect((await writes(page))[0]).toContain("Slow mornings.");
+  await expect(rows.first()).toHaveAttribute("aria-current", "true");
 });

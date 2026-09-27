@@ -21,6 +21,7 @@ export const FIXTURES: Record<string, unknown> = {
   email_policy_get: { policy: "draft-others" },
   egress_guard_get: { mode: "on" },
   life_readiness: { life_readiness: 62, domains: [{ name: "career", score: 70 }, { name: "health", score: 54 }] },
+  engine_score_all: { life_readiness: 62, computed_at: "2026-09-11", domains: [{ domain: "career", score: 70 }, { domain: "health", score: 54 }] },
   // scan_vault is THE domain loader (engine_domains was a wrong guess).
   scan_vault: [
     { name: "career", path: "/tmp/smoke-vault/career", has_state: true, state_preview: null },
@@ -55,7 +56,15 @@ export const FIXTURES: Record<string, unknown> = {
   engine_schedule_list: [],
   engine_schedule_thread_add: { id: "s_foo", name: "Send the foo report", cron: "0 8 * * *", enabled: true, last_run: null, thread: { domain: "general", session: "foo-thread" }, prompt: "Send the foo report" },
   engine_gws_approve: { ok: true, output: "done" },
-  // apps panel
+  // apps panel: the connectors mirrored from the AI runtimes
+  apps_mirror_list: {
+    generated_at: 1783000000,
+    runtimes: [{ runtime: "claude", installed: true, syncable: true, signin_hint: "", count: 2 }],
+    apps: [
+      { id: "claude:foo", name: "Foo", runtime: "claude", server: "foo", status: "connected", signin_hint: "", syncable: true, domains: ["career"] },
+      { id: "claude:bar", name: "Bar", runtime: "claude", server: "bar", status: "needs_auth", signin_hint: "Sign in to Bar in Claude", syncable: true, domains: [] },
+    ],
+  },
   harness_connections_scan: { connections: [{ harness: "claude", name: "PostHog", health: "healthy" }] },
   ingestion_connector_catalog: { apps: [] },
   ingestion_connector_logos: {},

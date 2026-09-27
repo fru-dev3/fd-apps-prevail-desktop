@@ -53,7 +53,8 @@ function GuardRow({ icon: Icon, title, desc, control, active }: { icon: LucideIc
   );
 }
 
-export function SafetySection({ vaultPath }: { vaultPath: string }) {
+// part: one sub-section on its own (the Privacy & Safety page gives each a row).
+export function SafetySection({ vaultPath, part }: { vaultPath: string; part?: "access" | "guardrails" }) {
   const [approvalMode, setApprovalMode] = useState(() => getPref(PREF.approvalMode, "manual"));
   const [approvalTimeout, setApprovalTimeout] = useState(() => getPref(PREF.approvalTimeoutSec, "60"));
   const [confirmMcp, setConfirmMcp] = useState(() => getPref(PREF.confirmMcpReloads, "1") === "1");
@@ -63,15 +64,16 @@ export function SafetySection({ vaultPath }: { vaultPath: string }) {
   const [checkpoints, setCheckpoints] = useState(() => getPref(PREF.fileCheckpoints, "0") === "1");
   return (
     <>
-      <SettingsHeader icon={ShieldCheck} title="Safety" subtitle="What the agent may do, and what gets stored." />
-      <SafetyGroup icon={Lock} label="Access protection" desc="Lock the app · encrypt the vault at rest">
+      <SettingsHeader icon={ShieldCheck} title={part === "access" ? "Access protection" : part === "guardrails" ? "Agent guardrails" : "Safety"}
+        subtitle={part === "access" ? "Lock the app and encrypt the vault at rest." : part === "guardrails" ? "What the agent may do without asking." : "What the agent may do, and what gets stored."} />
+      {part !== "guardrails" && <SafetyGroup icon={Lock} label="Access protection" desc="Lock the app · encrypt the vault at rest">
         {/* D3: two compact columns instead of two tall stacked blocks. */}
         <div className="grid grid-cols-1 gap-3">
           <AppLockCard />
           <VaultEncryptionCard vaultPath={vaultPath} />
         </div>
-      </SafetyGroup>
-      <SafetyGroup icon={ShieldAlert} label="Agent guardrails" desc="">
+      </SafetyGroup>}
+      {part !== "access" && <SafetyGroup icon={ShieldAlert} label="Agent guardrails" desc="">
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
           <GuardRow icon={ShieldAlert} active={approvalMode === "manual"} title="Approval mode" desc=""
             control={
@@ -94,7 +96,7 @@ export function SafetySection({ vaultPath }: { vaultPath: string }) {
           <GuardRow icon={FileClock} active={checkpoints} title="File checkpoints" desc="Edits can be rolled back."
             control={<Toggle on={checkpoints} onChange={(v) => { setCheckpoints(v); setPref(PREF.fileCheckpoints, v ? "1" : "0"); }} />} />
         </div>
-      </SafetyGroup>
+      </SafetyGroup>}
     </>
   );
 }
@@ -113,7 +115,7 @@ export function TelemetrySettings() {
       {/* Minimal: a one-line label (the page is already "Privacy"), two toggles,
           and the collapsed "what we collect" list. Anonymous, on by default, opt-out. */}
       <div className="mb-2 flex items-baseline justify-between">
-        <h3 className="font-display text-sm font-semibold tracking-tight text-text-primary">Telemetry</h3>
+        <h3 className="text-sm font-semibold text-text-primary">Telemetry</h3>
         <span className="font-mono text-[11px] text-text-muted">anonymous · on by default · one-tap opt-out</span>
       </div>
       <p className="mb-3 text-xs text-text-secondary">Never your prompts, your vault, or anything you named. Off the moment you say so, and Bunker Mode blocks it regardless.</p>
@@ -242,7 +244,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
       )}
       <AlignmentCard vaultPath={vaultPath} />
       <div className="mb-4 flex items-center justify-between gap-2">
-        <span className="font-mono text-[11px] text-text-muted">
+        <span className="text-[11px] text-text-muted">
           {editing
             ? "Editing markdown"
             : parsed.sections.length > 0
@@ -251,7 +253,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
         </span>
         <div className="flex items-center gap-2">
           {savedAt && !editing && (
-            <span className="font-mono text-[11px] text-ok">✓ saved</span>
+            <span className="text-[11px] text-ok">✓ saved</span>
           )}
           {loaded && (
             <button
@@ -274,7 +276,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
             className="w-full resize-y rounded-lg bg-transparent p-4 text-sm leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none"
           />
           <div className="flex items-center justify-between gap-2 border-t border-border-subtle px-4 py-2">
-            <span className="font-mono text-[11px] text-text-muted">
+            <span className="text-[11px] text-text-muted">
               {body.length.toLocaleString()} chars · sections start with ## headings
             </span>
             <button
@@ -289,7 +291,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
       ) : !loaded ? null : body.trim() === "" ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-surface px-6 py-10 text-center">
           <Compass className="h-8 w-8 text-accent" />
-          <div className="font-display text-base font-semibold">No Ideal State yet</div>
+          <div className="text-base font-semibold">No Ideal State yet</div>
           <p className="max-w-md text-sm text-text-secondary">
             Write the life you are building and the principles every decision should honor.
             Use ## headings (Values, Wealth, Health, Family) and the page renders them as a map.
@@ -308,10 +310,10 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
         <div>
           <div className="rounded-2xl border border-border bg-gradient-to-b from-accent-soft/40 to-surface px-6 py-7">
             {!headerless && (
-              <div className="font-mono text-[11px] font-bold text-accent">My constitution</div>
+              <div className="text-[11px] font-bold text-accent">My constitution</div>
             )}
             {parsed.title && (
-              <h2 className={`font-display font-extrabold leading-tight tracking-tight text-text-primary ${headerless ? "text-lg" : "mt-2 text-3xl"}`}>{parsed.title}</h2>
+              <h2 className={headerless ? "text-[19px] font-semibold text-text-primary" : "mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary"}>{parsed.title}</h2>
             )}
             {parsed.intro && (
               <div className="mt-3 text-[15px] leading-relaxed text-text-secondary">
@@ -329,7 +331,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
                     <div className="flex items-center gap-2.5">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-background">{idx + 1}</span>
                       <Icon className="h-4 w-4 shrink-0 text-accent" />
-                      <h3 className="font-display text-lg font-bold tracking-tight text-text-primary">{s.title}</h3>
+                      <h3 className="text-lg font-semibold text-text-primary">{s.title}</h3>
                     </div>
                     {s.body && (
                       <div className="mt-2 text-[15px] leading-relaxed text-text-secondary">
@@ -428,7 +430,8 @@ export function ObsidianCard() {
   );
 }
 
-export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof useAppearance> }) {
+// part: one sub-section on its own (the Settings page gives each a row).
+export function GeneralSection({ appearance, part }: { appearance?: ReturnType<typeof useAppearance>; part?: "main" | "appearance" }) {
   const [startOnBoot, setStartOnBoot] = useState(false);
   useEffect(() => { autostartIsEnabled().then(setStartOnBoot).catch(() => {}); }, []);
   const [closeToTray, setCloseToTray] = useState(() => getPref(PREF.closeToTray, "0") === "1");
@@ -495,16 +498,18 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
   // so they match every other collapsible in the app (icon + title left, summary
   // right, collapsed by default, open state persisted per section).
   const GenSub = ({ id, title, icon, summary, children }: { id: "main" | "appearance" | "shortcuts"; title: string; icon: LucideIcon; summary?: string; children: React.ReactNode }) => (
+    part ? (part === id ? <>{children}</> : null) : (
     <CollapsibleSection icon={icon} title={title} summary={summary} defaultOpen={id === "main"} storageKey={`prevail.settings.general.${id}`}>
       {children}
     </CollapsibleSection>
+    )
   );
 
   return (
     <>
       <SettingsHeader
-        title="General"
-        subtitle="App-wide behavior, appearance, and keyboard shortcuts."
+        title={part === "main" ? "Behavior" : part === "appearance" ? "Appearance" : "General"}
+        subtitle={part === "main" ? "How the app starts, sends, notifies and spends." : part === "appearance" ? "Color mode and theme." : "App-wide behavior, appearance, and keyboard shortcuts."}
       />
       <div className="space-y-2">
       <GenSub id="main" title="Main" icon={SlidersHorizontal} summary="behavior & defaults">
@@ -583,7 +588,7 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
                 onChange={(e) => { setPromptTimeout(e.target.value); setPref(PREF.llmPromptTimeoutSec, e.target.value); }}
                 className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none"
               />
-              <span className="font-mono text-xs text-text-muted">s</span>
+              <span className="text-xs text-text-muted">s</span>
             </div>
           }
         />
@@ -592,7 +597,7 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
           desc="A soft cap for model spend. Blank means none."
           control={
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-xs text-text-muted">$</span>
+              <span className="text-xs text-text-muted">$</span>
               <input
                 type="number"
                 min={0}
@@ -610,15 +615,15 @@ export function GeneralSection({ appearance }: { appearance?: ReturnType<typeof 
       {/* Budget meter */}
       <div className="mt-4 rounded-lg border border-border bg-surface px-5 py-4">
         <div className="mb-2 flex items-center justify-between">
-          <div className="font-mono text-[11px] font-bold text-text-primary">Budget this month</div>
-          <div className="font-mono text-xs text-text-secondary">
+          <div className="text-[11px] font-bold text-text-primary">Budget this month</div>
+          <div className="text-xs text-text-secondary">
             ${budgetSpent.toFixed(2)}{hasCap ? ` / $${capNum.toFixed(2)}` : " spent"}
           </div>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-surface-strong">
           <div className="h-full rounded-full transition-all" style={{ width: hasCap ? `${pct}%` : "0%", background: meterColor }} />
         </div>
-        <div className="mt-1.5 font-mono text-[10px] text-text-muted">
+        <div className="mt-1.5 text-[12px] text-text-muted">
           {hasCap ? `${pct}% of cap used${pct >= 90 ? " · approaching limit" : ""}` : "Set a cap above to track usage against it."}
         </div>
       </div>

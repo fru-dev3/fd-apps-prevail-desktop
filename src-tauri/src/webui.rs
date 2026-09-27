@@ -86,7 +86,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_waiting", "engine_acts_rules", "engine_schedule_list",
     // Context: ideals, omega, their version history, and the alignment read.
     "read_ideal_state", "read_domain_ideal", "read_omega",
-    "ideal_state_versions", "omega_versions", "engine_alignment",
+    "ideal_state_versions", "ideal_state_version_read", "omega_versions", "engine_alignment",
     // Intents + prompt capture (the self-learning ledger, read side).
     "intents_read_all", "intents_distilled_read", "capture_prompts_read", "capture_status",
     // Apps / connectors: the list, its logos, per-domain import counts, and the
@@ -116,6 +116,11 @@ const WEBUI_ALLOWED: &[&str] = &[
     // Entities: the list and one entity's card (read side; save, notes and
     // refresh write the vault or run a model, so they stay on the desktop).
     "entities_list", "entities_show",
+    // Entity chat: the conversations about one entity (read). Appending a
+    // reply to its notes writes the vault, so it stays on the desktop.
+    "engine_entity_threads",
+    // Goals: every domain's goals file (read). Writing one stays on the Mac.
+    "goals_files_read",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.
@@ -1496,6 +1501,7 @@ mod tests {
             "write_text_file", "write_file", "open_in_terminal", "app_uninstall",
             "bunker_set", "vault_lock_set", "engine_acts_approve", "engine_gws_approve",
             "engine_acts_deny", "engine_acts_rule_revoke",
+            "engine_entity_note_append", "entities_note", "entities_save", "goals_file_write",
             "engine_schedule_thread_add", "engine_schedule_set_enabled", "engine_schedule_remove",
             "engine_schedule_run",
             "engine_agent_run", "read_file", "read_text_file",

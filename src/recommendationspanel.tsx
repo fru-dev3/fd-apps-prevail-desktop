@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight, ArrowUpRight, BarChart3, Bookmark, Check, ChevronDown, ClipboardCopy, Compass, Flag, FolderKanban,
-  Gauge, LayoutList, Lightbulb, ListTodo, Loader2, Play, Plug, RotateCcw, RotateCw, ScrollText, Sparkles, Users, X,
+  EyeOff, Gauge, LayoutList, Lightbulb, ListTodo, Loader2, Play, Plug, RotateCcw, RotateCw, ScrollText, Sparkles, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
@@ -16,6 +16,8 @@ import { modelLabel } from "./helpers2";
 import { distillCfgFromPrefs } from "./daemoncfg";
 import { SideSpine, STICKY_HEAD } from "./sidespine";
 import { useIsPhone } from "./useisphone";
+import { PREF, setPref } from "./storage";
+import { toast } from "./toast";
 import {
   addTask, applyRec, copyInstruction, doItLabel, loadSet, openEvidence, recsFor, REC_DISMISSED, REC_SAVED,
   SPINE, setDomainModel, spineCounts, START_N, storeSet, visibleRecs, normalizeRec,
@@ -34,14 +36,17 @@ const SPINE_ICON: Record<SpineKey, LucideIcon> = {
 const CAT_LABEL: Record<RecCategory, string> = {
   rules: "Rules", projects: "Projects", apps: "Apps", people: "People and places", models: "Models", context: "Context",
 };
+// Dismissing a recommendation anywhere (this page or the Home Briefing) writes
+// the one shared set and announces it, so both agree.
+export const RECS_CHANGED = "prevail:recs-changed";
 const iconBtn = "inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 
-function IconAction({ label, icon: Icon, onClick, busy, done, tone, pressed }: {
-  label: string; icon: LucideIcon; onClick: () => void; busy?: boolean; done?: boolean; tone?: "danger"; pressed?: boolean;
+function IconAction({ label, icon: Icon, onClick, busy, done, tone, pressed, className = "", testId }: {
+  label: string; icon: LucideIcon; onClick: () => void; busy?: boolean; done?: boolean; tone?: "danger"; pressed?: boolean; className?: string; testId?: string;
 }) {
   return (
-    <button onClick={onClick} disabled={busy} title={label} aria-label={label} aria-pressed={pressed}
-      className={`${iconBtn} ${done || pressed ? "text-accent" : ""} ${tone === "danger" ? "hover:text-err" : ""}`}>
+    <button onClick={onClick} disabled={busy} title={label} aria-label={label} aria-pressed={pressed} data-testid={testId}
+      className={`${iconBtn} ${done || pressed ? "text-accent" : ""} ${tone === "danger" ? "hover:text-err" : ""} ${className}`}>
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : done ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" fill={pressed ? "currentColor" : "none"} />}
     </button>
   );
@@ -202,7 +207,13 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
     finally { setRunning(false); await load(); }
   }, [vaultPath, load]);
 
-  const persistDismissed = (s: Set<string>) => { setDismissed(new Set(s)); storeSet(REC_DISMISSED, s); window.dispatchEvent(new Event("prevail:recs-changed")); };
+  const persistDismissed = (s: Set<string>) => { setDismissed(new Set(s)); storeSet(REC_DISMISSED, s); window.dispatchEvent(new Event(RECS_CHANGED)); };
+  // A dismiss on the Home Briefing lands here too.
+  useEffect(() => {
+    const f = () => setDismissed(loadSet(REC_DISMISSED));
+    window.addEventListener(RECS_CHANGED, f);
+    return () => window.removeEventListener(RECS_CHANGED, f);
+  }, []);
   const toggle = (set: Set<string>, id: string) => { const s = new Set(set); if (s.has(id)) s.delete(id); else s.add(id); return s; };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -225,7 +236,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
     <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">{rs.map((r, i) => item(r, ranked ? i + 1 : undefined))}</ul>
   );
   const sectionHead = (label: string, n: number, Icon: LucideIcon) => (
-    <h2 className="mb-2.5 flex items-center gap-2 font-display text-xl font-semibold text-text-primary">
+    <h2 className="text-[19px] font-semibold text-text-primary mb-2.5 flex items-center gap-2">
       <Icon className="h-5 w-5 text-accent" />{label}<span className="text-[14px] font-normal tabular-nums text-text-muted">{n}</span>
     </h2>
   );
@@ -324,22 +335,30 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
 type BriefIntent = { title?: string; goal?: string };
 const BRIEF_ICON: Record<RecCategory, LucideIcon> = { rules: ScrollText, projects: FolderKanban, apps: Plug, people: Users, models: BarChart3, context: Gauge };
 export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
-  const [recs, setRecs] = useState<Rec[]>([]);
+  const [raw, setRaw] = useState<Rec[] | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => loadSet(REC_DISMISSED));
   const [intents, setIntents] = useState<BriefIntent[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [cleared, setCleared] = useState<Set<string>>(new Set());
+  const [hidden, setHidden] = useState(false);
   useEffect(() => {
     let alive = true;
     invoke<{ ok: boolean; recommendations?: Rec[] }>("engine_recommendations", { vault: vaultPath })
-      .then((r) => { if (alive) setRecs(Array.isArray(r?.recommendations) ? visibleRecs(r.recommendations, loadSet(REC_DISMISSED)) : []); })
-      .catch(() => { if (alive) setRecs([]); });
+      .then((r) => { if (alive) setRaw(Array.isArray(r?.recommendations) ? r.recommendations : []); })
+      .catch(() => { if (alive) setRaw([]); });
     invoke<{ intents?: BriefIntent[] }>("intents_distilled_read", { vault: vaultPath })
       .then((d) => { if (alive) setIntents(Array.isArray(d?.intents) ? d.intents : []); })
       .catch(() => { if (alive) setIntents([]); });
     return () => { alive = false; };
   }, [vaultPath]);
+  useEffect(() => {
+    const f = () => setDismissed(loadSet(REC_DISMISSED));
+    window.addEventListener(RECS_CHANGED, f);
+    return () => window.removeEventListener(RECS_CHANGED, f);
+  }, []);
 
+  const recs = useMemo(() => visibleRecs(raw ?? [], dismissed), [raw, dismissed]);
   const top = recs.filter((r) => !cleared.has(r.id)).slice(0, 3);
   const intentLine = intents.slice(0, 3).map((it) => it.title || it.goal || "").filter(Boolean).join(" · ");
   const openRecs = () => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "recommendations" }));
@@ -353,26 +372,45 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
     } catch { /* surfaced in the full panel */ }
     finally { setBusy(null); }
   }, [vaultPath]);
+  // Same dismissed set as the Recommendations page; the next one moves up.
+  const dismiss = (rec: Rec) => {
+    const next = new Set(loadSet(REC_DISMISSED)).add(rec.id);
+    storeSet(REC_DISMISSED, next);
+    setDismissed(next);
+    window.dispatchEvent(new Event(RECS_CHANGED));
+  };
+  // The Settings switch that shows the Briefing; it turns back on there.
+  const hide = () => {
+    setPref(PREF.showHomeBriefing, "0");
+    setHidden(true);
+    toast("Briefing hidden. Turn it back on in Settings.");
+  };
 
-  if (top.length === 0 && intentLine === "") return null;
+  const everyDismissed = top.length === 0 && (raw?.length ?? 0) > 0;
+  if (hidden || raw === null || (top.length === 0 && !everyDismissed && intentLine === "")) return null;
+  // Row actions sit quietly until hover; on touch there is no hover, so they show.
+  const quiet = "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100";
   return (
-    <div className="mt-8 w-full max-w-5xl">
-      <div className="mb-1.5 flex items-center justify-between">
+    <div className="mt-8 w-full max-w-5xl" data-testid="home-briefing">
+      <div className="group mb-1.5 flex items-center justify-between">
         <div className="flex items-center gap-2 text-[13px] font-bold text-text-primary">
           <Sparkles className="h-3.5 w-3.5 text-accent" /> Briefing
         </div>
+        <IconAction label="Hide briefing" icon={EyeOff} onClick={hide} className={quiet} testId="briefing-hide" />
       </div>
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-sm">
+        {everyDismissed && <p data-testid="briefing-empty" className="px-4 py-3 text-sm text-text-muted">Nothing new to suggest right now.</p>}
         {top.map((r, i) => {
           const Icon = BRIEF_ICON[r.category] ?? Compass;
           const tip = doItLabel(r);
           return (
-            <div key={r.id} className={`flex items-center gap-3 px-4 py-2.5 ${i > 0 ? "border-t border-border-subtle" : ""}`}>
+            <div key={r.id} data-testid="briefing-row" data-rec={r.id} className={`group flex items-center gap-3 px-4 py-2.5 ${i > 0 ? "border-t border-border-subtle" : ""}`}>
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon className="h-3.5 w-3.5" /></span>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-text-primary">{r.title}</div>
                 <div className="truncate text-xs text-text-secondary">{r.detail}</div>
               </div>
+              <IconAction label="Dismiss" icon={X} tone="danger" onClick={() => dismiss(r)} className={quiet} testId="briefing-dismiss" />
               {done[r.id] ? <Check className="h-4 w-4 shrink-0 text-ok" /> : (
                 <button onClick={() => void act(r)} disabled={busy === r.id} title={tip} aria-label={tip}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40">
@@ -383,7 +421,7 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
           );
         })}
         {intentLine !== "" && (
-          <button onClick={openIntents} className="flex w-full items-center gap-2 border-t border-border-subtle px-4 py-2.5 text-left transition-colors hover:bg-surface-warm">
+          <button onClick={openIntents} className={`flex w-full items-center gap-2 px-4 py-2.5 text-left transition-colors hover:bg-surface-warm ${top.length > 0 || everyDismissed ? "border-t border-border-subtle" : ""}`}>
             <Compass className="h-3.5 w-3.5 shrink-0 text-text-muted" />
             <span className="min-w-0 flex-1 truncate text-xs text-text-secondary"><span className="font-semibold text-text-primary">Recent intents:</span> {intentLine}</span>
             <span className="shrink-0 text-xs text-accent">See all</span>

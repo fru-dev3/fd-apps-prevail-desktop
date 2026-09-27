@@ -119,7 +119,7 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
       {!list && <div className="flex items-center gap-2 px-2 py-6 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your vault</div>}
       {list && groups.length === 0 && (
         <div className="px-2 py-8 text-center">
-          <p className="font-display text-lg font-semibold text-text-primary">{q || filter !== "all" ? "Nothing matches" : "No entities yet"}</p>
+          <p className="text-lg font-semibold text-text-primary">{q || filter !== "all" ? "Nothing matches" : "No entities yet"}</p>
           <p className="mt-1 text-[13px] text-text-muted">{q || filter !== "all" ? "Try another name or kind." : "They appear as you chat, and as Intent reads your prompts."}</p>
         </div>
       )}
@@ -128,7 +128,7 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
         const shown = all ? g.items : g.items.slice(0, PER_GROUP);
         return (
           <section key={g.kind} aria-label={g.label} className="mt-4">
-            <h2 className="mb-1 flex items-baseline gap-2 px-2.5 font-display text-[17px] font-semibold text-text-primary">
+            <h2 className="mb-1 flex items-baseline gap-2 px-2.5 text-[17px] font-semibold text-text-primary">
               {g.label}<span className="text-[13px] font-normal text-text-muted">{g.items.length}</span>
             </h2>
             <ul>{shown.map((e) => <Row key={e.id} e={e} on={e.id === selectedId} onPick={pick} />)}</ul>

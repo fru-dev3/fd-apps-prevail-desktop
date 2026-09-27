@@ -1,16 +1,17 @@
-// Decision Inbox (Workflows-Kanban P0) - one cross-domain list of the things that
-// need YOUR call: loop approvals queued in any domain, plus AI tasks that finished
-// and want sign-off. The labor is the AI's; the decision is yours. Reads
-// decisions_pending; actions reuse the existing loop execute / task plumbing.
+// Decision Inbox: one cross-domain list of the things that need YOUR call:
+// connector acts the gate held, queued Google writes, loop approvals queued in
+// any domain, and AI tasks that are blocked or want sign-off. The labor is the
+// AI's; the decision is yours. The Inbox page (inboxpage.tsx) shows it one
+// category at a time. Every approval mints a single-use token first.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Ban, Bot, Check, Inbox, Loader2, ListPlus, Play, RotateCcw, ShieldCheck, Clock, X } from "lucide-react";
+import { Ban, Bot, Check, Loader2, ListPlus, Play, RotateCcw, ShieldCheck, Clock, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase, relTime } from "./format";
 import { PREF, cheapModel, getPref } from "./storage";
 import { startProcess, endProcess } from "./processes";
 import type { DecisionItem } from "./types";
 import { approveAct, denyAct } from "./actcard";
-import { ACTS_CHANGED, announceActsChanged, type PendingAct } from "./waiting";
+import { ACTS_CHANGED, announceActsChanged, useWaitingState, type PendingAct } from "./waiting";
 
 const SNOOZE_KEY = "prevail:decisions:snoozed";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -18,7 +19,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // A queued Google Workspace WRITE action, awaiting your approval. Reads run
 // automatically inside chat; anything that writes (send an email, change or
 // delete something) is queued by the CLI to <vault>/_meta/pending_gws.json and
-// surfaced here under "Needs you". Shape matches the CLI contract.
+// surfaced here under Google. Shape matches the CLI contract.
 type GwsPending = { id: string; domain: string; summary: string; args?: string[]; ts?: number };
 // Action Gateway queue (PendingAct, from ./waiting): connector writes a
 // PreToolUse hook held. Approval mints a single-use grant; the CHAT retries
@@ -31,7 +32,24 @@ function writeSnoozed(m: Record<string, number>) {
   try { localStorage.setItem(SNOOZE_KEY, JSON.stringify(m)); } catch { /* ignore */ }
 }
 
-export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
+// The Inbox page's categories. Actions: held connector acts. Google: queued
+// Google Workspace writes. Automations: loop actions awaiting approval.
+// Tasks: tasks waiting on you (blocked, or finished and wanting sign-off).
+export type InboxCategory = "all" | "actions" | "google" | "automations" | "tasks";
+export type InboxCounts = Record<InboxCategory, number>;
+
+// One row of the Inbox column.
+export type InboxRow = { id: string; category: Exclude<InboxCategory, "all">; title: string; domain: string; ts?: number; sensitive?: boolean; snoozed?: boolean };
+
+// `selected` (the Inbox page): render only that item's card, full size, with
+// its actions. `onRows` hands the page the list for its column.
+export function DecisionInbox({ vaultPath, category = "all", onCounts, selected, onRows }: {
+  vaultPath: string;
+  category?: InboxCategory;
+  onCounts?: (c: InboxCounts) => void;
+  selected?: string | null;
+  onRows?: (rows: InboxRow[]) => void;
+}) {
   const [items, setItems] = useState<DecisionItem[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [report, setReport] = useState<{ text: string; report: string } | null>(null);
@@ -55,7 +73,10 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
       .then((a) => setActs(Array.isArray(a) ? a : []))
       .catch((e) => console.error("engine_acts_pending", e));
   }, [vaultPath]);
-  useEffect(() => { reload(); }, [reload]);
+  // Refresh with the shared waiting store (it polls, and answers every
+  // approve / deny / dismiss at once), so this list and every count agree.
+  const waitingVersion = useWaitingState(vaultPath).version;
+  useEffect(() => { reload(); }, [reload, waitingVersion]);
   useEffect(() => {
     const f = () => reload();
     window.addEventListener("prevail:tasks-changed", f);
@@ -75,6 +96,26 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
     for (const it of items) ((snoozed[it.id] ?? 0) > now ? s : a).push(it);
     return { active: a, sleeping: s };
   }, [items, snoozed, now]);
+
+  const want = (c: InboxCategory) => category === "all" || category === c;
+  const isTask = (it: DecisionItem) => it.source === "task";
+  const showItem = (it: DecisionItem) => want(isTask(it) ? "tasks" : "automations");
+  useEffect(() => {
+    if (!onCounts) return;
+    const tasks = items.filter(isTask).length;
+    const automations = items.length - tasks;
+    const google = gws.filter((g) => !gwsDismissed[g.id]).length;
+    onCounts({ all: acts.length + google + items.length, actions: acts.length, google, automations, tasks });
+  }, [items, gws, gwsDismissed, acts, onCounts]);
+  useEffect(() => {
+    if (!onRows) return;
+    const nowTs = Date.now();
+    onRows([
+      ...gws.filter((g) => !gwsDismissed[g.id]).map((g) => ({ id: g.id, category: "google" as const, title: g.summary, domain: g.domain, ts: g.ts })),
+      ...acts.map((a) => ({ id: a.id, category: "actions" as const, title: a.summary, domain: a.domain, ts: a.ts, sensitive: (a.categories?.length ?? 0) > 0 })),
+      ...items.map((it) => ({ id: it.id, category: (it.source === "task" ? "tasks" : "automations") as InboxRow["category"], title: it.text, domain: it.domain, ts: it.ts, snoozed: (readSnoozed()[it.id] ?? 0) > nowTs })),
+    ]);
+  }, [items, gws, gwsDismissed, acts, onRows]);
 
   const after = () => { reload(); window.dispatchEvent(new Event("prevail:tasks-changed")); };
 
@@ -361,41 +402,51 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
     );
   };
 
-  return (
-    <div className="w-full">
-      {/* Section header matches the board's column headers (compact mono caps). */}
-      <div className="mb-2 flex items-center gap-2 px-1 text-[11px] text-text-muted">
-        <Inbox className="h-3 w-3" /> Needs you
-        <span className="text-text-muted/50">· {active.length + gwsVisible.length + acts.length || "0"}</span>
-        {sleeping.length > 0 && (
-          <button onClick={() => setShowSnoozed((s) => !s)} className="ml-auto normal-case tracking-normal text-text-muted hover:text-text-secondary">
-            snoozed ({sleeping.length}) {showSnoozed ? "▾" : "▸"}
-          </button>
-        )}
-      </div>
+  const shownActs = want("actions") ? acts : [];
+  const shownGws = want("google") ? gwsVisible : [];
+  const shownActive = active.filter(showItem);
+  const shownSleeping = sleeping.filter(showItem);
+  const empty = shownActs.length + shownGws.length + shownActive.length === 0;
 
-      <div className="flex flex-col gap-2.5">
-        {active.length === 0 && gwsVisible.length === 0 && acts.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border-subtle px-4 py-10 text-center text-sm text-text-muted">
-            Nothing needs you right now. AI-owned tasks queue their approvals and sign-offs here.
+  if (selected !== undefined) {
+    const g = gwsVisible.find((x) => x.id === selected);
+    const a = acts.find((x) => x.id === selected);
+    const it = items.find((x) => x.id === selected);
+    return (
+      <div className="w-full" data-testid="decision-inbox">
+        {g ? gwsCard(g) : a ? actCard(a) : it ? card(it) : <p data-testid="inbox-empty" className="py-2 text-[15px] text-text-muted">{empty ? "Nothing is waiting on you." : "Pick an item on the left."}</p>}
+        {report && (
+          <div className="mt-5 rounded-xl border border-border bg-surface/60 px-3.5 py-3">
+            <div className="mb-1 text-[13px] font-medium text-text-secondary">Result: {report.text}</div>
+            <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-text-secondary">{report.report}</div>
           </div>
         )}
-        {gwsVisible.map(gwsCard)}
-        {acts.map(actCard)}
-        {active.map(card)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full" data-testid="decision-inbox">
+      <div className="flex flex-col gap-2.5">
+        {empty && <p data-testid="inbox-empty" className="py-6 text-[15px] text-text-muted">Nothing is waiting on you.</p>}
+        {shownGws.map(gwsCard)}
+        {shownActs.map(actCard)}
+        {shownActive.map(card)}
       </div>
 
-      {showSnoozed && sleeping.length > 0 && (
-        <div className="mt-5">
-          <div className="mb-2 px-1 text-[11px] text-text-muted">Snoozed</div>
-          <div className="flex flex-col gap-2.5 opacity-70">{sleeping.map(card)}</div>
-        </div>
+      {shownSleeping.length > 0 && (
+        <button onClick={() => setShowSnoozed((s) => !s)} className="mt-4 text-[13px] text-text-muted hover:text-text-secondary">
+          {showSnoozed ? "Hide" : "Show"} snoozed ({shownSleeping.length})
+        </button>
+      )}
+      {showSnoozed && shownSleeping.length > 0 && (
+        <div className="mt-3 flex flex-col gap-2.5 opacity-70">{shownSleeping.map(card)}</div>
       )}
 
       {report && (
         <div className="mt-5 rounded-xl border border-border bg-surface/60 px-3.5 py-3">
-          <div className="mb-1 text-[11px] text-text-muted">Result · {report.text}</div>
-          <div className="whitespace-pre-wrap text-[11px] leading-relaxed text-text-secondary">{report.report}</div>
+          <div className="mb-1 text-[13px] font-medium text-text-secondary">Result: {report.text}</div>
+          <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-text-secondary">{report.report}</div>
         </div>
       )}
     </div>

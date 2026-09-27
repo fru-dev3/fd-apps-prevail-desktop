@@ -250,7 +250,7 @@ export function PreambleColumn({
         <div className="mb-3 border-b border-border-subtle pb-3">
           <div className="flex items-center gap-2.5">
             <span className="text-lg text-accent">{glyph}</span>
-            <h3 className="font-display text-2xl font-bold tracking-tight">{title}</h3>
+            <h3 className="text-[19px] font-semibold text-text-primary">{title}</h3>
             <span className="font-mono text-xs text-text-muted">{options.length}</span>
             <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border border-accent-border bg-accent-soft px-2.5 py-0.5 text-[11px] text-accent">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />

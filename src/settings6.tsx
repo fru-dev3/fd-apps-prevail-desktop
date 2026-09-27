@@ -3,7 +3,7 @@
 // and the Agents catalog (AgentCard + AgentsSection).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlwaysAllowedCard } from "./actcard";
-import { AlertTriangle, ArrowUpRight, Brain, Check, ChevronRight, Circle, CircleCheck, CircleX, Cloud, CloudOff, Copy, Cpu, Crown, FileX, Fingerprint, FolderCheck, FolderX, Globe, LineChart, ListChecks, Loader2, Lock, LockOpen, Mail, MailCheck, RefreshCw, Scale, Search, Send, Server, ShieldCheck, ShieldOff, Sigma, Sparkles, Star, Target, Terminal, User, Wifi, WifiOff } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Brain, Check, ChevronRight, Circle, CircleCheck, CircleX, Cloud, CloudOff, Copy, Cpu, Crown, FileX, Fingerprint, FolderCheck, FolderX, Globe, LineChart, Loader2, Lock, LockOpen, Mail, MailCheck, Pencil, RefreshCw, Scale, Search, Send, Server, ShieldCheck, ShieldOff, Sigma, Sparkles, Star, Target, Terminal, User, Wifi, WifiOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
 import { DISCOVERED_MODELS, RUNTIME_META, VENDOR_BRAND, isHarnessRuntime } from "./constants";
@@ -29,7 +29,7 @@ import type { CliInfo, ModelVerifyStatus, UsageSummary } from "./types";
 function PrivacyGroupHead({ title, blurb }: { title: string; blurb: string }) {
   return (
     <div className="mb-3 flex flex-wrap items-baseline gap-x-3">
-      <h3 className="font-display text-lg font-semibold tracking-tight text-text-primary">{title}</h3>
+      <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
       <p className="text-sm text-text-muted">{blurb}</p>
     </div>
   );
@@ -199,7 +199,18 @@ function OutboundGuardrailToggle() {
   );
 }
 
-export function PrivacyConnectivitySection({ enabled, onChange, vaultPath }: { enabled: boolean; onChange: (on: boolean) => void; vaultPath?: string }) {
+export type PrivacyPart = "bunker" | "vault-lock" | "incognito" | "guardrail" | "always" | "telemetry";
+const PRIVACY_PART_TITLE: Record<PrivacyPart, [string, string]> = {
+  bunker: ["Bunker Mode", "Where your data can go."],
+  "vault-lock": ["Vault Lock", "What files the assistant can touch."],
+  incognito: ["Incognito", "How much of you the model sees."],
+  guardrail: ["Outbound Guardrail", "Whether anything can reach another party without you."],
+  always: ["Always allowed", "Tools that run without asking in one domain. Anything sensitive still waits for you."],
+  telemetry: ["Telemetry", "Anonymous, opt-in, off by default."],
+};
+// part: one control on its own (the Privacy & Safety page gives each a row).
+export function PrivacyConnectivitySection({ enabled, onChange, vaultPath, part }: { enabled: boolean; onChange: (on: boolean) => void; vaultPath?: string; part?: PrivacyPart }) {
+  const show = (p: PrivacyPart) => !part || part === p;
   type BunkerStatus = { enabled: boolean; network_blocked: boolean; web_blocked: boolean; cloud_blocked: boolean; local_available: boolean };
   const [status, setStatus] = useState<BunkerStatus | null>(null);
   const [confirmOff, setConfirmOff] = useState(false);
@@ -262,16 +273,16 @@ export function PrivacyConnectivitySection({ enabled, onChange, vaultPath }: { e
   return (
     <>
       <SettingsHeader
-        title="Privacy"
-        subtitle="Four independent controls. Any combination works."
+        title={part ? PRIVACY_PART_TITLE[part][0] : "Privacy"}
+        subtitle={part ? PRIVACY_PART_TITLE[part][1] : "Four independent controls. Any combination works."}
       />
 
       {/* ── SECTION 1 - BUNKER MODE: where your data can go ─────────────────── */}
-      <section>
-        <PrivacyGroupHead
+      {show("bunker") && <section>
+        {!part && <PrivacyGroupHead
           title="Bunker Mode"
           blurb="Where your data can go."
-        />
+        />}
 
         {/* Control card - SAME shape/weight as Vault Lock and Incognito so no one
             section dominates. The per-channel live status lives inside the card
@@ -301,7 +312,7 @@ export function PrivacyConnectivitySection({ enabled, onChange, vaultPath }: { e
             </a>
           )}
         </div>
-      </section>
+      </section>}
 
       {/* Leave-Bunker-Mode confirmation */}
       {confirmOff && (
@@ -344,46 +355,46 @@ export function PrivacyConnectivitySection({ enabled, onChange, vaultPath }: { e
       )}
 
       {/* ── SECTION 2 - VAULT LOCK: what files the assistant can touch ──────── */}
-      <section className="mt-6 border-t border-border-subtle pt-6">
-        <PrivacyGroupHead
+      {show("vault-lock") && <section className={part ? "" : "mt-6 border-t border-border-subtle pt-6"}>
+        {!part && <PrivacyGroupHead
           title="Vault Lock"
           blurb="What files the assistant can touch."
-        />
+        />}
         <VaultLockToggle />
-      </section>
+      </section>}
 
       {/* ── SECTION 3 - INCOGNITO: how much of you the model sees ───────────── */}
-      <section className="mt-6 border-t border-border-subtle pt-6">
-        <PrivacyGroupHead
+      {show("incognito") && <section className={part ? "" : "mt-6 border-t border-border-subtle pt-6"}>
+        {!part && <PrivacyGroupHead
           title="Incognito"
           blurb="How much of you the model sees."
-        />
+        />}
         <GlobalIncognitoToggle />
-      </section>
+      </section>}
 
       {/* ── SECTION 4 - OUTBOUND GUARDRAIL: nothing reaches another party ───── */}
-      <section className="mt-6 border-t border-border-subtle pt-6">
-        <PrivacyGroupHead
+      {show("guardrail") && <section className={part ? "" : "mt-6 border-t border-border-subtle pt-6"}>
+        {!part && <PrivacyGroupHead
           title="Outbound Guardrail"
           blurb="Whether anything can reach another party without you."
-        />
+        />}
         <OutboundGuardrailToggle />
-      </section>
+      </section>}
 
       {/* ── SECTION 5 - ALWAYS ALLOWED: the approvals you chose not to repeat ── */}
-      {vaultPath && (
-        <section className="mt-6 border-t border-border-subtle pt-6">
-          <PrivacyGroupHead
+      {vaultPath && show("always") && (
+        <section className={part ? "" : "mt-6 border-t border-border-subtle pt-6"}>
+          {!part && <PrivacyGroupHead
             title="Always allowed"
             blurb="Tools that run without asking in one domain. Anything sensitive still waits for you."
-          />
+          />}
           <AlwaysAllowedCard vaultPath={vaultPath} />
         </section>
       )}
 
       {/* Telemetry lives under Privacy (moved from Safety). Anonymous, opt-in,
           default-OFF. Brings its own border-t / heading. */}
-      <TelemetrySettings />
+      {show("telemetry") && <TelemetrySettings />}
     </>
   );
 }
@@ -421,7 +432,7 @@ function CouncilCircle({ members, chair, clis }: { members: string[]; chair: str
       <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 text-center">
         <Crown className="h-7 w-7 text-text-muted" />
         <div className="text-sm text-text-secondary">No one seated yet</div>
-        <div className="text-xs text-text-muted">Pick models below to assemble your council.</div>
+        <div className="text-xs text-text-muted">Pick a runtime on the left to seat its models.</div>
       </div>
     );
   }
@@ -439,7 +450,7 @@ function CouncilCircle({ members, chair, clis }: { members: string[]; chair: str
         {/* Center emblem: the panel size at a glance. */}
         <div className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-border bg-background">
           <span className="font-display text-base font-bold leading-none text-text-primary">{members.length}</span>
-          <span className="font-mono text-[11px] text-text-muted">Panel</span>
+          <span className="text-[11px] text-text-muted">Panel</span>
         </div>
         {ordered.map((key, i) => {
           const a = -Math.PI / 2 + i * ((2 * Math.PI) / n);
@@ -462,7 +473,7 @@ function CouncilCircle({ members, chair, clis }: { members: string[]; chair: str
                 )}
               </div>
               {/* B2-4: model name under the seat. */}
-              <div className="absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap text-center font-mono text-[10px] leading-tight text-text-secondary">
+              <div className="absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap text-center text-[11px] leading-tight text-text-secondary">
                 {modelShort(key)}
               </div>
             </div>
@@ -473,27 +484,9 @@ function CouncilCircle({ members, chair, clis }: { members: string[]; chair: str
   );
 }
 
-// Live aggregate stats over the same council member set the ring draws. Every
-// number recomputes (useMemo) as models are added or removed, so the panel reads
-// as a running portrait of the council you are assembling: how big it is, how it
-// splits open-source vs cloud, how many distinct vendors sit at the table, local
-// vs remote, and a rough "what would it cost to run all of these at once" gauge.
-//
-// Classification is intentionally string-based (lowercase cli + model + label):
-// each member is open-source if it matches an OSS token, cloud if it matches a
-// cloud token, otherwise unknown. Local == the open-source / on-device set.
+// Council summary inputs. A member counts as local (open-source, on-device)
+// when its cli, model or label matches one of these tokens.
 const COUNCIL_OSS_TOKENS = ["ollama", "llama", "mistral", "qwen", "deepseek", "gemma", "phi", "mixtral", "mlx", "lmstudio"];
-const COUNCIL_CLOUD_TOKENS = ["claude", "anthropic", "gpt", "openai", "codex", "gemini", "google", "grok", "xai", "kimi"];
-
-// Relative "burn" weight per member. Cloud flagships are the heaviest (~3),
-// mid-tier cloud ~2, anything local ~1. No real cost metadata is exposed in this
-// codebase, so this is a deliberately rough, clearly-labelled estimate.
-function councilMemberWeight(hay: string, isOss: boolean): number {
-  if (isOss) return 1;
-  const flagship = ["fable", "opus", "astra", "gpt-6", "gpt-5", "gpt5", "gemini-3.1-pro", "gemini-pro", "grok-4", "o3", "o1"];
-  if (flagship.some((t) => hay.includes(t))) return 3;
-  return 2; // mid cloud (sonnet, haiku, gpt-4o-mini, flash, etc.)
-}
 
 // Estimated dollar cost for ONE member to answer one council question. Local /
 // open-source models run on-device, so $0. Cloud models use a rough blended
@@ -514,119 +507,63 @@ function fmtUsd(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function CouncilStats({ members, clis }: { members: string[]; clis: CliInfo[] }) {
-  const stats = useMemo(() => {
-    const total = members.length;
-    // Build the lowercase haystack (cli + model + resolved label) per member.
+// The panel in one plain line: seats, providers, local seats and a rough cost
+// for one full run. The caveat lives in the hover title.
+function useCouncilSummary(members: string[], clis: CliInfo[]) {
+  return useMemo(() => {
     const classify = members.map((key) => {
       const [cli, model] = key.split("::");
       const c = clis.find((x) => x.id === cli);
       const m = councilModelsFor(cli).find((x) => x.id === model);
-      const label = `${c?.label ?? cli} ${m?.label ?? model ?? ""}`;
-      const hay = `${cli} ${model ?? ""} ${label}`.toLowerCase();
-      const isOss = COUNCIL_OSS_TOKENS.some((t) => hay.includes(t));
-      const isCloud = !isOss && COUNCIL_CLOUD_TOKENS.some((t) => hay.includes(t));
-      return { cli, hay, isOss, isCloud };
+      const hay = `${cli} ${model ?? ""} ${c?.label ?? cli} ${m?.label ?? ""}`.toLowerCase();
+      return { cli, hay, isOss: COUNCIL_OSS_TOKENS.some((t) => hay.includes(t)) };
     });
-    const oss = classify.filter((x) => x.isOss).length;
-    // Anything not matched as open-source is treated as cloud for the split so the
-    // two segments always sum to the panel size (unknown providers are remote).
-    const cloudish = total - oss;
-    const ossPct = total ? Math.round((oss / total) * 100) : 0;
-    const cloudPct = total ? 100 - ossPct : 0;
-    const vendors = Array.from(new Set(classify.map((x) => x.cli)));
-    const local = oss; // local == the open-source / on-device set
-    const remote = total - local;
-    const burn = classify.reduce((sum, x) => sum + councilMemberWeight(x.hay, x.isOss), 0);
-    const maxBurn = total * 3 || 1; // all-flagship-cloud ceiling
-    const burnPct = Math.round((burn / maxBurn) * 100);
-    const burnTier = burnPct >= 67 ? "$$$" : burnPct >= 34 ? "$$" : "$";
-    // Concrete dollar estimate: sum each cloud member's per-run cost (local = $0).
-    const costUsd = classify.reduce((sum, x) => sum + councilMemberCostUsd(x.hay, x.isOss), 0);
-    return { total, oss, cloud: cloudish, ossPct, cloudPct, vendors, local, remote, burn, burnPct, burnTier, costUsd };
+    const seats = members.length;
+    const providers = new Set(classify.map((x) => x.cli)).size;
+    const local = classify.filter((x) => x.isOss).length;
+    const cost = classify.reduce((sum, x) => sum + councilMemberCostUsd(x.hay, x.isOss), 0);
+    const line = `${seats} seat${seats === 1 ? "" : "s"} · ${providers} provider${providers === 1 ? "" : "s"} · ${local} local · about ${fmtUsd(cost)} a run`;
+    const caveat = `Rough estimate: about ${(COUNCIL_TURN_TOKENS / 1000).toFixed(0)}K tokens a seat at blended cloud rates; local models are free. Actual prices vary.`;
+    return { line, caveat };
   }, [members, clis]);
-
-  if (stats.total === 0) {
-    return (
-      <div className="flex h-full min-h-[180px] flex-col items-center justify-center p-4 text-center">
-        <ListChecks className="h-6 w-6 text-text-muted" />
-        <div className="mt-2 text-sm text-text-secondary">No stats yet</div>
-        <div className="text-xs text-text-muted">Seat some models to see the panel breakdown.</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <div className="font-mono text-[11px] font-bold text-text-primary">Panel stats</div>
-
-      {/* Number cards: panel size + providers. */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="rounded-lg border border-border-subtle bg-background p-3">
-          <div className="font-display text-2xl font-bold leading-none text-text-primary">{stats.total}</div>
-          <div className="mt-1 text-[11px] text-text-muted">Panel size</div>
-        </div>
-        <div className="rounded-lg border border-border-subtle bg-background p-3">
-          <div className="font-display text-2xl font-bold leading-none text-text-primary">{stats.vendors.length}</div>
-          <div className="mt-1 text-[11px] text-text-muted">Provider{stats.vendors.length === 1 ? "" : "s"}</div>
-        </div>
-      </div>
-
-      {/* Open-source vs cloud split + two-segment bar. */}
-      <div className="rounded-lg border border-border-subtle bg-background p-3">
-        <div className="flex items-center justify-between text-xs">
-          <span className="inline-flex items-center gap-1.5 text-text-secondary"><Cpu className="h-3.5 w-3.5 text-ok" /> {stats.ossPct}% open <span className="text-text-muted">({stats.oss})</span></span>
-          <span className="inline-flex items-center gap-1.5 text-text-secondary"><Cloud className="h-3.5 w-3.5 text-accent" /> {stats.cloudPct}% cloud <span className="text-text-muted">({stats.cloud})</span></span>
-        </div>
-        <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-surface-warm">
-          <div className="h-full bg-ok" style={{ width: `${stats.ossPct}%` }} />
-          <div className="h-full bg-accent" style={{ width: `${stats.cloudPct}%` }} />
-        </div>
-      </div>
-
-      {/* Local vs remote split (local = the open-source / on-device set). */}
-      <div className="rounded-lg border border-border-subtle bg-background p-3">
-        <div className="flex items-center justify-between text-xs">
-          <span className="inline-flex items-center gap-1.5 text-text-secondary"><Server className="h-3.5 w-3.5 text-text-muted" /> {stats.local} local</span>
-          <span className="inline-flex items-center gap-1.5 text-text-secondary"><Globe className="h-3.5 w-3.5 text-text-muted" /> {stats.remote} remote</span>
-        </div>
-        <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-surface-warm">
-          <div className="h-full bg-ok" style={{ width: `${stats.total ? (stats.local / stats.total) * 100 : 0}%` }} />
-          <div className="h-full bg-text-muted/60" style={{ width: `${stats.total ? (stats.remote / stats.total) * 100 : 0}%` }} />
-        </div>
-      </div>
-
-      {/* Estimated dollar cost for one full panel run (every seat answers once). */}
-      <div className="mt-auto rounded-lg border border-border-subtle bg-background p-3">
-        <div className="flex items-baseline justify-between">
-          <span className="font-mono text-[11px] text-text-muted">Est. cost / panel run</span>
-          <span className="font-display text-lg font-bold text-accent">{fmtUsd(stats.costUsd)} <span className="font-mono text-[11px] font-normal text-text-muted">{stats.burnTier}</span></span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-warm">
-          <div className="h-full bg-accent" style={{ width: `${stats.burnPct}%` }} />
-        </div>
-        <div className="mt-1.5 text-[10px] text-text-muted">
-          Rough estimate: ~{(COUNCIL_TURN_TOKENS / 1000).toFixed(0)}K tokens/seat at blended cloud rates; local models are free. Actual prices vary.
-        </div>
-      </div>
-    </div>
-  );
 }
 
+// Local, cloud and harness runtimes, grouped the same way on the Models page
+// and the Council page.
+const LOCAL_RUNTIME_IDS = new Set(["ollama", "omlx", "mlx", "lmstudio", "lm-studio", "localai", "llamacpp"]);
+function groupRuntimes(list: CliInfo[]): { key: string; label: string; list: CliInfo[] }[] {
+  const sortReady = (a: CliInfo, b: CliInfo) => Number(b.available) - Number(a.available) || a.label.localeCompare(b.label);
+  const AGGREGATOR_IDS = new Set(["openrouter", "bedrock"]);
+  const isLocal = (id: string) => LOCAL_RUNTIME_IDS.has(id.toLowerCase());
+  const cliRuntimes = list.filter((c) => !isHarnessRuntime(c.id) && !AGGREGATOR_IDS.has(c.id)).sort(sortReady);
+  return [
+    { key: "cloud", label: "Cloud models", list: cliRuntimes.filter((c) => !isLocal(c.id)) },
+    { key: "local", label: "Local models", list: cliRuntimes.filter((c) => isLocal(c.id)) },
+    { key: "harness", label: "Harnesses", list: list.filter((c) => isHarnessRuntime(c.id)).sort(sortReady) },
+  ].filter((g) => g.list.length > 0);
+}
+
+const councilIconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface-warm";
+
+// Council: the same master-detail as Models. The column holds the Panel
+// overview and the runtimes (grouped like Models); the detail is the seat
+// diagram and settings, or one runtime's models with tiny on-panel and chair
+// actions. The panel and chair save to the same keys as before, on change.
 export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
   const available = useMemo(() => clis.filter((c) => c.available && (!isBunkerOn() || isLocalCli(c.id))), [clis]);
   const [members, setMembers] = useState<Set<string>>(() => new Set(readCouncilMembers()));
   const [chair, setChair] = useState<string>(() => readCouncilChair());
-  // Each provider expands/collapses INDEPENDENTLY - a Set of open provider ids,
-  // not a single value (opening one never closes another).
-  const [expandedSet, setExpandedSet] = useState<Set<string>>(() => new Set());
+  // "" is the Panel overview; otherwise a runtime id.
+  const [sel, setSel] = useState("");
+  const [picked, setPicked] = useState(false);
+  const phone = useIsPhone();
+  const select = (id: string) => { setSel(id); setPicked(true); };
   // Per-provider catalog search (aggregators like OpenRouter expose hundreds of
-  // models — search, don't scroll a fixed list).
+  // models: search, don't scroll a fixed list).
   const [panelSearch, setPanelSearch] = useState<Record<string, string>>({});
+  const [choosingChair, setChoosingChair] = useState(false);
   // Global auto-council: a high-stakes judgment call asked through any AI tool
   // (over MCP) or the Prevail chat auto-escalates to a multi-model council.
-  // Mirrors the engine config the MCP server reads. Lives here (not in
-  // Integrations) because it governs the council. (feedback: moved here.)
   const [autoCouncil, setAutoCouncil] = useState(false);
   const [autoCouncilBusy, setAutoCouncilBusy] = useState(false);
   useEffect(() => {
@@ -640,10 +577,8 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
     finally { setAutoCouncilBusy(false); }
   }
   // Once providers are detected: prune any stale slot keys that no longer map to
-  // a real (available provider, model) - that's what made the count drift from
-  // the visible badges - then seed a sensible default if the panel is empty.
-  // Discovered (live-catalog) models count as valid too, so a model added via
-  // search (e.g. an OpenRouter GLM) isn't pruned away on the next mount.
+  // a real (available provider, model), then seed a sensible default if the
+  // panel is empty. Discovered (live-catalog) models count as valid too.
   useEffect(() => {
     if (available.length === 0) return;
     const valid = new Set<string>();
@@ -654,10 +589,8 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
     setMembers((prev) => {
       const pruned = new Set([...prev].filter((k) => valid.has(k)));
       if (pruned.size > 0) return pruned.size === prev.size ? prev : pruned;
-      // Empty after pruning → seed the first model of the first three providers.
       return new Set(available.slice(0, 3).map((c) => councilSlotKey(c.id, councilModelsFor(c.id)[0].id)));
     });
-    setExpandedSet((e) => (e.size ? e : new Set([available[0].id])));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [available]);
   useEffect(() => { lsSet(COUNCIL_MEMBERS_KEY, JSON.stringify([...members])); window.dispatchEvent(new Event("prevail:council-changed")); }, [members]);
@@ -674,153 +607,169 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
   }, [members]);
 
   const toggle = (key: string) => setMembers((m) => { const n = new Set(m); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-  // Resolve a readable chair label from its slot key.
-  const chairLabel = (() => {
-    if (!chair) return "-";
-    const [cli, model] = chair.split("::");
+  // The chair always sits on the panel, so making one also seats it.
+  const makeChair = (key: string) => { setMembers((m) => (m.has(key) ? m : new Set(m).add(key))); setChair(key); };
+  const labelFor = (key: string) => {
+    const [cli, model] = key.split("::");
     const c = clis.find((x) => x.id === cli);
-    const m = councilModelsFor(cli).find((x) => x.id === model);
-    return `${c?.label ?? cli} · ${m?.label ?? (model || "default")}`;
-  })();
+    const m = councilModelsFor(cli).find((x) => x.id === model) ?? (DISCOVERED_MODELS[cli] ?? []).find((x) => x.id === model);
+    return `${c?.label ?? cli} · ${m?.label ?? (prettyModelId(model || "") || "default")}`;
+  };
+  const memberList = [...members];
+  const summary = useCouncilSummary(memberList, clis);
+  const onPanel = (id: string) => memberList.filter((k) => k.startsWith(`${id}::`)).length;
+  const groups = groupRuntimes(available);
+  const verify = useCliVerifyLive();
+  const runtime = available.find((c) => c.id === sel) ?? null;
+
+  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft shadow-sm ring-1 ring-accent-border" : "border-l-transparent ring-1 ring-transparent hover:bg-surface-warm"}`;
+  const listEl = (
+    <div className="space-y-3">
+      <button data-testid="council-row-panel" aria-current={sel === "" ? "true" : undefined} onClick={() => select("")} className={rowCls(sel === "" && (!phone || picked))}>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent"><Scale className="h-4 w-4" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-text-primary">Panel</span>
+          <span className="block truncate text-[12px] text-text-muted">{members.size} seat{members.size === 1 ? "" : "s"}</span>
+        </span>
+      </button>
+      {available.length === 0 && (
+        <p className="px-2.5 text-[13px] text-text-muted">
+          {clis.length === 0 ? "Checking the runtimes on this Mac." : `No runtime is ready to join a panel${isBunkerOn() ? " in Bunker Mode, which allows local models only" : ""}.`}
+        </p>
+      )}
+      {groups.map((g) => (
+        <div key={g.key} className="space-y-1">
+          <div className="px-2.5 pb-1 pt-2 text-[15px] font-semibold text-text-primary">
+            {g.label} <span className="text-[13px] font-normal text-text-muted">{g.list.length}</span>
+          </div>
+          {g.list.map((c) => {
+            const n = onPanel(c.id);
+            return (
+              <button key={c.id} data-testid={`council-row-${c.id}`} aria-current={sel === c.id ? "true" : undefined} onClick={() => select(c.id)} className={rowCls(sel === c.id)}>
+                <ProviderMark vendor={c.id} size={28} />
+                <span className="min-w-0 flex-1">
+                  <span className={`block truncate text-sm font-semibold ${sel === c.id ? "text-accent" : "text-text-primary"}`}>{c.label}</span>
+                  {n > 0 && <span className="block truncate text-[12px] text-accent">{n} on panel</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+
+  const overview = (
+    <div data-testid="council-overview" className="space-y-5">
+      <div className="flex justify-center rounded-xl border border-border-subtle bg-surface p-4">
+        <CouncilCircle members={memberList} chair={chair} clis={clis} />
+      </div>
+      <p data-testid="council-summary" title={summary.caveat} className="text-[15px] text-text-secondary">{summary.line}</p>
+      <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+        <div data-testid="council-chair" className="flex items-center gap-3 px-4 py-3">
+          <Crown className="h-4 w-4 shrink-0 text-accent" />
+          <span className="text-sm text-text-muted">Chair</span>
+          {choosingChair && members.size > 0 ? (
+            <select autoFocus value={chair} aria-label="Chair" onChange={(e) => { setChair(e.target.value); setChoosingChair(false); }} onBlur={() => setChoosingChair(false)}
+              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm text-text-primary focus:border-accent-border focus:outline-none">
+              {memberList.map((k) => <option key={k} value={k}>{labelFor(k)}</option>)}
+            </select>
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{chair ? labelFor(chair) : "No chair yet"}</span>
+          )}
+          {!choosingChair && members.size > 1 && (
+            <button onClick={() => setChoosingChair(true)} title="Change the chair" aria-label="Change the chair" className={`${councilIconBtn} text-text-muted hover:text-accent`}>
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Scale className={`h-4 w-4 shrink-0 ${autoCouncil ? "text-accent" : "text-text-muted"}`} />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-text-primary">Auto-convene on high-stakes questions</div>
+            <div className="mt-0.5 text-xs text-text-secondary">Judgment calls go to this council automatically and the verdict is saved. Routine questions stay single-model.</div>
+          </div>
+          <Toggle on={autoCouncil} disabled={autoCouncilBusy} onChange={toggleAutoCouncil} label="Auto-convene the council on high-stakes questions" />
+        </div>
+      </div>
+      <p className="text-[13px] text-text-muted">The Council tab in any domain starts with this panel.</p>
+    </div>
+  );
+
+  const runtimeDetail = (c: CliInfo) => {
+    const curated = councilModelsFor(c.id);
+    const live = DISCOVERED_MODELS[c.id] ?? [];
+    const isAggregator = live.length > 0;
+    const q = (panelSearch[c.id] ?? "").trim().toLowerCase();
+    const onPanelIds = memberList.filter((k) => k.startsWith(`${c.id}::`)).map((k) => k.slice(c.id.length + 2));
+    let models: { id: string; label: string; blurb?: string }[];
+    if (isAggregator && q) {
+      models = live.filter((m) => `${m.id} ${m.label ?? ""}`.toLowerCase().includes(q)).slice(0, 40)
+        .map((m) => ({ id: m.id, label: m.label && m.label !== m.id ? m.label : m.id, blurb: "" }));
+    } else if (isAggregator) {
+      const curatedIds = new Set(curated.map((m) => m.id));
+      const extras = onPanelIds.filter((id) => !curatedIds.has(id)).map((id) => ({ id, label: live.find((x) => x.id === id)?.label ?? id, blurb: "" }));
+      models = [...curated, ...extras];
+    } else {
+      models = curated;
+    }
+    const v = verify.get(c.id)?.status;
+    const status: { tone: ChipTone; label: string } = v === "ok" ? { tone: "ok", label: "Ready" } : v === "failed" ? { tone: "warn", label: "Not working" } : { tone: "muted", label: "Detected" };
+    return (
+      <div data-testid="council-runtime" className="space-y-4">
+        <div className="flex items-center gap-3">
+          <ProviderMark vendor={c.id} size={36} />
+          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary min-w-0 truncate">{c.label}</h2>
+          <StatusChip tone={status.tone} label={status.label} spin={v === "verifying"} />
+          {onPanelIds.length > 0 && <span className="ml-auto text-[13px] text-accent">{onPanelIds.length} on panel</span>}
+        </div>
+        {isAggregator && (
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+            <input value={panelSearch[c.id] ?? ""} onChange={(e) => setPanelSearch((s) => ({ ...s, [c.id]: e.target.value }))}
+              placeholder={`Search all ${live.length} models`}
+              className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none" />
+          </div>
+        )}
+        {models.length === 0 && <p className="text-[14px] text-text-muted">No models match.</p>}
+        <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+          {models.map((m) => {
+            const key = councilSlotKey(c.id, m.id);
+            const on = members.has(key);
+            const isChair = chair === key;
+            return (
+              <div key={key} data-council-model={m.id} data-on={on ? "1" : "0"} className={`flex items-center gap-3 border-l-2 px-3 py-2.5 ${on ? "border-l-accent bg-accent-soft/60" : "border-l-transparent"}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`truncate text-sm font-medium ${on ? "text-accent" : "text-text-primary"}`}>{m.label}</span>
+                    {isChair && <span data-testid="council-chair-mark" className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-accent"><Crown className="h-3 w-3" /> Chair</span>}
+                  </div>
+                  {m.blurb && <div className="mt-0.5 truncate text-[12px] text-text-muted">{m.blurb}</div>}
+                </div>
+                <button onClick={() => toggle(key)} aria-pressed={on} title={on ? "Remove from the panel" : "Add to the panel"} aria-label={on ? `Remove ${m.label} from the panel` : `Add ${m.label} to the panel`}
+                  className={`${councilIconBtn} ${on ? "text-accent" : "text-text-muted hover:text-accent"}`}>
+                  {on ? <CircleCheck className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                </button>
+                <button onClick={() => makeChair(key)} disabled={isChair} aria-pressed={isChair} title={isChair ? "Chairs the council" : "Make chair"} aria-label={isChair ? `${m.label} is the chair` : `Make ${m.label} the chair`}
+                  className={`${councilIconBtn} ${isChair ? "text-accent" : "text-text-muted hover:text-accent"}`}>
+                  <Crown className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
-      <SettingsHeader title="Council" subtitle="Several models answer, a chair writes the verdict." />
-      {/* G3 (Monday feedback): make it explicit that the panel saves as you edit. */}
-      <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-warm px-2.5 py-0.5 text-[11px] text-text-muted">
-        <Check className="h-3 w-3 text-ok" /> Changes save automatically
-      </div>
-      {/* One seamless panel: the round table on the left (prominent, centered),
-          a divider, then the live aggregate stats on the right. Stacks on narrow
-          widths (divider becomes a top border on the stats half). */}
-      <div className="mb-5 overflow-hidden rounded-xl border border-border bg-surface">
-        <div className="flex flex-col lg:flex-row lg:items-stretch">
-          <div className="flex items-center justify-center p-4 lg:w-[42%] lg:shrink-0">
-            <CouncilCircle members={[...members]} chair={chair} clis={clis} />
-          </div>
-          <div className="min-w-0 flex-1 border-t border-border-subtle lg:border-l lg:border-t-0">
-            <CouncilStats members={[...members]} clis={clis} />
-          </div>
-        </div>
-      </div>
-      {/* Compact summary bar - what the panel is right now. */}
-      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-accent-border bg-accent-soft px-4 py-3 text-sm">
-        <span className="font-semibold text-text-primary">{members.size} model{members.size === 1 ? "" : "s"} on the panel</span>
-        <span className="inline-flex items-center gap-1 text-text-secondary"><Crown className="h-3.5 w-3.5 text-accent" /> chair: <span className="font-medium text-text-primary">{chairLabel}</span></span>
-      </div>
-      {/* Global auto-council: when a question is high-stakes, convene the panel
-          automatically instead of answering single-model. Applies to every
-          domain and every entry point (the Prevail chat and any AI tool over
-          MCP). Moved here from Integrations - it's a council behavior. */}
-      <div className="mb-5 flex items-center gap-3 rounded-lg border border-border-subtle bg-surface-warm/40 px-4 py-3">
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${autoCouncil ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}><Scale className="h-4 w-4" /></span>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-text-primary">Auto-convene on high-stakes questions</div>
-          <div className="mt-0.5 text-xs text-text-secondary">Judgment calls go to this council automatically and the verdict is saved. Routine questions stay single-model.</div>
-        </div>
-        <Toggle on={autoCouncil} disabled={autoCouncilBusy} onChange={toggleAutoCouncil} label="Auto-convene the council on high-stakes questions" />
-      </div>
-      <div className="space-y-2">
-        {/* "None" and "not asked yet" are different answers. Detection had not
-            returned yet in the common case, and the page said there were no
-            providers directly under a panel naming six models - two states of
-            the same screen contradicting each other. */}
-        {available.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border bg-surface p-4 text-sm text-text-muted">
-            {clis.length === 0
-              ? "Checking the runtimes on this Mac…"
-              : `No runtime is ready to join a panel${isBunkerOn() ? " in Bunker Mode, which allows local models only" : ""}.`}
-          </div>
-        )}
-        {available.map((c) => {
-          const curated = councilModelsFor(c.id);
-          const live = DISCOVERED_MODELS[c.id] ?? [];
-          // Aggregators (OpenRouter) ship a big live catalog — make every model
-          // reachable via search, not just the curated handful.
-          const isAggregator = live.length > 0;
-          const q = (panelSearch[c.id] ?? "").trim().toLowerCase();
-          // Slot keys already on the panel for this provider (so search-added
-          // models still render as checked, even if not in the curated list).
-          const onPanelIds = [...members].filter((k) => k.startsWith(`${c.id}::`)).map((k) => k.slice(c.id.length + 2));
-          const picked = onPanelIds.length;
-          let models: { id: string; label: string; blurb?: string }[];
-          if (isAggregator && q) {
-            models = live.filter((m) => `${m.id} ${m.label ?? ""}`.toLowerCase().includes(q)).slice(0, 40)
-              .map((m) => ({ id: m.id, label: m.label && m.label !== m.id ? m.label : m.id, blurb: "" }));
-          } else if (isAggregator) {
-            const curatedIds = new Set(curated.map((m) => m.id));
-            const extras = onPanelIds.filter((id) => !curatedIds.has(id)).map((id) => {
-              const lm = live.find((x) => x.id === id);
-              return { id, label: lm?.label ?? id, blurb: "" };
-            });
-            models = [...curated, ...extras];
-          } else {
-            models = curated;
-          }
-          const isExp = expandedSet.has(c.id);
-          return (
-            <div key={c.id} className={`overflow-hidden rounded-lg border bg-surface transition-colors ${isExp || picked > 0 ? "border-accent-border" : "border-border-subtle"}`}>
-              <button onClick={() => setExpandedSet((e) => { const n = new Set(e); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; })} className="flex w-full items-center gap-3 px-4 py-3 text-left">
-                <ChevronRight className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${isExp ? "rotate-90" : ""}`} strokeWidth={2.5} />
-                <ProviderMark vendor={c.id} size={26} />
-                <span className="flex-1 font-display text-sm font-semibold text-text-primary">{c.label}</span>
-                {picked > 0 && <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[11px] text-background">{picked} on panel</span>}
-                <span className="shrink-0 text-[11px] text-text-muted">{isAggregator ? `${live.length} models, search` : `${models.length} model${models.length === 1 ? "" : "s"}`}</span>
-              </button>
-              {isExp && (
-                <div className="space-y-1.5 border-t border-border-subtle bg-background/40 p-3">
-                  {isAggregator && (
-                    <div className="relative mb-1">
-                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
-                      <input
-                        value={panelSearch[c.id] ?? ""}
-                        onChange={(e) => setPanelSearch((s) => ({ ...s, [c.id]: e.target.value }))}
-                        placeholder={`Search all ${live.length} models (e.g. glm, kimi, qwen)…`}
-                        className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-2 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
-                      />
-                    </div>
-                  )}
-                  {models.length === 0 && (
-                    <div className="px-1 py-2 font-mono text-[11px] text-text-muted">No models match "{panelSearch[c.id]}".</div>
-                  )}
-                  {models.map((m) => {
-                    const key = councilSlotKey(c.id, m.id);
-                    const on = members.has(key);
-                    const isChair = chair === key;
-                    return (
-                      <div key={key} className={`flex items-center gap-3 rounded-md border px-3 py-2 ${on ? "border-accent-border bg-accent-soft" : "border-border-subtle bg-surface"}`}>
-                        <button onClick={() => toggle(key)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                          <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${on ? "border-accent bg-accent text-background" : "border-border bg-background"}`}>
-                            {on && <Check className="h-3 w-3" strokeWidth={3} />}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="font-mono text-sm text-text-primary">{m.label}</span>
-                            {m.blurb && <span className="ml-2 text-[11px] text-text-muted">{m.blurb}</span>}
-                          </span>
-                        </button>
-                        {on && (
-                          <button
-                            onClick={() => setChair(key)}
-                            title={isChair ? "Chairs the council (writes the verdict)" : "Make this model the chair"}
-                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] ${
-                              isChair ? "bg-accent text-background" : "border border-border text-text-muted hover:border-accent-border hover:text-accent"
-                            }`}
-                          >
-                            <Crown className="h-3 w-3" /> {isChair ? "Chair" : "Chair"}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <p className="mt-4 text-xs leading-relaxed text-text-muted">
-        The <span className="text-accent">Council</span> tab in any domain starts with this panel.
-      </p>
+      <SettingsHeader title="Council" icon={Scale} subtitle="Several models answer, a chair writes the verdict." />
+      <SideSpine storageKey="prevail.council.spine" title="Council" label="runtimes" testId="council-list"
+        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Panel and runtimes"
+        detail={<div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{runtime ? runtimeDetail(runtime) : overview}</div>}>
+        <div className="p-2">{listEl}</div>
+      </SideSpine>
     </>
   );
 }
@@ -1079,7 +1028,7 @@ export function AgentCard({
             {!forceOpen && cli.available && models.length > 0 && (
               <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} />
             )}
-            <span className="truncate font-display text-lg font-semibold tracking-tight text-text-primary">{cli.label}</span>
+            <span className="truncate text-lg font-semibold text-text-primary">{cli.label}</span>
             {isDefault && <span className="shrink-0 rounded-full bg-accent px-2 py-px text-[10px] font-semibold text-background">Default</span>}
             <StatusChip tone={health.tone} label={health.label} spin={health.spin} title={health.title} />
           </span>
@@ -1362,20 +1311,8 @@ export function AgentsSection({
   // Motorcar). Within each, installed runtimes sort first; not-installed show a
   // "Set up" link. All groups open by default so every supported runtime is
   // visible to set up.
-  const sortReady = (a: CliInfo, b: CliInfo) => Number(b.available) - Number(a.available) || a.label.localeCompare(b.label);
-  // Aggregators (OpenRouter, Bedrock) are HTTP gateways, not spawnable CLIs -
-  // they have their own "Aggregator runtimes" section with key + catalog, so
-  // they must NOT also appear in the CLI runtimes list (and can't be "spawned").
-  const AGGREGATOR_IDS = new Set(["openrouter", "bedrock"]);
-  const cliRuntimes = clis.filter((c) => !isHarnessRuntime(c.id) && !AGGREGATOR_IDS.has(c.id)).sort(sortReady);
-  const harnesses = clis.filter((c) => isHarnessRuntime(c.id)).sort(sortReady);
-  // Split the vendor CLIs into on-device (local) vs hosted (cloud) so the user
-  // can configure local-only models in one place. Match local runtimes by id,
-  // case-insensitively, covering the common naming variants.
-  const LOCAL_RUNTIME_IDS = new Set(["ollama", "omlx", "mlx", "lmstudio", "lm-studio", "localai", "llamacpp"]);
-  const isLocalRuntime = (id: string) => LOCAL_RUNTIME_IDS.has(id.toLowerCase());
-  const localClis = cliRuntimes.filter((c) => isLocalRuntime(c.id));
-  const cloudClis = cliRuntimes.filter((c) => !isLocalRuntime(c.id));
+  // Aggregators (OpenRouter, Bedrock) are HTTP gateways with their own
+  // section, so groupRuntimes leaves them out.
   // Per-runtime spend (cumulative), from the local usage ledger. Shown in the
   // detail; "-" when nothing has been spent / no vault.
   const [costByCli, setCostByCli] = useState<Record<string, number>>({});
@@ -1395,11 +1332,7 @@ export function AgentsSection({
 
   // Master-detail: pick a runtime on the left, see its full detail (an
   // always-open AgentCard) on the right - the canonical app layout.
-  const groups = [
-    { key: "cloud", label: "Cloud models", list: cloudClis },
-    { key: "local", label: "Local models", list: localClis },
-    { key: "harness", label: "Harnesses", list: harnesses },
-  ].filter((g) => g.list.length > 0);
+  const groups = groupRuntimes(clis);
   const all = groups.flatMap((g) => g.list);
   const verify = useCliVerifyLive();
   const [selectedId, setSelectedId] = useState("");

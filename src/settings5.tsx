@@ -20,6 +20,7 @@ import { useCliVerifyLive } from "./verify";
 import { BrandMark } from "./brandmark";
 import type { CliInfo, DiagCheck, TgBridgeStatus } from "./types";
 import type { UnlistenFn } from "./bridge";
+import { isUserDomain } from "./helpers";
 
 export const COMING_SOON_GATEWAYS: { name: string; icon?: { path: string; hex: string }; mono?: typeof Mail }[] = [
   // Telegram, Webhook, Matrix, Mattermost, Signal, Discord, Slack, Email are all
@@ -42,7 +43,7 @@ export function GatewayLogsCard({ vaultPath }: { vaultPath: string }) {
     <div className="mt-6 rounded-xl border border-border bg-surface">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-left">
         <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} />
-        <span className="font-display text-sm font-semibold tracking-tight">Gateway logs</span>
+        <span className="text-sm font-semibold">Gateway logs</span>
         <span className="rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-secondary">{lines.length}</span>
         <span className="ml-auto text-[11px] text-text-muted">Kept on disk</span>
       </button>
@@ -223,7 +224,7 @@ export function TelegramCard() {
         vault = lsGet(LS.vault) || null;
         if (vault) {
           const ds = await invoke<{ name: string }[]>("scan_vault", { path: vault });
-          routes = ds.map((d) => ({
+          routes = ds.filter((d) => isUserDomain(d.name)).map((d) => ({
             domain: d.name,
             keywords: (lsGet(`prevail.domain.${d.name}.routing.keywords`) || "")
               .split(",").map((s) => s.trim()).filter(Boolean),
@@ -443,7 +444,7 @@ export function WebhookCard() {
         vault = lsGet(LS.vault) || null;
         if (vault) {
           const ds = await invoke<{ name: string }[]>("scan_vault", { path: vault });
-          routes = ds.map((d) => ({
+          routes = ds.filter((d) => isUserDomain(d.name)).map((d) => ({
             domain: d.name,
             keywords: (lsGet(`prevail.domain.${d.name}.routing.keywords`) || "").split(",").map((s) => s.trim()).filter(Boolean),
           }));
@@ -559,7 +560,7 @@ export function NativeBridgeCard({ platform, label, icon, mono, urlLabel, urlPla
         vault = lsGet(LS.vault) || null;
         if (vault) {
           const ds = await invoke<{ name: string }[]>("scan_vault", { path: vault });
-          routes = ds.map((d) => ({ domain: d.name, keywords: (lsGet(`prevail.domain.${d.name}.routing.keywords`) || "").split(",").map((s) => s.trim()).filter(Boolean) }));
+          routes = ds.filter((d) => isUserDomain(d.name)).map((d) => ({ domain: d.name, keywords: (lsGet(`prevail.domain.${d.name}.routing.keywords`) || "").split(",").map((s) => s.trim()).filter(Boolean) }));
         }
       } catch { /* routing best-effort */ }
       await invoke("native_bridge_start", {

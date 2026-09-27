@@ -3,8 +3,8 @@
 //
 // Home mode (everything that is not the Editor) reads top to bottom:
 //   profile header (switcher + settings button), search (opens the command
-//   palette), Home / Inbox / the Home surfaces, WORK (board, projects, tasks,
-//   goals), DOMAINS (Pinned / All / Archived).
+//   palette), Home / Inbox / the Home surfaces, WORK (projects, tasks, goals),
+//   APPS (the connectors you use), DOMAINS (Pinned / All / Archived).
 // Editor mode keeps the same header and swaps the list for the configuration
 // nav, with a way back to Home at the top.
 import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -15,7 +15,10 @@ import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
 import { SidebarGatewayLive, SidebarMcpLive } from "./panels";
 import { ProfileSwitcher } from "./profileswitcher";
-import { EDITOR_NAV, WORK_NAV } from "./navdefs";
+import { EDITOR_NAV, WORK_NAV, navSection, workSection } from "./navdefs";
+import { AppLogo, MIRROR_SELECT_KEY } from "./appsmirror-parts";
+import { RUNTIME_LABEL, RUNTIME_MARK, type MirrorApp, type MirrorList } from "./appsmirror-model";
+import { ProviderMark } from "./marks";
 import { domainIcon } from "./icons";
 import { SidebarBackupActive, SidebarBenchmarkRuns, SidebarBenchScheduled, SidebarProcesses } from "./cards";
 import { useProcesses } from "./processes";
@@ -23,6 +26,7 @@ import { BENCH_SCHED, useBenchBatches } from "./bench";
 import { BACKUP_CFG } from "./backup";
 import type { Domain, TabId } from "./types";
 import { useWaiting, waitingByDomain } from "./waiting";
+import { isUserDomain } from "./helpers";
 
 // Active row: a light accent tint, accent text, and a short accent bar on the
 // left edge. Every selectable row in the sidebar uses it.
@@ -31,18 +35,20 @@ const IDLE_ROW = "text-text-secondary hover:bg-surface-warm hover:text-text-prim
 const SECTION_LABEL = "text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted";
 const cap99 = (n: number) => (n > 99 ? "99+" : String(n));
 
-function CountPill({ n, active }: { n: number; active: boolean }) {
+function CountPill({ n, active, loud = false }: { n: number; active: boolean; loud?: boolean }) {
   if (n <= 0) return null;
   return (
-    <span className={`ml-auto shrink-0 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-[18px] ${active ? "bg-accent text-on-accent" : "bg-surface-warm text-text-muted"}`}>
+    <span className={`ml-auto shrink-0 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-[18px] ${active || loud ? "bg-accent text-on-accent" : "bg-surface-warm text-text-muted"}`}>
       {cap99(n)}
     </span>
   );
 }
 
 // One nav row. Collapsed, it is an icon button with the label as its tooltip.
-function NavRow({ icon: Icon, label, active, count = 0, collapsed, onClick, testId }: {
-  icon: typeof House; label: string; active: boolean; count?: number; collapsed: boolean; onClick: () => void; testId?: string;
+// `loud`: the count is something to act on (the Inbox), so it is always in
+// the accent colour rather than muted.
+function NavRow({ icon: Icon, label, active, count = 0, loud = false, collapsed, onClick, testId }: {
+  icon: typeof House; label: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; testId?: string;
 }) {
   return (
     <button
@@ -56,7 +62,7 @@ function NavRow({ icon: Icon, label, active, count = 0, collapsed, onClick, test
     >
       <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
       {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
-      {!collapsed && <CountPill n={count} active={active} />}
+      {!collapsed && <CountPill n={count} active={active} loud={loud} />}
       {collapsed && count > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
     </button>
   );
@@ -108,7 +114,6 @@ export function Sidebar({
   railWidth,
   onOpenOnboarding,
   onDomainsChanged,
-  inboxCount,
 }: {
   collapsed: boolean;
   setCollapsed: (v: boolean | ((cur: boolean) => boolean)) => void;
@@ -127,8 +132,6 @@ export function Sidebar({
   railWidth: number;
   onOpenOnboarding: () => void;
   onDomainsChanged: () => void;
-  // Actions waiting on your approval (the board's "Needs you" view).
-  inboxCount: number;
 }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -159,7 +162,7 @@ export function Sidebar({
   // Real domains only: internal / app-scope pseudo-domains ("_meta",
   // "_app-...") never show here. Pinned first.
   const sortedDomains = useMemo(() => {
-    const filtered = domains.filter((d) => !d.name.startsWith("_"));
+    const filtered = domains.filter((d) => isUserDomain(d.name));
     return [...filtered.filter((d) => pinned.has(d.name)), ...filtered.filter((d) => !pinned.has(d.name))];
   }, [domains, pinned]);
   const pinnedCount = sortedDomains.filter((d) => pinned.has(d.name)).length;
@@ -184,7 +187,7 @@ export function Sidebar({
 
   // Which Editor / Work section is active, kept in sync with the events the
   // content panels listen to.
-  const [editorActive, setEditorActive] = useState("general");
+  const [editorActive, setEditorActive] = useState("settings");
   // Editor nav groups fold away and the choice is remembered. A group holding
   // the active section always opens, so where you are stays visible.
   const NAV_GROUPS_LS = "prevail.editorNav.closed";
@@ -198,18 +201,19 @@ export function Sidebar({
     try { localStorage.setItem(NAV_GROUPS_LS, JSON.stringify([...next])); } catch { /* ignore */ }
     return next;
   });
-  const [workActive, setWorkActive] = useState("tasks");
+  const [workActive, setWorkActive] = useState("task-list");
   useEffect(() => {
-    const onEd = (e: Event) => { const d = (e as CustomEvent<string>).detail || "general"; setEditorActive(d.split(":")[0]); };
-    const onWk = (e: Event) => { const d = (e as CustomEvent<string>).detail || "tasks"; setWorkActive(d); };
+    const onEd = (e: Event) => { const d = (e as CustomEvent<string>).detail || "settings"; setEditorActive(navSection(d.split(":")[0])); };
+    const onWk = (e: Event) => { const d = workSection((e as CustomEvent<string>).detail || ""); if (d) setWorkActive(d); };
     window.addEventListener("prevail:settings-section", onEd as EventListener);
     // Deep links elsewhere in the app dispatch open-settings, which App routes
     // to the right mode; the highlight follows.
     const onOpen = (e: Event) => {
       const d = ((e as CustomEvent<string>).detail || "").split(":")[0];
       if (!d) return;
-      if (d === "inbox" || WORK_NAV.some((g) => g.items.some((i) => i.id === d)) || d === "loopboard") setWorkActive(d === "loopboard" ? "automations" : d);
-      else setEditorActive(d);
+      const w = workSection(d);
+      if (w) setWorkActive(w);
+      else setEditorActive(navSection(d));
     };
     window.addEventListener("prevail:open-settings", onOpen as EventListener);
     window.addEventListener("prevail:work-section", onWk as EventListener);
@@ -226,7 +230,7 @@ export function Sidebar({
   const goHome = () => { setSelectedDomain(""); setTab("chat"); };
   const newTask = () => {
     try { localStorage.setItem("prevail.board.openAdd", "1"); } catch { /* storage off */ }
-    selectWork("tasks");
+    selectWork("task-list");
     window.dispatchEvent(new Event("prevail:board-add"));
   };
 
@@ -249,6 +253,56 @@ export function Sidebar({
     return () => { alive = false; window.clearInterval(id); window.removeEventListener("prevail:tasks-changed", pull); };
   }, [vaultPath]);
   const workCounts: Record<string, number> = { "task-list": openTasks, projects: projectCount };
+  // Apps: the connectors from your AI runtimes, read from the same list the
+  // Apps page shows. A click opens that page with the app picked.
+  const [apps, setApps] = useState<MirrorApp[]>([]);
+  const [appsOpen, setAppsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsOpen") !== "0");
+  useEffect(() => { lsSet("prevail.sidebar.appsOpen", appsOpen ? "1" : "0"); }, [appsOpen]);
+  const [activeApp, setActiveApp] = useState<string | null>(null);
+  useEffect(() => {
+    if (!vaultPath) return;
+    let alive = true;
+    invoke<MirrorList>("apps_mirror_list", { vault: vaultPath })
+      .then((r) => { if (alive) setApps(Array.isArray(r?.apps) ? r.apps : []); })
+      .catch(() => { if (alive) setApps([]); });
+    return () => { alive = false; };
+  }, [vaultPath]);
+  useEffect(() => {
+    const onPick = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (typeof id === "string") setActiveApp(id); };
+    window.addEventListener("prevail:mirror-select", onPick);
+    return () => window.removeEventListener("prevail:mirror-select", onPick);
+  }, []);
+  const openApp = (id: string) => {
+    try { sessionStorage.setItem(MIRROR_SELECT_KEY, id); } catch { /* storage off */ }
+    selectWork("apps");
+    window.dispatchEvent(new CustomEvent("prevail:mirror-select", { detail: id }));
+  };
+  const appRow = (a: MirrorApp) => {
+    const active = tab === "work" && workActive === "apps" && activeApp === a.id;
+    const signin = a.status === "needs_auth";
+    return (
+      <li key={a.id}>
+        <button
+          onClick={() => openApp(a.id)}
+          title={`${a.name}, via ${RUNTIME_LABEL[a.runtime] ?? a.runtime}${signin ? ": needs sign-in" : ""}`}
+          aria-current={active ? "page" : undefined}
+          data-testid={`sidebar-app-${a.id}`}
+          className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${collapsed ? "h-10 justify-center" : "h-9 gap-3 pl-3 pr-3"} ${active ? ACTIVE_ROW : IDLE_ROW}`}
+        >
+          {/* A tiny mark of the runtime the connection comes through (Claude,
+              Codex, Gemini, Antigravity), pinned to the logo corner. */}
+          <span className="relative inline-flex shrink-0">
+            <AppLogo name={a.name} url={a.url} size={collapsed ? 22 : 18} />
+            <span data-testid={`app-runtime-${a.id}`} className="absolute -bottom-1 -right-1 rounded-[3px] ring-2 ring-surface-strong" aria-hidden>
+              <ProviderMark vendor={RUNTIME_MARK[a.runtime] ?? a.runtime} size={collapsed ? 10 : 9} />
+            </span>
+          </span>
+          {!collapsed && <span className="min-w-0 flex-1 truncate">{a.name}</span>}
+          {signin && <span data-testid="app-signin-dot" className={`h-2 w-2 shrink-0 rounded-full bg-warn ${collapsed ? "absolute right-1.5 top-1.5" : ""}`} aria-label="Needs sign-in" />}
+        </button>
+      </li>
+    );
+  };
   // What is waiting on you, counted per domain for the domain rows.
   const waiting = useWaiting(vaultPath);
   const waitingPerDomain = useMemo(() => waitingByDomain(waiting.items), [waiting]);
@@ -512,10 +566,12 @@ export function Sidebar({
             <Divider />
             {EDITOR_NAV.map((group) => {
               const holdsActive = group.items.some((i) => i.id === editorActive);
-              const open = collapsed || holdsActive || !closedNavGroups.has(group.heading);
+              // A group that is one page is just its row: no heading to fold.
+              const single = group.items.length === 1;
+              const open = collapsed || single || holdsActive || !closedNavGroups.has(group.heading);
               return (
                 <div key={group.heading} className="mb-1.5">
-                  {!collapsed && (
+                  {!collapsed && !single && (
                     <button
                       onClick={() => toggleNavGroup(group.heading)}
                       aria-expanded={open}
@@ -541,7 +597,7 @@ export function Sidebar({
           <>
             <nav aria-label="Home" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
               <NavRow icon={House} label="Home" active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
-              <NavRow icon={Inbox} label="Inbox" count={inboxCount} active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} testId="nav-inbox" />
+              <NavRow icon={Inbox} label="Inbox" count={waiting.total} loud active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} testId="nav-inbox" />
               {WORK_NAV[0].items.map((it) => (
                 <NavRow key={it.id} icon={it.icon} label={it.label} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} />
               ))}
@@ -555,6 +611,18 @@ export function Sidebar({
                   <NavRow key={it.id} icon={it.icon} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} />
                 ))}
               </nav>
+            )}
+
+            {apps.length > 0 && (
+              <>
+                <Divider />
+                {!collapsed && <SectionHeader label="Apps" count={apps.length} open={appsOpen} onToggle={() => setAppsOpen((v) => !v)} />}
+                {(collapsed || appsOpen) && (
+                  <ul aria-label="Apps" data-testid="sidebar-apps" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+                    {apps.map(appRow)}
+                  </ul>
+                )}
+              </>
             )}
 
             <Divider />

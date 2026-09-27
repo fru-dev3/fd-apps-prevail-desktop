@@ -1,16 +1,15 @@
-// Tools - Prevail's governed capability layer (the Hermes "toolsets" idea, wrapped
+// Tools: Prevail's governed capability layer (the Hermes "toolsets" idea, wrapped
 // in Prevail's trust model). Tools are the VERBS the agent acts through, distinct
 // from Apps (your services) and Skills (your recipes). This surface makes the
 // construct legible AND actionable: what each capability is, whether it is
 // available now, how it is governed, and a jump straight to where you control it.
 // Reads a few live settings so the governance state is honest.
 import { useMemo, useState, useEffect } from "react";
-import { Hammer, Search, Plus, ArrowUpRight } from "lucide-react";
 import { isBunkerOn } from "./storage";
-import { SettingsHeader } from "./sectionutil";
 
-type State = "on" | "governed" | "soon";
-interface Tool {
+export type ToolState = "on" | "governed" | "soon";
+type State = ToolState;
+export interface Tool {
   name: string;
   glyph: string;
   desc: string;
@@ -20,17 +19,18 @@ interface Tool {
   manage?: { label: string; section: string };
 }
 
-const STATE_LABEL: Record<State, string> = { on: "available", governed: "governed", soon: "coming" };
+export const TOOL_STATE_LABEL: Record<State, string> = { on: "available", governed: "governed", soon: "coming" };
 
 // Jump to the settings surface that actually governs a tool. We render inside the
 // Editor's section router, so a settings-section event switches the page in place.
-function goTo(section: string) {
+export function goTo(section: string) {
   window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: section }));
 }
 
-export function ToolsPanel() {
+// The tool list with its live governance state (Bunker Mode turns some off).
+// The Toolkit page lists these under Tools.
+export function useToolList(): Tool[] {
   const [bunker, setBunker] = useState(false);
-  const [q, setQ] = useState("");
   useEffect(() => {
     const sync = () => setBunker(isBunkerOn());
     sync();
@@ -45,14 +45,14 @@ export function ToolsPanel() {
       desc: "Call your connected apps' tools (Gmail, AllTrails, QuickBooks) over MCP. Pass-through connectors you authorized in Claude Code, Codex, or Gemini ride here too.",
       governance: "Per-app connection plus the autonomy brake. Consequential writes queue for your approval.",
       state: "on",
-      manage: { label: "Manage in Apps", section: "connectors" },
+      manage: { label: "Manage in Apps", section: "apps" },
     },
     {
       name: "Browser", glyph: "◍",
       desc: "Drive a real browser: open a site, log in once, learn the steps, and replay them fast later. For apps with no API or MCP.",
       governance: bunker ? "Off in Bunker Mode (no network leaves this device)." : "Per-connector setup; runs in a dedicated profile scoped to the site.",
       state: bunker ? "soon" : "on",
-      manage: { label: "Set up in Apps", section: "connectors" },
+      manage: { label: "Set up in Apps", section: "apps" },
     },
     {
       name: "Memory", glyph: "◇",
@@ -95,85 +95,5 @@ export function ToolsPanel() {
     },
   ], [bunker, web]);
 
-  const dot = (s: State) => (s === "on" ? "var(--ok, #66a67e)" : s === "governed" ? "var(--accent, #e0913f)" : "var(--text-muted, #8f8579)");
-
-  const query = q.trim().toLowerCase();
-  const shown = useMemo(
-    () => tools.filter((t) => !query || [t.name, t.desc, t.governance].some((s) => s.toLowerCase().includes(query))),
-    [tools, query],
-  );
-  const liveCount = tools.filter((t) => t.state !== "soon").length;
-
-  return (
-    <div className="w-full">
-      <SettingsHeader
-        icon={Hammer}
-        title="Tools"
-        subtitle="What your AI can act through."
-      />
-
-      {/* Toolbar: search + add. Full width, matching the other Editor pages. */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search tools..."
-            className="w-full rounded-lg border border-border bg-background py-1.5 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
-          />
-        </div>
-        <span className="text-[11px] text-text-muted">{liveCount} active</span>
-        <button
-          onClick={() => goTo("mcp")}
-          title="Add a capability by connecting an MCP server or an app"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-background transition-colors hover:bg-accent-hover"
-        >
-          <Plus className="h-4 w-4" /> Add tool
-        </button>
-      </div>
-
-      {shown.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
-          No tools match "{q}".
-        </div>
-      ) : (
-        /* Uniform rows in one frame, not eight cards each carrying a paragraph,
-           a second paragraph about governance, and its own button. A row says
-           what the tool is in one line and whether it is on; the whole row is
-           the link to where you govern it, so the button disappears. How it is
-           governed is on hover, where it is read when it is wanted. */
-        <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border bg-surface">
-          {shown.map((t) => {
-            const go = t.manage ? () => goTo(t.manage!.section) : undefined;
-            return (
-              <div
-                key={t.name}
-                role={go ? "button" : undefined}
-                tabIndex={go ? 0 : undefined}
-                onClick={go}
-                onKeyDown={go ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } } : undefined}
-                title={t.governance}
-                className={`group flex items-center gap-3 px-4 py-3 text-left ${go ? "cursor-pointer transition-colors hover:bg-surface-warm" : ""}`}
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-warm font-mono text-[15px] text-text-secondary">{t.glyph}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-text-primary">{t.name}</span>
-                    {t.state !== "on" && (
-                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-px text-[11px] text-text-muted">
-                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: dot(t.state) }} /> {STATE_LABEL[t.state]}
-                      </span>
-                    )}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[13px] text-text-muted">{t.desc}</span>
-                </span>
-                {go && <ArrowUpRight className="h-4 w-4 shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  return tools;
 }

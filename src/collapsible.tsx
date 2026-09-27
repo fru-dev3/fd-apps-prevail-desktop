@@ -69,7 +69,7 @@ export function CollapsibleSection({
           </span>
         )}
         <span className="flex min-w-0 flex-col">
-          <span className={`truncate text-text-primary ${large ? "font-display text-xl font-bold tracking-tight" : "text-sm font-semibold"}`}>{title}</span>
+          <span className={`truncate text-text-primary ${large ? "text-[19px] font-semibold" : "text-sm font-semibold"}`}>{title}</span>
           {subtitle && <span className={`truncate text-text-muted ${large ? "text-[13px]" : "text-xs"}`}>{subtitle}</span>}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-2">

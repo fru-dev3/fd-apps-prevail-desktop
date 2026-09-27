@@ -8,6 +8,7 @@ import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
 import type { Domain } from "./types";
+import { isUserDomain } from "./helpers";
 
 interface Hook {
   id: string;
@@ -48,7 +49,7 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
     }
   }, [vaultPath]);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { invoke<Domain[]>("scan_vault", { path: vaultPath }).then((d) => setDomains((d ?? []).filter((x) => !x.name.startsWith("_")))).catch(() => {}); }, [vaultPath]);
+  useEffect(() => { invoke<Domain[]>("scan_vault", { path: vaultPath }).then((d) => setDomains((d ?? []).filter((x) => isUserDomain(x.name)))).catch(() => {}); }, [vaultPath]);
 
   const persist = useCallback(async (next: Hook[]) => {
     setHooks(next);
@@ -103,7 +104,7 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
       {draft && (
         <div className="mb-4 rounded-lg border border-border bg-surface-warm p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-display text-base font-semibold text-text-primary">{hooks.some((h) => h.id === draft.id) ? "Edit hook" : "New hook"}</h3>
+            <h3 className="text-base font-semibold text-text-primary">{hooks.some((h) => h.id === draft.id) ? "Edit hook" : "New hook"}</h3>
             <button onClick={() => { setDraft(null); setErr(null); }} className="rounded p-1 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid grid-cols-1 gap-3">

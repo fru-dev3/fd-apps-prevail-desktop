@@ -110,8 +110,10 @@ export function pickSkillColor(name: string): { bg: string; fg: string } {
 // Where a page's header goes. Inside the Settings and Work panes this is a
 // fixed row above the scrolling content (an element to portal into), so the
 // header never scrolls away; "bare" means the caller already wrapped the
-// header in its own fixed row (PageHeaderBar); null means render in place.
-export const HeaderSlot = createContext<HTMLElement | "bare" | null>(null);
+// header in its own fixed row (PageHeaderBar); "detail" means the section is
+// the detail pane of a larger page (SettingsHub), so its header becomes the
+// pane's heading; null means render in place.
+export const HeaderSlot = createContext<HTMLElement | "bare" | "detail" | null>(null);
 
 // The fixed header row every page uses, laid out like Intent's: full width,
 // a rule under it, outside the scroll area.
@@ -152,6 +154,15 @@ export function SettingsHeader({ title, subtitle, icon, right }: { title: string
   const Icon = icon ?? settingsHeaderIcon(title);
   const phone = useIsPhone();
   const slot = useContext(HeaderSlot);
+  if (slot === "detail") {
+    return (
+      <div data-settings-header className="mb-5 flex flex-wrap items-start gap-x-5 gap-y-1.5">
+        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary min-w-0">{title}</h2>
+        {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
+        {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
+      </div>
+    );
+  }
   // On a phone the shell already puts this page's name in the header bar with
   // the back button, so rendering the big title again printed it twice, one
   // under the other. Keep the one line that adds something.

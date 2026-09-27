@@ -8,6 +8,7 @@ import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { ArrowLeftRight, Check, FolderOpen, Layers, Lock, Pencil, Pin, Plus, Sparkles, Star, Trash2, UserRound, X } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
 import { SettingsHeader } from "./sectionutil";
+import { isUserDomain } from "./helpers";
 import {
   getActiveId, getDefaultId, hashPasscode, imageFileToDataUrl, loadProfiles, newProfileId, PROFILE_COLORS,
   removeProfile, setActiveId, setDefaultId, upsertProfile, verifyPasscode, type Profile,
@@ -59,7 +60,7 @@ export function ProfilesSection() {
       for (const p of profiles) {
         try {
           const ds = await invoke<{ name: string }[]>("scan_vault", { path: p.vaultPath });
-          if (Array.isArray(ds)) next[p.id] = ds.length;
+          if (Array.isArray(ds)) next[p.id] = ds.filter((d) => isUserDomain(d.name)).length;
         } catch { /* vault not scannable yet — leave its count unset */ }
       }
       if (!cancelled) setCounts(next);
@@ -188,7 +189,7 @@ export function ProfilesSection() {
       {draft && (
         <div className="mb-4 rounded-lg border border-border bg-surface-warm p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-display text-base font-semibold text-text-primary">{loadProfiles().some((p) => p.id === draft.id) ? "Edit profile" : "New profile"}</h3>
+            <h3 className="text-base font-semibold text-text-primary">{loadProfiles().some((p) => p.id === draft.id) ? "Edit profile" : "New profile"}</h3>
             <button onClick={() => { setDraft(null); setErr(null); }} className="rounded p-1 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid grid-cols-1 gap-3">

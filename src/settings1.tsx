@@ -1,15 +1,11 @@
-// Self-contained Settings sections extracted from App.tsx: Shortcuts, Frameworks
-// & Lenses, Remote/WebUI, and Ingestion. Each renders shared panel components and
+// Self-contained Settings sections extracted from App.tsx: Shortcuts,
+// Remote/WebUI, and Ingestion. Each renders shared panel components and
 // the SettingsHeader; none close over App root state.
 import { Fragment, useEffect, useState } from "react";
-import { Aperture, ArrowRight, Diamond, Globe, MessageSquare } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
-import { FRAMEWORKS, LENSES } from "./constants";
 import { PREF, getPref, setPref } from "./storage";
 import { Toggle } from "./ui";
 import { SettingsRowLite } from "./panels";
-import { PreambleColumn } from "./panels2";
-import { useFrameworkLens } from "./hooks";
 import { SettingsHeader } from "./sectionutil";
 import { DesktopOnly } from "./emptystate";
 
@@ -87,61 +83,6 @@ export function ShortcutsSection() {
   );
 }
 
-export function FrameworksSection() {
-  const fwLens = useFrameworkLens();
-  const activeFramework = FRAMEWORKS.find((f) => f.id === fwLens.framework);
-  const activeLens = LENSES.find((l) => l.id === fwLens.lens);
-  return (
-    <>
-      <SettingsHeader
-        title="Frameworks & Lenses"
-        subtitle="How answers are shaped before you get them."
-      />
-
-      {/* No collapse: everything on one page. A compact "how it works" strip, then
-          Frameworks + Lenses side by side (two columns). */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border-subtle bg-background px-3 py-2 text-[11px] text-text-secondary">
-        <MessageSquare className="h-4 w-4 shrink-0 text-text-muted" />
-        <span>Your question</span>
-        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="text-accent">◆ Framework + ◇ Lens</span>
-        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span>sharper answer.</span>
-        <span className="ml-auto text-[11px] text-text-muted">structure × perspective</span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="mb-2 flex items-baseline gap-2">
-            <Diamond className="h-4 w-4 shrink-0 text-accent" />
-            <h3 className="text-sm font-semibold text-text-primary">Frameworks</h3>
-            <span className="ml-auto text-[11px] text-text-muted">{activeFramework?.label ?? "Off"}</span>
-          </div>
-          <div className="mb-2 text-[11px] text-text-muted">Structure: how the answer is shaped.</div>
-          <PreambleColumn headerless glyph="◆" title="Frameworks" options={FRAMEWORKS}
-            active={activeFramework} selectedId={fwLens.framework} onSelect={fwLens.setFramework} />
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="mb-2 flex items-baseline gap-2">
-            <Aperture className="h-4 w-4 shrink-0 text-accent" />
-            <h3 className="text-sm font-semibold text-text-primary">Lenses</h3>
-            <span className="ml-auto text-[11px] text-text-muted">{activeLens?.label ?? "Off"}</span>
-          </div>
-          <div className="mb-2 text-[11px] text-text-muted">Perspective: the angle the answer comes from.</div>
-          <PreambleColumn headerless glyph="◇" title="Lenses" options={LENSES}
-            active={activeLens} selectedId={fwLens.lens} onSelect={fwLens.setLens} />
-        </div>
-      </div>
-
-      {/* Custom + feedback — a quiet one-line footer, not a section. */}
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3 text-[11px] text-text-muted">
-        <span>Custom frameworks &amp; lenses are coming.</span>
-        <a href="https://github.com/fru-dev3/prevail-desktop/issues/new" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-accent"><MessageSquare className="h-3 w-3" /> Suggest one</a>
-        <a href="https://prevail.sh" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-accent"><Globe className="h-3 w-3" /> prevail.sh</a>
-      </div>
-    </>
-  );
-}
 
 
 

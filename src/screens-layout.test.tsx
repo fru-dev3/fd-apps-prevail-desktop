@@ -1,6 +1,6 @@
 // Every secondary column is the canonical SideSpine, every page header sits
 // above the scroll, and row actions are small icons. One test per screen
-// that was converted: Notes, Runtimes, chat Threads, the
+// that was converted: Runtimes, chat Threads, the
 // Settings/Work page frame, and Models' header tabs.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
@@ -9,10 +9,6 @@ const calls: { cmd: string; args?: Record<string, unknown> }[] = [];
 vi.mock("./bridge", () => ({
   invoke: async (cmd: string, args?: Record<string, unknown>) => {
     calls.push({ cmd, args });
-    if (cmd === "read_text_file") return JSON.stringify([
-      { id: "n1", title: "Roof quotes", body: "Call two roofers", updated: 1 },
-      { id: "n2", title: "Trip packing", body: "Charger", updated: 2 },
-    ]);
     return null;
   },
   listen: vi.fn(async () => () => {}),
@@ -23,29 +19,12 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(async () => {}) }))
 let phone = false;
 vi.mock("./useisphone", () => ({ useIsPhone: () => phone, PHONE_MAX_PX: 767, useVisualViewportHeight: () => null }));
 
-import { NotesPanel } from "./notespanel";
 import { AgentsSection } from "./settings6";
 import { ThreadsRail } from "./panels";
 import { ScrollPage, SettingsHeader } from "./sectionutil";
 import type { CliInfo } from "./types";
 
 beforeEach(() => { cleanup(); calls.length = 0; phone = false; localStorage.clear(); });
-
-describe("Notes", () => {
-  it("lists notes in the SideSpine with search on top, collapses, and deletes with an icon action", async () => {
-    render(<NotesPanel vaultPath="/v" />);
-    const col = await screen.findByTestId("notes-list");
-    await within(col).findByText("Roof quotes");
-    expect(col.hasAttribute("data-spine-column")).toBe(true);
-    expect(within(col).getByPlaceholderText(/Search notes/)).toBeTruthy();
-    const del = within(col).getAllByRole("button", { name: "Delete note" })[0];
-    expect(del.className).toMatch(/\bh-7\b/);
-    fireEvent.click(screen.getByLabelText("Collapse notes"));
-    expect(screen.queryByTestId("notes-list")).toBeNull();
-    expect(localStorage.getItem("prevail.notes.spine")).toBe("1");
-    expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("collapsed");
-  });
-});
 
 const cli = (id: string, label: string, available = true): CliInfo => ({ id, label, bin: id, available } as unknown as CliInfo);
 

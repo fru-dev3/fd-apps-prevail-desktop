@@ -1,21 +1,21 @@
 // Self-contained Settings sections extracted from App.tsx: Daemons, cross-domain
-// Tasks, Intents, Memory & Context, and Skills. vaultPath-driven; no App-root
+// Tasks, Intents, Memory & Context. vaultPath-driven; no App-root
 // state closure.
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Bell, Brain, ChevronRight, Eye, Folder, GraduationCap, Laptop, Lightbulb, ListChecks, MessageSquarePlus, Server, Sparkles, Upload, X } from "lucide-react";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { createContext, useContext, useEffect, useState } from "react";
+import { Bell, Brain, GraduationCap, Laptop, Lightbulb, ListChecks, Server } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
-import { CollapsibleSection } from "./collapsible";
-import { formatFreshness, titleCase } from "./format";
-import { PREF, cheapModel, getPref, lsSet, setPref } from "./storage";
+import { formatFreshness } from "./format";
+import { PREF, cheapModel, getPref, setPref } from "./storage";
 import { Toggle } from "./ui";
 import { DaemonCard, HeadlessLearnCard } from "./panels";
 import { distillCfgFromPrefs, intentDaemonCfgFromPrefs, skillgenCfgFromPrefs, taskgenCfgFromPrefs } from "./daemoncfg";
 import { SettingsHeader } from "./sectionutil";
+import { SideSpine } from "./sidespine";
+import { useIsPhone } from "./useisphone";
 import { VENDOR_BRAND, isHarnessRuntime } from "./constants";
 import { useDetectedClis } from "./hooks";
-import type { DaemonStatus, SkillEntry } from "./types";
+import type { DaemonStatus } from "./types";
 
 // One collapsible card per routine. Routes through the canonical CollapsibleSection
 // (icon + title left, summary + running dot right, collapsed by default) so the
@@ -24,43 +24,63 @@ import type { DaemonStatus, SkillEntry } from "./types";
 // ones. Running = bright green (pulses so it reads as alive); enabled-but-not-
 // running = amber (idle but armed); disabled = muted grey.
 function DaemonDot({ running, enabled = true }: { running: boolean; enabled?: boolean }) {
+  // Green when running or on, grey when off. Warn is kept for trouble.
   const cls = running
     ? "bg-ok pulse-soft"
     : enabled
-      ? "bg-warn"
+      ? "bg-ok"
       : "bg-text-muted/40";
   const title = running ? "running" : enabled ? "Idle" : "Off";
   return <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} title={title} />;
 }
 
-function DaemonGroup({ icon, title, summary, running, enabled = true, defaultOpen = false, children }: {
-  icon: LucideIcon;
-  title: string;
-  summary?: React.ReactNode;
-  // A daemon row passes a running boolean: when present we render a color-coded
-  // state dot. Producer views (no daemon) leave it undefined and get no dot.
-  running?: boolean;
-  enabled?: boolean;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  // The canonical CollapsibleSection dot is gold/muted; for daemons we want a
-  // vivid green/amber/grey state dot, so render our own at the head of the
-  // summary and suppress the section's own status dot.
-  const summaryNode = running === undefined ? summary : (
-    <span className="inline-flex items-center gap-1.5">
-      <DaemonDot running={running} enabled={enabled} />
-      {summary != null && summary !== "" && <span>{summary}</span>}
-    </span>
-  );
+// One background routine in the Daemons side column.
+type DaemonItem = { id: string; icon: LucideIcon; title: string; summary?: React.ReactNode; running?: boolean; enabled?: boolean; does?: string; hubOnly?: boolean };
+const DaemonSel = createContext<{ sel: string; items: DaemonItem[] }>({ sel: "", items: [] });
+
+// The picked routine's detail: its header, what it does in one line, then its
+// controls. Every other routine renders nothing.
+function DaemonGroup({ id, control, children }: { id: string; control?: React.ReactNode; children: React.ReactNode }) {
+  const { sel, items } = useContext(DaemonSel);
+  if (sel !== id) return null;
+  const it = items.find((x) => x.id === id);
+  if (!it) return null;
+  const Icon = it.icon;
   return (
-    <CollapsibleSection icon={icon} title={title} summary={summaryNode} defaultOpen={defaultOpen}>
+    <section data-testid={`daemon-detail-${id}`}>
+      <div className="mb-4 flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon className="h-5 w-5" /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{it.title}</h2>
+          {it.does && <p className="mt-1 text-[14px] text-text-secondary">{it.does}</p>}
+          {control && it.hubOnly && <p className="mt-0.5 text-[13px] text-text-muted">Hub only</p>}
+          {!control && <div className="mt-1.5 flex items-center gap-2 text-[13px] text-text-muted">
+            {it.running !== undefined && <DaemonDot running={it.running} enabled={it.enabled} />}
+            {it.running !== undefined && <span>{it.running ? "Running" : it.enabled === false ? "Off" : "Idle"}</span>}
+            {it.summary != null && it.summary !== "" && <span>{it.running !== undefined ? "· " : ""}{it.summary}</span>}
+            {it.hubOnly && <span>· Hub only</span>}
+          </div>}
+        </div>
+        {control && <div className="shrink-0 pt-1">{control}</div>}
+      </div>
       {children}
-    </CollapsibleSection>
+    </section>
   );
 }
 
-export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
+// The routines, for a page that lists them in its own column.
+export const DAEMON_ROWS: { id: string; title: string; icon: LucideIcon }[] = [
+  { id: "distill", title: "Distill", icon: Brain },
+  { id: "reminders", title: "Reminders", icon: Bell },
+  { id: "taskgen", title: "Task generation", icon: ListChecks },
+  { id: "skillgen", title: "Skill learning", icon: GraduationCap },
+  { id: "intent", title: "Intent distillation", icon: Lightbulb },
+  { id: "headless", title: "Work with the app closed", icon: Server },
+  { id: "memory", title: "Memory & Context", icon: Brain },
+  { id: "role", title: "Machine role", icon: Laptop },
+];
+
+export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { vaultPath: string; embedded?: boolean; sel?: string }) {
   // Installed runtimes for the provider dropdown (the global default executor for
   // distill + loops). Only ones actually on the machine; harnesses included so a
   // loop can default to an agent.
@@ -84,6 +104,10 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
   const [remInterval, setRemInterval] = useState(() => getPref(PREF.remindersIntervalSec, "900"));
   const [taskgenMsg, setTaskgenMsg] = useState("");
   const [running, setRunning] = useState(false);
+  const [selOwn, setSel] = useState("distill");
+  const sel = selProp ?? selOwn;
+  const [picked, setPicked] = useState(false);
+  const phone = useIsPhone();
   // Intent distillation routine (automated, default ON).
   const [intentSt, setIntentSt] = useState<{ running?: boolean; last_run_ts?: number | null; distills?: number; last_intent_count?: number } | null>(null);
   const [intentEnabled, setIntentEnabled] = useState(() => getPref(PREF.intentDaemonEnabled, "1") === "1");
@@ -174,17 +198,43 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
     finally { setSkillgenRunning(false); }
   }
 
-  return (
+  const items: DaemonItem[] = [
+    { id: "distill", hubOnly: true, does: "Distills your recent activity into each domain's memory.", icon: Brain, title: "Distill · memory", running: !!distillSt?.running, enabled: dAuto, summary: distillSt?.lines_distilled ? `${distillSt.lines_distilled} lines distilled` : dAuto ? `auto · every ${dInterval}s` : "manual only" },
+    { id: "reminders", hubOnly: true, does: "Checks for tasks coming due and reminds you.", icon: Bell, title: "Reminders", running: !!remindersSt?.running, summary: remindersSt?.last_due_count != null ? (remindersSt.last_due_count > 0 ? `${remindersSt.last_due_count} due` : "none due") : `every ${remInterval}s` },
+    { id: "taskgen", hubOnly: true, does: "Suggests new tasks from your goals, memory and domain state.", icon: ListChecks, title: "Task generation", running: !!taskgenSt?.running, enabled: taskgenEnabled, summary: taskgenSt?.tasks_generated ? `${taskgenSt.tasks_generated} generated` : taskgenEnabled ? "on" : "off" },
+    { id: "skillgen", hubOnly: true, does: "Learns reusable skills from each domain's conversations.", icon: GraduationCap, title: "Skill learning", running: !!skillgenSt?.running, enabled: skillgenEnabled, summary: skillgenSt?.skills_created ? `${skillgenSt.skills_created} learned` : skillgenEnabled ? "on" : "off" },
+    { id: "intent", hubOnly: true, does: "Infers your high-level intents from the prompts you type.", icon: Lightbulb, title: "Intent distillation", running: !!intentSt?.running, enabled: intentEnabled, summary: intentSt?.last_intent_count ? `${intentSt.last_intent_count} intents` : intentEnabled ? "Auto" : "Off" },
+    { id: "headless", icon: Server, title: "Work with the app closed", does: "Keeps learning in the background after you quit Prevail." },
+    { id: "memory", does: "The memory and context these routines produce.", icon: Brain, title: "Memory & Context", summary: "what the daemons produce" },
+    { id: "role", icon: isClient ? Laptop : Server, title: "This machine's role", summary: isClient ? "Client" : "Hub", does: "Only the hub runs background automation when two Macs share a vault." },
+  ];
+  const list = (
+    <nav className="space-y-0.5 p-2" aria-label="Daemons">
+      {items.map((it) => {
+        const on = sel === it.id && (!phone || picked);
+        const Icon = it.icon;
+        return (
+          <button key={it.id} data-testid={`daemon-row-${it.id}`} aria-current={on ? "true" : undefined} onClick={() => { setSel(it.id); setPicked(true); }}
+            className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <span className="min-w-0 flex-1">
+              <span className={`block truncate text-sm font-semibold ${on ? "text-accent" : "text-text-primary"}`}>{it.title}</span>
+              <span className="block truncate text-[12px] text-text-muted">{[it.hubOnly ? "Hub only" : null, typeof it.summary === "string" ? it.summary : null].filter(Boolean).join(" · ")}</span>
+            </span>
+            {it.running !== undefined && <DaemonDot running={it.running} enabled={it.enabled} />}
+          </button>
+        );
+      })}
+    </nav>
+  );
+  const detailBody = (
     <>
-      <SettingsHeader
-        title="Daemons"
-        subtitle="The background workers, and what each is doing."
-      />
 
       {/* Machine role picker. When a vault is shared by two Macs, only the hub
           runs background automation; a client captures prompts only. This is a
           per-machine setting (not stored in the vault). */}
-      <div className="mb-4 rounded-lg border border-border-subtle bg-background p-4">
+      {sel === "role" && (
+      <div className="mb-4 rounded-lg border border-border-subtle bg-background p-4" data-testid="daemon-detail-role">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-text-primary">This machine's role</div>
@@ -215,31 +265,28 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
         </div>
         {isClient && (
           <div className="mt-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-text-secondary">
-            This machine is a client. The processing daemons below run only on the hub, so they are disabled here. Prompt capture still runs on this machine. Set the role to hub to run automation here.
+            This machine is a client. The processing daemons run only on the hub, so they are disabled here. Prompt capture still runs on this machine. Set the role to hub to run automation here.
           </div>
         )}
       </div>
+      )}
+      {isClient && sel !== "role" && sel !== "memory" && (
+        <div className="mb-4 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-text-secondary">This machine is a client, so this routine runs on the hub only.</div>
+      )}
 
       {/* On a client the processing-daemon controls are disabled (presentation
           only; the CLI is the real enforcement). A disabled fieldset natively
           switches off every toggle, select, input and button it contains. */}
       <fieldset disabled={isClient} className={`min-w-0 ${isClient ? "pointer-events-none opacity-50" : ""}`}>
       {/* One collapsible group per routine: status + tuning + run-now together. */}
-      <DaemonGroup
-        icon={Brain}
-        title="Distill · memory"
-        running={!!distillSt?.running}
-        enabled={dAuto}
-        summary={distillSt?.lines_distilled ? `${distillSt.lines_distilled} lines distilled` : dAuto ? `auto · every ${dInterval}s` : "manual only"}
-      >
-        <DaemonCard
+      <DaemonGroup id="distill" control={<DaemonCard bare
           name="Distill"
           intervalSec={Number(dInterval) || undefined}
           status={distillSt}
           extra={distillSt?.lines_distilled ? `${distillSt.lines_distilled} lines distilled` : null}
           onStop={async () => { await invoke("distill_stop"); }}
           onStart={async () => { await invoke("distill_start", { cfg: distillCfgFromPrefs(vaultPath) }); }}
-        />
+        />}>
         <div className="mt-3 rounded-lg border border-border-subtle bg-background px-5">
           <Row title="Distill provider" desc="Which agent distills the intent ledger into memory (use a cheap, fast one)."
             control={
@@ -257,7 +304,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
                   </optgroup>
                 )}
               </select>} />
-          <Row title="Distill model" desc="Model id used for distillation, e.g. claude-haiku-4-5."
+          <Row title="Distill model" desc="Model id used for distillation, e.g. a small, fast model id."
             control={<input value={dModel} onChange={(e) => { setDModel(e.target.value); setPref(PREF.distillModel, e.target.value); }}
               className="w-44 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-accent-border focus:outline-none" />} />
           <Row title="Auto-compression" desc="Run the distill routine on a timer (off = manual passes only)."
@@ -273,7 +320,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
               className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" />} />
           <Row title="Distill interval" desc="How often the distill routine runs a pass (seconds)."
             control={<div className="flex items-center gap-1.5"><input type="number" value={dInterval} onChange={(e) => { setDInterval(e.target.value); setPref(PREF.distillIntervalSec, e.target.value); }}
-              className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" /><span className="font-mono text-xs text-text-muted">s</span></div>} />
+              className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" /><span className="text-xs text-text-muted">s</span></div>} />
           <Row title="Distill now" desc="Run a distillation pass immediately."
             control={<button onClick={distillNow} disabled={distilling}
               className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
@@ -282,13 +329,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
         </div>
       </DaemonGroup>
 
-      <DaemonGroup
-        icon={Bell}
-        title="Reminders"
-        running={!!remindersSt?.running}
-        summary={remindersSt?.last_due_count != null ? (remindersSt.last_due_count > 0 ? `${remindersSt.last_due_count} due` : "none due") : `every ${remInterval}s`}
-      >
-        <DaemonCard
+      <DaemonGroup id="reminders" control={<DaemonCard bare
           name="Reminders"
           intervalSec={Number(remInterval) || undefined}
           status={remindersSt}
@@ -302,34 +343,27 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
             const sec = Number(getPref(PREF.remindersIntervalSec, "900")) || 900;
             await invoke("reminders_daemon_start", { vault: vaultPath, interval_sec: sec });
           }}
-        />
+        />}>
         <div className="mt-3 rounded-lg border border-border-subtle bg-background px-5">
           <Row title="Reminders interval" desc="How often the reminders routine checks for due tasks (seconds)."
             control={
               <div className="flex items-center gap-1.5">
                 <input type="number" value={remInterval} onChange={(e) => { setRemInterval(e.target.value); setPref(PREF.remindersIntervalSec, e.target.value); }}
                   className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" />
-                <span className="font-mono text-xs text-text-muted">s</span>
+                <span className="text-xs text-text-muted">s</span>
               </div>
             } />
         </div>
       </DaemonGroup>
 
-      <DaemonGroup
-        icon={ListChecks}
-        title="Task generation"
-        running={!!taskgenSt?.running}
-        enabled={taskgenEnabled}
-        summary={taskgenSt?.tasks_generated ? `${taskgenSt.tasks_generated} generated` : taskgenEnabled ? "on" : "off"}
-      >
-        <DaemonCard
+      <DaemonGroup id="taskgen" control={<DaemonCard bare
           name="Task Gen"
           intervalSec={Number(taskgenInterval) || undefined}
           status={taskgenSt}
           extra={taskgenSt?.tasks_generated ? `${taskgenSt.tasks_generated} tasks generated` : null}
           onStop={async () => { await invoke("taskgen_stop"); }}
           onStart={async () => { await invoke("taskgen_start", { cfg: taskgenCfgFromPrefs(vaultPath) }); }}
-        />
+        />}>
         <div className="mt-3 rounded-lg border border-border-subtle bg-background px-5">
           <Row title="Task generation" desc="Proactively generate new tasks from your goals, memory, and domain state once per day."
             control={<Toggle on={taskgenEnabled} onChange={(v) => { setTaskgenEnabled(v); setPref(PREF.taskgenEnabled, v ? "1" : "0"); if (!v) invoke("taskgen_stop").catch(() => {}); else invoke("taskgen_start", { cfg: taskgenCfgFromPrefs(vaultPath) }).catch(() => {}); }} />} />
@@ -344,7 +378,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
               <div className="flex items-center gap-1.5">
                 <input type="number" value={taskgenInterval} onChange={(e) => { setTaskgenInterval(e.target.value); setPref(PREF.taskgenIntervalSec, e.target.value); }}
                   className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" />
-                <span className="font-mono text-xs text-text-muted">s</span>
+                <span className="text-xs text-text-muted">s</span>
               </div>
             } />
         </div>
@@ -357,21 +391,14 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
         </div>
       </DaemonGroup>
 
-      <DaemonGroup
-        icon={GraduationCap}
-        title="Skill learning"
-        running={!!skillgenSt?.running}
-        enabled={skillgenEnabled}
-        summary={skillgenSt?.skills_created ? `${skillgenSt.skills_created} learned` : skillgenEnabled ? "on" : "off"}
-      >
-        <DaemonCard
+      <DaemonGroup id="skillgen" control={<DaemonCard bare
           name="Skill Gen"
           intervalSec={Number(skillgenInterval) || undefined}
           status={skillgenSt}
           extra={skillgenSt?.skills_created ? `${skillgenSt.skills_created} skill${skillgenSt.skills_created === 1 ? "" : "s"} learned` : null}
           onStop={async () => { await invoke("skillgen_stop"); }}
           onStart={async () => { await invoke("skillgen_start", { cfg: skillgenCfgFromPrefs(vaultPath) }); }}
-        />
+        />}>
         <div className="mt-3 rounded-lg border border-border-subtle bg-background px-5">
           <Row title="Skill learning" desc="Self-learning: distill reusable skills (playbooks, checklists, decision frameworks) from each domain's conversations, once per day."
             control={<Toggle on={skillgenEnabled} onChange={(v) => { setSkillgenEnabled(v); setPref(PREF.skillgenEnabled, v ? "1" : "0"); if (!v) invoke("skillgen_stop").catch(() => {}); else invoke("skillgen_start", { cfg: skillgenCfgFromPrefs(vaultPath) }).catch(() => {}); }} />} />
@@ -386,7 +413,7 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
               <div className="flex items-center gap-1.5">
                 <input type="number" value={skillgenInterval} onChange={(e) => { setSkillgenInterval(e.target.value); setPref(PREF.skillgenIntervalSec, e.target.value); }}
                   className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" />
-                <span className="font-mono text-xs text-text-muted">s</span>
+                <span className="text-xs text-text-muted">s</span>
               </div>
             } />
         </div>
@@ -399,20 +426,14 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
         </div>
       </DaemonGroup>
 
-      <DaemonGroup
-        icon={Lightbulb}
-        title="Intent distillation"
-        running={!!intentSt?.running}
-        enabled={intentEnabled}
-        summary={intentSt?.last_intent_count ? `${intentSt.last_intent_count} intents` : intentEnabled ? "Auto" : "Off"}
-      >
+      <DaemonGroup id="intent">
         {/* Like the other routines: when it last ran + when it runs next. */}
         {(() => {
           const fmt = (sec: number) => new Date(sec * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
           const last = intentSt?.last_run_ts ?? 0;
           const nextSec = last && intentEnabled ? last + (Number(intentInterval) || 0) : 0;
           return (
-            <div className="mb-2 flex items-center gap-2 px-1 font-mono text-[10px] text-text-muted">
+            <div className="mb-2 flex items-center gap-2 px-1 text-[12px] text-text-muted">
               <DaemonDot running={!!intentSt?.running} enabled={intentEnabled} />
               <span>
                 {intentSt?.running ? "Running" : "Idle"}
@@ -437,22 +458,38 @@ export function DaemonsSection({ vaultPath }: { vaultPath: string }) {
           <Row title="Check interval"
             desc="How often the routine checks whether a re-distill is due (a check with nothing new costs no model call). It also re-distills at least daily."
             control={<div className="flex items-center gap-1.5"><input type="number" value={intentInterval} onChange={(e) => { setIntentInterval(e.target.value); setPref(PREF.intentDaemonIntervalSec, e.target.value); }}
-              className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" /><span className="font-mono text-xs text-text-muted">s</span></div>} />
+              className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" /><span className="text-xs text-text-muted">s</span></div>} />
         </div>
         <p className="mt-2 px-1 text-[11px] text-text-muted">View the distilled intents in Configuration → Intents. Uses the same provider/model as Distill.</p>
       </DaemonGroup>
 
       {/* image #29: Memory & Context is what these routines PRODUCE, so it lives
           here as a peer collapsible group — not a divider-separated orphan page. */}
-      <DaemonGroup icon={Brain} title="Memory & Context" summary="what the daemons produce">
+      <DaemonGroup id="memory">
         <MemoryContextSection vaultPath={vaultPath} headerless />
       </DaemonGroup>
 
       {/* "Keep working with the app closed" is always-expanded (a single toggle, not
           collapsible), so it sits LAST - below the collapsible routine rows. */}
-      <HeadlessLearnCard vaultPath={vaultPath} />
+      {sel === "headless" && <DaemonGroup id="headless"><HeadlessLearnCard vaultPath={vaultPath} /></DaemonGroup>}
       </fieldset>
     </>
+  );
+  // Embedded in the Settings page: that page's column lists the routines, so
+  // this renders only the picked one.
+  if (embedded) return <DaemonSel.Provider value={{ sel, items }}>{detailBody}</DaemonSel.Provider>;
+  return (
+    <DaemonSel.Provider value={{ sel, items }}>
+      <SettingsHeader
+        title="Daemons"
+        subtitle="The background workers, and what each is doing."
+      />
+      <SideSpine storageKey="prevail.daemons.spine" title="Daemons" label="daemons" testId="daemons-list"
+        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All daemons"
+        detail={<div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{detailBody}</div>}>
+        {list}
+      </SideSpine>
+    </DaemonSel.Provider>
   );
 }
 
@@ -513,15 +550,15 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
         className="mb-4 flex w-full items-center gap-2 rounded-lg border border-border-subtle bg-surface px-4 py-2.5 text-left hover:border-accent-border"
       >
         <Brain className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="font-mono text-[11px] text-text-secondary">Distiller</span>
-        <span className="font-mono text-[11px] text-text-muted">
+        <span className="text-[11px] text-text-secondary">Distiller</span>
+        <span className="text-[11px] text-text-muted">
           {status?.running ? "Running" : "Idle"}
           {/* B2-19: last_run_ts is in SECONDS (treating it as ms gave "20601 days");
               formatFreshness already returns "... ago" (don't append a second one). */}
           {status?.last_run_ts ? ` · last pass ${formatFreshness(Math.max(0, Date.now() / 1000 - status.last_run_ts))}` : ""}
           {status?.lines_distilled ? ` · ${status.lines_distilled} lines` : ""}
         </span>
-        <span className="ml-auto font-mono text-[10px] text-accent">Schedule & controls in Daemons →</span>
+        <span className="ml-auto text-[12px] text-accent">Schedule & controls in Daemons →</span>
       </button>
       <div className="rounded-lg border border-border bg-surface px-5">
         <Row title="Persistent memory" desc="Distill the intent ledger into per-domain memory and prepend it to prompts. Master switch."
@@ -554,331 +591,3 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
 // Run the self-learning loop with the desktop CLOSED, via a launchd agent
 // (engine `daemon install`). When on, the in-app distiller defers to it.
 
-export function SkillsSection({ vaultPath }: { vaultPath: string }) {
-  const [skills, setSkills] = useState<SkillEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("");
-  const [domainFilter, setDomainFilter] = useState<string>("all");
-  // The list renders every row, so with a thousand skills it had to start
-  // closed - which meant the Skills page opened showing nothing at all, on a
-  // screen whose whole job is to show you your skills. Bounded, it can start
-  // open: you land on the first page and the search box above filters the
-  // whole set, not just what is drawn.
-  const [listOpen, setListOpen] = useState(true);
-  const SKILLS_PAGE = 25;
-  const [skillsShown, setSkillsShown] = useState(SKILLS_PAGE);
-  // B2-5: upload a skill — pick a SKILL.md, choose a domain, install it.
-  const [allDomains, setAllDomains] = useState<string[]>([]);
-  const [upload, setUpload] = useState<{ name: string; body: string } | null>(null);
-  const [uploadDomain, setUploadDomain] = useState<string>("general");
-  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    invoke<SkillEntry[]>("scan_skills", { vault: vaultPath })
-      .then((s) => { if (mounted) setSkills(Array.isArray(s) ? s : []); })
-      .catch(() => { if (mounted) setSkills([]); })
-      .finally(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; };
-  }, [vaultPath]);
-
-  // Usage intelligence: per-skill uses / last-used / verdict from the vault
-  // ledger, so the list ranks by REAL popularity and dead weight is visible.
-  type UsageRow = { domain: string; id: string; uses: number; lastTs: number | null; verdict: "active" | "dormant" | "unused" };
-  const [usage, setUsage] = useState<Map<string, UsageRow>>(new Map());
-  const [usageTotals, setUsageTotals] = useState<{ unused: number; dormant: number } | null>(null);
-  const loadUsage = useCallback(() => {
-    invoke<{ unused: number; dormant: number; rows: UsageRow[] }>("engine_skills_report")
-      .then((rep) => {
-        const m = new Map<string, UsageRow>();
-        for (const r of rep.rows ?? []) m.set(`${r.domain.toLowerCase()}/${r.id.toLowerCase()}`, r);
-        setUsage(m); setUsageTotals({ unused: rep.unused ?? 0, dormant: rep.dormant ?? 0 });
-      })
-      .catch(() => { setUsage(new Map()); setUsageTotals(null); });
-  }, []);
-  useEffect(() => { loadUsage(); }, [vaultPath, loadUsage]);
-  const usageOf = (sk: SkillEntry) => usage.get(`${sk.domain.toLowerCase()}/${sk.name.toLowerCase()}`);
-  // Archive a skill (move to skills/_archive - never deleted; restorable via
-  // `prevail skill-usage unarchive`). Refreshes both the scan and the report.
-  async function archiveSkillRow(sk: SkillEntry) {
-    try {
-      const r = await invoke<{ ok?: boolean; error?: string }>("engine_skill_archive", { domain: sk.domain, skill: sk.name, restore: null });
-      if (r && r.ok === false) { setUploadMsg(r.error ?? "archive failed"); return; }
-      setSkills((cur) => cur.filter((x) => x.path !== sk.path));
-      setUploadMsg(`Archived ${sk.name}. Restore anytime: prevail skill-usage unarchive ${sk.domain} ${sk.name}`);
-      loadUsage();
-    } catch (e) { setUploadMsg(`archive failed: ${String(e).slice(0, 140)}`); }
-  }
-
-  // Domains present in the vault's skills, for the by-domain filter.
-  const domains = useMemo(
-    () => [...new Set(skills.map((s) => s.domain.toLowerCase()))].sort(),
-    [skills],
-  );
-
-  const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    const list = skills.filter((s) => {
-      if (domainFilter !== "all" && s.domain.toLowerCase() !== domainFilter) return false;
-      if (!q) return true;
-      return s.name.toLowerCase().includes(q) ||
-        s.domain.toLowerCase().includes(q) ||
-        (s.description ?? "").toLowerCase().includes(q);
-    });
-    // Popularity order: most-used first, never-used last, ties by name - the
-    // "intelligent surface" that keeps living skills on top and bloat visible.
-    return [...list].sort((a, b) => {
-      const ua = usageOf(a); const ub = usageOf(b);
-      return ((ub?.uses ?? 0) - (ua?.uses ?? 0)) || ((ub?.lastTs ?? 0) - (ua?.lastTs ?? 0)) || a.name.localeCompare(b.name);
-    });
-  }, [skills, filter, domainFilter, usage]);
-
-  // All vault domains (not just those with skills) for the install target.
-  useEffect(() => {
-    invoke<{ name: string }[]>("scan_vault", { path: vaultPath })
-      .then((ds) => setAllDomains(Array.isArray(ds) ? ds.map((d) => d.name.toLowerCase()) : []))
-      .catch(() => setAllDomains([]));
-  }, [vaultPath]);
-
-  async function openSkill(p: string) {
-    try { await invoke("open_in_finder", { path: p }); } catch {}
-  }
-  // View a skill's SKILL.md inline, without leaving the app.
-  const [viewer, setViewer] = useState<{ name: string; body: string } | null>(null);
-  async function viewSkill(s: SkillEntry) {
-    try { setViewer({ name: s.name, body: await invoke<string>("read_skill", { path: s.path }) }); }
-    catch (e) { setViewer({ name: s.name, body: `Could not read this skill: ${String(e)}` }); }
-  }
-  // Open a chat in the skill's domain (or General) with a ready prompt to run it.
-  function useSkillInChat(s: SkillEntry) {
-    lsSet("prevail.compose.pending", `Run the "${s.name}" skill.`);
-    const dom = s.domain && s.domain.toLowerCase() !== "general" ? s.domain : "";
-    window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: dom }));
-    window.dispatchEvent(new CustomEvent("prevail:compose-seed"));
-  }
-  // B2-5: pick a SKILL.md (or .md) and stage it for install.
-  async function pickSkillFile() {
-    setUploadMsg(null);
-    try {
-      const f = await openDialog({ filters: [{ name: "Skill", extensions: ["md"] }], multiple: false });
-      if (!f || typeof f !== "string") return;
-      const body = await invoke<string>("read_text_file", { path: f });
-      const parts = f.split("/");
-      const file = parts.pop() ?? "";
-      const parent = parts.pop() ?? "";
-      const name = /^skill\.md$/i.test(file) ? parent : file.replace(/\.md$/i, "");
-      setUpload({ name: name || "skill", body });
-    } catch (e) { setUploadMsg(`Couldn't read that file: ${e}`); }
-  }
-  async function installSkill() {
-    if (!upload) return;
-    try {
-      await invoke("skill_create", { vault: vaultPath, domain: uploadDomain === "general" ? null : uploadDomain, name: upload.name, body: upload.body });
-      setUploadMsg(`Installed "${upload.name}" into ${titleCase(uploadDomain)}.`);
-      setUpload(null);
-      await rescan();
-    } catch (e) { setUploadMsg(`Install failed: ${e}`); }
-  }
-  async function rescan() {
-    setLoading(true);
-    try {
-      const s = await invoke<SkillEntry[]>("scan_skills", { vault: vaultPath });
-      setSkills(Array.isArray(s) ? s : []);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }
-
-  return (
-    <>
-      <SettingsHeader
-        title="Skills"
-        subtitle="The recipes your AI can follow."
-      />
-
-      <div>
-        {/* Toolbar: title · count · refresh · search */}
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <h3 className="font-display text-xl font-semibold tracking-tight">My Skills</h3>
-          <span className="rounded-full bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-secondary">{skills.length}</span>
-          <button
-            onClick={rescan}
-            title="Re-scan vault"
-            className="ml-1 flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-text-primary"
-          >
-            ↻
-          </button>
-          <div className="flex-1" />
-          {/* B2-5: upload a skill from a file. */}
-          <button
-            onClick={pickSkillFile}
-            className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1.5 text-sm font-medium text-accent hover:bg-accent hover:text-background"
-          >
-            <Upload className="h-3.5 w-3.5" /> Upload skill
-          </button>
-          {/* Filter by domain - see only one domain's skills, or all. */}
-          <select
-            value={domainFilter}
-            onChange={(e) => { setDomainFilter(e.target.value); setListOpen(true); }}
-            title="Filter skills by domain"
-            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-text-secondary focus:border-accent-border focus:outline-none"
-          >
-            <option value="all">All domains</option>
-            {domains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
-          </select>
-          <div className="relative w-56">
-            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted">⌕</span>
-            <input
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Search skills…"
-              className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-sm focus:border-accent-border focus:outline-none"
-            />
-          </div>
-        </div>
-
-        {/* B2-5: staged upload — choose the install domain, then install. */}
-        {upload && (
-          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-accent-border bg-accent-soft/30 px-3 py-2.5">
-            <Sparkles className="h-4 w-4 shrink-0 text-accent" />
-            <span className="text-sm text-text-primary">Install <span className="font-semibold">{upload.name}</span> into</span>
-            <select value={uploadDomain} onChange={(e) => setUploadDomain(e.target.value)}
-              className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:border-accent-border focus:outline-none">
-              <option value="general">General (vault root)</option>
-              {allDomains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
-            </select>
-            <button onClick={installSkill} className="rounded-md bg-accent px-3 py-1 text-sm font-semibold text-background hover:bg-accent-hover">Install</button>
-            <button onClick={() => setUpload(null)} className="text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>
-          </div>
-        )}
-        {uploadMsg && <div className="mb-4 rounded-lg border border-border-subtle bg-background px-3 py-2 text-xs text-text-secondary">{uploadMsg}</div>}
-
-        {/* Path bar */}
-        <div className="mb-4 flex items-center gap-2 rounded-md bg-background px-3 py-2 font-mono text-[11px] text-text-secondary">
-          <Folder className="h-3.5 w-3.5 text-text-muted" />
-          <span className="truncate" title={vaultPath}>{vaultPath}</span>
-        </div>
-
-        {loading && <div className="py-6 text-center text-sm text-text-muted">scanning…</div>}
-        {!loading && skills.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border bg-background p-10 text-center">
-            <Sparkles className="mx-auto h-8 w-8 text-text-muted opacity-50" />
-            <p className="mt-3 text-sm text-text-muted">
-              No skills found. Try creating <code className="text-accent">{"<domain>/_skills/<skill-name>/"}</code> with a SKILL.md.
-            </p>
-          </div>
-        )}
-        {!loading && filtered.length === 0 && skills.length > 0 && (
-          <div className="rounded-lg border border-dashed border-border bg-background p-6 text-center text-sm text-text-muted">
-            No skills match <code className="text-accent">{filter}</code>.
-          </div>
-        )}
-
-        {!loading && filtered.length > 0 && (
-          <>
-            <button
-              onClick={() => setListOpen((v) => !v)}
-              className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left text-xs text-text-muted hover:text-text-secondary transition-colors"
-            >
-              <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${listOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
-              {listOpen ? "Collapse" : `Show ${filtered.length} skill${filtered.length === 1 ? "" : "s"}`}
-              {usageTotals && (usageTotals.unused > 0 || usageTotals.dormant > 0) && (
-                <span className="ml-2 text-[11px] text-warn">
-                  {usageTotals.unused > 0 ? `${usageTotals.unused} never used` : ""}{usageTotals.unused > 0 && usageTotals.dormant > 0 ? " · " : ""}{usageTotals.dormant > 0 ? `${usageTotals.dormant} dormant` : ""} - consider archiving
-                </span>
-              )}
-            </button>
-            {listOpen && (
-              <ul className="ml-4 mt-1 flex flex-col gap-1 border-l border-border-subtle pl-3">
-                {filtered.slice(0, skillsShown).map((s) => {
-                  const cleaned = (s.description ?? "").replace(/^[>*\-\s]+/, "").trim();
-                  return (
-                    <li key={s.path}>
-                      <div className="group relative flex w-full items-start gap-3.5 rounded-xl px-3 py-3 pb-8 transition-colors hover:bg-surface-warm">
-                        <button
-                          onClick={() => viewSkill(s)}
-                          title={`View ${s.name}`}
-                          className="flex min-w-0 flex-1 items-start gap-3.5 text-left"
-                        >
-                          {/* Calm, uniform tile (no per-skill rainbow). */}
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-warm text-text-secondary ring-1 ring-border-subtle group-hover:text-accent">
-                            <Sparkles className="h-4 w-4" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-baseline gap-2">
-                              <span className="font-display text-base font-semibold tracking-tight text-text-primary">{s.name}</span>
-                              <span className="rounded-md border border-border-subtle bg-background px-1.5 py-0.5 text-[11px] text-text-muted">
-                                {titleCase(s.domain)}
-                              </span>
-                              {(() => {
-                                const u = usageOf(s);
-                                if (!u) return null;
-                                if (u.verdict === "unused") return <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] text-warn">Never used</span>;
-                                const days = u.lastTs ? Math.max(0, Math.floor((Date.now() - u.lastTs) / 86_400_000)) : null;
-                                const rel = days === null ? "" : days === 0 ? " · today" : ` · ${days}d ago`;
-                                return <span className={`rounded-md px-1.5 py-0.5 text-[11px] ${u.verdict === "dormant" ? "bg-warn/10 text-warn" : "bg-surface-warm text-text-muted"}`}>{u.uses} use{u.uses === 1 ? "" : "s"}{rel}{u.verdict === "dormant" ? " · dormant" : ""}</span>;
-                              })()}
-                            </div>
-                            {cleaned && (
-                              <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-text-secondary">
-                                {cleaned}
-                              </p>
-                            )}
-                          </div>
-                        </button>
-                        {/* Minimal per-skill actions: revealed only on row hover, bottom-right. */}
-                        <div className="absolute bottom-1.5 right-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                          <button onClick={() => viewSkill(s)} title="View skill here" aria-label="View skill here"
-                            className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface hover:text-accent">
-                            <Eye className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => openSkill(s.path)} title="Reveal in Finder" aria-label="Reveal in Finder"
-                            className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface hover:text-accent">
-                            <Folder className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => useSkillInChat(s)} title="Use in a chat" aria-label="Use in a chat"
-                            className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface hover:text-accent">
-                            <MessageSquarePlus className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => void archiveSkillRow(s)} title="Archive this skill (moved aside, never deleted)" aria-label="Archive this skill"
-                            className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface hover:text-warn">
-                            <Archive className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-                {filtered.length > skillsShown && (
-                  <li>
-                    <button
-                      onClick={() => setSkillsShown((n) => n + SKILLS_PAGE)}
-                      className="mt-1 w-full rounded-lg border border-dashed border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-accent-border hover:text-accent"
-                    >
-                      Show {Math.min(SKILLS_PAGE, filtered.length - skillsShown)} more · {skillsShown} of {filtered.length}
-                    </button>
-                  </li>
-                )}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
-      {viewer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" onClick={() => setViewer(null)}>
-          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-              <div className="flex min-w-0 items-center gap-2 font-display text-sm font-semibold text-text-primary">
-                <Sparkles className="h-4 w-4 shrink-0 text-accent" /> <span className="truncate">{viewer.name}</span>
-              </div>
-              <button onClick={() => setViewer(null)} aria-label="Close" className="rounded-md p-1 text-text-muted hover:bg-surface-warm hover:text-text-primary">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <pre className="overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-[12.5px] leading-relaxed text-text-secondary">{viewer.body}</pre>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}

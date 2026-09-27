@@ -1,10 +1,10 @@
 // Domain-scoped panels extracted from App.tsx: the in-flow Context view,
 // the agent picker rail, the pref-picker column, and the domain prefs panel.
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Box, Layers, Check, ChevronDown, ChevronRight, Code, Compass, Cpu, Eye, Folder, Globe, Loader2, Lock, MessageSquare, Pin, RefreshCw, Share2, SlidersHorizontal, Sparkles, Terminal, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Box, Layers, Check, ChevronDown, ChevronRight, Code, Compass, Cpu, Eye, Folder, Globe, Loader2, Lock, Maximize2, MessageSquare, Pencil, Pin, RefreshCw, Share2, SlidersHorizontal, Sparkles, Terminal, X, type LucideIcon } from "lucide-react";
 import { distillCfgFromPrefs } from "./daemoncfg";
 import { invoke } from "./bridge";
-import { FRAMEWORKS, LENSES, isHarnessRuntime } from "./constants";
+import { FRAMEWORKS, LENSES } from "./constants";
 import { curatedFor, modelsFor } from "./helpers2";
 import { formatFreshness, titleCase } from "./format";
 import { isLocalCli } from "./helpers";
@@ -16,7 +16,6 @@ import { DrawerImportsSection } from "./panels";
 import { Markdown } from "./Markdown";
 import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
-import { useCliVerifyLive } from "./verify";
 import { ProviderMark } from "./marks";
 import type { CliInfo, DomainContextBundle, DomainManifest, SkillEntry } from "./types";
 
@@ -40,7 +39,7 @@ export function FileCanvas({ title, source, width, onClose }: { title: string; s
       <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="font-mono text-[11px] text-text-muted">File</div>
-          <div className="truncate font-display text-sm font-semibold text-text-primary" title={title}>{title}</div>
+          <div className="truncate text-sm font-semibold text-text-primary" title={title}>{title}</div>
         </div>
         <button onClick={() => setRaw((v) => !v)} title={raw ? "Show formatted" : "Show raw text"}
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
@@ -84,27 +83,33 @@ export function ContextCanvas() {
   );
 }
 
-// Consistent action pair for every context item: View (opens the left canvas) and
-// Use in chat (adds to the composer context). Icon-only with tooltips - the whole
-// Context area uses this so nothing renders content inline anymore.
-function CtxActions({ onView, onUse }: { onView: () => void; onUse?: () => void }) {
+// A tiny icon action for the Context detail header and list rows.
+function CtxTool({ icon: Icon, label, onClick, testId }: { icon: LucideIcon; label: string; onClick: () => void; testId?: string }) {
   return (
-    <div className="flex shrink-0 items-center gap-0.5">
-      <button onClick={onView} title="View (opens the canvas on the left)" className="rounded p-1 text-text-muted transition-colors hover:text-accent"><Eye className="h-3.5 w-3.5" /></button>
-      {onUse && <button onClick={onUse} title="Use in chat (add to the composer context)" className="rounded p-1 text-text-muted transition-colors hover:text-accent"><ArrowRight className="h-3.5 w-3.5" /></button>}
-    </div>
+    <button onClick={onClick} title={label} aria-label={label} data-testid={testId}
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent">
+      <Icon className="h-3.5 w-3.5" />
+    </button>
   );
 }
 
-// One compact row for a context item: a single-line description on the left, the
-// View / Use icons aligned on the right. Used by every section so the layout is
-// uniform (no verbose paragraphs, icons always in the same place).
-function CtxRow({ desc, onView, onUse }: { desc: string; onView: () => void; onUse?: () => void }) {
+// A context file, rendered as markdown right in the detail pane.
+function FileBody({ body, empty }: { body: string; empty: string }) {
+  if (!body.trim()) return <p className="text-[14px] text-text-muted">{empty}</p>;
+  return <div data-testid="ctx-markdown" className="prose-sm max-w-none text-sm leading-relaxed text-text-primary"><Markdown source={body} /></div>;
+}
+
+// One row in a folder or list section. A click previews the item in the same
+// pane; the tiny icons on the right are the other actions.
+function CtxItem({ title, sub, onOpen, tools, testId }: { title: string; sub?: string; onOpen: () => void; tools?: React.ReactNode; testId?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="min-w-0 flex-1 text-[11px] leading-snug text-text-muted">{desc}</span>
-      <CtxActions onView={onView} onUse={onUse} />
-    </div>
+    <li className="flex items-center gap-1 rounded-lg border border-border-subtle bg-background">
+      <button onClick={onOpen} data-testid={testId} className="min-w-0 flex-1 px-3 py-2 text-left hover:text-accent">
+        <div className="truncate text-[14px] text-text-primary">{title}</div>
+        {sub && <div className="mt-0.5 line-clamp-2 text-[12px] text-text-muted">{sub}</div>}
+      </button>
+      {tools && <div className="flex shrink-0 items-center pr-1">{tools}</div>}
+    </li>
   );
 }
 
@@ -143,8 +148,9 @@ function RebuildStateButton({ vaultPath, domain, field }: { vaultPath: string; d
 type CtxModeValue = { mode: "list" | "detail"; selected: string; select: (k: string) => void };
 const CtxMode = createContext<CtxModeValue>({ mode: "list", selected: "", select: () => {} });
 
-// One context section. In the spine it is a row (title, count, real filename);
-// in the detail pane only the picked one renders, under a big header.
+// One context section. In the spine it is a row (title and count); in the
+// detail pane only the picked one renders, under a big header with its real
+// filename on one quiet line and its actions as tiny icons.
 function CtxSection({ keyName, title, count, body, action, file }: { keyName: string; title: string; count?: number; body: React.ReactNode; action?: React.ReactNode; file?: string }) {
   const { mode, selected, select } = useContext(CtxMode);
   if (mode === "list") {
@@ -154,14 +160,10 @@ function CtxSection({ keyName, title, count, body, action, file }: { keyName: st
         data-testid={`ctx-row-${keyName}`}
         aria-current={on ? "true" : undefined}
         onClick={() => select(keyName)}
-        title={file ? `On disk: ${file}` : undefined}
-        className={`flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left transition-colors ${on ? "bg-accent-soft text-accent" : "text-text-secondary hover:bg-surface-warm"}`}
+        className={`flex h-10 w-full items-center justify-between gap-2 px-4 text-left transition-colors ${on ? "bg-accent-soft text-accent" : "text-text-secondary hover:bg-surface-warm"}`}
       >
         <span className="min-w-0 truncate text-[14px] font-medium">{title}</span>
-        <span className="flex shrink-0 items-center gap-2">
-          {count !== undefined && <span className="text-[12px] text-text-muted">{count}</span>}
-          {file && <span className="font-mono text-[11px] text-text-muted/80">{file}</span>}
-        </span>
+        {count !== undefined && <span className="shrink-0 text-[13px] tabular-nums text-text-muted">{count}</span>}
       </button>
     );
   }
@@ -171,11 +173,11 @@ function CtxSection({ keyName, title, count, body, action, file }: { keyName: st
       <div className="mb-4 flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-2xl font-bold tracking-tight text-text-primary">{title}</h3>
-          {file && <div className="mt-1 font-mono text-[12px] text-text-muted">{file}</div>}
+          {file && <div data-testid="ctx-file" className="mt-1 text-[13px] text-text-muted">{file}</div>}
         </div>
-        {action}
+        {action && <div className="flex shrink-0 items-center gap-0.5">{action}</div>}
       </div>
-      <div className="max-w-2xl text-sm">{body}</div>
+      <div className="max-w-3xl text-sm">{body}</div>
     </section>
   );
 }
@@ -209,7 +211,17 @@ export function DomainContextView({
   const [selected, setSelected] = useState<string>("ideal");
   const [phoneDetail, setPhoneDetail] = useState(false);
   useEffect(() => { setSelected("ideal"); setPhoneDetail(false); }, [domain]);
-  const select = (k: string) => { setSelected(k); setPhoneDetail(true); };
+  // A file or item picked inside a folder or list section, previewed in the
+  // same pane with a way back to the list.
+  type Preview = { title: string; body: string; label: string };
+  const [preview, setPreview] = useState<Preview | null>(null);
+  useEffect(() => { setPreview(null); }, [domain]);
+  const select = (k: string) => { setSelected(k); setPhoneDetail(true); setPreview(null); };
+  const showItem = (title: string, body: string, label = title) => setPreview({ title, body, label });
+  const showFromDisk = async (title: string, cmd: "read_file" | "read_skill", path: string) => {
+    try { showItem(title, await invoke<string>(cmd, { path })); }
+    catch (e) { showItem(title, `Could not read ${path}: ${String(e)}`); }
+  };
   // Live decision ledger (_decisions.jsonl) + distilled long-term memory.
   // These update the moment a verdict is saved - no waiting on distillation.
   type DecisionRecord = { id?: string; ts?: number; kind?: string; prompt?: string; verdict?: string; decision?: string; feedback?: { rating?: string } | string | null };
@@ -321,6 +333,12 @@ export function DomainContextView({
   // Every "use in chat" goes through here so the header can confirm it.
   const [added, setAdded] = useState<string | null>(null);
   const inject = (body: string, label: string) => { onInjectContext(body, label); setAdded(label); };
+  // The actions every file carries: open it in the canvas, or use it in chat.
+  const fileTools = (title: string, body: string, label: string) => body.trim() ? (<>
+    <CtxTool icon={Maximize2} label="Open in canvas" onClick={() => openCanvas(title, body)} />
+    <CtxTool icon={ArrowRight} label="Use in chat" onClick={() => inject(body, label)} />
+  </>) : null;
+  const where = domain ? titleCase(domain) : "General";
 
   // The section tree renders twice: as the spine's list ("list") and as the
   // picked section's full body in the detail pane ("detail").
@@ -338,13 +356,13 @@ export function DomainContextView({
           if (!mission) return null;
           return (
             <button
-              onClick={() => openCanvas("Ideal", idealState)}
+              onClick={() => select("ideal")}
               className="flex w-full items-start gap-2 border-b border-border-subtle bg-accent-soft/40 px-4 py-2 text-left hover:bg-accent-soft"
               title="Your north star - open your ideal state"
             >
               <Compass className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
               <div className="min-w-0">
-                <div className="font-mono text-[11px] text-accent">
+                <div className="text-[12px] font-medium text-accent">
                   {domain ? `${titleCase(domain)} serves your mission` : "Your mission"}
                 </div>
                 <div className="truncate text-[11px] text-text-secondary">{mission}</div>
@@ -380,14 +398,17 @@ export function DomainContextView({
           <Globe className="h-3.5 w-3.5 text-accent" /> Globals
         </div>
         )}
-        <CtxSection keyName="ideal" title="Ideal" file="ideal-state.md" count={idealState.trim() ? 1 : undefined} body={
-          idealState.trim()
-            ? <CtxRow desc="Your constitution (ideal-state.md), injected into every turn." onView={() => openCanvas("Ideal", idealState)} onUse={() => inject(idealState, "Ideal · constitution")} />
-            : <div className="text-[11px] text-text-muted">Not set. Add it in Settings → Ideals.</div>
-        } />
+        <CtxSection keyName="ideal" title="Ideal" file="ideal-state.md" count={idealState.trim() ? 1 : undefined}
+          action={fileTools("Ideal", idealState, "Ideal · constitution")}
+          body={<FileBody body={idealState} empty="Not set. Add it in Settings, Ideals." />} />
         {/* G2: what Prevail knows about you - the profile that grounds every answer.
             Now editable (write_user_md), not just viewable. */}
-        <CtxSection keyName="profile" title="User" file="user.md" count={profile.trim() ? 1 : undefined} body={
+        <CtxSection keyName="profile" title="User" file="user.md" count={profile.trim() ? 1 : undefined}
+          action={editingProfile ? null : (<>
+            <CtxTool icon={Pencil} label={profile.trim() ? "Edit profile" : "Add your profile"} onClick={startEditProfile} />
+            {fileTools("User", profile, "User · who you are")}
+          </>)}
+          body={
           editingProfile ? (
             <div>
               <textarea
@@ -404,15 +425,8 @@ export function DomainContextView({
                 <button onClick={() => setEditingProfile(false)} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-warm">Cancel</button>
               </div>
             </div>
-          ) : profile.trim() ? (
-            <div>
-              <CtxRow desc="What Prevail knows about you (profile.md)." onView={() => openCanvas("User", profile)} onUse={() => inject(profile, "User · who you are")} />
-              <button onClick={startEditProfile} className="mt-1.5 text-[11px] text-accent underline decoration-dotted underline-offset-2 hover:opacity-80">Edit profile</button>
-            </div>
           ) : (
-            <div className="text-[11px] text-text-muted">
-              Not set yet. <button onClick={startEditProfile} className="text-accent underline decoration-dotted underline-offset-2 hover:opacity-80">Add your profile</button> so Prevail grounds every answer in who you are.
-            </div>
+            <FileBody body={profile} empty="Not set yet. Add your profile so Prevail grounds every answer in who you are." />
           )
         } />
         {mode === "list" && (
@@ -425,11 +439,9 @@ export function DomainContextView({
             important local context, so it leads the domain section. Only shown
             for a real domain; General's ideal IS the global one above. */}
         {domain && (
-          <CtxSection keyName="domainideal" title="Ideal" file="ideal-state.md" count={domainIdeal.trim() ? 1 : undefined} body={
-            domainIdeal.trim()
-              ? <CtxRow desc={`${titleCase(domain)}'s target (${titleCase(domain)}/ideal-state.md) - what a thriving ${titleCase(domain)} looks like.`} onView={() => openCanvas(`${titleCase(domain)} ideal`, domainIdeal)} onUse={() => inject(domainIdeal, `${titleCase(domain)} · ideal`)} />
-              : <div className="text-[11px] text-text-muted">Not set. Draft it from the domain's Ideal editor.</div>
-          } />
+          <CtxSection keyName="domainideal" title="Ideal" file="ideal-state.md" count={domainIdeal.trim() ? 1 : undefined}
+            action={fileTools(`${titleCase(domain)} ideal`, domainIdeal, `${titleCase(domain)} · ideal`)}
+            body={<FileBody body={domainIdeal} empty="Not set. Draft it from the domain's Ideal editor." />} />
         )}
         {/* The user's own material (source/) - goals and config they wrote. Real
             grounding context, surfaced per file so the label matches the path. */}
@@ -437,13 +449,9 @@ export function DomainContextView({
           <CtxSection keyName="source" title="Source" file="source/" count={sourceFiles.length} body={
             <ul className="flex flex-col gap-1.5">
               {sourceFiles.map((f) => (
-                <li key={f.name}>
-                  <CtxRow
-                    desc={`Your own material (${f.name}).`}
-                    onView={() => openCanvas(`${domain ? titleCase(domain) : "General"} · ${f.name}`, f.body)}
-                    onUse={() => inject(f.body, `${domain ? titleCase(domain) : "General"} · ${f.name}`)}
-                  />
-                </li>
+                <CtxItem key={f.name} title={f.name} testId={`ctx-item-${f.name}`}
+                  onOpen={() => showItem(f.name, f.body, `${where} · ${f.name}`)}
+                  tools={<CtxTool icon={ArrowRight} label="Use in chat" onClick={() => inject(f.body, `${where} · ${f.name}`)} />} />
               ))}
             </ul>
           } />
@@ -451,29 +459,23 @@ export function DomainContextView({
         {/* The task board - what's open in this domain. Injectable as context so a
             chat can reason over the current workload. */}
         {domainTasks.trim() && (
-          <CtxSection keyName="tasks" title="Tasks" file={vf("memory/tasks.md", "_tasks.md")} body={
-            <CtxRow desc="The domain's task board (open and done items)." onView={() => openCanvas(`${domain ? titleCase(domain) : "General"} tasks`, domainTasks)} onUse={() => inject(domainTasks, `${domain ? titleCase(domain) : "General"} · tasks`)} />
-          } />
+          <CtxSection keyName="tasks" title="Tasks" file={vf("memory/tasks.md", "_tasks.md")}
+            action={fileTools(`${where} tasks`, domainTasks, `${where} · tasks`)}
+            body={<FileBody body={domainTasks} empty="No tasks yet." />} />
         )}
-        <CtxSection keyName="memory" title="Memory" file={vf("memory/memory.md", "_memory.md")} action={<RebuildStateButton vaultPath={vaultPath} domain={domain} field="memory" />} body={
-          memory.trim()
-            ? <CtxRow desc="Distilled long-term memory." onView={() => openCanvas(`${domain ? titleCase(domain) : "General"} memory`, memory)} onUse={() => inject(memory, `${domain ? titleCase(domain) : "General"} · memory`)} />
-            : <div className="text-[11px] text-text-muted">Empty until distilled. Rebuild with ↻ above.</div>
-        } />
+        <CtxSection keyName="memory" title="Memory" file={vf("memory/memory.md", "_memory.md")}
+          action={<><RebuildStateButton vaultPath={vaultPath} domain={domain} field="memory" />{fileTools(`${where} memory`, memory, `${where} · memory`)}</>}
+          body={<FileBody body={memory} empty="Empty until distilled. Rebuild it with the refresh icon above." />} />
         {ctx && (
           <>
-            <CtxSection keyName="state" title="State" file={vf("memory/state.md", "_state.md")} action={<RebuildStateButton vaultPath={vaultPath} domain={domain} field="state" />} body={
-              ctx.state
-                ? <CtxRow desc="Snapshot of where things stand now." onView={() => openCanvas(`${domain ? titleCase(domain) : "General"} state`, ctx.state!)} onUse={() => inject(ctx.state!, `${domain ? titleCase(domain) : "General"} · state`)} />
-                : <div className="text-[11px] text-text-muted">Empty until distilled. Rebuild with ↻ above.</div>
-            } />
+            <CtxSection keyName="state" title="State" file={vf("memory/state.md", "_state.md")}
+              action={<><RebuildStateButton vaultPath={vaultPath} domain={domain} field="state" />{fileTools(`${where} state`, ctx.state ?? "", `${where} · state`)}</>}
+              body={<FileBody body={ctx.state ?? ""} empty="Empty until distilled. Rebuild it with the refresh icon above." />} />
             {/* Decisions = the live ledger (latest, raw) + the distiller's curated
                 summary, in ONE section (was split into "Recent decisions" + "Decisions"). */}
             <CtxSection keyName="decisions" title="Decisions" file={vf("memory/decisions.jsonl", "_decisions.jsonl")} count={decisions.length || undefined} body={
               <>
-              <div className="mb-2 text-[11px] leading-snug text-text-muted">
-                Council verdicts and saved decisions, latest first.
-              </div>
+              <p className="mb-3 text-[14px] text-text-muted">Council verdicts and saved decisions, latest first.</p>
               {decisions.length > 0 ? (
                 <ul className="flex flex-col gap-2">
                   {decisions.slice(0, 8).map((d, i) => {
@@ -484,22 +486,13 @@ export function DomainContextView({
                     const full = (d.verdict || d.decision || d.prompt || "").trim();
                     const title = `Decision · ${text.slice(0, 48)}`;
                     return (
-                      <li key={key} className="flex items-center gap-1.5 rounded-lg border border-border-subtle bg-background px-2.5 py-1.5">
-                        <button onClick={() => openCanvas(title, full)} className="min-w-0 flex-1 text-left" title="Open in canvas">
-                          <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
-                            <span>{d.kind ?? "decision"}{ago ? ` · ${ago}` : ""}</span>
-                            {fb === "up" && <ThumbsUp className="h-2.5 w-2.5 text-accent" />}
-                            {fb === "down" && <ThumbsDown className="h-2.5 w-2.5 text-red-500" />}
-                          </div>
-                          <div className="line-clamp-1 text-[11px] font-medium text-text-primary">{text}</div>
-                        </button>
-                        <button onClick={() => openCanvas(title, full)} title="View" className="shrink-0 rounded p-1 text-text-muted hover:text-accent"><Eye className="h-3.5 w-3.5" /></button>
-                        {full && <button onClick={() => inject(full, `decision · ${text.slice(0, 30)}`)} title="Use in chat" className="shrink-0 rounded p-1 text-text-muted hover:text-accent"><ArrowRight className="h-3.5 w-3.5" /></button>}
-                      </li>
+                      <CtxItem key={key} title={text} sub={`${d.kind ?? "decision"}${ago ? ` · ${ago}` : ""}${fb === "up" ? " · liked" : fb === "down" ? " · disliked" : ""}`}
+                        onOpen={() => showItem(title, full, `decision · ${text.slice(0, 30)}`)}
+                        tools={full ? <CtxTool icon={ArrowRight} label="Use in chat" onClick={() => inject(full, `decision · ${text.slice(0, 30)}`)} /> : undefined} />
                     );
                   })}
                 </ul>
-              ) : <div className="text-[11px] text-text-muted">Empty. Run a council or save a decision.</div>}
+              ) : <p className="text-[14px] text-text-muted">Empty. Run a council or save a decision.</p>}
               </>
             } />
             {/* JOURNAL = the literal record of every prompt that came in (raw),
@@ -509,28 +502,19 @@ export function DomainContextView({
                 journal-named file is the pending vault-layout migration.) */}
             <CtxSection keyName="activity" title="Journal" file={vf(".system/journal.jsonl", "_intents.jsonl")} count={ctx.recent_logs.length || undefined} body={
               <>
-              {ctx.journal && (
-                <div className="mb-2">
-                  <CtxRow desc="Every prompt you sent, verbatim (the raw journal). The distilled sections are derived from this." onView={() => openCanvas(`${domain ? titleCase(domain) : "General"} journal`, ctx.journal!)} onUse={() => inject(ctx.journal!, `${domain ? titleCase(domain) : "General"} · journal`)} />
-                </div>
+              <ul className="flex flex-col gap-1.5">
+                {ctx.journal && (
+                  <CtxItem title="Raw journal" sub="Every prompt you sent, verbatim. The distilled sections come from this."
+                    onOpen={() => showItem(`${where} journal`, ctx.journal!, `${where} · journal`)}
+                    tools={<CtxTool icon={ArrowRight} label="Use in chat" onClick={() => inject(ctx.journal!, `${where} · journal`)} />} />
+                )}
+                {ctx.recent_logs.map((l) => (
+                  <CtxItem key={l.path} title={l.name} sub={l.preview || undefined} onOpen={() => void showFromDisk(l.name, "read_file", l.path)} />
+                ))}
+              </ul>
+              {ctx.recent_logs.length === 0 && !ctx.journal && (
+                <p className="text-[14px] text-text-muted">Empty. Your chats here build this record.</p>
               )}
-              {ctx.recent_logs.length > 0 ? (
-                <>
-                  <div className="mb-1 text-[11px] text-text-muted/70">Session logs</div>
-                  <ul className="space-y-1">
-                    {ctx.recent_logs.map((l) => (
-                      <li key={l.path}>
-                        {/* BP1: click opens the markdown preview (rendered + raw toggle). */}
-                        <button onClick={async () => { try { const body = await invoke<string>("read_file", { path: l.path }); openCanvas(l.name, body); } catch (e) { console.error(e); } }}
-                          className="w-full rounded border border-border-subtle bg-background px-2 py-1.5 text-left hover:border-accent-border hover:bg-surface-warm">
-                          <div className="font-mono text-[11px] text-text-primary">{l.name}</div>
-                          {l.preview && <div className="mt-0.5 line-clamp-2 text-[11px] text-text-muted">{l.preview}</div>}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (!ctx.journal && <div className="text-[11px] text-text-muted">Empty. Your chats here build this record.</div>)}
               </>
             } />
             <CtxSection keyName="skills" title="Skills" file={vf("memory/skills/", "_skills/")} count={ctx.skills.length} body={
@@ -543,14 +527,14 @@ export function DomainContextView({
                     return (
                     <li key={s.path} className={`flex items-stretch gap-1 ${on ? "" : "opacity-55"}`}>
                       <button
-                        onClick={() => onInsertSkill(s.name)}
-                        disabled={!on}
-                        title={on ? "Insert /skill" : "Disabled - enable it to use"}
-                        className="flex-1 rounded border border-border-subtle bg-background px-2 py-1.5 text-left hover:border-accent-border hover:bg-surface-warm disabled:cursor-default disabled:hover:border-border-subtle disabled:hover:bg-background"
+                        onClick={() => void showFromDisk(`/${s.name}`, "read_skill", s.path)}
+                        title="Preview this skill"
+                        className="flex-1 rounded-lg border border-border-subtle bg-background px-3 py-2 text-left hover:border-accent-border hover:bg-surface-warm"
                       >
-                        <div className="font-mono text-[11px] text-accent">/{s.name}</div>
-                        {s.description && <div className="mt-0.5 line-clamp-2 text-[10px] text-text-muted">{s.description}</div>}
+                        <div className="text-[14px] font-medium text-accent">/{s.name}</div>
+                        {s.description && <div className="mt-0.5 line-clamp-2 text-[12px] text-text-muted">{s.description}</div>}
                       </button>
+                      {on && <span className="flex items-center"><CtxTool icon={ArrowRight} label={`Insert /${s.name}`} onClick={() => onInsertSkill(s.name)} /></span>}
                       {/* Enable/disable: a disabled skill stays on disk but is
                           excluded from /skills + auto-attach. */}
                       <span className="flex shrink-0 items-center px-1" title={on ? "Enabled - slide left to disable" : "Disabled - slide right to enable"}>
@@ -588,6 +572,7 @@ export function DomainContextView({
                 <DrawerImportsSection
                   domain={domain}
                   onInject={(body, label) => inject(body, label)}
+                  onPreview={(title, body) => showItem(title, body)}
                 />
               } />
             )}
@@ -598,15 +583,31 @@ export function DomainContextView({
 
   const domainLabel = domain ? titleCase(domain) : "General";
   const DomainIcon = domain ? domainIcon(domain) : MessageSquare;
+  // Where this context lives on disk: the domain's folder, or the vault root
+  // for General. The last few segments show; the full path is on hover.
+  const folder = domain ? domainPath : vaultPath;
   const finder = (
     <button
-      onClick={() => { void invoke("open_in_finder", { path: domainPath }); }}
-      title={`Open ${domainPath} in Finder`}
-      className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left font-mono text-[11px] text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
+      data-testid="ctx-folder"
+      onClick={() => { void invoke("open_in_finder", { path: folder }); }}
+      title={`${folder}\nOpen in Finder`}
+      className="flex min-w-0 max-w-full items-center gap-1.5 rounded-md text-left text-[13px] text-text-muted transition-colors hover:text-accent"
     >
       <Folder className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{domainPath.split("/").slice(-3).join("/")}</span>
+      <span className="truncate">{folder.split("/").filter(Boolean).slice(-3).join("/")}</span>
     </button>
+  );
+  const previewPane = preview && (
+    <section data-testid="ctx-preview">
+      <button onClick={() => setPreview(null)} className="mb-3 inline-flex h-8 items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
+      <div className="mb-4 flex items-start gap-3">
+        <h3 className="min-w-0 flex-1 break-words text-2xl font-bold tracking-tight text-text-primary">{preview.title}</h3>
+        <div className="flex shrink-0 items-center gap-0.5">{fileTools(preview.title, preview.body, preview.label)}</div>
+      </div>
+      <div className="max-w-3xl"><FileBody body={preview.body} empty="This file is empty." /></div>
+    </section>
   );
 
   // In-flow, never an overlay: this view takes the chat column's place. The
@@ -623,9 +624,12 @@ export function DomainContextView({
           <ArrowLeft className="h-4 w-4" /> Chat
         </button>
         {DomainIcon ? <DomainIcon className="h-5 w-5 shrink-0 text-accent" /> : null}
-        <h2 className={`min-w-0 truncate font-display font-bold tracking-tight text-text-primary ${phone ? "text-lg" : "text-2xl"}`}>
-          {domainLabel} context
-        </h2>
+        <div className="min-w-0">
+          <h2 className={`min-w-0 truncate font-display font-bold tracking-tight text-text-primary ${phone ? "text-lg" : "text-2xl"}`}>
+            {domainLabel} context
+          </h2>
+          {finder}
+        </div>
         {added && <span role="status" className="ml-auto hidden min-w-0 truncate text-[13px] text-accent sm:inline">Added to chat: {added}</span>}
       </div>
       <SideSpine
@@ -637,8 +641,7 @@ export function DomainContextView({
         phoneDetail={phoneDetail}
         onBack={() => setPhoneDetail(false)}
         backLabel="All sections"
-        footer={finder}
-        detail={<div className={phone ? "px-4 py-3" : "px-8 py-6"}>{renderTree("detail")}</div>}
+        detail={<div className={phone ? "px-4 py-3" : "px-8 py-6"}>{previewPane || renderTree("detail")}</div>}
       >
         {renderTree("list")}
       </SideSpine>
@@ -678,64 +681,6 @@ export function DomainContextView({
 // hideWhenEmpty so a fresh vault stays clean; in the Usage tab we show a
 // friendly empty state instead.
 
-export function AgentPickerRail({
-  clis,
-  selected,
-  onSelect,
-}: {
-  clis: CliInfo[];
-  selected: string | null;
-  onSelect: (cliId: string) => void;
-}) {
-  const verify = useCliVerifyLive();
-  if (clis.length === 0) return null;
-  return (
-    <div className="mt-3 flex items-center gap-1 rounded-full border border-border bg-surface px-1.5 py-1 shadow-sm">
-      {clis
-        // Harnesses (Hermes, Paperclip, OpenClaw, …) are not chat CLIs - you can't
-        // converse with them here, so keep them off the homepage launcher.
-        .filter((c) => !isHarnessRuntime(c.id))
-        .filter((c) => !isBunkerOn() || isLocalCli(c.id))
-        // A provider that failed validation is not offered for chat: pick a
-        // dead provider and the send just errors. It stays on the Models page
-        // with the reason and a login hint.
-        .filter((c) => verify.get(c.id)?.status !== "failed")
-        .map((c) => {
-        const active = c.id === selected;
-        const v = verify.get(c.id)?.status;
-        return (
-          <button
-            key={c.id}
-            onClick={() => onSelect(c.id)}
-            title={`${c.label}${v === "ok" ? " · validated" : v === "verifying" ? " · validating…" : " · not validated yet"}`}
-            className={`group relative flex items-center gap-2 rounded-full px-2 py-1 transition-all ${
-              active ? "bg-surface-warm" : "hover:bg-surface-warm"
-            }`}
-          >
-            <span className="relative">
-              <ProviderMark vendor={c.id} size={24} />
-              {v === "ok" && (
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-ok text-[10px] font-bold leading-none text-background">✓</span>
-              )}
-              {v === "verifying" && (
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 animate-pulse rounded-full bg-text-muted" />
-              )}
-            </span>
-            <span
-              className={`overflow-hidden whitespace-nowrap font-display text-sm font-semibold tracking-tight transition-all duration-200 ease-out ${
-                active
-                  ? "max-w-[160px] pr-1 opacity-100"
-                  : "max-w-0 pr-0 opacity-0 group-hover:max-w-[160px] group-hover:pr-1 group-hover:opacity-100"
-              }`}
-            >
-              {c.label}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 // I7: create a reusable skill from the UI - the "build skills over time" path.
 // A skill is just a named, reusable prompt the model runs on demand (slash
@@ -1074,7 +1019,7 @@ export function DomainPrefsPanel({
       {/* Header */}
       <div className="mb-6 flex items-end justify-between gap-3">
         <div>
-          <h2 className="font-display text-2xl font-semibold tracking-tight">Preferences</h2>
+          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Preferences</h2>
           <p className="mt-1 text-sm text-text-secondary">
             Domain-only overrides. Pickers apply on the next reload of this domain; global defaults still apply when these are unset.
           </p>
@@ -1149,7 +1094,7 @@ export function DomainPrefsPanel({
                     <span className="h-5 w-5 shrink-0" />
                   )}
                   <ProviderMark vendor={c.id} size={22} />
-                  <span className={`flex-1 font-display text-sm font-semibold tracking-tight ${picked ? "text-accent" : "text-text-primary"}`}>
+                  <span className={`flex-1 text-sm font-semibold ${picked ? "text-accent" : "text-text-primary"}`}>
                     {c.label}
                   </span>
                   {disabled && (

@@ -9,16 +9,16 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke, listen } from "./bridge";
 import { MODELS, MODEL_SEP, VENDOR_BRAND } from "./constants";
 import { relTime, scoreColor, titleCase } from "./format";
-import { isLocalCli } from "./helpers";
+import { isLocalCli, isUserDomain } from "./helpers";
 import { curatedFor, modelLabel, modelsFor, parseRunLabel } from "./helpers2";
 import { PREF, cheapModel, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
 import { BenchCrumbs, Field, ScoreBar } from "./panels";
 import { RowMenu, Sparkline, Toggle } from "./ui";
 import type { RowMenuItem } from "./ui";
 import { SpineColumn, useSpineCollapsed } from "./sidespine";
-import { PAGE_HEADER_ROW } from "./sectionutil";
+import { PageHeaderBar, SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
-import { ArenaBars, ArenaHeader, ArenaInsight, ArenaMetric, ArenaRightRail, ArenaStatCard, heatBg } from "./arena/arenaui";
+import { ArenaBars, ArenaInsight, ArenaMetric, ArenaRightRail, ArenaStatCard, heatBg } from "./arena/arenaui";
 import { domainIcon } from "./icons";
 import { BENCH_CLI_OPTIONS, benchBatches, benchFreqLabel, benchFreqMs, benchNotify, cancelBenchBatch, executeBenchBatch, runBenchModels, startQuestionSuggest, useBenchBatches, useQuestionSuggest } from "./bench";
 import { canonicalPresets, deleteSuite, saveSuite, suiteOrigin, useSuites, useSchedules, upsertSchedule, updateSchedule, removeSchedule, presetScheduleId } from "./bench-presets";
@@ -406,7 +406,7 @@ function MatrixInsights({ matrix, allDomains }: { matrix: MatrixRow[]; allDomain
         <div className="font-mono text-[11px] text-text-muted">Strongest overall</div>
         <div className="mt-1.5 flex items-center gap-2">
           <Award className="h-4 w-4 shrink-0 text-accent" />
-          <span className="min-w-0 flex-1 truncate font-display text-base font-bold tracking-tight text-text-primary">{parseRunLabel(insights.overall.label).model || insights.overall.label}</span>
+          <span className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">{parseRunLabel(insights.overall.label).model || insights.overall.label}</span>
           <span className="font-mono text-lg font-bold text-accent">{insights.overall.judge_avg?.toFixed(1)}</span>
         </div>
         <div className="mt-0.5 text-[11px] text-text-muted">avg judge score across {insights.perDomain.length} domain{insights.perDomain.length === 1 ? "" : "s"}</div>
@@ -629,7 +629,7 @@ export function BenchQuestions({
           ]}
         />
         <div className="space-y-4">
-        <h2 className="font-display text-xl font-bold tracking-tight">{editing === "new" ? "New question" : draft.id}</h2>
+        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{editing === "new" ? "New question" : draft.id}</h2>
         <Field label={editing === "new" ? "Domain(s): comma-separated to add to several at once" : "Domain"}>
           <input value={draft.domain} onChange={(e) => setDraft({ ...draft, domain: e.target.value })} list="bench-domains" placeholder={editing === "new" ? "wealth, health, career" : "wealth"} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
           <datalist id="bench-domains">{allDomains.map((d) => <option key={d} value={d} />)}</datalist>
@@ -944,7 +944,7 @@ function RunningBatchCard({
           : errCount > 0 ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warn" />
           : <Check className="mt-0.5 h-5 w-5 shrink-0 text-ok" strokeWidth={3} />}
         <div className="min-w-0 flex-1">
-          <h2 className="truncate font-display text-lg font-semibold tracking-tight text-text-primary">
+          <h2 className="truncate text-lg font-semibold text-text-primary">
             {scoringPhase ? "Scoring answers…"
               : running ? "Benchmarking…"
               : cancelled ? "Run cancelled"
@@ -2461,7 +2461,7 @@ export function BenchResults({
           className={`flex w-full items-center gap-3 text-left hover:bg-surface-warm/60 ${leader ? "px-4 py-3" : "px-4 py-2"}`}
         >
           {/* Rank */}
-          <span className={`flex shrink-0 items-center justify-center rounded-full font-mono font-bold ${
+          <span className={`flex shrink-0 items-center justify-center rounded-full font-bold ${
             rank === null
               ? "h-6 w-6 text-[11px] text-text-muted/50"
               : leader
@@ -2474,10 +2474,10 @@ export function BenchResults({
           </span>
           <ProviderMark vendor={m.parsed.vendor} size={leader ? 28 : 22} />
           <span className="min-w-0 flex-1">
-            <span className={`block truncate font-display tracking-tight ${leader ? "text-base font-bold" : "text-sm font-semibold"}`}>
+            <span className={`block truncate ${leader ? "text-base font-bold" : "text-sm font-semibold"}`}>
               {m.parsed.model}
             </span>
-            <span className="block font-mono text-[10px] text-text-muted">
+            <span className="block text-[12px] text-text-muted">
               {m.runs.length} run{m.runs.length === 1 ? "" : "s"} · {m.domains.length} domain{m.domains.length === 1 ? "" : "s"} · last {m.latestDate || "-"}
               {rank === null ? (
                 <span className="ml-1.5 font-semibold text-warn" title="No judged score: this model errored or hasn't been scored, so it isn't ranked.">· no score</span>
@@ -2490,17 +2490,17 @@ export function BenchResults({
           </span>
           {/* Numeric columns — fixed widths + always rendered so every row lines
               up. Speed/cost are dashed for unranked models (can't be trusted). */}
-          <span className={`hidden w-16 shrink-0 text-right font-mono text-[11px] tabular-nums sm:block ${boardSort === "speed" && rank !== null ? "text-text-primary" : "text-text-muted"}`} title="Speed: avg latency per question (latest run)">
+          <span className={`hidden w-16 shrink-0 text-right text-[11px] tabular-nums sm:block ${boardSort === "speed" && rank !== null ? "text-text-primary" : "text-text-muted"}`} title="Speed: avg latency per question (latest run)">
             {rank !== null && m.latestRun?.ms_avg != null ? fmtLatency(m.latestRun.ms_avg) : "–"}
           </span>
-          <span className={`hidden w-20 shrink-0 text-right font-mono text-[11px] tabular-nums sm:block ${boardSort === "cost" && rank !== null ? "text-text-primary" : "text-text-muted"}`} title="Cost: est. per run (latest run)">
+          <span className={`hidden w-20 shrink-0 text-right text-[11px] tabular-nums sm:block ${boardSort === "cost" && rank !== null ? "text-text-primary" : "text-text-muted"}`} title="Cost: est. per run (latest run)">
             {rank !== null && m.latestRun?.cost_usd_est != null ? fmtCost(m.latestRun.cost_usd_est, m.latestRun.cost_basis) : "–"}
           </span>
-          <span className={`hidden w-12 shrink-0 text-right font-mono text-[11px] tabular-nums md:block ${boardSort === "value" && rank !== null ? "text-accent" : "text-text-muted"}`} title="Value: 50% intelligence · 25% speed · 25% cost">
+          <span className={`hidden w-12 shrink-0 text-right text-[11px] tabular-nums md:block ${boardSort === "value" && rank !== null ? "text-accent" : "text-text-muted"}`} title="Value: 50% intelligence · 25% speed · 25% cost">
             {m.value != null ? m.value.toFixed(1) : "–"}
           </span>
           <div className="hidden w-24 shrink-0 lg:block"><ScoreBar value={m.best} max={10} color={scoreColor((m.best ?? 0) * 10)} /></div>
-          <span className={`shrink-0 text-right font-mono font-bold tabular-nums ${rank === null ? "text-text-muted/50" : "text-accent"} ${leader ? "w-14 text-2xl" : "w-12 text-sm"}`}>
+          <span className={`shrink-0 text-right font-bold tabular-nums ${rank === null ? "text-text-muted/50" : "text-accent"} ${leader ? "w-14 text-2xl" : "w-12 text-sm"}`}>
             {m.best?.toFixed(1) ?? "–"}
           </span>
         </button>
@@ -2518,13 +2518,13 @@ export function BenchResults({
                     {r.domains.slice(0, 6).map((d) => (
                       <span key={d} className="rounded bg-surface-warm px-1.5 py-0 text-[11px] text-text-muted">{d}</span>
                     ))}
-                    {r.domains.length > 6 && <span className="font-mono text-[11px] text-text-muted">+{r.domains.length - 6}</span>}
+                    {r.domains.length > 6 && <span className="text-[11px] text-text-muted">+{r.domains.length - 6}</span>}
                   </span>
-                  <span className="font-mono text-[11px] text-text-muted">{r.questions} q</span>
+                  <span className="text-[11px] text-text-muted">{r.questions} q</span>
                   {r.scored ? (
                     <RunDims run={r} />
                   ) : (
-                    <span className="font-mono text-[11px] text-warn">Unscored</span>
+                    <span className="text-[11px] text-warn">Unscored</span>
                   )}
                 </button>
                 {!r.scored && (
@@ -2561,7 +2561,7 @@ export function BenchResults({
     const crumbBatch = selectedRun?.batch_label ?? selectedFrom?.batch ?? (selectedRun?.date || null);
     // A section header inside an expanded question: big, bold, unmissable.
     const SectionHead = ({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "ok" | "accent" }) => (
-      <h4 className={`mb-1.5 flex items-center gap-2 font-display text-[15px] font-bold tracking-tight ${
+      <h4 className={`mb-1.5 flex items-center gap-2 text-[15px] font-semibold ${
         tone === "ok" ? "text-ok" : tone === "accent" ? "text-accent" : "text-text-primary"
       }`}>
         {children}
@@ -2581,15 +2581,15 @@ export function BenchResults({
         {/* Dense header - model, when, where it ran, and the verdict, one row. */}
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
           <ProviderMark vendor={p.vendor} size={28} />
-          <h2 className="font-display text-xl font-bold tracking-tight">{p.model}</h2>
-          {selectedRun?.date && <span className="rounded bg-surface-warm px-2 py-0.5 font-mono text-[10px] text-text-muted">{selectedRun.date}</span>}
+          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{p.model}</h2>
+          {selectedRun?.date && <span className="rounded bg-surface-warm px-2 py-0.5 text-[12px] text-text-muted">{selectedRun.date}</span>}
           <span className="flex items-center gap-1">
             {(selectedRun?.domains ?? []).slice(0, 6).map((d) => (
-              <span key={d} className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] text-text-muted">{d}</span>
+              <span key={d} className="rounded bg-surface-warm px-1.5 py-0.5 text-[12px] text-text-muted">{d}</span>
             ))}
-            {(selectedRun?.domains.length ?? 0) > 6 && <span className="font-mono text-[10px] text-text-muted">+{(selectedRun?.domains.length ?? 0) - 6}</span>}
+            {(selectedRun?.domains.length ?? 0) > 6 && <span className="text-[12px] text-text-muted">+{(selectedRun?.domains.length ?? 0) - 6}</span>}
           </span>
-          <div className="ml-auto flex items-center gap-5 font-mono text-sm">
+          <div className="ml-auto flex items-center gap-5 text-sm">
             <span title="Intelligence: judge score /10"><span className="font-display text-2xl font-bold text-accent">{selected.score.judge_avg?.toFixed(1) ?? "-"}</span><span className="text-[11px] text-text-muted"> /10</span></span>
             <span className="text-text-secondary">{selected.score.keyword_avg !== null ? Math.round(selected.score.keyword_avg) + "% kw" : ""}</span>
             <span className="inline-flex items-center gap-1 text-text-muted" title="Speed: average latency per question"><Zap className="h-3.5 w-3.5" />{fmtLatency(selectedRun?.ms_avg ?? selected.score.ms_avg)}</span>
@@ -2732,18 +2732,18 @@ export function BenchResults({
                     <Crown className="h-3 w-3" /> #1 Top performer
                   </span>
                   <ProviderMark vendor={top.parsed.vendor} size={26} />
-                  <span className="font-display text-xl font-bold tracking-tight text-text-primary">{top.parsed.model}</span>
-                  <span className="font-mono text-[11px] text-text-muted">{top.runs.length} run{top.runs.length === 1 ? "" : "s"} · {top.domains.length} domain{top.domains.length === 1 ? "" : "s"}{top.latestDate ? ` · last ${top.latestDate}` : ""}</span>
+                  <span className="text-[17px] font-semibold leading-snug text-text-primary">{top.parsed.model}</span>
+                  <span className="text-[11px] text-text-muted">{top.runs.length} run{top.runs.length === 1 ? "" : "s"} · {top.domains.length} domain{top.domains.length === 1 ? "" : "s"}{top.latestDate ? ` · last ${top.latestDate}` : ""}</span>
                   {top.history.length >= 2 && <span className="ml-auto"><Sparkline values={top.history} width={120} height={32} /></span>}
                 </div>
                 <div className="mt-4 flex flex-wrap items-end gap-6">
                   <div>
-                    <div className="font-mono text-[11px] text-text-muted">Arena score</div>
+                    <div className="text-[11px] text-text-muted">Arena score</div>
                     <div className="flex items-baseline gap-2">
-                      <span className="font-display text-4xl font-bold tracking-tight text-accent">{top.best?.toFixed(2) ?? "-"}</span>
+                      <span className="font-display text-[28px] font-bold leading-none text-accent">{top.best?.toFixed(2) ?? "-"}</span>
                       <span className="text-sm text-text-muted">/10</span>
                       {top.delta !== null && Math.abs(top.delta) >= 0.05 && (
-                        <span className={`font-mono text-xs font-semibold ${top.delta > 0 ? "text-ok" : "text-warn"}`}>{top.delta > 0 ? "▲" : "▼"}{Math.abs(top.delta).toFixed(2)}</span>
+                        <span className={`text-xs font-semibold ${top.delta > 0 ? "text-ok" : "text-warn"}`}>{top.delta > 0 ? "▲" : "▼"}{Math.abs(top.delta).toFixed(2)}</span>
                       )}
                     </div>
                   </div>
@@ -2770,7 +2770,7 @@ export function BenchResults({
             return (
               <div className="mb-2 px-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[11px] text-text-muted">Sort by</span>
+                  <span className="text-[11px] text-text-muted">Sort by</span>
                   <div className="inline-flex items-center rounded-lg border border-border-subtle bg-surface p-0.5">
                     {([["intel", "Intelligence"], ["value", "Value"], ["speed", "Speed"], ["cost", "Cost"]] as const).map(([k, label]) => (
                       <button key={k} onClick={() => setBoardSort(k)} title={SORT_META[k].tip} className={`rounded-md px-2.5 py-1 text-[11px] transition-colors ${boardSort === k ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-text-primary"}`}>{label}</button>
@@ -2814,7 +2814,7 @@ export function BenchResults({
       {resultsView === "history" && visibleRuns.length > 0 && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 px-1">
-            <span className="font-mono text-[11px] text-text-muted">Sort by</span>
+            <span className="text-[12px] text-text-muted">Sort by</span>
             <div className="inline-flex items-center rounded-lg border border-border-subtle bg-surface p-0.5">
               {([["recent", "Latest"], ["oldest", "Oldest"], ["score", "Best score"], ["size", "Most models"]] as const).map(([k, label]) => (
                 <button key={k} onClick={() => setHistorySort(k)} className={`rounded-md px-2.5 py-1 text-[11px] transition-colors ${historySort === k ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-text-primary"}`}>{label}</button>
@@ -3284,7 +3284,7 @@ export function BenchmarkPanel({
     invoke<MatrixRow[]>("benchmark_matrix", { vault: vaultPath }).then((v) => setMatrix(Array.isArray(v) ? v : [])).catch(() => {});
     invoke<BenchQuestion[]>("benchmark_questions", { vault: vaultPath }).then((v) => setQuestions(Array.isArray(v) ? v : [])).catch(() => {});
     invoke<Domain[]>("scan_vault", { path: vaultPath })
-      .then((ds) => setVaultDomains(ds.map((d) => d.name)))
+      .then((ds) => setVaultDomains(ds.map((d) => d.name).filter(isUserDomain)))
       .catch(() => {});
     invoke<EngineApp[]>("engine_apps_list").then((v) => setApps(Array.isArray(v) ? v : [])).catch(() => {});
   }, [vaultPath]);
@@ -3331,7 +3331,7 @@ export function BenchmarkPanel({
     for (const q of questions) extra.add(q.domain);
     for (const m of matrix) for (const d of Object.keys(m.per_domain)) extra.add(d);
     for (const v of vault) extra.delete(v);
-    return [...vault, ...Array.from(extra).sort().filter((d) => !isApp(d))];
+    return [...vault, ...Array.from(extra).sort().filter((d) => isUserDomain(d) && !isApp(d))];
   }, [vaultDomains, questions, matrix, apps]);
 
   // ── Run config ──────────────────────────────────────────────────
@@ -3588,7 +3588,18 @@ export function BenchmarkPanel({
   };
   const showDomains = !initialDomain && allDomains.length > 0 && (view === "board" || view === "history");
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-0 flex-col" data-testid="arena-page">
+      {/* Laid out like Models: the page header first, full width, then the
+          section column and the detail below it. */}
+      <PageHeaderBar>
+        <SettingsHeader title="Arena" icon={Swords} subtitle="Run your questions past every model and keep score."
+          right={
+            <button onClick={() => setView("run")} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-background hover:bg-accent-hover">
+              <Plus className="h-3.5 w-3.5" /> New Run
+            </button>
+          } />
+      </PageHeaderBar>
+      <div className="flex min-h-0 flex-1">
       {/* The canonical SideSpine column: the Arena's sections, then the
           Domains filter. Collapses to a thin strip like every other screen. */}
       {!phone && <SpineColumn collapsed={navCollapsed} onToggle={toggleNav} title="Arena" label="Arena sections" testId="arena-nav"
@@ -3617,9 +3628,11 @@ export function BenchmarkPanel({
               <div className="space-y-0.5">
                 <button
                   onClick={() => setDomainFilter("all")}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors ${domainFilter === "all" ? "bg-surface-warm font-semibold text-text-primary" : "text-text-secondary hover:bg-surface-warm/50"}`}
+                  aria-pressed={domainFilter === "all"}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors hover:bg-surface-warm/50 ${domainFilter === "all" ? "font-semibold text-accent" : "text-text-secondary"}`}
                 >
-                  <Layers className={`h-4 w-4 shrink-0 ${domainFilter === "all" ? "text-accent" : ""}`} /> All
+                  <Layers className="h-4 w-4 shrink-0" /> <span className="flex-1">All</span>
+                  {domainFilter === "all" && <Check className="h-3.5 w-3.5 shrink-0" />}
                 </button>
                 {allDomains.map((d) => {
                   const Icon = domainIcon(d) ?? Circle;
@@ -3627,10 +3640,13 @@ export function BenchmarkPanel({
                   return (
                     <button
                       key={d}
+                      data-testid={`arena-domain-${d}`}
                       onClick={() => setDomainFilter(d)}
-                      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors ${on ? "bg-surface-warm font-semibold text-text-primary" : "text-text-secondary hover:bg-surface-warm/50"}`}
+                      aria-pressed={on}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors hover:bg-surface-warm/50 ${on ? "font-semibold text-accent" : "text-text-secondary"}`}
                     >
-                      <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : ""}`} /> <span className="truncate">{titleCase(d)}</span>
+                      <Icon className="h-4 w-4 shrink-0" /> <span className="min-w-0 flex-1 truncate">{titleCase(d)}</span>
+                      {on && <Check className="h-3.5 w-3.5 shrink-0" />}
                     </button>
                   );
                 })}
@@ -3646,28 +3662,18 @@ export function BenchmarkPanel({
         {/* Header lives OUTSIDE the scroll area (a fixed flex row above it) so it
             stays visible on long pages regardless of scroll-container height,
             instead of relying on position:sticky which the nested layout broke. */}
-        <div data-testid="page-header" className={PAGE_HEADER_ROW}>
+        {/* The section heading, sized like the Models detail headings. */}
+        <div data-testid="arena-section-head" className={`shrink-0 ${phone ? "px-4 pt-4" : "px-8 pt-6"}`}>
           {phone && (
             <select aria-label="Arena section" data-testid="arena-picker" value={view} onChange={(e) => setView(e.target.value as typeof view)}
               className="mb-3 h-12 w-full rounded-lg border border-border bg-surface px-3 text-[16px] font-semibold text-text-primary focus:border-accent-border focus:outline-none">
               {NAV.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
             </select>
           )}
-          <ArenaHeader
-            title={HEAD[view].title}
-            subtitle={HEAD[view].subtitle}
-            actions={
-              view === "run" ? null : (
-                <button onClick={() => setView("run")} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-background hover:bg-accent-hover">
-                  <Plus className="h-3.5 w-3.5" /> New Run
-                </button>
-              )
-            }
-          />
+          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{HEAD[view].title}</h2>
+          {HEAD[view].subtitle && <p className="mt-1 text-[14px] text-text-muted">{HEAD[view].subtitle}</p>}
         </div>
-        {/* pt-6: every section's content starts clear of the header rule
-            instead of sitting on it. */}
-        <div className="min-h-0 flex-1 overflow-y-auto pt-6">
+        <div className="min-h-0 flex-1 overflow-y-auto pt-5">
         {view === "run" && (
           <>
             {/* Wizard leads the New Run page; the runs monitor sits BELOW it so
@@ -3689,7 +3695,7 @@ export function BenchmarkPanel({
             {monitorBatches.length > 0 && (
               <div className="w-full space-y-3 border-t border-border-subtle px-8 pb-6 pt-5">
                 <div className="flex items-baseline justify-between">
-                  <h2 className="font-display text-sm font-semibold tracking-tight text-text-primary">
+                  <h2 className="text-sm font-semibold text-text-primary">
                     Runs ({monitorBatches.length})
                   </h2>
                   <span className="font-mono text-[10px] text-text-muted">
@@ -3770,7 +3776,7 @@ export function BenchmarkPanel({
         const leaderModel = leader ? parseRunLabel(leader.label).model : null;
         const activeScheds = schedules.filter((s) => s.enabled);
         return (
-          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-subtle bg-surface-warm/40 px-4 py-2 font-mono text-[10px] text-text-muted">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-subtle bg-surface-warm/40 px-4 py-2 text-[12px] text-text-muted">
             <span>{modelCount} model{modelCount === 1 ? "" : "s"} · {runs.length} run{runs.length === 1 ? "" : "s"}{lastDate ? ` · last ${lastDate}` : ""}</span>
             {leaderModel && <span className="inline-flex items-center gap-1"><Crown className="h-3 w-3 text-accent" /> {leaderModel} {leader?.judge_avg?.toFixed(1)}</span>}
             <button onClick={() => setView("schedule")} className="ml-auto inline-flex items-center gap-1.5 hover:text-accent" title="Scheduled runs (Schedule tab)">
@@ -3780,6 +3786,7 @@ export function BenchmarkPanel({
           </div>
         );
       })()}
+      </div>
       </div>
     </div>
   );

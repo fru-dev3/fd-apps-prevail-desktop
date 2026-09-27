@@ -6,81 +6,117 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, BarChart3, BookUser, Bot, Briefcase, CalendarDays, Compass, Database, Dices, FileText, FolderKanban, Github, Hammer, Layers, Lightbulb, ListChecks, MessagesSquare, Network, Plug, Repeat, Scale, ScanFace, Settings as SettingsIcon, Shield, ShieldCheck, Smartphone, Sparkles, Swords, Target, UserRound, Webhook, Wrench, Zap } from "lucide-react";
+import { Activity, Blocks, BookUser, Compass, Database, FolderKanban, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Target } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
 
 // Home sidebar: the operational surfaces, in two groups. The top group sits
 // directly under Home and Inbox (which the sidebar renders itself, since they
-// are not Work sections); the "Work" group holds the planning screens. Every id
-// here is a WorkPanel section.
+// are not in these groups); the "Work" group holds the planning screens. Every
+// id here is a WorkPanel section.
 //   insights  -> Intent (what your prompts say about you)
 //   projects  -> Intent's Projects view
-//   task-list -> the Work board's list view
+//   task-list -> Tasks, a plain list
 //   goals     -> the ideal-state constitution
 export const WORK_NAV: NavGroup[] = [
   { heading: "Home", items: [
     { id: "insights", label: "Insights", icon: ScanFace },
     { id: "recommendations", label: "Recommendations", icon: Lightbulb },
-    { id: "spark", label: "Spark", icon: Dices },
-    { id: "automations", label: "Automations", icon: Repeat },
-    { id: "calendar", label: "Calendar", icon: CalendarDays },
-    { id: "notes", label: "Notes", icon: FileText },
   ]},
   { heading: "Work", items: [
-    { id: "tasks", label: "Work board", icon: Briefcase },
     { id: "projects", label: "Projects", icon: FolderKanban },
     { id: "task-list", label: "Tasks", icon: ListChecks },
     { id: "goals", label: "Goals", icon: Target },
   ]},
 ];
 
+// Every WorkPanel section: the nav rows plus Inbox and Apps, which the sidebar
+// draws itself.
+export const WORK_SECTION_IDS: string[] = ["inbox", "apps", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
+// Old ids that still arrive from deep links and saved state. The Work board
+// ("tasks") is the Tasks list now; the Settings Apps page ("connectors") is
+// the Home Apps page.
+const WORK_ALIASES: Record<string, string> = { tasks: "task-list", connectors: "apps" };
+// Screens that were removed. Links saved before that land on Home.
+export const REMOVED_SECTIONS = new Set(["map", "source-map", "source", "spark", "automations", "loopboard", "calendar", "notes"]);
+/** The WorkPanel section an id opens (aliases resolved), or null if it is not one. */
+export function workSection(id: string): string | null {
+  const s = WORK_ALIASES[id] ?? id;
+  return WORK_SECTION_IDS.includes(s) ? s : null;
+}
+
 // Editor mode: configuration.
 export const EDITOR_NAV: NavGroup[] = [
   { heading: "Intelligence", items: [
     { id: "models", label: "Models", icon: Layers },
     { id: "council", label: "Council", icon: Scale },
-    { id: "frameworks", label: "Frameworks", icon: Lightbulb },
-    { id: "skills", label: "Skills", icon: Sparkles },
-    { id: "tools", label: "Tools", icon: Hammer },
+    { id: "toolkit", label: "Toolkit", icon: Blocks },
     { id: "benchmark", label: "Arena", icon: Swords },
   ]},
   { heading: "Context & Memory", items: [
     { id: "intent", label: "Intent", icon: ScanFace },
     { id: "entities", label: "Entities", icon: BookUser },
     { id: "ideal-state", label: "Ideals", icon: Compass },
-    { id: "daemons", label: "Daemons", icon: Zap },
     { id: "activity", label: "Activity", icon: Activity },
-    { id: "usage", label: "Usage", icon: BarChart3 },
   ]},
+  // Each of these is one page whose side column lists what used to be
+  // separate rows (EDITOR_SUBS maps the old ids to a page and a row).
   { heading: "Connections", items: [
-    // Phone leads the group and is its own destination: mobile access used to
-    // live inside the WebUI panel, where nobody knew to look for it.
-    { id: "phone", label: "Phone", icon: Smartphone },
-    { id: "connectors", label: "Apps", icon: Plug },
-    { id: "gateway", label: "Gateway", icon: MessagesSquare },
-    { id: "mcp", label: "MCP", icon: Wrench },
-    { id: "hooks", label: "Hooks", icon: Webhook },
-    { id: "remote", label: "Network", icon: Network },
+    { id: "connections", label: "Connections", icon: Network },
   ]},
   { heading: "Privacy & Safety", items: [
-    { id: "autonomy", label: "Autonomy", icon: Bot },
-    { id: "privacy", label: "Privacy", icon: ShieldCheck },
-    { id: "safety", label: "Safety", icon: Shield },
+    { id: "privacy-safety", label: "Privacy & Safety", icon: ShieldCheck },
   ]},
   { heading: "Settings", items: [
-    { id: "profiles", label: "Profiles", icon: UserRound },
-    { id: "workspace", label: "Vault", icon: Database },
-    { id: "general", label: "General", icon: SettingsIcon },
-    { id: "about", label: "About", icon: Github },
+    { id: "settings", label: "Settings", icon: SettingsIcon },
   ]},
 ];
+
+// Old Settings ids, and the page and side row they open now.
+export const EDITOR_SUBS: Record<string, [page: string, row: string]> = {
+  phone: ["connections", "phone"],
+  gateway: ["connections", "gateway"],
+  mcp: ["connections", "mcp"],
+  hooks: ["connections", "hooks"],
+  remote: ["connections", "network"],
+  privacy: ["privacy-safety", "bunker"],
+  autonomy: ["privacy-safety", "autonomy"],
+  safety: ["privacy-safety", "safety-access"],
+  general: ["settings", "general"],
+  appearance: ["settings", "appearance"],
+  shortcuts: ["settings", "shortcuts"],
+  workspace: ["settings", "vault"],
+  vault: ["settings", "vault"],
+  demo: ["settings", "vault"],
+  profiles: ["settings", "profiles"],
+  about: ["settings", "about"],
+  daemons: ["settings", "daemon:distill"],
+  memory: ["settings", "daemon:memory"],
+  usage: ["activity", "usage:overview"],
+  omega: ["ideal-state", "omega"],
+};
+/** The side row an old id asks for on its new page, if any. */
+export function editorRow(id: string): string | null {
+  return EDITOR_SUBS[id]?.[1] ?? null;
+}
 
 // Intent replaced three nav items (Intents, Prompts, Retrospect) and was
 // briefly called Mirror. Those ids still arrive from deep links and saved
 // state, so they land on Intent.
 const INTENT_ALIASES = new Set(["intents", "prompt-capture", "retrospect", "mirror"]);
+// Skills, Tools and Frameworks are one Toolkit page now. Their old ids open it
+// with that group expanded and its first item picked (toolkitGroup).
+const TOOLKIT_ALIASES = new Set(["skills", "tools", "frameworks"]);
 export function navSection(id: string): string {
+  if (TOOLKIT_ALIASES.has(id)) return "toolkit";
+  if (EDITOR_SUBS[id]) return EDITOR_SUBS[id][0];
   return INTENT_ALIASES.has(id) ? "intent" : id;
+}
+export const TOOLKIT_FOCUS_KEY = "prevail.toolkit.focus";
+/** Remember which Toolkit group an old id asked for, for the page to open on. */
+export function noteToolkitGroup(id: string): void {
+  if (!TOOLKIT_ALIASES.has(id)) return;
+  try { localStorage.setItem(TOOLKIT_FOCUS_KEY, id); } catch { /* storage off */ }
+  window.dispatchEvent(new CustomEvent("prevail:toolkit-focus", { detail: id }));
 }

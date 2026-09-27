@@ -135,7 +135,7 @@ export function openProject(slug: string) {
 
 export function openApp(id: string) {
   try { sessionStorage.setItem(MIRROR_SELECT_KEY, id); } catch { /* storage off */ }
-  fire("prevail:open-settings", "connectors");
+  fire("prevail:open-settings", "apps");
   fire("prevail:mirror-select", id);
 }
 
@@ -209,7 +209,7 @@ export async function applyRec(rec: Rec, vaultPath: string): Promise<string> {
       if (a.domain) fire("prevail:open-domain", a.domain);
       return "Opened the domain.";
     case "connect_app":
-      fire("prevail:open-settings", "connectors");
+      fire("prevail:open-settings", "apps");
       return "Opened Apps.";
     case "signin_app": case "sync_app": case "draft_recipe":
       if (a.app) openApp(a.app);

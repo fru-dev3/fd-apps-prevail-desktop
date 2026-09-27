@@ -2,13 +2,17 @@
 // or thing, shown in the Entities view's detail pane (never a side card).
 // Everything comes from `prevail entities show`; the owner's notes are edited
 // here and written back to the page's "Your notes" section only.
-import { useCallback, useEffect, useState } from "react";
-import { Boxes, BookmarkCheck, BookmarkPlus, FileText, Loader2, MapPin, MessageSquarePlus, MessagesSquare, Terminal } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { Boxes, BookmarkCheck, BookmarkPlus, FileText, Loader2, MapPin, MessageSquare, MessagesSquare, Terminal } from "lucide-react";
 import { invoke } from "./bridge";
 import { CARD_KINDS, EntityChip, OrgMark, entityIdOf, openMap, type EntityKind } from "./entities";
 import { entitySnapshot } from "./entitystore";
 import { Markdown } from "./Markdown";
 import { pickSkillColor } from "./sectionutil";
+import { loadEntityThreads, type EntityThread } from "./entitythreads";
+
+// The chat is the whole chat panel, so it loads only when opened.
+const EntityChat = lazy(() => import("./entitychat").then((m) => ({ default: m.EntityChat })));
 
 export interface EntityMention { source: "thread" | "prompt" | "brief"; ref: string; domain: string; project: string; title: string; tool?: string; ts: number; snippet: string }
 export interface EntityDetail {
@@ -93,19 +97,10 @@ function MentionRow({ m }: { m: EntityMention }) {
   );
 }
 
-function seedText(d: EntityDetail): string {
-  const link = `[${d.name}](prevail://${d.id})`;
-  const ctx: string[] = [];
-  if (d.digest) ctx.push(`What I have discussed: ${d.digest.replace(/\s+/g, " ").trim()}`);
-  if (d.notes) ctx.push(`My notes: ${d.notes.replace(/\s+/g, " ").trim()}`);
-  for (const m of d.mentions.slice(0, 6)) ctx.push(`- ${new Date(m.ts).toISOString().slice(0, 10)}: ${m.snippet}`);
-  return `Tell me about ${link} (${KIND_LABEL[d.kind]?.toLowerCase() ?? d.kind}) based on what I have discussed, and what is worth knowing or doing next.${ctx.length ? `\n\nFrom my vault:\n${ctx.join("\n")}` : ""}`;
-}
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
-      <h3 className="mb-3 font-display text-xl font-semibold text-text-primary">{title}</h3>
+      <h3 className="text-[19px] font-semibold text-text-primary mb-3">{title}</h3>
       {children}
     </section>
   );
@@ -133,6 +128,7 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
   useEffect(() => { setD(null); void load(); }, [load]);
 
   const writeId = d?.found ? d.id : `${target.kind}/${target.value}`;
+  function writeIdOf() { return d?.found ? d.id : `${target.kind}/${target.value}`; }
   const save = async () => {
     setBusy("save");
     try {
@@ -151,24 +147,37 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
       fire("prevail:entities-changed");
     } catch (e) { setErr(String(e)); } finally { setBusy(null); }
   };
-  const ask = () => {
-    if (!d) return;
-    const text = seedText(d.found ? d : { ...d, id, name: displayName, kind: target.kind, digest: "", notes, mentions: [] } as EntityDetail);
-    try { localStorage.setItem("prevail.compose.pending", text); } catch { /* storage off */ }
-    fire("prevail:new-chat");
-    fire("prevail:compose-seed", text);
-  };
+  // Entity chat opens in this pane. `chat` holds the conversation to open:
+  // undefined continues the most recent, null starts a new one.
+  const [chat, setChat] = useState<{ thread?: string | null } | null>(null);
+  const [threads, setThreads] = useState<EntityThread[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => { void loadEntityThreads(vaultPath, writeIdOf()).then((l) => { if (alive) setThreads(l); }); };
+    pull();
+    window.addEventListener("prevail:threads-changed", pull);
+    return () => { alive = false; window.removeEventListener("prevail:threads-changed", pull); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultPath, target.kind, target.value, d?.id]);
 
   const kind = (d?.found ? d.kind : target.kind) as EntityKind;
   const hasPage = !!(d?.found && d.page_path);
   const notesDirty = notes !== (d?.found ? d.notes : "");
+
+  if (chat) {
+    return (
+      <Suspense fallback={<div className="flex items-center gap-2 py-8 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Opening the chat</div>}>
+        <EntityChat vaultPath={vaultPath} entity={{ id: writeId, name: displayName }} initial={chat.thread} onBack={() => setChat(null)} />
+      </Suspense>
+    );
+  }
 
   return (
     <div data-testid="entity-detail">
       <div className="flex items-start gap-4">
         <KindBadge kind={kind} name={displayName} domain={d?.found ? d.domain : known?.domain} size={56} />
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-3xl font-semibold leading-tight tracking-tight text-text-primary [overflow-wrap:anywhere]">{displayName}</h2>
+          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary [overflow-wrap:anywhere]">{displayName}</h2>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[14px] text-text-muted">
             <span>{KIND_LABEL[kind] ?? kind}</span>
             {d?.found && d.conversations > 0 && <><span aria-hidden>·</span><span>{d.conversations} {d.conversations === 1 ? "conversation" : "conversations"}</span></>}
@@ -185,8 +194,8 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
           : <button onClick={save} disabled={!d || busy !== null} className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[14px] font-medium text-white hover:bg-accent-hover disabled:opacity-60">
               {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookmarkPlus className="h-4 w-4" />}Save to vault
             </button>}
-        <button onClick={ask} disabled={!d} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[14px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
-          <MessageSquarePlus className="h-4 w-4" />Ask about it
+        <button onClick={() => setChat({})} disabled={!d} data-testid="entity-chat-open" className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[14px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
+          <MessageSquare className="h-4 w-4" />Chat
         </button>
         {kind === "place" && (
           <button onClick={() => openMap(displayName)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[14px] font-medium text-text-secondary hover:border-accent-border hover:text-accent">
@@ -215,6 +224,22 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
               </button>
               {savedNote && <span className="min-w-0 truncate text-[13px] text-accent">Saved to {d.page_path}</span>}
             </div>
+          </Section>
+          <Section title="Your conversations">
+            {threads && threads.length > 0 ? (
+              <ul className="-mx-2" data-testid="entity-conversations">
+                {threads.slice(0, 20).map((t) => (
+                  <li key={t.slug}>
+                    <button type="button" onClick={() => setChat({ thread: t.slug })} data-testid="entity-conversation"
+                      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-surface-warm">
+                      <MessageSquare className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+                      <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary">{t.title || "Untitled"}</span>
+                      <span className="shrink-0 text-[12px] text-text-muted">{t.turns} {t.turns === 1 ? "turn" : "turns"} · {fmtDay(t.updated)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-[14px] text-text-muted">{threads ? "No conversations yet. Start one with Chat." : "Reading your conversations"}</p>}
           </Section>
           <Section title="Mentioned in">
             {d.found && d.mentions.length

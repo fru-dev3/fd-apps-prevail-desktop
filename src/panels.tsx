@@ -4,8 +4,9 @@ import { confirm as tauriConfirm, open as openFileDialog } from "@tauri-apps/plu
 import { SpineColumn, useSpineCollapsed } from "./sidespine";
 import { RowAction } from "./rowaction";
 import { WaitingChip } from "./actcard";
+import { entitySnapshot } from "./entitystore";
 import { useWaitingState, waitingThreadPaths } from "./waiting";
-import { Archive, ArrowRight, Check, ChevronDown, ChevronRight, Cpu, Download, Folder, Lightbulb, Link2, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, Search, Shield, Sparkles, Trash2, Wrench, X } from "lucide-react";
+import { Archive, ArrowRight, Check, ChevronDown, ChevronRight, Cpu, Download, Folder, Lightbulb, Link2, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, RefreshCw, Search, Shield, Sparkles, Trash2, UserRound, Wrench, X } from "lucide-react";
 import { siWhatsapp } from "simple-icons";
 import { PrevailLogo } from "./PrevailLogo";
 import { ProviderMark } from "./marks";
@@ -160,7 +161,7 @@ export function QuickSwitcher({
                   {it.kind === "domain" ? "◆" : "▶"}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className={`truncate font-display text-sm font-semibold tracking-tight ${active ? "text-accent" : "text-text-primary"}`}>
+                  <div className={`truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>
                     {it.label}
                   </div>
                   <div className="truncate text-[11px] text-text-muted">{it.sub}</div>
@@ -503,6 +504,14 @@ export function SidebarMcpLive({ collapsed, setTab }: { collapsed: boolean; setT
   );
 }
 
+// An entity-tagged thread's chip: the entity's name when the store knows it,
+// else its slug made readable.
+function entityLabel(id: string): string {
+  const known = entitySnapshot().byId.get(id);
+  if (known) return known.name;
+  return titleCase((id.split("/")[1] ?? id).replace(/[-_]+/g, " "));
+}
+
 export function ThreadsRail({
   threads,
   activePath,
@@ -642,6 +651,12 @@ export function ThreadsRail({
                         <span className={`truncate text-sm ${active ? "font-medium text-text-primary" : "text-text-secondary"}`}>
                           {t.title}
                         </span>
+                        {t.entity && (
+                          <span data-testid="thread-entity-chip" title={`A conversation about ${entityLabel(t.entity)}`}
+                            className="ml-auto inline-flex max-w-[45%] shrink-0 items-center gap-1 truncate rounded-full bg-accent-soft px-1.5 text-[11px] text-accent">
+                            <UserRound className="h-2.5 w-2.5 shrink-0" /><span className="truncate">{entityLabel(t.entity)}</span>
+                          </span>
+                        )}
                         {t.linked_from && (
                           <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[10px] text-text-muted" title="Started in General and filed here. Same conversation, not a copy.">
                             <Link2 className="h-2.5 w-2.5" />from General
@@ -900,7 +915,7 @@ export function SurfacePanel({ vaultPath, domain, onPick, onAddTask }: { vaultPa
     <div className="mb-4 rounded-xl border border-accent-border/40 bg-accent-soft/40 px-4 py-3">
       <div className="mb-2 flex items-baseline gap-2.5">
         <Sparkles className="h-4 w-4 shrink-0 self-center text-accent" />
-        <span className="font-display text-lg font-bold tracking-tight text-text-primary">For you · {titleCase(domain)}</span>
+        <span className="text-lg font-semibold text-text-primary">For you · {titleCase(domain)}</span>
         {freshMeta && <span className="font-mono text-[11px] text-text-muted">{freshMeta}</span>}
         <button onClick={() => void load(true)} disabled={loading}
           className="ml-auto text-[11px] text-text-muted hover:text-accent disabled:opacity-40">
@@ -1020,7 +1035,7 @@ export function DomainAppsStrip({ domain }: { domain: string }) {
       {/* Direct jump to the Apps configuration space - saves the Editor > Apps
           round-trip when tweaking a connector mid-flow. */}
       <button
-        onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))}
+        onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))}
         title="Open Apps configuration"
         className="font-mono text-[11px] text-text-muted underline decoration-dotted underline-offset-2 transition-colors hover:text-accent"
       >
@@ -1380,9 +1395,12 @@ export function SkillsList({
 export function DrawerImportsSection({
   domain,
   onInject,
+  onPreview,
 }: {
   domain: string;
   onInject: (body: string, label: string) => void;
+  // When set, a click previews the import instead of adding it to the chat.
+  onPreview?: (title: string, body: string) => void;
 }) {
   const [items, setItems] = useState<{ path: string; name: string; size: number; mtime: number }[]>([]);
   useEffect(() => {
@@ -1434,7 +1452,8 @@ export function DrawerImportsSection({
                 onClick={async () => {
                   try {
                     const body = await invoke<string>("read_file", { path: it.path });
-                    onInject(body.slice(0, 6000), it.name);
+                    if (onPreview) onPreview(it.name, body);
+                    else onInject(body.slice(0, 6000), it.name);
                   } catch (e) { console.error(e); }
                 }}
                 className="flex-1 rounded border border-border-subtle bg-background px-2 py-1.5 text-left hover:border-accent-border hover:bg-surface-warm"
@@ -1752,8 +1771,11 @@ export function DaemonCard({
   onStart,
   onStop,
   intervalSec,
+  bare = false,
 }: {
   name: string;
+  // Bare: just the status line and the switch, for a detail header.
+  bare?: boolean;
   status: DaemonStatus | null;
   extra?: string | null;
   onStart?: () => Promise<void>;
@@ -1800,6 +1822,19 @@ export function DaemonCard({
     setTimeout(() => setPhase((p) => p === "stopping" ? "idle" : p), 4000);
   }
 
+  if (bare) {
+    return (
+      <div className="flex items-center gap-3">
+        <span className={`text-[13px] ${status?.last_error ? "text-warn" : "text-text-muted"}`} title={status?.last_error ?? undefined}>
+          {statusLine}{!busy && extra ? ` · ${extra}` : ""}
+        </span>
+        {(onStart || onStop) && (
+          <Toggle on={busy ? phase === "starting" : isRunning} disabled={busy} label={`${name} on or off`}
+            onChange={(v) => { if (v) void handleStart(); else void handleStop(); }} />
+        )}
+      </div>
+    );
+  }
   return (
     <div className={`rounded-lg border px-4 py-3 transition-all duration-300 ${
       isRunning
@@ -1834,7 +1869,7 @@ export function DaemonCard({
           )}
         </div>
       </div>
-      <div className={`mt-1.5 font-mono text-[10px] ${isRunning ? "text-ok/70" : "text-text-muted"}`}>
+      <div className={`mt-1.5 text-[12px] ${isRunning ? "text-ok/70" : "text-text-muted"}`}>
         {statusLine}
         {!busy && extra ? <span className="text-text-muted"> · {extra}</span> : null}
         {!busy && status?.last_error ? <span className="text-err"> · {status.last_error}</span> : null}
@@ -1864,7 +1899,7 @@ export function HeadlessLearnCard({ vaultPath }: { vaultPath: string }) {
       <div className="flex flex-wrap items-center gap-3">
         <Cpu className="h-4 w-4 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
-          <div className="font-display text-sm font-semibold tracking-tight">Keep working with the app closed</div>
+          <div className="text-sm font-semibold">Keep working with the app closed</div>
           <div className="text-xs text-text-secondary">
             Installs login agents (launchd) that keep Prevail working headlessly when it is not open: self-learning (distill chats from MCP/Telegram/CLI into memory + state), domain loops, and app sync (apps refresh on their schedule). While on, the in-app distiller defers to it.
             {installed === true && " Currently running at login."}
@@ -2077,18 +2112,20 @@ export function AlignmentCard({ vaultPath }: { vaultPath: string }) {
               pathLength={100} strokeDasharray={`${rep.overall} 100`} className="transition-all duration-500" />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-mono text-lg font-bold leading-none" style={{ color: overallTint }}>{rep.overall}</span>
-            <span className="font-mono text-[11px] text-text-muted">/100</span>
+            <span className="text-lg font-bold leading-none" style={{ color: overallTint }}>{rep.overall}</span>
+            <span className="text-[11px] text-text-muted">/100</span>
           </div>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-display text-base font-semibold tracking-tight">Alignment</span>
+            <span className="text-base font-semibold">Alignment</span>
             <span className="rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wider" style={{ backgroundColor: `${overallTint}1f`, color: overallTint }}>{verdict}</span>
           </div>
           <p className="mt-0.5 text-xs text-text-secondary">How close your life is tracking to your Ideal State · {rep.method === "model" ? "model-scored" : "signal-based"}</p>
         </div>
-        <button onClick={refresh} disabled={loading} className="self-start rounded border border-border bg-background px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50">{loading ? "…" : "refresh"}</button>
+        <button onClick={refresh} disabled={loading} title="Refresh" aria-label="Refresh alignment" className="flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-50">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        </button>
       </div>
       <div className="mt-4 space-y-2.5">
         {rep.pillars.map((p) => (
@@ -2103,11 +2140,13 @@ export function AlignmentCard({ vaultPath }: { vaultPath: string }) {
       </div>
       {rep.actions.length > 0 && (
         <div className="mt-4">
-          <div className="mb-2 text-[11px] font-bold text-text-muted">Top actions to close the gap</div>
+          <div className="mb-2 text-[13px] font-semibold text-text-secondary">Top actions to close the gap</div>
           {/* B2-9: each action is a clickable card that opens the relevant domain.
               "Strengthen <domain>: <detail>" -> bold domain + quiet detail + arrow. */}
           <div className="flex flex-col gap-1.5">
-            {rep.actions.map((a, i) => {
+            {rep.actions.map((raw, i) => {
+              // The engine writes "N open loop(s)"; say it properly.
+              const a = raw.replace(/\b(\d+) open loop\(s\)/g, (_m, n: string) => `${n} open ${n === "1" ? "loop" : "loops"}`);
               const m = a.match(/^\s*strengthen\s+([^:]+):\s*(.*)$/i);
               const domain = m ? m[1].trim() : null;
               const detail = m ? m[2].trim() : a;
@@ -2119,7 +2158,7 @@ export function AlignmentCard({ vaultPath }: { vaultPath: string }) {
                   title={domain ? `Open ${titleCase(domain)} to act on this` : a}
                   className="group flex items-center gap-2.5 rounded-lg border border-border-subtle bg-background px-3 py-2 text-left transition-colors enabled:hover:border-accent-border enabled:hover:bg-surface-warm disabled:cursor-default"
                 >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft font-mono text-[10px] font-semibold text-accent">{i + 1}</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">{i + 1}</span>
                   <span className="min-w-0 flex-1">
                     {domain
                       ? <><span className="text-xs font-semibold text-text-primary">Strengthen {titleCase(domain)}</span><span className="ml-1 text-[11px] text-text-muted">{detail}</span></>

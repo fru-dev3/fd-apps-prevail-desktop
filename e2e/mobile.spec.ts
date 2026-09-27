@@ -226,60 +226,66 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
   await expect(page.locator("[data-tour=composer] textarea")).toHaveValue("");
 });
 
-test("Work lists every desktop Work section; Notes opens full-width with a back button", async ({ page }) => {
+test("Work lists every desktop Work section; Tasks opens full-width with a back button", async ({ page }) => {
   await goTab(page, "Work");
   await expect(page.locator("h1", { hasText: "Work" })).toBeVisible();
-  for (const label of ["Needs you", "Work board", "Insights", "Spark", "Automations", "Calendar", "Notes"]) {
-    await expect(page.getByRole("button", { name: label })).toBeVisible();
+  for (const label of ["Inbox", "Apps", "Insights", "Recommendations", "Projects", "Tasks", "Goals"]) {
+    await expect(page.getByRole("button", { name: new RegExp(`^${label}`) })).toBeVisible();
+  }
+  for (const gone of ["Needs you", "Work board", "Spark", "Automations", "Calendar", "Notes"]) {
+    await expect(page.getByRole("button", { name: gone, exact: true })).toHaveCount(0);
   }
   await page.screenshot({ path: `${SHOTS}/phone-work.png`, fullPage: false });
   await noHorizontalScroll(page, "work list");
   await fitsTheScreen(page, "work list");
 
-  await page.getByRole("button", { name: "Notes" }).click();
+  await page.getByRole("button", { name: /^Tasks/ }).click();
   await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
-  await page.waitForTimeout(600);
+  await expect(page.getByTestId("tasks-list")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("This section didn't load")).toHaveCount(0);
-  await page.screenshot({ path: `${SHOTS}/phone-notes.png`, fullPage: false });
-  await noHorizontalScroll(page, "notes");
-  await fitsTheScreen(page, "notes");
+  await page.screenshot({ path: `${SHOTS}/phone-tasks.png`, fullPage: false });
+  await noHorizontalScroll(page, "tasks");
+  await fitsTheScreen(page, "tasks");
   await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByRole("button", { name: "Work board" })).toBeVisible();
-
-  // The board itself (tasks) renders too.
-  await page.getByRole("button", { name: "Work board" }).click();
-  await page.waitForTimeout(600);
-  await expect(page.getByText("This section didn't load")).toHaveCount(0);
-  await noHorizontalScroll(page, "work board");
-  await fitsTheScreen(page, "work board");
+  await expect(page.getByRole("button", { name: /^Inbox/ })).toBeVisible();
 });
 
-test("Needs you shows the approval queues", async ({ page }) => {
+test("the Inbox goes tabs, then list, then detail on a phone", async ({ page }) => {
   await goTab(page, "Work");
-  await page.getByRole("button", { name: "Needs you" }).click();
-  await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible();
-  await expect(page.getByText("PayPal: create_invoice")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("Gmail: send")).toBeVisible();
-  await page.screenshot({ path: `${SHOTS}/phone-needs.png`, fullPage: false });
-  await noHorizontalScroll(page, "needs");
-  await fitsTheScreen(page, "needs");
+  await page.getByRole("button", { name: /^Inbox/ }).click();
+  await page.getByTestId("tab-actions").click();
+  const items = page.getByTestId("inbox-items");
+  await expect(items).toBeVisible({ timeout: 10_000 });
+  await expect(items.getByTestId("inbox-row")).toHaveCount(1);
+  // The list comes first; nothing is open yet.
+  await expect(page.locator("[data-testid=decision-inbox]:visible")).toHaveCount(0);
+  await items.getByTestId("inbox-row").click();
+  await expect(page.locator("[data-testid=decision-inbox]:visible")).toContainText("PayPal: create_invoice", { timeout: 10_000 });
+  await expect(page.getByText("Gmail: send")).toHaveCount(0);
+  await page.screenshot({ path: `${SHOTS}/phone-inbox.png`, fullPage: false });
+  await noHorizontalScroll(page, "inbox");
+  await fitsTheScreen(page, "inbox");
+  await page.getByRole("button", { name: "All items" }).click();
+  await expect(page.getByTestId("inbox-items")).toBeVisible();
 });
 
 test("Settings renders as a list, opens a section, and deep links land on the section", async ({ page }) => {
   await goTab(page, "Settings");
   await expect(page.locator("h1", { hasText: "Settings" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Privacy" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Privacy & Safety" })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/phone-settings.png`, fullPage: false });
   await noHorizontalScroll(page, "settings list");
   await fitsTheScreen(page, "settings list");
 
-  await page.getByRole("button", { name: "Privacy" }).click();
-  await expect(page.getByText("Bunker Mode").first()).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Privacy & Safety" }).click();
+  // List first on a phone: the page's sections, then a tap opens one.
+  await page.getByTestId("hub-row-bunker").click();
+  await expect(page.getByTestId("hub-detail-bunker")).toContainText("Bunker Mode", { timeout: 10_000 });
   await page.waitForTimeout(300);
   await noHorizontalScroll(page, "settings section");
   await fitsTheScreen(page, "settings section");
   await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByRole("button", { name: "Privacy" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Privacy & Safety" })).toBeVisible();
 
   // A deep link from anywhere in the app opens the section directly.
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "remote" })));

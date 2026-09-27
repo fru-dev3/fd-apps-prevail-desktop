@@ -14,7 +14,7 @@ import { Sparkline } from "../ui";
 export function ArenaRightRail({ children }: { children: ReactNode }) {
   return (
     <section aria-label="Insights" data-testid="arena-insights" className="w-full space-y-3">
-      <h2 className="font-display text-xl font-semibold text-text-primary">Insights</h2>
+      <h2 className="text-[19px] font-semibold text-text-primary">Insights</h2>
       {children}
     </section>
   );
@@ -41,26 +41,6 @@ export function normalizeSeries(values: number[]): number[] {
   const max = Math.max(...values);
   if (max === min) return values.map(() => 5);
   return values.map((v) => 1 + ((v - min) / (max - min)) * 8);
-}
-
-// One Arena page header: big title + one-line description, with optional actions
-// pinned to the right. Mirrors the mockups' consistent header band.
-export function ArenaHeader({
-  title, subtitle, actions,
-}: {
-  title: string;
-  subtitle?: string;
-  actions?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-      <div className="min-w-0">
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-text-primary">{title}</h1>
-        {subtitle && <p className="mt-1 text-[14px] text-text-muted">{subtitle}</p>}
-      </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
-    </div>
-  );
 }
 
 type Tone = "ok" | "warn" | "err" | "accent" | "muted";
@@ -158,7 +138,7 @@ export function ArenaMetric({ icon: Icon, label, value, hint, tone = "muted" }: 
         {label}
       </div>
       <div className="mt-1 font-display text-lg font-bold tracking-tight text-text-primary">{value}</div>
-      {hint && <div className="font-mono text-[10px] text-text-muted">{hint}</div>}
+      {hint && <div className="text-[12px] text-text-muted">{hint}</div>}
     </div>
   );
 }

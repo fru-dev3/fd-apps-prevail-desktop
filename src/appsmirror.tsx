@@ -18,6 +18,7 @@ import { RUNTIME_MARK, groupByRuntime, type ArchiveResult, type MirrorApp, type 
 import { AppLogo, MIRROR_SELECT_KEY, SigninHelp, StatusPill } from "./appsmirror-parts";
 import { MirrorDetail } from "./appsmirror-detail";
 import { AppsFallback } from "./appsfallback";
+import { isUserDomain } from "./helpers";
 
 function rowSubline(app: MirrorApp): string {
   const feeds = app.domains.length ? app.domains.map(titleCase).join(", ") : "No domains yet";
@@ -181,7 +182,7 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     void invoke<{ name: string }[]>("scan_vault", { path: vaultPath })
-      .then((ds) => setDomains((Array.isArray(ds) ? ds : []).map((d) => d.name).filter(Boolean)))
+      .then((ds) => setDomains((Array.isArray(ds) ? ds : []).map((d) => d.name).filter(isUserDomain)))
       .catch(() => setDomains([]));
   }, [vaultPath]);
 

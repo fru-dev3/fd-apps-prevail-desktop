@@ -176,7 +176,7 @@ export function QuickCapture({ vaultPath }: { vaultPath: string }) {
       <div className="flex items-center gap-2.5 border-b border-border-subtle bg-gradient-to-r from-accent-soft/60 to-transparent px-4 py-3">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-background shadow-sm"><Mic className="h-4 w-4" /></span>
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="font-display text-sm font-bold text-text-primary">Quick note</span>
+          <span className="text-sm font-bold text-text-primary">Quick note</span>
           <span className="text-[10px] text-text-muted">Type or speak, saved to Notes</span>
         </div>
         <button onClick={() => setOpen(false)} title="Collapse" className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface-warm hover:text-text-primary"><X className="h-4 w-4" /></button>
@@ -188,7 +188,7 @@ export function QuickCapture({ vaultPath }: { vaultPath: string }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Untitled note"
-          className="w-full bg-transparent font-display text-[17px] font-semibold text-text-primary placeholder:text-text-muted/40 focus:outline-none"
+          className="w-full bg-transparent text-[17px] font-semibold text-text-primary placeholder:text-text-muted/40 focus:outline-none"
         />
 
         {/* Body, or the recording visualizer */}

@@ -3,7 +3,7 @@ import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 // THE secondary column. Every screen that lists things on the left and shows
 // the picked one on the right uses this (Intent's Noticed, History and
-// Projects; Entities; Apps; Runtimes; Arena; Notes; chat Threads). One look,
+// Projects; Entities; Apps; Inbox; Recommendations; Runtimes; Arena; chat Threads). One look,
 // one behaviour: a w-72 column with a title row whose PanelLeftClose button
 // folds it to a thin w-9 strip holding a PanelLeftOpen button, and the detail
 // takes the freed width. The choice is remembered per view under `storageKey`.
@@ -112,6 +112,27 @@ export function SideSpine({ storageKey, detail, phone = false, phoneDetail = fal
     <div className="flex h-full min-h-0 flex-1">
       <SpineColumn {...col} collapsed={collapsed} onToggle={toggle} />
       <div data-testid="spine-detail" data-spine={collapsed ? "collapsed" : "open"} className="min-w-0 flex-1 overflow-y-auto">{detail}</div>
+    </div>
+  );
+}
+
+// The segmented tabs above a SideSpine page (Intent's Noticed / History /
+// Projects look): they pick what the column lists.
+export function SpineTabs<T extends string>({ tabs, value, onChange, label }: {
+  tabs: { id: T; label: string; count?: number }[];
+  value: T;
+  onChange: (id: T) => void;
+  label: string;
+}) {
+  return (
+    <div role="tablist" aria-label={label} className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:w-full">
+      {tabs.map((t) => (
+        <button key={t.id} role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)} data-testid={`tab-${t.id}`}
+          className={`inline-flex h-9 items-center gap-1.5 rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-2 ${value === t.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
+          {t.label}
+          {t.count !== undefined && <span className="text-[12px] font-normal tabular-nums text-text-muted">{t.count}</span>}
+        </button>
+      ))}
     </div>
   );
 }

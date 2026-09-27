@@ -9,6 +9,9 @@ import { invoke } from "./bridge";
 import { titleCase, relTime } from "./format";
 import { useProcesses } from "./processes";
 import { SettingsHeader } from "./sectionutil";
+import { SideSpine } from "./sidespine";
+import { useIsPhone } from "./useisphone";
+import { USAGE_VIEWS, UsageDashboard, type UsageView } from "./usagedashboard";
 import type { EngineApp } from "./types";
 
 // These mirror the engine's activity-ledger producer types (cli activity.ts).
@@ -76,7 +79,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     <div className="grid grid-cols-[7rem_1fr] gap-2 py-1">
       <div className="text-[11px] text-text-muted">{label}</div>
       {multiline ? (
-        <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-text-secondary">{value}</pre>
+        <pre className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-text-secondary">{value}</pre>
       ) : (
         <div className="break-words text-[11px] leading-relaxed text-text-secondary">{value}</div>
       )}
@@ -144,6 +147,9 @@ const FILTERS: { id: ActivityType | "all"; label: string }[] = [
   { id: "task_filed", label: "Tasks" },
   { id: "briefing", label: "Briefings" },
   { id: "sync", label: "Syncs" },
+  { id: "playbook", label: "Playbooks" },
+  { id: "nudge", label: "Nudges" },
+  { id: "other", label: "Other" },
 ];
 
 // The label on each row's "jump to source" link, by event kind. Every
@@ -155,7 +161,7 @@ const SOURCE_LABEL: Partial<Record<ActivityType, string>> = {
   playbook: "Open loop",
   playbook_step: "Open loop",
   nudge: "Open loop",
-  task_filed: "Open board",
+  task_filed: "Open tasks",
   briefing: "Open journal",
   sync: "Open app",
 };
@@ -175,11 +181,12 @@ async function openActivitySource(e: ActivityEvent, vaultPath: string): Promise<
         window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: dom }));
         window.dispatchEvent(new CustomEvent("prevail:domain-tab", { detail: "loops" }));
       } else {
-        window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: "loopboard" }));
+        window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: "" }));
+        window.dispatchEvent(new CustomEvent("prevail:domain-tab", { detail: "loops" }));
       }
       return;
     case "task_filed":
-      window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "tasks" }));
+      window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "task-list" }));
       return;
     case "briefing":
       if (dom) {
@@ -198,7 +205,7 @@ async function openActivitySource(e: ActivityEvent, vaultPath: string): Promise<
           : undefined;
         if (a) { window.dispatchEvent(new CustomEvent("prevail:open-app", { detail: a })); return; }
       } catch { /* fall through to the Apps list */ }
-      window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: "connectors" }));
+      window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }));
       return;
     }
     default:
@@ -214,7 +221,12 @@ function matchesType(eventType: ActivityType, filter: ActivityType | "all"): boo
   return eventType === filter;
 }
 
-export function SystemActivity({ vaultPath }: { vaultPath: string }) {
+// The Activity page: what Prevail did on its own (by kind), then what your
+// models cost (the Usage views). `initial` picks the first row: "usage:<view>"
+// or an activity kind.
+export function SystemActivity({ vaultPath, initial }: { vaultPath: string; initial?: string }) {
+  const [usageView, setUsageView] = useState<UsageView | null>(() =>
+    initial?.startsWith("usage:") ? ((USAGE_VIEWS.find((v) => v.id === initial.slice(6))?.id ?? "overview") as UsageView) : null);
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<ActivityType | "all">("all");
@@ -252,22 +264,75 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
     return [...s].sort();
   }, [events]);
 
+  const phone = useIsPhone();
+  const [picked, setPicked] = useState(false);
+  // Counts per kind, over the domain filter, for the side column. Kinds with
+  // nothing recorded stay out of the way; All always shows.
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const f of FILTERS) c[f.id] = events.filter((e) => matchesType(e.type, f.id) && (domainFilter === "all" || e.domain === domainFilter)).length;
+    return c;
+  }, [events, domainFilter]);
+  const kinds = FILTERS.filter((f) => f.id === "all" || f.id === typeFilter || counts[f.id] > 0);
   const shown = useMemo(() => events.filter((e) =>
     matchesType(e.type, typeFilter) &&
     (domainFilter === "all" || e.domain === domainFilter),
   ), [events, typeFilter, domainFilter]);
 
+  const kindList = (
+    <nav className="space-y-0.5 p-2" aria-label="Activity kinds">
+      <div className="px-2.5 pb-1 pt-2 text-[15px] font-semibold text-text-primary">Activity</div>
+      {kinds.map((f) => {
+        const on = !usageView && typeFilter === f.id && (!phone || picked);
+        const Icon = f.id === "all" ? Activity : (TYPE_META[f.id as ActivityType] ?? TYPE_META.other).icon;
+        return (
+          <button key={f.id} data-testid={`activity-kind-${f.id}`} aria-current={on ? "true" : undefined}
+            onClick={() => { setUsageView(null); setTypeFilter(f.id); setPicked(true); setExpandedId(null); }}
+            className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{f.label}</span>
+            <span className="text-[13px] tabular-nums text-text-muted">{counts[f.id]}</span>
+          </button>
+        );
+      })}
+      <div className="px-2.5 pb-1 pt-4 text-[15px] font-semibold text-text-primary">Usage</div>
+      {USAGE_VIEWS.map((v) => {
+        const on = usageView === v.id && (!phone || picked);
+        const Icon = v.icon;
+        return (
+          <button key={v.id} data-testid={`usage-view-${v.id}`} aria-current={on ? "true" : undefined}
+            onClick={() => { setUsageView(v.id); setPicked(true); }}
+            className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{v.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+  const kindLabel = usageView ? (USAGE_VIEWS.find((v) => v.id === usageView)?.label ?? "Overview") : FILTERS.find((f) => f.id === typeFilter)?.label ?? "All";
+
   return (
-    <div className="w-full space-y-5">
+    <>
       <SettingsHeader
         icon={Activity}
         title="Activity"
-        subtitle="Everything Prevail did on its own."
+        subtitle="What Prevail did on its own, and what your models cost."
+        right={
+          <button onClick={load} disabled={loading} title="Refresh" aria-label="Refresh"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition-colors hover:border-accent-border hover:text-accent disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        }
       />
-
+      <SideSpine storageKey="prevail.activity.spine" title="Kinds" label="activity kinds" testId="activity-list"
+        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All kinds"
+        detail={<div className={`space-y-5 ${phone ? "px-4 py-4" : "w-full px-8 py-6"}`} data-testid="activity-detail">
+      <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{kindLabel}{!usageView && <span className="ml-2 text-[14px] font-normal tabular-nums text-text-muted">{shown.length}</span>}</h2>
+      {usageView ? <UsageDashboard vaultPath={vaultPath} embedded view={usageView} /> : (<>
       {/* Running now - the live, in-flight processes (not yet in history). */}
       <section>
-        <div className="mb-1.5 text-[11px] font-semibold text-text-muted">Running now</div>
+        <h3 className="mb-1.5 text-[15px] font-semibold text-text-primary">Running now</h3>
         {live.length === 0 ? (
           <div className="rounded-lg border border-border-subtle bg-surface px-3 py-2.5 text-xs text-text-muted">Nothing running right now.</div>
         ) : (
@@ -286,14 +351,6 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
       {/* Filter toolbar: segmented type pills + domain select on the left, the
           event count and a minimal refresh control aligned to the right. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5">
-          {FILTERS.map((f) => (
-            <button key={f.id} onClick={() => setTypeFilter(f.id)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${typeFilter === f.id ? "bg-accent-soft text-accent shadow-sm" : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"}`}>
-              {f.label}
-            </button>
-          ))}
-        </div>
         {domains.length > 0 && (
           <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}
             className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent-border focus:border-accent-border focus:outline-none">
@@ -301,18 +358,12 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
             {domains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
           </select>
         )}
-        <div className="ml-auto flex items-center gap-2.5">
-          <span className="font-mono text-[10px] tabular-nums text-text-muted">{shown.length} event{shown.length === 1 ? "" : "s"}</span>
-          <button onClick={load} disabled={loading} title="Refresh" aria-label="Refresh"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition-colors hover:border-accent-border hover:text-accent disabled:opacity-50">
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
+        <span className="ml-auto text-[13px] tabular-nums text-text-muted">{shown.length} event{shown.length === 1 ? "" : "s"}</span>
       </div>
 
       {/* History feed */}
       <section>
-        <div className="mb-1.5 text-[11px] font-semibold text-text-muted">History</div>
+        <h3 className="mb-1.5 text-[15px] font-semibold text-text-primary">History</h3>
         {loading ? (
           <div className="text-sm text-text-muted">loading activity…</div>
         ) : shown.length === 0 ? (
@@ -364,7 +415,7 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
                       {SOURCE_LABEL[e.type] && (
                         <button type="button"
                           onClick={() => { void openActivitySource(e, vaultPath); }}
-                          title={`${SOURCE_LABEL[e.type]} — go to the source of this event`}
+                          title={`${SOURCE_LABEL[e.type]}: go to the source of this event`}
                           className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary transition-colors hover:border-accent-border hover:text-accent">
                           {SOURCE_LABEL[e.type]}<ArrowUpRight className="h-3 w-3" />
                         </button>
@@ -377,6 +428,10 @@ export function SystemActivity({ vaultPath }: { vaultPath: string }) {
           </ul>
         )}
       </section>
-    </div>
+      </>)}
+      </div>}>
+        {kindList}
+      </SideSpine>
+    </>
   );
 }

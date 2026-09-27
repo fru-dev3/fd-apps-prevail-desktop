@@ -1,7 +1,7 @@
 // Chat-display leaf components extracted from App.tsx: ChatBubble (one rendered
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
 import { Fragment, useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronDown, ChevronRight, ListPlus, NotebookPen, Pin, Repeat, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
+import { ArrowRight, BookmarkPlus, Check, ChevronDown, ChevronRight, ListPlus, NotebookPen, Pin, Repeat, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { FRAMEWORKS, LENSES, MODELS } from "./constants";
 import { useIsPhone } from "./useisphone";
@@ -264,8 +264,11 @@ export function ChatBubble({
   onPinMemory,
   onMakeLoop,
   onMakeSkill,
+  onAddToEntityNotes,
   footer,
 }: {
+  // Entity chat: append this reply to the entity's "Your notes".
+  onAddToEntityNotes?: (text: string) => void;
   // Rendered right under a user bubble (the routing chip row in General).
   footer?: React.ReactNode;
   msg: ChatMessage;
@@ -528,6 +531,13 @@ export function ChatBubble({
                 icon={<Pin className="h-3 w-3" />}
               />
             )}
+            {onAddToEntityNotes && (
+              <ActionButton
+                title="Add to notes"
+                onClick={() => onAddToEntityNotes(msg.content)}
+                icon={<BookmarkPlus className="h-3 w-3" />}
+              />
+            )}
             {onMakeSkill && (
               <ActionButton
                 title="Save this as a reusable skill Prevail can replay"
@@ -546,7 +556,8 @@ export function ChatBubble({
 // ─────────────────────────────────────────────────────────────────────
 // COUNCIL PANEL
 
-export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMakeTask, onSaveNote, onPinMemory, onMakeLoop, onMakeSkill, userFooter, assistantFooter }: {
+export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMakeTask, onSaveNote, onPinMemory, onMakeLoop, onMakeSkill, onAddToEntityNotes, userFooter, assistantFooter }: {
+  onAddToEntityNotes?: (text: string) => void;
   // Extra row under a user message, by index (General's routing chips).
   userFooter?: (m: ChatMessage, i: number) => React.ReactNode;
   // Extra rows under an assistant message, by index (in-flow approval cards).
@@ -595,6 +606,7 @@ export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMak
             onPinMemory={m.role === "assistant" ? onPinMemory : undefined}
             onMakeLoop={m.role === "user" ? onMakeLoop : undefined}
             onMakeSkill={m.role === "assistant" ? onMakeSkill : undefined}
+            onAddToEntityNotes={m.role === "assistant" ? onAddToEntityNotes : undefined}
             footer={m.role === "user" && userFooter ? userFooter(m, i) : undefined}
           />
           {after}

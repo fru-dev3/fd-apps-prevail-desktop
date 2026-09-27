@@ -2,6 +2,12 @@
 import type { DomainToggle } from "./types";
 import { DOMAIN_BLURBS, VENDOR_BRAND, DOMAIN_PALETTE, ANSI_RE, LOCAL_CLI_IDS } from "./constants";
 
+// A real domain the user made. Folders starting "_" (_meta, _log, app scopes)
+// or "." are internal and never listed as domains.
+export function isUserDomain(name: string): boolean {
+  return !!name && !name.startsWith("_") && !name.startsWith(".");
+}
+
 export function bytesHuman(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;

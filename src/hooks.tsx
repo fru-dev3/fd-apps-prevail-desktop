@@ -151,8 +151,8 @@ export function ThinkingWord() {
   return <>{useThinkingWord()}</>;
 }
 
-// A playful, ever-changing vocabulary for "the model is working" states (Spark,
-// council/chat thinking). "Prevailing" always belongs; the rest mix real and
+// A playful, ever-changing vocabulary for "the model is working" states (council
+// and chat thinking). "Prevailing" always belongs; the rest mix real and
 // invented words so it never feels mechanical.
 export const PLAYFUL_WORDS = [
   "Prevailing", "Conjuring", "Convopulating", "Maximizing", "Jambalaya-ing",
@@ -168,7 +168,7 @@ export function randomPlayfulWord(): string {
 }
 
 // Rotates a random playful word every ~2.4s. Used by the agent thinking
-// indicator and Spark so "working" reads with personality.
+// indicator so "working" reads with personality.
 export function usePlayfulWord(): string {
   const [word, setWord] = useState(() => randomPlayfulWord());
   useEffect(() => {

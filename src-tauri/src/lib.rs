@@ -14,6 +14,7 @@
 mod benchmark;
 mod mirror;
 mod entities_bridge;
+mod goals;
 mod appcmds;
 mod bunker;
 mod vault_lock;
@@ -591,6 +592,10 @@ pub fn run() {
             entities_bridge::entities_show,
             entities_bridge::entities_save,
             entities_bridge::entities_note,
+            entities_bridge::engine_entity_threads,
+            goals::goals_files_read,
+            goals::goals_file_write,
+            entities_bridge::engine_entity_note_append,
             entities_bridge::entities_refresh,
             favicon::app_favicon,
             apps_mirror::apps_mirror_list,
@@ -627,6 +632,7 @@ pub fn run() {
             engine::engine_lock_reset,
             engine::engine_biometric_authenticate,
             idealstate::ideal_state_versions,
+            idealstate::ideal_state_version_read,
             idealstate::read_domain_ideal,
             idealstate::write_domain_ideal,
             engine::engine_vault_status,

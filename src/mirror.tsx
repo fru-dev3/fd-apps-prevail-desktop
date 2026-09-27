@@ -27,6 +27,7 @@ import { EntitiesView } from "./entitiesview";
 import { useIsPhone } from "./useisphone";
 import { SideSpine, STICKY_HEAD } from "./sidespine";
 import { RowAction, RowActions } from "./rowaction";
+import type { LifeReadiness } from "./types";
 
 // ── Engine shapes (see the mirror contract) ─────────────────────────────────
 export type FindingKind = "goals_drift" | "tooling_share" | "repeated_rules" | "open_loops" | "late_night";
@@ -125,6 +126,16 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
     } catch { return "noticed"; }
   });
   const setView = (v: MirrorView) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage off */ } };
+  // Life Readiness: the average context score across your domains. It used to
+  // sit on Home; one plain line here now.
+  const [readiness, setReadiness] = useState<LifeReadiness | null>(null);
+  useEffect(() => {
+    let on = true;
+    invoke<LifeReadiness>("engine_score_all", { vault: vaultPath })
+      .then((lr) => { if (on) setReadiness(lr); })
+      .catch(() => { if (on) setReadiness(null); });
+    return () => { on = false; };
+  }, [vaultPath]);
   const [focus, setFocus] = useState<{ ts: number; n: number } | null>(null);
   // Recommendations opens a project here by leaving its slug under this key.
   const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(() => {
@@ -192,7 +203,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
         <div className={phone ? "p-4" : "px-8 py-8"}>
           <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center">
             <ScanFace className="mx-auto h-10 w-10 text-accent" />
-            <h2 className="mt-3 font-display text-3xl font-semibold text-text-primary">No prompts yet</h2>
+            <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary mt-3">No prompts yet</h2>
             <p className="mx-auto mt-2 max-w-lg text-[15px] leading-relaxed text-text-secondary">
               Turn on capture for your tools and every prompt you type shows up here, week by week. Intent then points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go.
             </p>
@@ -236,6 +247,11 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
         <p data-testid="intent-about" className="basis-full text-[14px] leading-snug text-text-muted max-sm:order-2">
           Intent reads every prompt you typed, in every tool, to show what you were really working on, what you keep repeating, and what to hand to a newer model.
         </p>
+        {readiness && typeof readiness.life_readiness === "number" && Array.isArray(readiness.domains) && (
+          <p data-testid="life-readiness" className="basis-full text-[14px] text-text-secondary max-sm:order-2">
+            Life Readiness <span className="font-semibold text-accent">{readiness.life_readiness}</span> of 100 across {readiness.domains.length} domain{readiness.domains.length === 1 ? "" : "s"}
+          </p>
+        )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="intent-body">
         {periodView && body}
@@ -439,8 +455,8 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
   const h = phone ? "h-12 px-5 text-[15px]" : "h-10 px-4";
   return (
     <article data-testid="featured-finding" className={`rounded-2xl border border-border-subtle bg-surface transition-all duration-300 ${leaving ? "translate-y-2 opacity-0" : "opacity-100"} ${phone ? "p-5" : "p-8"}`}>
-      <h2 className={`font-display font-semibold leading-tight tracking-tight text-text-primary ${phone ? "text-3xl" : "text-4xl"}`}>{f.headline}</h2>
-      <p className="mt-3 text-[16px] leading-relaxed text-text-secondary">{f.detail}</p>
+      <h2 className="text-[17px] font-semibold leading-snug text-text-primary">{f.headline}</h2>
+      <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">{f.detail}</p>
       {/* A list visual repeats the item rows below it; draw it only when there are no rows. */}
       {!((isRules || isLoops) && f.visual?.type === "list" && items.length > 0) && <div className="mt-6"><FindingVisual visual={f.visual} /></div>}
 
@@ -480,7 +496,7 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
 function QuietCard({ f, onOpen }: { f: Finding; onOpen: () => void }) {
   return (
     <button onClick={onOpen} data-testid="quiet-finding" className="flex h-full w-full flex-col rounded-xl border border-border-subtle bg-surface p-5 text-left hover:border-accent-border">
-      <div className="font-display text-xl font-semibold leading-snug text-text-primary">{f.headline}</div>
+      <div className="text-[17px] font-semibold leading-snug text-text-primary">{f.headline}</div>
       <div className="mt-2 line-clamp-2 text-[14px] leading-snug text-text-muted">{f.detail}</div>
       <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-accent">Look closer <ArrowRight className="h-3.5 w-3.5" /></span>
     </button>
@@ -587,7 +603,7 @@ function PeriodHeading({ label, line, lineBusy, totals, right }: { label: string
   return (
     <header className="mb-6">
       <div className="flex flex-wrap items-start gap-3">
-        <h2 className="min-w-0 flex-1 font-display text-3xl font-semibold tracking-tight text-text-primary" data-testid="period-title">{label}</h2>
+        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary min-w-0 flex-1" data-testid="period-title">{label}</h2>
         {right}
       </div>
       {line ? <p className="mt-2 text-[17px] leading-snug text-text-secondary" data-testid="period-line">{line}</p>
@@ -602,7 +618,7 @@ function SpentOn({ projects, title, onProject }: { projects: PeriodProject[]; ti
   const max = Math.max(1, ...projects.map((p) => p.prompts));
   return (
     <section className="mb-8" data-testid="spent-on">
-      <h3 className="mb-3 font-display text-xl font-semibold text-text-primary">{title}</h3>
+      <h3 className="text-[19px] font-semibold text-text-primary mb-3">{title}</h3>
       <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
         {projects.slice(0, 8).map((p) => {
           const row = (
@@ -672,7 +688,7 @@ function LetterBlock({ letter, status, busy, current, onLastWeek }: { letter: Fi
       <section className="mb-8 rounded-2xl border border-accent-border bg-accent-soft/30 p-5 sm:p-6" data-testid="letter">
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-2.5 text-left">
           <BookOpen className="h-5 w-5 shrink-0 text-accent" />
-          <span className="min-w-0 flex-1 font-display text-2xl font-semibold text-text-primary">{letter.title}</span>
+          <span className="text-[17px] font-semibold leading-snug text-text-primary min-w-0 flex-1">{letter.title}</span>
           {open ? <ChevronUp className="h-5 w-5 text-text-muted" /> : <ChevronDown className="h-5 w-5 text-text-muted" />}
         </button>
         {open && <div className="mt-3 text-[15px] leading-relaxed text-text-secondary"><Markdown source={letter.markdown} /></div>}
@@ -779,7 +795,7 @@ function NoticedView({ vaultPath, phone, periods, sel, onSelect, onReceipt, onPr
       )}
       <SpentOn projects={doc.projects} title={doc.period.kind === "day" ? "What the day went to" : "What the week went to"} onProject={onProject} />
       <section>
-        <h3 className="mb-3 font-display text-xl font-semibold text-text-primary">Noticed</h3>
+        <h3 className="text-[19px] font-semibold text-text-primary mb-3">Noticed</h3>
         {shown.length ? (
           <Findings key={`${doc.period.kind}:${doc.period.key}`} findings={doc.findings} phone={phone} onVerdict={verdict} onReceipt={onReceipt} onProject={onProject} />
         ) : (

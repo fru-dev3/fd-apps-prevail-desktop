@@ -1,10 +1,11 @@
-// Task detail object — a task is more than a board row. Click one open and you
+// Task detail: a task is more than a list row. Click one open and you
 // get its full shape: title, domain, due, priority, status, owner, a long-form
 // description, and a comment/activity thread you (and the AI) build over time.
 // The one-line _tasks.md record stays canonical; the rich parts live in the
 // per-domain sidecar (_task_details.json) via task_detail_* commands.
-import { useCallback, useEffect, useState } from "react";
-import { Bot, Flag, Loader2, MessageSquarePlus, Sparkles, User, X, Zap } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Bot, Flag, Loader2, MessageSquarePlus, Sparkles, User, Zap } from "lucide-react";
+import { DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import { invoke } from "./bridge";
 import { titleCase, relTime } from "./format";
 import { VENDOR_BRAND } from "./constants";
@@ -13,10 +14,13 @@ import type { BoardTask, CliInfo } from "./types";
 
 type Detail = { description?: string; comments?: { ts: number; text: string; author?: string }[] };
 
-export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses = [], delegating = false, onDelegate }: {
+// Rendered IN the Tasks detail pane (never a pop-up). `actions` are the tiny
+// icon actions for the header (delete, restore, delete forever).
+export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses = [], delegating = false, onDelegate, actions }: {
   task: BoardTask;
   vaultPath: string;
   onClose: () => void;
+  actions?: ReactNode;
   onChanged: () => void;
   // Connected agent oracles (Hermes/Pi/OpenClaw/OpenCode) + the built-in
   // Prevail agent, and the action that hands this task to one.
@@ -91,7 +95,7 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
         }).join("\n")
       : "";
     const seed = `Let's discuss this task from my ${titleCase(task.domain)} board.\n\nTask: "${task.text}"\n${meta}${desc ? `\n\nDescription:\n${desc}` : ""}${history}\n\nWhere should we take it from here?`;
-    // Persist so the seed survives navigating from the Work board to the (then-
+    // Persist so the seed survives navigating from Tasks to the (then-
     // mounting) chat panel; ChatPanel reads pending seeds on mount. Without this
     // the live event can fire before the chat is listening and the composer ends
     // up blank - which is the bug this fixes.
@@ -104,60 +108,56 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
   const comments = detail.comments ?? [];
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      {/* Floating side card: anchored top-right and sized to its CONTENT (capped
-          to the viewport, then it scrolls), so a short task shows a small card
-          instead of a full-height slab covering the screen. */}
-      <div className="fixed right-3 top-3 z-50 flex max-h-[calc(100vh-1.5rem)] w-[400px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start gap-2 border-b border-border-subtle px-4 py-3">
-          <span title={task.owner === "ai" ? "AI" : "Me"} className={`mt-0.5 shrink-0 ${task.owner === "ai" ? "text-accent" : "text-text-muted"}`}>
-            {task.owner === "ai" ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}
+    <section data-testid="task-detail" key={id}>
+        <div className="flex items-start gap-3">
+          <span title={task.owner === "ai" ? "AI" : "Me"} className={`mt-2 shrink-0 ${task.owner === "ai" ? "text-accent" : "text-text-muted"}`}>
+            {task.owner === "ai" ? <Bot className="h-5 w-5" /> : <User className="h-5 w-5" />}
           </span>
           <div className="min-w-0 flex-1">
             <input
+              aria-label="Task title"
               defaultValue={task.text}
               onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== task.text) patchTask({ text: v }); }}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-              className="w-full bg-transparent text-[15px] font-semibold text-text-primary outline-none focus:rounded focus:bg-background focus:px-1"
+              className={`${DETAIL_TITLE} w-full rounded-md bg-transparent outline-none focus:bg-background focus:px-1`}
             />
-            <div className="mt-1 flex items-center gap-2 text-[11px] text-text-muted">
-              <span className="rounded-full bg-surface-warm px-1.5 py-px">{titleCase(task.domain)}</span>
-              {task.trashed && <span className="text-warn">Trashed</span>}
+            <div className={`${META} mt-1 flex items-center gap-2`}>
+              <span>{titleCase(task.domain)}</span>
+              {task.trashed && <span className="text-warn">In Trash</span>}
             </div>
           </div>
-          <button onClick={onClose} className="shrink-0 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>
+          {actions && <div className="flex shrink-0 items-center gap-0.5">{actions}</div>}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <div className="mt-5 max-w-3xl">
+
           {/* Meta controls */}
           <div className="grid grid-cols-2 gap-2.5">
             <label className="block">
-              <div className="mb-1 text-[11px] text-text-muted">Status</div>
+              <div className="mb-1 text-[13px] text-text-muted">Status</div>
               <select value={task.status} onChange={(e) => patchTask({ status: e.target.value })} disabled={busy} className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs">
                 {["todo", "doing", "review", "blocked", "done", "icebox"].map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
               </select>
             </label>
             <label className="block">
-              <div className="mb-1 text-[11px] text-text-muted">Due</div>
+              <div className="mb-1 text-[13px] text-text-muted">Due</div>
               <input type="date" value={task.due ?? ""} onChange={(e) => patchTask({ due: e.target.value || null })} disabled={busy} className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-text-secondary" />
             </label>
             <button onClick={cyclePriority} disabled={busy} className="flex items-center justify-between rounded-md border border-border bg-background px-2 py-1.5 text-left">
-              <span className="font-mono text-[11px] text-text-muted">Priority</span>
+              <span className="text-[13px] text-text-muted">Priority</span>
               <span className={`inline-flex items-center gap-1 text-xs ${task.priority === "critical" ? "text-err" : task.priority === "high" ? "text-warn" : "text-text-muted"}`}>
                 <Flag className="h-3 w-3" fill={task.priority ? "currentColor" : "none"} /> {task.priority ?? "normal"}
               </span>
             </button>
             <button onClick={() => patchTask({ owner: task.owner === "ai" ? "me" : "ai" })} disabled={busy} className="flex items-center justify-between rounded-md border border-border bg-background px-2 py-1.5 text-left">
-              <span className="text-[11px] text-text-muted">Owner</span>
+              <span className="text-[13px] text-text-muted">Owner</span>
               <span className="inline-flex items-center gap-1 text-xs text-text-secondary">{task.owner === "ai" ? <><Bot className="h-3 w-3" /> AI</> : <><User className="h-3 w-3" /> Me</>}</span>
             </button>
           </div>
 
           {/* Description */}
           <div className="mt-4">
-            <div className="mb-1 text-[11px] text-text-muted">Description</div>
+            <div className="mb-1 text-[13px] text-text-muted">Description</div>
             <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
@@ -190,7 +190,7 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
 
           {/* Comments / activity */}
           <div className="mt-5">
-            <div className="mb-2 text-[11px] text-text-muted">Comments · {comments.length}</div>
+            <h3 className={`${SECTION_TITLE} mb-2`}>Comments <span className="text-[14px] font-normal text-text-muted">{comments.length}</span></h3>
             <div className="space-y-2">
               {comments.map((c, i) => (
                 <div key={i} className="rounded-lg border border-border-subtle bg-background px-3 py-2">
@@ -230,7 +230,6 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
             </div>
           </div>
         </div>
-      </div>
-    </>
+    </section>
   );
 }

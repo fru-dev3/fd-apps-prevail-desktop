@@ -75,14 +75,14 @@ describe("Markdown renders vault objects", () => {
     expect(seen).toEqual([{ kind: "person", value: "Sam Rivera" }]);
   });
 
-  it("opens a task on the board, even when the board mounts later", () => {
+  it("opens a task in Tasks, even when Tasks mounts later", () => {
     const sections: unknown[] = [];
     const on = (e: Event) => sections.push((e as CustomEvent).detail);
     window.addEventListener("prevail:work-section", on);
     const { container } = render(<Markdown source="Next: [file the Q2 return](prevail://task/tax/abc1234)" />);
     fireEvent.click(container.querySelector('[data-entity="task"]')!);
     window.removeEventListener("prevail:work-section", on);
-    expect(sections).toEqual(["tasks"]);
+    expect(sections).toEqual(["task-list"]);
     expect(localStorage.getItem("prevail.board.openTask")).toBe("abc1234");
   });
 

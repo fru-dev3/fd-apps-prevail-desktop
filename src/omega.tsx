@@ -127,7 +127,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
       <CollapsibleSection icon={Compass} title="What feeds Omega" summary="journals · intents · states → omega" className="mb-4">
         <div className="space-y-2 text-[13px] text-text-secondary">
           <p>Your raw activity compounds upward into Omega, then sits alongside your authored Ideal State:</p>
-          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
             <span className="rounded-full border border-border-subtle bg-surface px-2 py-0.5">Journals (what you asked)</span>
             <ArrowRight className="h-3 w-3 text-text-muted" />
             <span className="rounded-full border border-border-subtle bg-surface px-2 py-0.5">Intents (the goal behind it)</span>
@@ -155,7 +155,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
             <Toggle on={auto} onChange={(v) => { setAuto(v); setPref(PREF.omegaAuto, v ? "1" : "0"); }} label="Auto-distill Omega" />
             Auto
           </label>
-          {savedAt && !editing && <span className="font-mono text-[10px] text-ok">✓ saved</span>}
+          {savedAt && !editing && <span className="text-[12px] text-ok">✓ saved</span>}
           <button
             onClick={distill}
             disabled={distilling}
@@ -167,7 +167,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
           {loaded && !empty && (
             <button
               onClick={() => setEditing((e) => !e)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 font-mono text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
             >
               {editing ? <Eye className="h-3.5 w-3.5" /> : <PenLine className="h-3.5 w-3.5" />}
               {editing ? "View" : "Edit"}
@@ -187,10 +187,10 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
             onChange={(e) => setBody(e.target.value)}
             placeholder={"## What you've learned about how you work\n\n- Prefer terse, decision-first answers\n\n(or hit “Distill now” to let Prevail draft this from your domains)"}
             rows={20}
-            className="w-full resize-y rounded-lg bg-transparent p-4 font-mono text-sm leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none"
+            className="w-full resize-y rounded-lg bg-transparent p-4 text-sm leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none"
           />
           <div className="flex items-center justify-between gap-2 border-t border-border-subtle px-4 py-2">
-            <span className="font-mono text-[10px] text-text-muted">{body.length.toLocaleString()} chars · the auto block is rewritten on each distill; edit above it</span>
+            <span className="text-[12px] text-text-muted">{body.length.toLocaleString()} chars · the auto block is rewritten on each distill; edit above it</span>
             <button
               onClick={save}
               disabled={saving || !loaded}
@@ -203,7 +203,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
       ) : !loaded ? null : empty ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-surface px-6 py-10 text-center">
           <Sigma className="h-8 w-8 text-accent" />
-          <div className="font-display text-base font-semibold">No learned knowledge yet</div>
+          <div className="text-base font-semibold">No learned knowledge yet</div>
           <p className="max-w-md text-sm text-text-secondary">
             Omega fills in as Prevail learns across your domains. Click <span className="font-semibold">Distill now</span> to draft it from what you've done so far, or write the first lines yourself.
           </p>
@@ -235,7 +235,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
               <div className="flex flex-col gap-1">
                 {versions.map((v) => (
                   <div key={v.path} className="flex items-center gap-2 py-1">
-                    <span className="flex-1 font-mono text-[11px] text-text-secondary">{v.name.replace("_", " · ")}</span>
+                    <span className="flex-1 text-[11px] text-text-secondary">{v.name.replace("_", " · ")}</span>
                     <button
                       onClick={async () => {
                         try {

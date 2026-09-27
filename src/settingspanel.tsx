@@ -1,30 +1,28 @@
 // The Settings page shell, extracted from App.tsx. Owns the section router /
 // left-nav and composes every Settings section from its own module.
 import { useEffect, useState } from "react";
-import { Compass, Sigma } from "lucide-react";
+import { BarChart3, Bot, Database, EyeOff, Github, Keyboard, ListChecks, Lock, MessagesSquare, Network, Palette, Send, Settings as SettingsIcon, Shield, ShieldCheck, SlidersHorizontal, Smartphone, UserRound, Webhook, Wrench } from "lucide-react";
+import { invoke } from "./bridge";
 import { useAppearance } from "./hooks";
-import { ScrollPage, SettingsHeader } from "./sectionutil";
-import { FrameworksSection, RemoteSection, ShortcutsSection } from "./settings1";
+import { SettingsHub, type HubGroup } from "./settingshub";
+import { ScrollPage } from "./sectionutil";
+import { RemoteSection, ShortcutsSection } from "./settings1";
 import { PhoneSection } from "./remotepair";
-import { DaemonsSection, MemoryContextSection, SkillsSection } from "./settings2";
-import { AppsMirrorPanel } from "./appsmirror";
+import { DAEMON_ROWS, DaemonsSection } from "./settings2";
 import { SystemActivity } from "./activitypanel";
 import { MirrorPanel } from "./mirror";
 import { EntitiesView } from "./entitiesview";
-import { navSection } from "./navdefs";
-import { ToolsPanel } from "./toolspanel";
+import { editorRow, navSection, noteToolkitGroup } from "./navdefs";
+import { ToolkitSection } from "./toolkit";
+import { IdealsSection } from "./idealspage";
 import { AutonomyPanel } from "./autonomypanel";
-import { LoopBoard } from "./loopboard";
-import { OmegaSection } from "./omega";
-import { CollapsibleSection } from "./collapsible";
-import { GeneralSection, IdealStateSection, SafetySection } from "./settings4";
+import { GeneralSection, SafetySection } from "./settings4";
 import { AboutSection, GatewayLogsCard, GatewaySection } from "./settings5";
 import { IntegrationsPanel } from "./integrationspanel";
-import { CouncilSettingsSection, PrivacyConnectivitySection } from "./settings6";
-import { UsageDashboard } from "./usagedashboard";
+import { CouncilSettingsSection, PrivacyConnectivitySection, type PrivacyPart } from "./settings6";
 import { track } from "./telemetry";
 import { ModelsSection } from "./settings7";
-import { AppearanceSection, WorkspaceSection } from "./settings8";
+import { WorkspaceSection } from "./settings8";
 import { BenchmarkPanel } from "./benchpanel";
 import { HooksSection } from "./hookssection";
 import { ProfilesSection } from "./profilessection";
@@ -32,7 +30,7 @@ import type { CliInfo } from "./types";
 
 // Sections that are a SideSpine screen: they fill the pane edge to edge and
 // scroll their column and detail on their own.
-const FLUSH_SECTIONS = new Set<string>(["intent", "entities", "connectors", "models", "benchmark"]);
+const FLUSH_SECTIONS = new Set<string>(["intent", "entities", "models", "benchmark", "council", "toolkit", "ideal-state", "activity", "connections", "privacy-safety", "settings"]);
 
 export function SettingsPanel({
   appearance,
@@ -57,41 +55,90 @@ export function SettingsPanel({
   onVaultMoved?: (path: string) => void;
   jumpTo?: { section: string; n: number } | null;
 }) {
-  type Section = "general" | "models" | "benchmark" | "privacy" | "connectors" | "ideal-state" | "omega" | "memory" | "intent" | "entities" | "daemons" | "safety" | "autonomy" | "council" | "gateway" | "mcp" | "remote" | "phone" | "workspace" | "vault" | "demo" | "appearance" | "frameworks" | "skills" | "shortcuts" | "about" | "activity" | "loopboard" | "hooks" | "profiles" | "tools" | "usage";
-  // Editor lands on General. The operational surfaces (Work board / Insights /
-  // Spark) moved to Work mode, so Editor opens on a config page. A specific
-  // jumpTo (e.g. "connectors") still wins.
-  const [section, setSection] = useState<Section>(jumpTo?.section ? (navSection(jumpTo.section) as Section) : "general");
+  // A page id (an EDITOR_NAV row) plus, for the pages that gather several
+  // sections, which side row is open. Old ids resolve through navSection /
+  // editorRow, so every deep link lands on the right page and row.
+  const [section, setSection] = useState<string>(jumpTo?.section ? navSection(jumpTo.section) : "settings");
+  const [row, setRow] = useState<string | null>(jumpTo?.section ? editorRow(jumpTo.section) : null);
+  const go = (raw: string) => { setSection(navSection(raw)); setRow(editorRow(raw)); };
   // Anonymous usage signal: WHICH surface opened (a name from the telemetry
   // enum), never what's in it. One event per section change.
-  useEffect(() => { track("feature_used", { feature: section }); }, [section]);
+  useEffect(() => { track("feature_used", { feature: section.replace(/-/g, "_") }); }, [section]);
   // Allow callers (e.g. the Demo ribbon's "Switch to Production" link) to jump
   // straight to a section. The nonce makes repeat jumps to the same section fire.
   useEffect(() => {
-    if (jumpTo?.section) setSection(navSection(jumpTo.section) as Section);
+    if (jumpTo?.section) go(jumpTo.section);
   }, [jumpTo?.n]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Value is consumed by sections via the deep-link event; only the setter is
-  // read here, so the state value itself is intentionally left unbound.
-  const [, setSettingsDeepLink] = useState<string | null>(null);
-  // In-settings deep links (e.g. a model row's "runs" button jumping to the
-  // Benchmark cockpit) dispatch this event rather than threading props.
-  // Format: "section" or "section:detail" - detail is passed to the section.
+  // In-settings deep links dispatch this event rather than threading props.
+  // Format: "section" or "section:detail"; the detail is ignored.
   useEffect(() => {
     const onJump = (e: Event) => {
       const raw = (e as CustomEvent<string>).detail;
       if (!raw) return;
-      const colonIdx = raw.indexOf(":");
-      if (colonIdx === -1) {
-        setSection(navSection(raw) as Section);
-        setSettingsDeepLink(null);
-      } else {
-        setSection(navSection(raw.slice(0, colonIdx)) as Section);
-        setSettingsDeepLink(raw.slice(colonIdx + 1));
-      }
+      const id = raw.split(":")[0];
+      noteToolkitGroup(id);
+      go(id);
     };
     window.addEventListener("prevail:settings-section", onJump as EventListener);
     return () => window.removeEventListener("prevail:settings-section", onJump as EventListener);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One-word statuses for the Connections rows, from what those pages read.
+  const [conn, setConn] = useState<{ phone?: string; mcp?: string; network?: string }>({});
+  useEffect(() => {
+    if (section !== "connections") return;
+    let alive = true;
+    invoke<{ running?: boolean }>("webui_status").then((s) => { if (alive) setConn((c) => ({ ...c, phone: s?.running ? "On" : "Off" })); }).catch(() => {});
+    invoke<{ clients?: { registered: boolean }[] }>("mcp_install_status").then((m) => {
+      const n = (m?.clients ?? []).filter((x) => x.registered).length;
+      if (alive) setConn((c) => ({ ...c, mcp: `${n} client${n === 1 ? "" : "s"}` }));
+    }).catch(() => {});
+    invoke<string>("machine_role_get").then((r) => { if (alive) setConn((c) => ({ ...c, network: r === "client" ? "Client" : "Hub" })); }).catch(() => {});
+    return () => { alive = false; };
+  }, [section]);
+
+  const connections: HubGroup[] = [{ items: [
+    { id: "phone", label: "Phone", icon: Smartphone, status: conn.phone, render: () => <PhoneSection /> },
+    { id: "gateway", label: "Gateway", icon: MessagesSquare, render: () => <><GatewaySection /><GatewayLogsCard vaultPath={vaultPath} /></> },
+    { id: "mcp", label: "MCP", icon: Wrench, status: conn.mcp, render: () => <IntegrationsPanel vaultPath={vaultPath} clis={clis} /> },
+    { id: "hooks", label: "Hooks", icon: Webhook, render: () => <HooksSection vaultPath={vaultPath} /> },
+    { id: "network", label: "Network", icon: Network, status: conn.network, render: () => <RemoteSection /> },
+  ]}];
+  const privacy = (part: PrivacyPart) => () => <PrivacyConnectivitySection enabled={bunkerEnabled} onChange={onBunkerChange} vaultPath={vaultPath} part={part} />;
+  const privacySafety: HubGroup[] = [
+    { heading: "Privacy", items: [
+      { id: "bunker", label: "Bunker Mode", icon: ShieldCheck, status: bunkerEnabled ? "On" : "Off", render: privacy("bunker") },
+      { id: "vault-lock", label: "Vault Lock", icon: Lock, render: privacy("vault-lock") },
+      { id: "incognito", label: "Incognito", icon: EyeOff, render: privacy("incognito") },
+      { id: "guardrail", label: "Outbound Guardrail", icon: Send, render: privacy("guardrail") },
+      { id: "always", label: "Always allowed", icon: ListChecks, render: privacy("always") },
+      { id: "telemetry", label: "Telemetry", icon: BarChart3, render: privacy("telemetry") },
+    ]},
+    { heading: "Autonomy", items: [
+      { id: "autonomy", label: "Autonomy", icon: Bot, render: () => <AutonomyPanel vaultPath={vaultPath} /> },
+    ]},
+    { heading: "Safety", items: [
+      { id: "safety-access", label: "Access protection", icon: Lock, render: () => <SafetySection vaultPath={vaultPath} part="access" /> },
+      { id: "safety-guardrails", label: "Agent guardrails", icon: Shield, render: () => <SafetySection vaultPath={vaultPath} part="guardrails" /> },
+    ]},
+  ];
+  const settings: HubGroup[] = [
+    { heading: "General", items: [
+      { id: "general", label: "Behavior", icon: SlidersHorizontal, render: () => <GeneralSection appearance={appearance} part="main" /> },
+      { id: "appearance", label: "Appearance", icon: Palette, render: () => <GeneralSection appearance={appearance} part="appearance" /> },
+      { id: "shortcuts", label: "Shortcuts", icon: Keyboard, render: () => <ShortcutsSection /> },
+    ]},
+    { heading: "Vault", items: [
+      { id: "vault", label: "Vault", icon: Database, render: () => <WorkspaceSection vaultPath={vaultPath} onSetupDomains={onSetupDomains} onVaultMoved={onVaultMoved} /> },
+      { id: "profiles", label: "Profiles", icon: UserRound, render: () => <ProfilesSection /> },
+    ]},
+    { heading: "Daemons", items: DAEMON_ROWS.map((d) => ({
+      id: `daemon:${d.id}`, label: d.title, icon: d.icon, render: () => <DaemonsSection vaultPath={vaultPath} embedded sel={d.id} />,
+    })) },
+    { heading: "About", items: [
+      { id: "about", label: "About", icon: Github, render: () => <AboutSection vaultPath={vaultPath} /> },
+    ]},
+  ];
 
   return (
     // Content-only: the Editor nav lives in the shared app sidebar (EDITOR_NAV),
@@ -100,76 +147,21 @@ export function SettingsPanel({
     <ScrollPage key={section} testId="settings-page" flush={FLUSH_SECTIONS.has(section)}>
         {/* Full width: settings use the whole pane. */}
         
-          {section === "general" && <GeneralSection appearance={appearance} />}
-          {section === "privacy" && <PrivacyConnectivitySection enabled={bunkerEnabled} onChange={onBunkerChange} vaultPath={vaultPath} />}
           {section === "models" && <ModelsSection clis={clis} onStartChatWith={onStartChatWith} onActivated={onRefreshClis} vaultPath={vaultPath} />}
           {section === "benchmark" && <BenchmarkPanel vaultPath={vaultPath} />}
-          {/* B2-24 / image #28: Ideals = page header + two big collapsible sections
-              (Constitution, Omega). Big-header collapsibles so each reads above the
-              sub-headers inside; Constitution open by default. */}
-          {section === "ideal-state" && (
-            <>
-              <SettingsHeader
-                title="Ideals"
-                icon={Compass}
-                subtitle="The vision everything here optimizes for."
-              />
-              <CollapsibleSection
-                large
-                icon={Compass}
-                title="Constitution"
-                subtitle="Your operating vision and principles. Highest precedence everywhere."
-                defaultOpen
-                storageKey="prevail.settings.ideals.constitution"
-              >
-                <IdealStateSection vaultPath={vaultPath} headerless />
-              </CollapsibleSection>
-              <CollapsibleSection
-                large
-                icon={Sigma}
-                title="Omega"
-                subtitle="Cross-system shared context that travels with you."
-                storageKey="prevail.settings.ideals.omega"
-              >
-                <OmegaSection vaultPath={vaultPath} headerless />
-              </CollapsibleSection>
-            </>
-          )}
-          {/* "omega" kept as a deep-link target (no nav item) — folded into Ideals. */}
-          {section === "omega" && <OmegaSection vaultPath={vaultPath} />}
-          {section === "memory" && <MemoryContextSection vaultPath={vaultPath} />}
-          {/* tasks / recommendations / spark are Work surfaces — the sidebar routes
-              them to WorkPanel (App.tsx WORK_SECTIONS), so no Editor branch here. */}
-          {/* B2-20 / image #29: Memory engine page deleted; Memory & Context now
-              lives inside Routines as a peer collapsible group (in DaemonsSection),
-              not a divider-separated section. */}
-          {section === "daemons" && <DaemonsSection vaultPath={vaultPath} />}
-          {section === "usage" && <UsageDashboard vaultPath={vaultPath} />}
-          {section === "activity" && <SystemActivity vaultPath={vaultPath} />}
-                              {section === "intent" && <MirrorPanel vaultPath={vaultPath} />}
-          {section === "entities" && <EntitiesView vaultPath={vaultPath} />}
-          {section === "tools" && <ToolsPanel />}
-          {section === "loopboard" && <LoopBoard vaultPath={vaultPath} />}
           {section === "council" && <CouncilSettingsSection clis={clis} />}
-          {section === "connectors" && <AppsMirrorPanel vaultPath={vaultPath} />}
-                    {section === "safety" && <SafetySection vaultPath={vaultPath} />}
-          {section === "autonomy" && <AutonomyPanel vaultPath={vaultPath} />}
-          {section === "gateway" && <><GatewaySection /><GatewayLogsCard vaultPath={vaultPath} /></>}
-          {section === "mcp" && <IntegrationsPanel vaultPath={vaultPath} clis={clis} />}
-          {section === "hooks" && <HooksSection vaultPath={vaultPath} />}
-          {section === "profiles" && <ProfilesSection />}
-          {section === "remote" && <RemoteSection />}
-          {section === "phone" && <PhoneSection />}
-          {/* IA-1: "workspace" is the umbrella; "vault"/"demo" remain as
-              deep-link aliases (e.g. the demo ribbon's jump) → same section. */}
-          {(section === "workspace" || section === "vault" || section === "demo") && (
-            <WorkspaceSection vaultPath={vaultPath} onSetupDomains={onSetupDomains} onVaultMoved={onVaultMoved} />
-          )}
-          {section === "appearance" && <AppearanceSection appearance={appearance} />}
-          {section === "frameworks" && <FrameworksSection />}
-          {section === "skills" && <SkillsSection vaultPath={vaultPath} />}
-          {section === "shortcuts" && <ShortcutsSection />}
-          {section === "about" && <AboutSection vaultPath={vaultPath} />}
+          {section === "toolkit" && <ToolkitSection vaultPath={vaultPath} />}
+          {section === "intent" && <MirrorPanel vaultPath={vaultPath} />}
+          {section === "entities" && <EntitiesView vaultPath={vaultPath} />}
+          {section === "ideal-state" && <IdealsSection vaultPath={vaultPath} initial={row} />}
+          {/* Activity gathers what Prevail did (by kind) and Usage. */}
+          {section === "activity" && <SystemActivity vaultPath={vaultPath} initial={row ?? undefined} />}
+          {section === "connections" && <SettingsHub id="connections" title="Connections" icon={Network}
+            subtitle="Your phone, the gateway, MCP clients, hooks and the network." groups={connections} sel={row} onSelect={setRow} />}
+          {section === "privacy-safety" && <SettingsHub id="privacy-safety" title="Privacy & Safety" icon={ShieldCheck}
+            subtitle="Where your data can go and what agents may do." groups={privacySafety} sel={row} onSelect={setRow} />}
+          {section === "settings" && <SettingsHub id="settings" title="Settings" icon={SettingsIcon}
+            subtitle="Behavior, look, your vault and profiles, and the background workers." groups={settings} sel={row} onSelect={setRow} />}
     </ScrollPage>
   );
 }

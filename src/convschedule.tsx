@@ -1,15 +1,14 @@
 // Conversation schedules: run a prompt as a new turn in THIS conversation on a
 // timer, so the answer lands in the thread you asked it in. The chat header's
-// Schedule action opens SchedulePanel in the flow above the transcript; the
-// Automations page lists them (ConversationSchedules) with pause, remove and
-// a link back to the thread. The engine owns the schedule file and fires it
-// on the hub machine only.
+// Schedule action opens SchedulePanel in the flow above the transcript: it
+// lists this conversation's schedules (run now, pause or resume, remove) above
+// the form that adds one. The engine owns the schedule file and fires it on
+// the hub machine only.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, ExternalLink, Loader2, Pause, Play, RotateCw, Trash2, X } from "lucide-react";
+import { CalendarClock, Loader2, Pause, Play, RotateCw, Trash2, X } from "lucide-react";
 import { invoke } from "./bridge";
-import { relTime, titleCase } from "./format";
+import { relTime } from "./format";
 import { RowAction } from "./rowaction";
-import type { ThreadMeta } from "./types";
 
 export type Frequency = "daily" | "weekdays" | "weekly" | "custom";
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
@@ -57,7 +56,7 @@ export type ScheduleEntry = {
   prompt?: string;
 };
 
-function normalizeList(raw: unknown): ScheduleEntry[] {
+export function normalizeList(raw: unknown): ScheduleEntry[] {
   const arr = Array.isArray(raw) ? raw : Array.isArray((raw as { schedules?: unknown })?.schedules) ? (raw as { schedules: unknown[] }).schedules : [];
   return (arr as ScheduleEntry[]).filter((s) => s && typeof s.id === "string");
 }
@@ -99,12 +98,13 @@ export function SchedulePanel({ vaultPath, domain, session, defaultPrompt, onClo
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-3 flex items-center gap-2.5">
           <CalendarClock className="h-5 w-5 shrink-0 text-accent" />
-          <h3 className="flex-1 font-display text-lg font-semibold tracking-tight text-text-primary">Schedule this conversation</h3>
+          <h3 className="flex-1 text-lg font-semibold text-text-primary">Schedule this conversation</h3>
           <button onClick={onClose} title="Close" aria-label="Close schedule"
             className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-text-primary">
             <X className="h-4 w-4" />
           </button>
         </div>
+        <ThreadSchedules vaultPath={vaultPath} domain={domain} session={session} />
         {saved ? (
           <div className="flex items-center gap-3 text-sm text-text-secondary">
             <span data-testid="schedule-saved">Scheduled: {saved}. Replies land in this thread.</span>
@@ -151,9 +151,9 @@ export function SchedulePanel({ vaultPath, domain, session, defaultPrompt, onClo
   );
 }
 
-// Automations page: every conversation schedule, with pause, remove, and a
-// link that opens its thread.
-export function ConversationSchedules({ vaultPath }: { vaultPath: string }) {
+// This conversation's schedules, each with tiny icon actions: run now, pause
+// or resume, remove. Nothing renders until there is one.
+export function ThreadSchedules({ vaultPath, domain, session }: { vaultPath: string; domain: string; session: string }) {
   const [list, setList] = useState<ScheduleEntry[] | null>(null);
   const load = useCallback(() => {
     invoke<unknown>("engine_schedule_list", { vault: vaultPath })
@@ -165,14 +165,17 @@ export function ConversationSchedules({ vaultPath }: { vaultPath: string }) {
     window.addEventListener("prevail:schedules-changed", load);
     return () => window.removeEventListener("prevail:schedules-changed", load);
   }, [load]);
-  const convs = useMemo(() => (list ?? []).filter((s) => s.thread && s.thread.session), [list]);
-  if (list === null || convs.length === 0) return null;
+  const mine = useMemo(
+    () => (list ?? []).filter((s) => s.thread?.session === session && (s.thread.domain || "general") === (domain || "general")),
+    [list, session, domain],
+  );
+  if (mine.length === 0) return null;
 
   const toggle = async (s: ScheduleEntry) => {
     await invoke("engine_schedule_set_enabled", { vault: vaultPath, id: s.id, enabled: !s.enabled });
     setList((cur) => (cur ?? []).map((x) => (x.id === s.id ? { ...x, enabled: !s.enabled } : x)));
   };
-  // Run it now; a conversation schedule's reply lands in its thread.
+  // Run it now; the reply lands in this thread.
   const runNow = async (s: ScheduleEntry) => {
     const r = await invoke<{ ok?: boolean; error?: string }>("engine_schedule_run", { vault: vaultPath, id: s.id });
     if (r && r.ok === false) throw new Error(r.error || "run failed");
@@ -182,42 +185,27 @@ export function ConversationSchedules({ vaultPath }: { vaultPath: string }) {
     await invoke("engine_schedule_remove", { vault: vaultPath, id: s.id });
     setList((cur) => (cur ?? []).filter((x) => x.id !== s.id));
   };
-  // Resolve the thread's file from its slug, then open it in its domain.
-  const openThread = async (s: ScheduleEntry) => {
-    if (!s.thread) return;
-    const dom = s.thread.domain && s.thread.domain !== "general" ? s.thread.domain : "";
-    const threads = await invoke<ThreadMeta[]>("list_threads", { vault: vaultPath, domain: dom || null }).catch(() => []);
-    const hit = (Array.isArray(threads) ? threads : []).find((t) => t.slug === s.thread!.session || t.path.endsWith(`/${s.thread!.session}.md`));
-    if (!hit) throw new Error("thread not found");
-    const root = vaultPath.replace(/\/+$/, "");
-    const ref = hit.path.startsWith(`${root}/`) ? hit.path.slice(root.length + 1) : hit.path;
-    window.dispatchEvent(new CustomEvent("prevail:open-thread", { detail: { domain: dom || "general", ref } }));
-  };
 
   return (
-    <section data-testid="conversation-schedules" className="mb-6">
-      <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold tracking-tight text-text-primary">
-        <CalendarClock className="h-5 w-5 text-accent" /> Conversation schedules
-      </h2>
-      <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle">
-        {convs.map((s) => (
-          <div key={s.id} data-schedule={s.id} className="flow-root px-4 py-2.5">
-            <div className="float-right -mr-1 ml-3 flex items-center gap-0.5">
-              <RowAction icon={ExternalLink} label="Open thread" onClick={() => openThread(s)} />
-              <RowAction icon={RotateCw} label="Run now" doneLabel="Ran" onClick={() => runNow(s)} />
-              <RowAction icon={s.enabled ? Pause : Play} label={s.enabled ? "Pause" : "Resume"} onClick={() => toggle(s)} />
-              <RowAction icon={Trash2} label="Remove" doneLabel="Removed" onClick={() => remove(s)} />
-            </div>
-            <div className={`text-sm font-medium ${s.enabled ? "text-text-primary" : "text-text-muted"}`}>{s.prompt || s.name}</div>
+    <div data-testid="thread-schedules" className="mb-4 divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle">
+      {mine.map((s) => (
+        <div key={s.id} data-schedule={s.id} className="flex items-center gap-3 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <div className={`truncate text-sm font-medium ${s.enabled ? "text-text-primary" : "text-text-muted"}`}>{s.prompt || s.name}</div>
             <div className="mt-0.5 text-xs text-text-muted">
-              {titleCase(s.thread?.domain || "general")} · {describeCron(s.cron)}
+              {describeCron(s.cron)}
               {!s.enabled && " · paused"}
               {s.enabled && s.next_run ? ` · next ${new Date(s.next_run).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}` : ""}
               {s.last_run ? ` · last ran ${relTime(s.last_run)}` : ""}
             </div>
           </div>
-        ))}
-      </div>
-    </section>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <RowAction icon={RotateCw} label="Run now" doneLabel="Ran" onClick={() => runNow(s)} />
+            <RowAction icon={s.enabled ? Pause : Play} label={s.enabled ? "Pause" : "Resume"} onClick={() => toggle(s)} />
+            <RowAction icon={Trash2} label="Remove" doneLabel="Removed" onClick={() => remove(s)} />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

@@ -11,7 +11,7 @@ import { Boxes, Building2, Calendar, CheckSquare, ExternalLink, FileText, MapPin
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "./bridge";
 import { lookupEntity, requestEntity, slugifyName, useEntityStore } from "./entitystore";
-import { domainColor } from "./helpers";
+import { domainColor, isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
 
@@ -86,17 +86,18 @@ export function openEntity(ref: EntityRef) {
       fire("prevail:open-domain", ref.value);
       return;
     case "task":
-      // The board may not be mounted yet; it reads this on mount as well as
-      // answering the event, the same hand-off the "Needs you" pill uses.
+      // Tasks may not be mounted yet; it reads this on mount as well as
+      // answering the event.
       try { localStorage.setItem("prevail.board.openTask", ref.value); } catch { /* storage off */ }
-      fire("prevail:work-section", "tasks");
+      fire("prevail:work-section", "task-list");
       fire("prevail:open-task", ref.value);
       return;
     case "file":
       fire("prevail:open-vault-file", ref.value);
       return;
     case "date":
-      fire("prevail:work-section", "calendar");
+      // Dates live on tasks (their due dates) now that Calendar is gone.
+      fire("prevail:work-section", "task-list");
       return;
     case "person":
     case "place":
@@ -294,7 +295,7 @@ function decodeURIComponentSafe(s: string): string {
 // (Sonnet 5, 2026-09-25); this version was followed by Sonnet 5, Haiku 4.5 and
 // GPT-6 Luna.
 export function entityLinkDirective(domains: string[], saved: { name: string; id: string }[] = []): string {
-  const slugs = domains.filter((d) => d && !d.startsWith("_")).slice(0, 60);
+  const slugs = domains.filter(isUserDomain).slice(0, 60);
   const example = slugs.includes("career") ? "career" : (slugs[0] ?? "career");
   const own = saved.filter((e) => e.name && /^(person|place|org|thing)\/[a-z0-9-]+$/.test(e.id)).slice(0, 40);
   return [

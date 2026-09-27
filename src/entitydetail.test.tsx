@@ -32,6 +32,9 @@ vi.mock("./bridge", () => ({
     if (cmd === "entities_note") return { ...SAM, notes: String(args?.text) };
     if (cmd === "entities_list") return LIST;
     if (cmd === "app_favicon") return "";
+    if (cmd === "engine_entity_threads") return String(args?.id) === "person/sam-rivera"
+      ? [{ slug: "2026-09-20_foo", domain: "general", title: "Roof plan with Sam", updated: Date.parse("2026-09-20T10:00:00Z"), turns: 4 }]
+      : [];
     throw new Error(`unexpected ${cmd}`);
   },
 }));
@@ -119,16 +122,15 @@ describe("entity detail", () => {
     expect(seen).toEqual(['prevail:open-settings:"intent"', 'prevail:open-thread:{"domain":"home","ref":"data/domains/home/memory/threads/t1.md"}']);
   });
 
-  it("seeds a new chat with the entity context", async () => {
-    const seeds: string[] = [];
-    const on = (e: Event) => seeds.push(String((e as CustomEvent).detail));
-    window.addEventListener("prevail:compose-seed", on);
+  it("offers Chat, and lists the conversations about it, newest first", async () => {
     await openOn("person", "Sam Rivera");
     await screen.findByText("You asked Sam about the roof.");
-    fireEvent.click(screen.getByRole("button", { name: /ask about it/i }));
-    window.removeEventListener("prevail:compose-seed", on);
-    expect(seeds[0]).toContain("[Sam Rivera](prevail://person/sam-rivera)");
-    expect(seeds[0]).toContain("My notes: Prefers text.");
+    expect(screen.getByRole("button", { name: /^chat$/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /ask about it/i })).toBeNull();
+    const list = await screen.findByTestId("entity-conversations");
+    expect(within(list).getByText("Roof plan with Sam")).toBeTruthy();
+    expect(within(list).getByText(/4 turns/)).toBeTruthy();
+    expect(calls.find((c) => c.cmd === "engine_entity_threads")?.args).toEqual({ vault: "/v", id: "person/sam-rivera" });
   });
 
   it("an unknown place still gets a detail with a map and Save", async () => {

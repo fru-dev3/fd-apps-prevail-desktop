@@ -23,7 +23,6 @@ const CouncilPanel = lazy(() => import("./councilpanel").then((m) => ({ default:
 const SettingsPanel = lazy(() => import("./settingspanel").then((m) => ({ default: m.SettingsPanel })));
 const WorkPanel = lazy(() => import("./workpanel").then((m) => ({ default: m.WorkPanel })));
 const BenchmarkPanel = lazy(() => import("./benchpanel").then((m) => ({ default: m.BenchmarkPanel })));
-const ToolsPanel = lazy(() => import("./toolspanel").then((m) => ({ default: m.ToolsPanel })));
 // The phone frame (bottom tab bar, big header, one full-width surface). Only
 // fetched at phone width, so the desktop bundle stays as it was.
 const PhoneShell = lazy(() => import("./phoneshell").then((m) => ({ default: m.PhoneShell })));
@@ -42,7 +41,7 @@ import { VaultEncryptPrompt, vaultEncryptOffered } from "./vault-encrypt-prompt"
 import { migrateModelPrefs } from "./helpers2";
 import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin, WebVaultLinking } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
-import { EDITOR_NAV, WORK_NAV, navSection } from "./navdefs";
+import { EDITOR_NAV, REMOVED_SECTIONS, WORK_NAV, noteToolkitGroup, workSection } from "./navdefs";
 import { setEntityVault } from "./entitystore";
 
 // Single source of truth for the version chip in title bar.
@@ -138,13 +137,12 @@ import {
   ChevronsRight,
   ChevronsLeft,
   MessageSquarePlus,
-  FileText,
-  CalendarDays,
+  ListChecks,
+  Blocks,
   PanelLeft,
   Compass,
   ShieldCheck,
   Power,
-  Briefcase,
   Settings as SettingsIcon,
 } from "lucide-react";
 
@@ -985,6 +983,12 @@ export default function App() {
     } catch (e) { console.error("list_threads", e); }
   }, [vaultPath, threadScope]);
   useEffect(() => { void refreshThreads(); }, [refreshThreads]);
+  // Conversations saved elsewhere (an entity chat) show in the rail at once.
+  useEffect(() => {
+    const f = () => { void refreshThreads(); };
+    window.addEventListener("prevail:threads-changed", f);
+    return () => window.removeEventListener("prevail:threads-changed", f);
+  }, [refreshThreads]);
   const [clis, setClis] = useState<CliInfo[]>([]);
   // O1/F6: once runtime detection has run, know whether ANY model is usable, so
   // we can prompt a new user to set one up instead of letting chat fail silently.
@@ -1149,30 +1153,28 @@ export default function App() {
   // Lets in-app links (e.g. the Demo ribbon) open a specific Settings section.
   const [settingsJump, setSettingsJump] = useState<{ section: string; n: number } | null>(null);
   const openSettingsAt = (raw: string) => {
-    const section = navSection(raw);
+    noteToolkitGroup(raw);
+    // The raw id travels on: SettingsPanel resolves it to a page and, for the
+    // pages that gather several sections, the side row to open.
+    const section = raw;
     setSettingsJump((j) => ({ section, n: (j?.n ?? 0) + 1 }));
     setTab("settings");
   };
   // The old top-level Retrospect tab is Intent now.
   useEffect(() => { if (tab === "retrospect") openSettingsAt("intent"); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Work mode jump — the operational sections (Work board / Insights / Spark)
-  // moved out of Settings into Work mode, so deep-links to them route here.
+  // Work mode jump: the operational sections live in Home (Work mode), so
+  // deep links to them route here.
   const [workJump, setWorkJump] = useState<{ section: string; n: number } | null>(null);
-  // Sections that now live in Work mode rather than the Editor (Settings).
-  // "loopboard" is the legacy Settings id for the LoopBoard — now "Automations"
-  // in Work mode; kept here so old deep-links still route correctly (WorkPanel
-  // normalizes the alias).
-  const WORK_SECTIONS = ["tasks", "task-list", "inbox", "recommendations", "spark", "automations", "calendar", "notes", "insights", "projects", "goals", "loopboard"];
-  // The Source Map screen was removed; links saved before that land on Home.
-  const REMOVED_SECTIONS = ["map", "source-map", "source"];
-  const openWorkAt = (section: string) => {
+  const openWorkAt = (raw: string) => {
+    const section = workSection(raw) ?? raw;
     setWorkJump((j) => ({ section, n: (j?.n ?? 0) + 1 }));
     setTab("work");
   };
-  // Route a section name to whichever mode now owns it.
+  // Route a section name to whichever mode now owns it. Removed screens
+  // (Source Map, Spark, Automations, Calendar, Notes) land on Home.
   const openSectionAt = (section: string) => {
-    if (REMOVED_SECTIONS.includes(section)) { setSelectedDomain(""); setTab("chat"); }
-    else if (WORK_SECTIONS.includes(section)) openWorkAt(section);
+    if (REMOVED_SECTIONS.has(section)) { setSelectedDomain(""); setTab("chat"); }
+    else if (workSection(section)) openWorkAt(section);
     else openSettingsAt(section);
   };
   // Window-event form of the same jump, for module-scope UI (sidebar
@@ -1191,7 +1193,7 @@ export default function App() {
     // (a plain event would fire before its listener attaches).
     const onWorkSection = (e: Event) => {
       const s = (e as CustomEvent<string>).detail;
-      if (s) openWorkAt(s);
+      if (s) openSectionAt(s);
     };
     window.addEventListener("prevail:work-section", onWorkSection as EventListener);
     // The Editor sidebar needs the same treatment, and did not have it: its
@@ -1203,7 +1205,7 @@ export default function App() {
     // in-settings deep links, which arrive when it is already up.
     const onEditorSection = (e: Event) => {
       const s = (e as CustomEvent<string>).detail;
-      if (s && !s.includes(":")) openSettingsAt(s);
+      if (s && !s.includes(":")) openSectionAt(s);
     };
     window.addEventListener("prevail:settings-section", onEditorSection as EventListener);
     // Jump straight to a domain (from the Recommendations "Open" action or the
@@ -1223,7 +1225,7 @@ export default function App() {
     // Long-term memory + domain context carry over; only the thread resets.
     const onNewChat = () => { setActiveThreadPath(null); setChatViewNonce((n) => n + 1); };
     window.addEventListener("prevail:new-chat", onNewChat);
-    // Seeding the composer (e.g. Spark "Explore in chat") must also LEAVE any
+    // Seeding the composer (e.g. a task's "Discuss with AI") must also LEAVE any
     // settings/council/arena view and land on Chat so the seeded composer is
     // visible. ChatPanel reads the pending seed on mount (survives this nav).
     const onComposeSeed = () => { setTab("chat"); setDomainTab("chat"); };
@@ -1411,10 +1413,9 @@ export default function App() {
     // Actions.
     cmds.push(
       { id: "act:new-chat", label: "New chat", hint: "⌘K", group: "Actions", icon: MessageSquarePlus, keywords: "conversation ask", run: () => { setSelectedDomain(""); setActiveThreadPath(null); setTab("chat"); } },
-      { id: "act:new-note", label: "New note", group: "Actions", icon: FileText, keywords: "capture write", run: () => openWorkAt("notes") },
       { id: "act:inbox", label: "Open inbox", group: "Actions", icon: Inbox, keywords: "decisions approvals needs you", run: () => openWorkAt("inbox") },
-      { id: "act:board", label: "Open work board", group: "Actions", icon: Briefcase, keywords: "tasks todo", run: () => openWorkAt("tasks") },
-      { id: "act:calendar", label: "Open calendar", group: "Actions", icon: CalendarDays, keywords: "schedule events", run: () => openWorkAt("calendar") },
+      { id: "act:tasks", label: "Open tasks", group: "Actions", icon: ListChecks, keywords: "tasks todo work board", run: () => openWorkAt("task-list") },
+      { id: "act:apps", label: "Open apps", group: "Actions", icon: Plug, keywords: "apps connectors", run: () => openWorkAt("apps") },
       { id: "act:toggle-rail", label: "Toggle domain rail", hint: "⌘B", group: "Actions", icon: PanelLeft, keywords: "sidebar hide show", run: () => setSidebarCollapsed((v) => !v) },
       { id: "act:settings", label: "Open settings", hint: "⌘,", group: "Actions", icon: SettingsIcon, keywords: "preferences config", run: () => setTab("settings") },
     );
@@ -1621,7 +1622,6 @@ export default function App() {
       railWidth={domainRailWidth}
       onOpenOnboarding={() => { setOnboardDismissed(false); setOnboardOpen(true); }}
       onDomainsChanged={() => void refreshDomains()}
-      inboxCount={decisionsCount}
     />
   );
 
@@ -1773,11 +1773,6 @@ export default function App() {
                   vaultPath={vaultPath}
                   initialDomain={selectedDomain || benchScope}
                 />
-              </div>
-            )}
-            {tab === "tools" && (
-              <div className="h-full">
-                <ToolsPanel />
               </div>
             )}
             </Suspense>
@@ -1977,7 +1972,7 @@ export default function App() {
                 // recipes and the browser lane live.
                 <>
                   <button
-                    onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))}
+                    onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))}
                     title="Open Apps: connectors, sync recipes and sites"
                     className="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[13px] text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
                   >
@@ -2002,7 +1997,7 @@ export default function App() {
                 // to Chat first if you're on Council/Benchmark).
                 <>
                   {/* Workflows-Kanban: a pill appears only when AI work needs your
-                      call; opens the Board's "Needs you" view. */}
+                      call; opens the Inbox. */}
                   {decisionsCount > 0 && (
                     <button
                       onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "inbox" }))}
@@ -2045,13 +2040,11 @@ export default function App() {
                     <Swords className="h-3.5 w-3.5" /> Arena
                   </button>
                   <button
-                    onClick={() => setTab("tools")}
-                    title="Tools: the governed capability layer your AI acts through"
-                    className={`flex items-center gap-1 rounded whitespace-nowrap px-1.5 py-0.5 text-[11px] transition-colors ${
-                      tab === "tools" ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-accent"
-                    }`}
+                    onClick={() => openSettingsAt("tools")}
+                    title="Toolkit: the skills, tools and frameworks your models can use"
+                    className="flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
                   >
-                    <span className="text-[12px] leading-none">⛭</span> Tools
+                    <Blocks className="h-3.5 w-3.5" /> Toolkit
                   </button>
                 </>
               )}

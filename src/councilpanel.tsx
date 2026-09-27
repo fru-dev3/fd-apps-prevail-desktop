@@ -7,7 +7,7 @@ import { invoke, listen } from "./bridge";
 import { savePastedImages } from "./paste";
 import { titleCase } from "./format";
 import { startProcess, endProcess } from "./processes";
-import { isLocalCli, splitThinking, stripAnsi, vendorAccent } from "./helpers";
+import { isLocalCli, splitThinking, stripAnsi, vendorAccent, isUserDomain } from "./helpers";
 import { buildCouncilQuickActions, buildIdealStatePreamble, buildSkillsPreamble, buildSynthesisPrompt, curatedFor, loadPreferredSkills, maybeStripSycophancy, modelsFor, savePreferredSkills } from "./helpers2";
 import { LS, PREF, getDomainToggle, getPref, incognitoActive, isBunkerOn, lsGet, lsSet, setPref } from "./storage";
 import { ThinkingDisclosure } from "./ui";
@@ -346,7 +346,7 @@ export function CouncilPanel({
   const [allSkills, setAllSkills] = useState<SkillEntry[]>([]);
   useEffect(() => {
     if (!_vaultPath) { setMentionDomains([]); setAllSkills([]); return; }
-    invoke<Domain[]>("scan_vault", { path: _vaultPath }).then((v) => setMentionDomains(Array.isArray(v) ? v : [])).catch(() => setMentionDomains([]));
+    invoke<Domain[]>("scan_vault", { path: _vaultPath }).then((v) => setMentionDomains(Array.isArray(v) ? v.filter((d) => isUserDomain(d.name)) : [])).catch(() => setMentionDomains([]));
     // Only ENABLED skills feed /skills + auto-attach; disabled ones are hidden.
     invoke<SkillEntry[]>("scan_skills", { vault: _vaultPath }).then((s) => setAllSkills(s.filter((x) => x.enabled !== false))).catch(() => setAllSkills([]));
   }, [_vaultPath]);
@@ -1020,7 +1020,7 @@ export function CouncilPanel({
               const I = domainIcon(domain);
               return I ? <I className="h-5 w-5 text-accent" /> : <span className="text-accent">◆</span>;
             })()}
-            <span className="font-display text-lg font-semibold">{titleCase(domain)}</span>
+            <span className="text-lg font-semibold">{titleCase(domain)}</span>
             {domainPath && (
               <button
                 onClick={onOpenInFinder}
@@ -1079,7 +1079,7 @@ export function CouncilPanel({
         {councilTurns.length === 0 && phase === "idle" && (
           <div className="flex h-full flex-col items-center justify-start px-6 py-6">
             <img src="/logo.png" alt="" className="h-10 w-10 rounded-2xl opacity-90" />
-            <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight">
+            <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary mt-3">
               <BrandMark /> Council
             </h2>
             <p className="mt-1.5 max-w-md text-center text-[13px] text-text-muted">

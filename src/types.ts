@@ -30,6 +30,8 @@ export interface ThreadMeta {
   routed?: string[];
   linked_from?: string | null;
   route_turns?: string;
+  // Entity chat: the entity (kind/slug) this conversation is about.
+  entity?: string | null;
 }
 
 export interface ThreadTurn {

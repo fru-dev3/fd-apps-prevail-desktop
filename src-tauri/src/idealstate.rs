@@ -65,47 +65,104 @@ pub(crate) fn read_ideal_state(vault: String) -> Result<String, String> {
     }
     read_to_string_retry(&p).map_err(|e| e.to_string())
 }
+// Versions of the constitution live next to it, in build/ideal-state.versions/,
+// one file per version named by its ISO time (2026-09-27T14-05-03Z.md). build/
+// syncs between Macs (only build/_meta and build/_scan are left out), so the
+// history travels with the vault. Older snapshots written to
+// build/_meta/ideal-state-versions/ are still listed.
+pub(crate) fn ideal_versions_dir(vault: &str) -> PathBuf {
+    config_write_path(vault, "ideal-state.versions")
+}
+fn legacy_versions_dir(vault: &str) -> PathBuf {
+    crate::paths::build_root(vault).join("_meta").join("ideal-state-versions")
+}
+
 #[tauri::command]
 pub(crate) fn write_ideal_state(vault: String, body: String) -> Result<(), String> {
     let p = config_write_path(&vault, "ideal-state.md");
     if let Some(parent) = p.parent() { let _ = fs::create_dir_all(parent); }
     // The constitution is never silently overwritten: every save that changes
-    // it first snapshots the prior text into _meta/ideal-state-versions/, so
-    // edits always leave a dated trace and nothing is ever lost.
-    if let Ok(existing) = read_to_string_retry(&p) {
+    // it first keeps the prior full text as a dated version, so nothing is
+    // ever lost. A restore is just another save.
+    if let Ok(existing) = read_to_string_retry(config_read_path(&vault, "ideal-state.md")) {
         if existing.trim() != body.trim() && !existing.trim().is_empty() {
-            let vdir = crate::paths::build_root(&vault).join("_meta").join("ideal-state-versions");
-            let _ = fs::create_dir_all(&vdir);
+            let vdir = ideal_versions_dir(&vault);
+            fs::create_dir_all(&vdir).map_err(|e| format!("mkdir versions: {e}"))?;
             let secs = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
             let (y, mo, d, h, mi, s) = secs_to_ymdhms(secs);
-            let vp = vdir.join(format!("{y:04}-{mo:02}-{d:02}_{h:02}{mi:02}{s:02}.md"));
-            let _ = crate::vaultio::write_atomic(&vp, &existing);
+            let mut vp = vdir.join(format!("{y:04}-{mo:02}-{d:02}T{h:02}-{mi:02}-{s:02}Z.md"));
+            let mut n = 1;
+            while vp.exists() {
+                vp = vdir.join(format!("{y:04}-{mo:02}-{d:02}T{h:02}-{mi:02}-{s:02}Z-{n}.md"));
+                n += 1;
+            }
+            crate::vaultio::write_atomic(&vp, &existing).map_err(|e| format!("write version: {e}"))?;
         }
     }
     crate::vaultio::write_atomic(&p, &body).map_err(|e| format!("write ideal-state.md: {e}"))
 }
 
-/// Dated snapshots of the constitution, newest first.
+/// Dated versions of the constitution, newest first: { name, path, ts }.
 #[tauri::command]
 pub(crate) fn ideal_state_versions(vault: String) -> Result<Vec<serde_json::Value>, String> {
-    let vdir = crate::paths::build_root(&vault).join("_meta").join("ideal-state-versions");
-    let mut out = Vec::new();
-    if let Ok(it) = read_dir_retry(&vdir) {
-        for e in it.flatten() {
-            let p = e.path();
-            if p.extension().and_then(|s| s.to_str()) == Some("md") {
-                out.push(serde_json::json!({
-                    "name": p.file_stem().and_then(|s| s.to_str()).unwrap_or(""),
-                    "path": p.to_string_lossy(),
-                }));
+    let mut out: Vec<(String, serde_json::Value)> = Vec::new();
+    for vdir in [ideal_versions_dir(&vault), legacy_versions_dir(&vault)] {
+        if let Ok(it) = read_dir_retry(&vdir) {
+            for e in it.flatten() {
+                let p = e.path();
+                if p.extension().and_then(|s| s.to_str()) != Some("md") { continue; }
+                let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+                let ts = fs::metadata(&p).and_then(|m| m.modified()).ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis() as u64).unwrap_or(0);
+                // Sort key: the name's digits (both naming styles are YYYY MM DD h m s).
+                let key: String = name.chars().filter(|c| c.is_ascii_digit()).collect();
+                out.push((key, serde_json::json!({ "name": name, "path": p.to_string_lossy(), "ts": ts })));
             }
         }
     }
-    out.sort_by(|a, b| b["name"].as_str().cmp(&a["name"].as_str()));
-    Ok(out)
+    out.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(out.into_iter().map(|(_, v)| v).collect())
+}
+
+/// Read one version's text by the path the list returned (only files in the
+/// versions folders are readable this way).
+#[tauri::command]
+pub(crate) fn ideal_state_version_read(vault: String, path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    let ok = [ideal_versions_dir(&vault), legacy_versions_dir(&vault)].iter().any(|d| p.parent() == Some(d.as_path()));
+    if !ok || p.extension().and_then(|s| s.to_str()) != Some("md") {
+        return Err("not a version of ideal-state.md".into());
+    }
+    read_to_string_retry(&p).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    #[test]
+    fn every_save_keeps_the_previous_text_as_a_version() {
+        let v = std::env::temp_dir().join(format!("prevail-ideal-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&v);
+        fs::create_dir_all(v.join("build")).unwrap();
+        let vs = v.to_string_lossy().to_string();
+        write_ideal_state(vs.clone(), "# One\n".into()).unwrap();
+        write_ideal_state(vs.clone(), "# Two\n".into()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        write_ideal_state(vs.clone(), "# Three\n".into()).unwrap();
+        let list = ideal_state_versions(vs.clone()).unwrap();
+        assert_eq!(list.len(), 2, "the two earlier texts are kept");
+        let dir = ideal_versions_dir(&vs);
+        assert!(dir.ends_with("build/ideal-state.versions"));
+        let texts: Vec<String> = list.iter().map(|x| ideal_state_version_read(vs.clone(), x["path"].as_str().unwrap().into()).unwrap()).collect();
+        assert!(texts.contains(&"# One\n".to_string()) && texts.contains(&"# Two\n".to_string()));
+        assert_eq!(read_ideal_state(vs.clone()).unwrap(), "# Three\n");
+        assert!(ideal_state_version_read(vs.clone(), v.join("build/ideal-state.md").to_string_lossy().into()).is_err());
+        let _ = fs::remove_dir_all(&v);
+    }
 }
 
 // M6: per-domain Ideal State — a `<domain>/ideal-state.md` that targets ONE

@@ -3,7 +3,7 @@
 // shared chatviews + domainpanels.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, CalendarClock, Check, Hourglass, ClipboardList, Compass, FileText, Folder, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp, X } from "lucide-react";
+import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, CalendarClock, Check, ClipboardList, Compass, FileText, Folder, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp, X } from "lucide-react";
 import { PrevailLogo } from "./PrevailLogo";
 import { invoke, listen } from "./bridge";
 import { addNote } from "./notesstore";
@@ -13,7 +13,7 @@ import { MODELS, isHarnessRuntime } from "./constants";
 import { relTime, scoreColor, titleCase } from "./format";
 import { startProcess, endProcess } from "./processes";
 import { ContextMeter, contextWindowFor, estimateTokens } from "./contextmeter";
-import { domainBlurb, inheritedGoogleAccount, isLocalCli, looksLikeJudgmentCall, preferredLocalCli, stripAnsi } from "./helpers";
+import { domainBlurb, inheritedGoogleAccount, isLocalCli, looksLikeJudgmentCall, preferredLocalCli, stripAnsi, isUserDomain } from "./helpers";
 import { buildChatContext, buildIdealStatePreamble, buildOmegaPreamble, buildQuickActions, buildSkillsPreamble, curatedFor, loadPreferredSkills, maybeRedact, maybeStripSycophancy, modelsFor, savePreferredSkills } from "./helpers2";
 import { LS, PREF, getDomainToggle, getPref, incognitoActive, isBunkerOn, lsGet, lsSet, setPref } from "./storage";
 import { Markdown } from "./Markdown";
@@ -25,7 +25,6 @@ import { useFrameworkLens } from "./hooks";
 import { ProviderMark } from "./marks";
 import { DomainHome, DomainStatusBar, MessageList } from "./chatviews";
 import { RouteChips } from "./routechips";
-import { GeneralSearch } from "./generalsearch";
 import { ROUTE_WAIT_MS, buildRoutedContext, correctRoute, decodeRouteTurns, encodeRouteTurns, routeText, routeThreshold, routingEnabled, splitRoute, threadIdOf, threadRoutes } from "./routing";
 import { LoopsPanel } from "./loopspanel";
 import { ActApprovalCard } from "./actcard";
@@ -35,9 +34,9 @@ import { extractActIds, linkActsToThread, pendingActsForThread, useWaitingState 
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
 import { savedEntitiesForDirective } from "./entitystore";
-import { AgentPickerRail, ContextButton, ContextCanvas, DomainContextView, DomainPrefsPanel } from "./domainpanels";
+import { ContextButton, ContextCanvas, DomainContextView, DomainPrefsPanel } from "./domainpanels";
 import { HomeBriefing } from "./recommendationspanel";
-import type { ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, LifeReadiness, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
+import type { ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { savePastedImages } from "./paste";
 
@@ -118,13 +117,17 @@ export function ChatPanel({
   onStreamStart,
   onStreamEnd,
   domains,
-  onPickDomain,
   domainTab,
   setDomainTab,
   active = true,
   phone = false,
   phoneMic,
+  entity = null,
 }: {
+  /// Entity chat: this panel is scoped to one entity (the Entities detail
+  /// pane renders it). Every turn goes through the engine with --entity, the
+  /// thread is tagged with it, and each reply can be added to its notes.
+  entity?: { id: string; name: string } | null;
   /// Rendered inside the composer action row on a phone: the hold-to-talk
   /// mic. It belongs beside Send, not in a strip of its own below the card.
   phoneMic?: React.ReactNode;
@@ -313,6 +316,8 @@ export function ChatPanel({
   // AI"): prefill the prompt + jump to the chat tab so the user can just hit send.
   useEffect(() => {
     const onSeed = (e: Event) => {
+      // An entity chat is its own conversation; seeds are for the main chat.
+      if (entity) return;
       const text = (e as CustomEvent<string>).detail;
       if (typeof text === "string" && text) {
         setInput(text); setDomainTab("chat");
@@ -322,10 +327,10 @@ export function ChatPanel({
       }
     };
     window.addEventListener("prevail:compose-seed", onSeed as EventListener);
-    // Pending seed from a view that wasn't mounted when it fired (e.g. Spark in
-    // Settings): pick it up on mount so "Explore in chat" reliably lands here.
+    // Pending seed from a view that wasn't mounted when it fired (e.g. a task's
+    // "Discuss with AI"): pick it up on mount so it reliably lands here.
     try {
-      const pending = localStorage.getItem("prevail.compose.pending");
+      const pending = entity ? null : localStorage.getItem("prevail.compose.pending");
       if (pending) { localStorage.removeItem("prevail.compose.pending"); setInput(pending); setDomainTab("chat"); }
     } catch { /* ignore */ }
     return () => window.removeEventListener("prevail:compose-seed", onSeed as EventListener);
@@ -626,18 +631,6 @@ export function ChatPanel({
       .then((s) => { setCtxScore(s); _scoreCache.set(`${vaultPath}:${domain}`, { at: Date.now(), score: s }); })
       .catch((e) => setCtxScoreError(String(e)))
       .finally(() => { setCtxScoreRescanning(false); endProcess(proc); });
-  }, [domain, vaultPath, ctxScoreRescanning]);
-  // Aggregate "Life Readiness" - averaged across all domains. Loaded on
-  // the no-domain landing. Re-fetched when a re-scan finishes so the
-  // headline number stays roughly current.
-  const [lifeReadiness, setLifeReadiness] = useState<LifeReadiness | null>(null);
-  useEffect(() => {
-    if (domain || !vaultPath) return;
-    let mounted = true;
-    invoke<LifeReadiness>("engine_score_all", { vault: vaultPath })
-      .then((lr) => { if (mounted) setLifeReadiness(lr); })
-      .catch(() => { if (mounted) setLifeReadiness(null); });
-    return () => { mounted = false; };
   }, [domain, vaultPath, ctxScoreRescanning]);
   const togglePreferredSkill = useCallback((name: string) => {
     setPreferredSkills((cur) => {
@@ -1094,6 +1087,23 @@ export function ChatPanel({
   // never ambiguous which thread you're typing into. Derived from the loaded
   // thread meta, falling back to the path slug.
   const [threadTitle, setThreadTitle] = useState<string>("");
+  // The entity an opened thread is about (its `entity:` header). A thread
+  // from the General rail keeps its entity scope this way.
+  const [threadEntity, setThreadEntity] = useState<string | null>(null);
+  const entityId = entity?.id ?? threadEntity;
+  const entityIdRef = useRef<string | null>(entityId);
+  entityIdRef.current = entityId;
+  // Entity chat: a reply's excerpt goes into the entity's "Your notes".
+  const addReplyToEntityNotes = useCallback(async (text: string) => {
+    const id = entityIdRef.current;
+    if (!id) return;
+    const excerpt = text.replace(/\[prevail-act:[^\]]+\]/g, "").trim().slice(0, 1500);
+    try {
+      await invoke("engine_entity_note_append", { vault: vaultPath, id, text: excerpt });
+      toast.success("Added to notes.");
+      window.dispatchEvent(new Event("prevail:entities-changed"));
+    } catch (e) { toast.error(`Could not add to notes: ${String(e)}`); }
+  }, [vaultPath]);
   useEffect(() => {
     if (tDomain && activeThreadPath && activeThreadPath.includes(`/${tDomain}/`)) {
       lsSet(`prevail.domain.${tDomain}.lastThread`, activeThreadPath);
@@ -1116,7 +1126,7 @@ export function ChatPanel({
   const messagesRef = useRef(messages);
   // Domains a General message can be filed in (General itself is not one).
   const routableDomains = useMemo(
-    () => domains.map((d) => d.name.toLowerCase()).filter((n) => n && n !== "general"),
+    () => domains.map((d) => d.name.toLowerCase()).filter((n) => isUserDomain(n) && n !== "general"),
     [domains],
   );
   // The user corrected where message `i` was filed: record it so routing
@@ -1142,7 +1152,7 @@ export function ChatPanel({
     // Picking a thread (or starting a new one) always returns to the chat view,
     // even if Preferences was open - otherwise the click appears to do nothing.
     setDomainTab("chat");
-    if (!activeThreadPath) { setMessages([]); setThreadTitle(""); displayedPathRef.current = null; return; }
+    if (!activeThreadPath) { setMessages([]); setThreadTitle(""); setThreadEntity(null); displayedPathRef.current = null; return; }
     if (selfSetPathRef.current === activeThreadPath) {
       selfSetPathRef.current = null;
       displayedPathRef.current = activeThreadPath;
@@ -1165,6 +1175,7 @@ export function ChatPanel({
         displayedPathRef.current = activeThreadPath;
         syncedRef.current = { path: activeThreadPath, count: t.turns.length };
         setThreadTitle(t.meta?.title?.trim() || "Untitled");
+        setThreadEntity(t.meta?.entity ?? null);
         const routes = decodeRouteTurns(t.meta?.route_turns);
         setMessages(t.turns.map((tn, i) => ({
           role: tn.role,
@@ -1243,6 +1254,8 @@ export function ChatPanel({
           })),
           // General owns routing; any other scope leaves what is on disk.
           ...(tDomain ? {} : { routed: threadRoutes(messages), routeTurns: encodeRouteTurns(messages) }),
+          // Entity chat: tag the thread (null keeps what is on disk).
+          entity: entityIdRef.current,
         });
         syncedRef.current = { path, count: messages.length };
         // Adopt the returned path so the NEXT save reuses the same slug.
@@ -1711,7 +1724,7 @@ export function ChatPanel({
     } catch (e) { toast.error(`Could not save the skill: ${String(e)}`); }
   }, [vaultPath, tDomain, domain]);
   // X9: turn a message's intent into a recurring automation (loop) in this
-  // domain, seeded from the text, then jump to Automations to refine it.
+  // domain, seeded from the text, then open the domain's Loops tab to refine it.
   const makeLoopFromChat = useCallback(async (text: string) => {
     const intent = text.trim().replace(/\s+/g, " ");
     if (!intent || !domainPath) {
@@ -1739,7 +1752,7 @@ export function ChatPanel({
       };
       await writeLoops(domainPath, { ...doc, loops: [loop, ...doc.loops] });
       window.dispatchEvent(new Event("prevail:loops-changed"));
-      window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "automations" }));
+      window.dispatchEvent(new CustomEvent("prevail:domain-tab", { detail: "loops" }));
       toast.success("Created an automation. Opening it to refine…");
     } catch (e) { toast.error(`Could not create the automation: ${String(e)}`); }
   }, [domainPath]);
@@ -1813,8 +1826,6 @@ export function ChatPanel({
       <CalendarClock className="h-4 w-4" />
     </button>
   ) : null;
-  // Home: how many things are waiting on you, one tap to the Inbox.
-  const { waiting } = useWaitingState(vaultPath);
 
   async function send() {
     if (!input.trim() || !selectedCli) return;
@@ -2063,7 +2074,9 @@ export function ChatPanel({
     const ENGINE_ONLY = new Set(["openrouter", "lmstudio", "mlx"]);
     // Use the engine when we're in a domain, OR when the chosen provider can only
     // run through the engine (so General + OpenRouter/LM Studio/MLX works).
-    const useEngine = ENGINE_CHAT_ENABLED && engineAvailable && (!!domain || (!!sendCli && ENGINE_ONLY.has(sendCli)));
+    // An entity chat always goes through the engine: that is where the
+    // entity's context block is built (--entity).
+    const useEngine = ENGINE_CHAT_ENABLED && engineAvailable && (!!domain || !!entityIdRef.current || (!!sendCli && ENGINE_ONLY.has(sendCli)));
     // The engine treats General as the "general" domain (general_dir), so a
     // null/empty domain maps to that here.
     const engineDomain = domain || "general";
@@ -2150,6 +2163,8 @@ export function ChatPanel({
           // Links a held approval to this conversation (its slug). A brand-new
           // thread has none yet; its approval card still shows from the marker.
           thread: threadIdOf(activeThreadRef.current),
+          // Entity chat: the engine adds this entity's context to the turn.
+          entity: entityIdRef.current,
         });
       } else {
         await invoke("chat_send", {
@@ -2449,7 +2464,7 @@ export function ChatPanel({
             const I = domainIcon(domain);
             return I ? <I className="h-5 w-5 shrink-0 text-accent" /> : <span className="text-accent">◆</span>;
           })()}
-          <span className="shrink-0 font-display text-lg font-semibold">{titleCase(domain)}</span>
+          <span className="shrink-0 text-lg font-semibold">{titleCase(domain)}</span>
           <span className="hidden min-w-0 flex-1 truncate text-sm text-text-muted md:inline">{domainBlurb(domain)}</span>
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <ContextScoreBadge
@@ -2463,7 +2478,7 @@ export function ChatPanel({
       )}
       {/* General and the phone have no domain header; the Context view is
           still one tap away from a slim row above the transcript. */}
-      {!inDomainDetail && !isApp && (phone || !domain) && (
+      {!inDomainDetail && !isApp && !entity && (phone || !domain) && (
         <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border-subtle px-3 py-1.5">
           {scheduleButton}
           <ContextButton onClick={() => setContextOpen(true)} />
@@ -2488,7 +2503,12 @@ export function ChatPanel({
         </div>
       )}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-        {messages.length === 0 && !domain && domainTab === "chat" && (
+        {messages.length === 0 && entity && domainTab === "chat" && (
+          <div data-testid="entity-chat-empty" className="flex h-full items-center justify-center px-6 py-10 text-center text-[15px] text-text-muted">
+            Ask anything about {entity.name}. What your vault knows about it comes along.
+          </div>
+        )}
+        {messages.length === 0 && !domain && !entity && domainTab === "chat" && (
           <div className={`flex h-full flex-col items-center justify-center ${phone ? "px-5 py-4" : "px-6 py-8"}`} style={{ justifyContent: "safe center" }}>
             {/* Starred apps as a horizontal strip at the top of home - same
                 chip language as the in-domain Apps strip, per user feedback.
@@ -2499,56 +2519,9 @@ export function ChatPanel({
             <h2 className={`font-display font-bold tracking-tight ${phone ? "mt-3 text-2xl" : "mt-6 text-4xl sm:text-5xl"}`}>
               What should we work on?
             </h2>
-            <p className={`max-w-md text-balance text-center text-text-muted ${phone ? "mt-1.5 text-[13px]" : "mt-3 text-sm"}`}>
+            <p className={`text-center text-text-muted ${phone ? "mt-1.5 max-w-md text-balance text-[13px]" : "mt-3 whitespace-nowrap text-sm"}`}>
               An AI that learns you, gets sharper, and surfaces what you'd have missed.
             </p>
-            {waiting.total > 0 && (
-              <button
-                data-testid="home-waiting"
-                onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "inbox" }))}
-                title="Open the Inbox"
-                className="mt-3 inline-flex items-center gap-2 rounded-full border border-warn/40 bg-warn/10 px-3.5 py-1.5 text-sm font-medium text-text-primary transition-colors hover:border-warn hover:bg-warn/20"
-              >
-                <Hourglass className="h-4 w-4 text-warn" />
-                Waiting for you
-                <span className="rounded-full bg-warn px-1.5 text-[12px] font-semibold tabular-nums text-background">{waiting.total > 99 ? "99+" : waiting.total}</span>
-              </button>
-            )}
-            <GeneralSearch
-              vaultPath={vaultPath}
-              domains={routableDomains}
-              compact={phone}
-              onPickThread={(p) => onActiveThreadChange(p)}
-              onPickDomain={(n) => onPickDomain(domains.find((d) => d.name.toLowerCase() === n)?.name ?? n)}
-            />
-            {lifeReadiness && lifeReadiness.life_readiness !== null && (
-              <div
-                className="mt-3 flex items-center gap-3 rounded-full border px-4 py-1.5"
-                style={{ borderColor: scoreColor(lifeReadiness.life_readiness) }}
-                title={`Life Readiness · average context score across ${lifeReadiness.domains.length} domain${lifeReadiness.domains.length === 1 ? "" : "s"}`}
-              >
-                <span className="font-mono text-[11px] font-bold text-text-primary">
-                  Life Readiness
-                </span>
-                <span
-                  className="font-display text-2xl font-bold leading-none"
-                  style={{ color: scoreColor(lifeReadiness.life_readiness) }}
-                >
-                  {lifeReadiness.life_readiness}
-                </span>
-                <span className="font-mono text-[11px] text-text-muted">
-                  / 100 · {lifeReadiness.domains.length} domain{lifeReadiness.domains.length === 1 ? "" : "s"}
-                </span>
-              </div>
-            )}
-            {/* Phone already names the model twice, in the header pill and in
-                the composer, so a third copy is just height. */}
-            {!phone && <AgentPickerRail
-              clis={available}
-              selected={selectedCli}
-              onSelect={(id) => setSelectedCli(id)}
-            />}
-
             {/* HOME-1: the Briefing - proactive digest (top recommendations +
                 recent intents). Off by default for a minimal landing; opt in
                 from Settings -> General. */}
@@ -2589,6 +2562,7 @@ export function ChatPanel({
               onPinMemory={pinMessageToMemory}
               onMakeLoop={makeLoopFromChat}
               onMakeSkill={makeSkillFromChat}
+              onAddToEntityNotes={entityId ? addReplyToEntityNotes : undefined}
               assistantFooter={approvalFooter}
             />
           </div>
@@ -3035,6 +3009,7 @@ export function ChatPanel({
               onPinMemory={pinMessageToMemory}
               onMakeLoop={makeLoopFromChat}
               onMakeSkill={makeSkillFromChat}
+              onAddToEntityNotes={entityId ? addReplyToEntityNotes : undefined}
               assistantFooter={approvalFooter}
             />
           </div>

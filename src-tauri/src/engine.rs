@@ -2597,6 +2597,10 @@ pub async fn engine_chat(
     // --thread so a held approval records which conversation it came from.
     // Older engines ignore the flag.
     thread: Option<String>,
+    // Entity chat: the entity this conversation is about (kind/slug).
+    // Forwarded as --entity so the engine adds that entity's context block
+    // to every turn. Anything that is not an entity id is refused.
+    entity: Option<String>,
 ) -> Result<(), String> {
     // Build the arg vector. `--vault V` goes BEFORE the subcommand,
     // matching every other engine command here.
@@ -2673,6 +2677,13 @@ pub async fn engine_chat(
     if let Some(t) = thread.filter(|s| !s.trim().is_empty()) {
         args.push("--thread".to_string());
         args.push(t);
+    }
+    if let Some(e) = entity.filter(|s| !s.trim().is_empty()) {
+        if !crate::entities_bridge::valid_id(&e) {
+            return Err(format!("not an entity id: {e}"));
+        }
+        args.push("--entity".to_string());
+        args.push(e.trim().to_string());
     }
 
     run_engine_stream_stdin(app, session, args, message, "engine-chat", extra_env).await

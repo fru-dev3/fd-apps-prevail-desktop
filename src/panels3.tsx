@@ -190,7 +190,7 @@ export function OnboardingModal({
         <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-6 py-4">
           <div className="flex items-center gap-2">
             <PrevailLogo size={22} src="/logo-512.png" />
-            <h2 className="font-display text-lg font-semibold tracking-tight">Set up your domains</h2>
+            <h2 className="text-lg font-semibold">Set up your domains</h2>
           </div>
           <button
             onClick={onClose}
@@ -256,7 +256,7 @@ export function OnboardingModal({
                         <span className="text-xl leading-none">{d.emoji || "◆"}</span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-display text-sm font-semibold text-text-primary">{d.label}</span>
+                            <span className="text-sm font-semibold text-text-primary">{d.label}</span>
                             <span className="font-mono text-[11px] text-text-muted">/{d.name}</span>
                             {d.recommended && (
                               <span className="rounded-full bg-accent/15 px-1.5 py-0 text-[11px] text-accent">
@@ -505,7 +505,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
                 {/* Two separate steps: add to this domain now (no setup), then
                     set up the connection later from the app's config page. */}
                 <button
-                  onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))}
                   title={`Set up the ${s.name} connection on Apps`}
                   className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-2 py-0.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
                 >
@@ -693,12 +693,12 @@ export function ContextScorePanel({
           className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-4"
           style={{ borderColor: color }}
         >
-          <span className="font-display text-4xl font-bold leading-none" style={{ color }}>
+          <span className="font-display text-[28px] font-bold leading-none" style={{ color }}>
             {score.score}
           </span>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-display text-lg font-semibold tracking-tight">Context Score</div>
+          <div className="text-lg font-semibold">Context Score</div>
           <div className="mt-0.5 text-xs text-text-muted">
             updated {formatFreshness(score.freshness_secs)}
             {score.audit_source ? ` · ${score.audit_source}` : " · heuristic"}

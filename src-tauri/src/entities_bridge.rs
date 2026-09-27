@@ -99,6 +99,31 @@ pub async fn entities_note(vault: String, id: String, text: String, name: Option
     json_stdin(args, text).await
 }
 
+// Entity chat. The conversations about one entity, newest first:
+// `prevail entities threads <id> --vault V --json` -> [{ slug, domain, title, updated, turns }].
+#[tauri::command]
+pub async fn engine_entity_threads(vault: String, id: String) -> Result<serde_json::Value, String> {
+    let mut args = id_args("threads", &vault, &id)?;
+    args.push("--json".into());
+    json(args).await
+}
+
+// Append a dated paragraph to the entity page's "Your notes":
+// `prevail entities note <id> --append --text - --vault V --json` -> { ok }.
+// The text goes on stdin so a reply that starts with "-" is never read as a flag.
+#[tauri::command]
+pub async fn engine_entity_note_append(vault: String, id: String, text: String) -> Result<serde_json::Value, String> {
+    if text.trim().is_empty() {
+        return Err("nothing to add".into());
+    }
+    let mut args = id_args("note", &vault, &id)?;
+    args.push("--append".into());
+    args.push("--text".into());
+    args.push("-".into());
+    args.push("--json".into());
+    json_stdin(args, text).await
+}
+
 #[tauri::command]
 pub async fn entities_refresh(vault: String) -> Result<serde_json::Value, String> {
     json(vec!["entities".into(), "refresh".into(), "--vault".into(), vault]).await
@@ -107,6 +132,14 @@ pub async fn entities_refresh(vault: String) -> Result<serde_json::Value, String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn entity_chat_args_carry_the_id_and_reject_a_crafted_one() {
+        let a = id_args("threads", "/v", "person/foo").unwrap();
+        assert_eq!(a, vec!["entities", "threads", "person/foo", "--vault", "/v"]);
+        assert!(id_args("note", "/v", "--vault").is_err());
+        assert!(id_args("note", "/v", "person/-x").is_err());
+    }
 
     #[test]
     fn ids_must_name_a_kind() {

@@ -144,7 +144,7 @@ function ListBlock({ icon: Icon, title, items }: { icon: LucideIcon; title: stri
   if (!items.length) return null;
   return (
     <section className="mt-7">
-      <h3 className="mb-2.5 flex items-center gap-2 font-display text-lg font-semibold text-text-primary"><Icon className="h-4 w-4 text-accent" />{title}</h3>
+      <h3 className="mb-2.5 flex items-center gap-2 text-lg font-semibold text-text-primary"><Icon className="h-4 w-4 text-accent" />{title}</h3>
       <ul className="space-y-1.5">
         {items.map((t, i) => <li key={i} className="flex gap-2.5 text-[14px] leading-snug text-text-secondary"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-text-muted" />{t}</li>)}
       </ul>
@@ -191,7 +191,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
   if (!idx || idx.projects.length === 0) {
     return (
       <div className="mx-auto max-w-xl p-8">
-        <h2 className="font-display text-2xl font-semibold text-text-primary">Turn your prompts into projects</h2>
+        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Turn your prompts into projects</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">
           Prevail reads every prompt you have typed, in every AI tool, groups them by what you were building, and writes each project a replay brief: one prompt that carries every requirement and correction, so a newer model can rebuild it without the back-and-forth. Your original prompts are never changed.
         </p>
@@ -254,7 +254,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
           </button>
         )}
       </div>
-      <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-text-primary">{cur.title}</h2>
+      <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary mt-2">{cur.title}</h2>
       {cur.summary && <p className="mt-1.5 text-[15px] leading-snug text-text-secondary">{cur.summary}</p>}
       <div className="mt-2 text-[12px] text-text-muted">
         {nPrompts(cur.prompt_count)} · {fmtSpan(cur.first_ts, cur.last_ts)} · {Object.entries(cur.tools).sort((a, b) => b[1] - a[1]).map(([t]) => titleCase(t)).join(", ")}
@@ -266,7 +266,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
 
       {cur.intents.length > 0 && (
         <section className="mt-7">
-          <h3 className="mb-2.5 flex items-center gap-2 font-display text-lg font-semibold text-text-primary"><Target className="h-4 w-4 text-accent" />Intents</h3>
+          <h3 className="mb-2.5 flex items-center gap-2 text-lg font-semibold text-text-primary"><Target className="h-4 w-4 text-accent" />Intents</h3>
           <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
             {cur.intents.map((it, i) => (
               <div key={i} className="flex items-start gap-3 px-4 py-3">
@@ -286,7 +286,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     </div>
   ) : (
     <div data-testid="projects-overview">
-      <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary">Your projects</h2>
+      <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Your projects</h2>
       <p className="mt-1.5 text-[14px] leading-snug text-text-secondary">
         {idx.projects.length} projects read from {idx.stats?.kept.toLocaleString() ?? "your"} prompts. Pick one on the left to see its arc and restart brief.
       </p>

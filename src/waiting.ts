@@ -1,7 +1,7 @@
 // "Waiting for you": one shared, polled read of everything that is held until
 // the user answers (connector acts, Google writes, loop approvals, blocked
 // tasks). Every surface that shows the status (thread rows, domain rows, the
-// Work board, the Home count, the in-chat approval card) reads this one store,
+// Tasks list, the Inbox and its count, the in-chat approval card) reads this one store,
 // so they all agree and all clear together.
 //
 // Refresh: every POLL_MS while anything is subscribed, and at once on

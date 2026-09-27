@@ -90,7 +90,7 @@ function RebuildCheck({ vaultPath, slug }: { vaultPath: string; slug: string }) 
   ];
   return (
     <section className="mt-6 rounded-xl border border-border-subtle bg-surface p-5" data-testid="rebuild-check">
-      <h3 className="flex items-center gap-2 font-display text-xl font-semibold text-text-primary"><FolderSearch className="h-5 w-5 text-accent" />Check a rebuild</h3>
+      <h3 className="text-[19px] font-semibold text-text-primary flex items-center gap-2"><FolderSearch className="h-5 w-5 text-accent" />Check a rebuild</h3>
       <p className="mt-1 text-[14px] text-text-secondary">Point at the folder a model built from this brief. Prevail reads it and says which requirements it met. The folder is only read.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <input value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="/path/to/rebuild" aria-label="Rebuild folder"
@@ -146,7 +146,7 @@ export function RestartEditor({ vaultPath, slug, phone }: { vaultPath: string; s
   return (
     <>
       <section className="mt-6 rounded-xl border border-accent-border bg-accent-soft/30 p-5" data-testid="restart">
-        <h3 className="flex items-center gap-2 font-display text-2xl font-semibold text-text-primary"><RotateCcw className="h-5 w-5 text-accent" />Restart</h3>
+        <h3 className="text-[19px] font-semibold text-text-primary flex items-center gap-2"><RotateCcw className="h-5 w-5 text-accent" />Restart</h3>
         <p className="mt-1 text-[14px] leading-snug text-text-secondary">
           Everything a newer model needs to do this properly, without the back-and-forth.{!phone && " Untick what should not carry over."}
           {doc?.brief_model ? ` Distilled by ${modelName(doc.brief_model)}.` : ""}

@@ -5,10 +5,9 @@
 // the source of truth for WHAT the conversation surface shows (chat / council
 // / arena ...); this shell only decides WHICH screen is up.
 //
-// Everything the desktop has is reachable here: Work opens the same board,
-// insights, spark, automations, calendar and notes panels full-width, with the
-// approval inbox ("Needs you") at the top of that list; Settings opens every
-// Editor section. Nothing in this shell is allowed to reflow the conversation
+// Everything the desktop has is reachable here: Work opens the same Inbox,
+// Apps, Insights, Recommendations, Projects, Tasks and Goals pages full-width,
+// Inbox first; Settings opens every Editor section. Nothing in this shell is allowed to reflow the conversation
 // when it opens: the tab bar expands as an overlay, sheets float.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -21,6 +20,7 @@ import {
   Layers,
   LayoutGrid,
   MessageSquare,
+  Plug,
   Plus,
   Scale,
   Settings as SettingsIcon,
@@ -29,12 +29,11 @@ import {
 } from "lucide-react";
 import { invoke } from "./bridge";
 import { scoreColor, titleCase } from "./format";
-import { domainBlurb } from "./helpers";
+import { domainBlurb, isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { modelLabel } from "./helpers2";
 import { LS, lsGet } from "./storage";
-import { EDITOR_NAV, WORK_NAV } from "./navdefs";
-import { DecisionInbox } from "./decisioninbox";
+import { EDITOR_NAV, WORK_NAV, navSection } from "./navdefs";
 import type { CliInfo, Domain, DomainTab, LifeReadiness, TabId, ThreadMeta } from "./types";
 
 export type PhoneScreen = "chat" | "domains" | "work" | "settings";
@@ -44,6 +43,12 @@ const PHONE_TABS: { id: PhoneScreen; label: string; icon: LucideIcon }[] = [
   { id: "domains", label: "Domains", icon: LayoutGrid },
   { id: "work", label: "Work", icon: Briefcase },
   { id: "settings", label: "Settings", icon: SettingsIcon },
+];
+
+// Inbox and Apps sit above the Work groups, as they do in the desktop sidebar.
+const PHONE_TOP: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "inbox", label: "Inbox", icon: Inbox },
+  { id: "apps", label: "Apps", icon: Plug },
 ];
 
 // A tappable row in a grouped list (Work and Settings): icon, label, chevron.
@@ -183,10 +188,9 @@ export function PhoneShell({
 }) {
   const [screen, setScreen] = useState<PhoneScreen>("chat");
   // Settings and Work open on their section list; a deep link (or a tap on a
-  // row) shows the section itself with a back button to the list. "needs" is
-  // the approval inbox, a Work destination of its own.
+  // row) shows the section itself with a back button to the list.
   const [settingsList, setSettingsList] = useState(true);
-  const [workView, setWorkView] = useState<"list" | "section" | "needs">("list");
+  const [workView, setWorkView] = useState<"list" | "section">("list");
   const [threadsOpen, setThreadsOpen] = useState(false);
   const [newDomainOpen, setNewDomainOpen] = useState(false);
   // Collapsed by default: the conversation is why you opened this.
@@ -223,7 +227,7 @@ export function PhoneShell({
     return () => { on = false; };
   }, [vaultPath, domains.length]);
 
-  const visibleDomains = useMemo(() => domains.filter((d) => !d.name.startsWith("_")), [domains]);
+  const visibleDomains = useMemo(() => domains.filter((d) => isUserDomain(d.name)), [domains]);
   const onGeneral = !selectedDomain;
   const title = scopeLabel ?? (onGeneral ? "General" : titleCase(selectedDomain!));
   const councilMode = tab === "council";
@@ -243,7 +247,7 @@ export function PhoneShell({
       setScreen(id);
     }
   };
-  const workSectionLabel = WORK_NAV.flatMap((g) => g.items).find((it) => it.id === workJump?.section)?.label ?? "Work";
+  const workSectionLabel = [...PHONE_TOP, ...WORK_NAV.flatMap((g) => g.items)].find((it) => it.id === workJump?.section)?.label ?? "Work";
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-background text-text-primary">
@@ -354,7 +358,11 @@ export function PhoneShell({
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <section className="mb-5">
               <ul className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
-                <ListRow icon={Inbox} label="Needs you" badge={decisionsCount > 0 ? cap9(decisionsCount) : undefined} first onClick={() => setWorkView("needs")} />
+                {PHONE_TOP.map((it, i) => (
+                  <ListRow key={it.id} icon={it.icon} label={it.label} first={i === 0}
+                    badge={it.id === "inbox" && decisionsCount > 0 ? cap9(decisionsCount) : undefined}
+                    onClick={() => { setWorkView("section"); onOpenWorkAt(it.id); }} />
+                ))}
               </ul>
             </section>
             {WORK_NAV.map((grp) => (
@@ -367,18 +375,6 @@ export function PhoneShell({
                 </ul>
               </section>
             ))}
-          </div>
-        </>
-      )}
-      {screen === "work" && workView === "needs" && (
-        <>
-          <Header
-            title="Needs you"
-            back={() => setWorkView("list")}
-            right={decisionsCount > 0 ? <span className="inline-flex h-7 min-w-[28px] items-center justify-center rounded-full bg-accent px-2 font-mono text-[12px] font-bold text-on-accent">{cap9(decisionsCount)}</span> : undefined}
-          />
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            <DecisionInbox vaultPath={vaultPath} />
           </div>
         </>
       )}
@@ -413,7 +409,7 @@ export function PhoneShell({
       {screen === "settings" && !settingsList && (
         <>
           <Header
-            title={EDITOR_NAV.flatMap((g) => g.items).find((it) => it.id === settingsJump?.section)?.label ?? "Settings"}
+            title={EDITOR_NAV.flatMap((g) => g.items).find((it) => it.id === navSection(settingsJump?.section ?? ""))?.label ?? "Settings"}
             back={() => setSettingsList(true)}
           />
           {/* SettingsPanel pads for a wide pane; pull that in for the phone. */}

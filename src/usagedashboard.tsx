@@ -1,11 +1,13 @@
-// Usage — a rich, multi-dimension analytics view over the local usage ledger.
+// Usage: a rich, multi-dimension analytics view over the local usage ledger.
 // All pivoting/filtering/heatmapping is done client-side over the raw entries
 // (personal volume is small), so every viewpoint is instant and offline. No
 // chart library: SVG for the time series, CSS grid for the heatmap + cross-tab.
 import { SettingsHeader } from "./sectionutil";
+import { SideSpine } from "./sidespine";
+import { useIsPhone } from "./useisphone";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { invoke } from "./bridge";
-import { BarChart3, Filter, Search, X } from "lucide-react";
+import { BarChart3, Cpu, Filter, Folder, Layers, LayoutDashboard, Monitor, Search, Workflow, X, type LucideIcon } from "lucide-react";
 
 type Entry = {
   ts: number; day: string; session: string; domain: string | null;
@@ -24,6 +26,16 @@ const DIMS: { id: DimId; label: string; get: (e: Entry) => string }[] = [
   { id: "surface", label: "Activity", get: (e) => e.surface || "other" },
   { id: "host", label: "Machine", get: (e) => e.host || "this device" },
   { id: "cli", label: "Runtime", get: (e) => e.cli || "unknown" },
+];
+// The side column's views: the overview, then one breakdown per dimension.
+export type UsageView = "overview" | DimId;
+export const USAGE_VIEWS: { id: UsageView; label: string; icon: LucideIcon }[] = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "cli", label: "By runtime", icon: Cpu },
+  { id: "model", label: "By model", icon: Layers },
+  { id: "domain", label: "By domain", icon: Folder },
+  { id: "surface", label: "By activity", icon: Workflow },
+  { id: "host", label: "By machine", icon: Monitor },
 ];
 const dimGet = (id: DimId) => DIMS.find((d) => d.id === id)!.get;
 
@@ -52,13 +64,17 @@ function heat(t: number): string {
   return `color-mix(in srgb, var(--color-accent, #0d7d8c) ${Math.round(a * 100)}%, transparent)`;
 }
 
-export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
+export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: { vaultPath: string; embedded?: boolean; view?: UsageView }) {
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState("30d");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Partial<Record<DimId, Set<string>>>>({});
-  const [groupBy, setGroupBy] = useState<DimId>("model");
+  const [viewOwn, setView] = useState<UsageView>("overview");
+  const view = viewProp ?? viewOwn;
+  const [picked, setPicked] = useState(false);
+  const phone = useIsPhone();
+  const groupBy: DimId = view === "overview" ? "model" : view;
   const [metric, setMetric] = useState<"cost" | "tokens" | "turns">("cost");
   const [sortDesc, setSortDesc] = useState(true);
   const [crossX, setCrossX] = useState<DimId>("model");
@@ -167,10 +183,27 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
   const metricLabel = metric === "cost" ? "Cost" : metric === "tokens" ? "Tokens" : "Turns";
   const fmtMetric = (v: number) => metric === "cost" ? fmtCost(v) : metric === "tokens" ? fmtTok(v) : fmtNum(v);
 
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Header + metric + range */}
-      <SettingsHeader title="Usage" icon={BarChart3} subtitle="What your models cost and how much you use them." right={
+  // How many distinct values each dimension has, for the side column.
+  const distinct = (id: DimId) => new Set(filtered.map(dimGet(id))).size;
+  const viewList = (
+    <nav className="space-y-0.5 p-2" aria-label="Usage views">
+      {USAGE_VIEWS.map((v) => {
+        const on = view === v.id && (!phone || picked);
+        const Icon = v.icon;
+        return (
+          <button key={v.id} data-testid={`usage-view-${v.id}`} aria-current={on ? "true" : undefined} onClick={() => { setView(v.id); setPicked(true); }}
+            className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{v.label}</span>
+            {v.id !== "overview" && <span className="text-[13px] tabular-nums text-text-muted">{distinct(v.id)}</span>}
+          </button>
+        );
+      })}
+    </nav>
+  );
+  const viewLabel = USAGE_VIEWS.find((v) => v.id === view)?.label ?? "Overview";
+
+  const controls = (
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
@@ -203,8 +236,11 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
             ))}
           </div>
         </div>
-      } />
-
+  );
+  const detailBody = (
+    <div className={`flex flex-col gap-5 ${embedded ? "" : phone ? "px-4 py-4" : "w-full px-8 py-6"}`} data-testid="usage-detail">
+      {embedded && <div className="flex justify-end">{controls}</div>}
+      {!embedded && <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{viewLabel}</h2>}
       {empty ? (
         <div className="rounded-xl border border-dashed border-border-subtle px-6 py-16 text-center text-sm text-text-muted">
           No usage recorded yet. Run a chat, council, or benchmark and it will show up here.
@@ -217,7 +253,7 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
       ) : (
         <>
           {/* Summary tiles */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {view === "overview" && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { l: "Turns", v: fmtNum(totals.turns) },
               { l: "Tokens (in / out)", v: `${fmtTok(totals.inTok)} / ${fmtTok(totals.outTok)}` },
@@ -225,11 +261,11 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
               { l: "Active days", v: `${totals.days.size}` },
             ].map((t) => (
               <div key={t.l} className="rounded-xl border border-border bg-surface p-3.5">
-                <div className="font-mono text-lg font-semibold tabular-nums text-text-primary">{t.v}</div>
+                <div className="text-lg font-semibold tabular-nums text-text-primary">{t.v}</div>
                 <div className="mt-0.5 text-[11px] tracking-wide text-text-muted">{t.l}</div>
               </div>
             ))}
-          </div>
+          </div>}
 
           {/* Active filters */}
           {activeFilterCount > 0 && (
@@ -247,19 +283,14 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
           )}
 
           {/* Over time */}
-          <Panel title={`${metricLabel} over time`}>
+          {view === "overview" && <Panel title={`${metricLabel} over time`}>
             <TimeSeries data={series} fmt={fmtMetric} />
-          </Panel>
+          </Panel>}
 
           {/* Breakdown (group-by) */}
-          <Panel title="Breakdown"
+          {view !== "overview" && <Panel title={`${metricLabel} by ${DIMS.find((d) => d.id === groupBy)?.label.toLowerCase()}`}
             right={
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-text-muted">by</span>
-                <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as DimId)}
-                  className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-primary">
-                  {DIMS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-                </select>
                 <button onClick={() => setSortDesc((v) => !v)} className="rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text-muted hover:text-accent">
                   {sortDesc ? "High to low" : "Low to high"}
                 </button>
@@ -280,26 +311,26 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
                             column. modelLabel turns an id into the name the
                             rest of the app uses; anything else passes through. */}
                         <span className="truncate text-[13px] text-text-primary">{rowLabel(groupBy, r.key)}</span>
-                        <span className="shrink-0 font-mono text-xs tabular-nums text-text-secondary">{fmtMetric(v)}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-text-secondary">{fmtMetric(v)}</span>
                       </div>
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-strong">
                         <div className="h-full rounded-full bg-accent" style={{ width: `${(v / breakdown.max) * 100}%` }} />
                       </div>
                     </div>
-                    <span className="font-mono text-[10px] tabular-nums text-text-muted">{r.turns}×</span>
+                    <span className="text-[12px] tabular-nums text-text-muted">{r.turns}×</span>
                   </button>
                 );
               })}
             </div>
-          </Panel>
+          </Panel>}
 
           {/* Heatmap */}
-          <Panel title="When you use it" subtitle="weekday × hour of day">
+          {view === "overview" && <Panel title="When you use it" subtitle="weekday × hour of day">
             <Heatmap grid={heatGrid.grid} max={heatGrid.max} fmt={fmtMetric} />
-          </Panel>
+          </Panel>}
 
           {/* Activity map (cross-tab) */}
-          <Panel title="Activity map"
+          {view === "overview" && <Panel title="Activity map"
             right={
               <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
                 <select value={crossY} onChange={(e) => setCrossY(e.target.value as DimId)} className="rounded-md border border-border bg-surface px-1.5 py-1 text-xs text-text-primary">
@@ -312,11 +343,23 @@ export function UsageDashboard({ vaultPath }: { vaultPath: string }) {
               </div>
             }>
             <CrossTab {...cross} fmt={fmtMetric} />
-          </Panel>
-          {error && <p className="text-[11px] text-text-muted">Some data couldn't load: {error}</p>}
+          </Panel>}
+          {error && <p className="text-[12px] text-text-muted">Some data couldn't load: {error}</p>}
         </>
       )}
     </div>
+  );
+  // Embedded in the Activity page: that page's column lists the views.
+  if (embedded) return detailBody;
+  return (
+    <>
+      <SettingsHeader title="Usage" icon={BarChart3} subtitle="What your models cost and how much you use them." right={controls} />
+      <SideSpine storageKey="prevail.usage.spine" title="Views" label="usage views" testId="usage-list"
+        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All views"
+        detail={detailBody}>
+        {viewList}
+      </SideSpine>
+    </>
   );
 }
 
@@ -353,7 +396,7 @@ function TimeSeries({ data, fmt }: { data: { day: string; v: number }[]; fmt: (v
         <text x={pad} y={h + 12} className="fill-current text-[9px] text-text-muted">{data[0]?.day.slice(5)}</text>
         <text x={w - pad} y={h + 12} textAnchor="end" className="fill-current text-[9px] text-text-muted">{data[n - 1]?.day.slice(5)}</text>
       </svg>
-      <div className="mt-1 text-[11px] text-text-muted">Peak: <span className="font-mono text-text-secondary">{fmt(peak.v)}</span> on {peak.day}</div>
+      <div className="mt-1 text-[11px] text-text-muted">Peak: <span className="text-text-secondary">{fmt(peak.v)}</span> on {peak.day}</div>
     </div>
   );
 }
@@ -366,13 +409,13 @@ function Heatmap({ grid, max, fmt }: { grid: number[][]; max: number; fmt: (v: n
         <div className="grid" style={{ gridTemplateColumns: `34px repeat(24, 1fr)`, gap: 2 }}>
           <div />
           {Array.from({ length: 24 }, (_, hh) => (
-            <div key={hh} className="text-center font-mono text-[8px] text-text-muted">{hh % 3 === 0 ? hh : ""}</div>
+            <div key={hh} className="text-center text-[10px] text-text-muted">{hh % 3 === 0 ? hh : ""}</div>
           ))}
           {grid.map((rowArr, d) => (
             <Fragment key={d}>
-              <div className="pr-1 text-right font-mono text-[9px] leading-4 text-text-muted">{dows[d]}</div>
+              <div className="pr-1 text-right text-[11px] leading-4 text-text-muted">{dows[d]}</div>
               {rowArr.map((v, hh) => (
-                <div key={`${d}-${hh}`} title={`${dows[d]} ${hh}:00 — ${fmt(v)}`}
+                <div key={`${d}-${hh}`} title={`${dows[d]} ${hh}:00: ${fmt(v)}`}
                   className="aspect-square rounded-[2px] border border-border-subtle/40"
                   style={{ backgroundColor: heat(v / max) }} />
               ))}
@@ -392,18 +435,18 @@ function CrossTab({ rows, cols, cell, max, fmt }: { rows: string[]; cols: string
         <thead>
           <tr>
             <th className="sticky left-0 bg-surface p-1" />
-            {cols.map((c) => <th key={c} className="max-w-[90px] truncate px-1.5 py-1 text-left font-mono text-[10px] font-normal text-text-muted" title={c}>{c}</th>)}
+            {cols.map((c) => <th key={c} className="max-w-[90px] truncate px-1.5 py-1 text-left text-[10px] font-normal text-text-muted" title={c}>{c}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r}>
-              <td className="sticky left-0 max-w-[110px] truncate bg-surface pr-2 font-mono text-[10px] text-text-secondary" title={r}>{r}</td>
+              <td className="sticky left-0 max-w-[110px] truncate bg-surface pr-2 text-[10px] text-text-secondary" title={r}>{r}</td>
               {cols.map((c) => {
                 const v = cell.get(`${r}||${c}`) ?? 0;
                 return (
                   <td key={c} className="p-0.5">
-                    <div className="flex h-7 min-w-[44px] items-center justify-center rounded-[3px] font-mono text-[10px] tabular-nums text-text-primary"
+                    <div className="flex h-7 min-w-[44px] items-center justify-center rounded-[3px] text-[10px] tabular-nums text-text-primary"
                       style={{ backgroundColor: heat(v / max) }} title={`${r} × ${c}: ${fmt(v)}`}>
                       {v > 0 ? fmt(v) : ""}
                     </div>
