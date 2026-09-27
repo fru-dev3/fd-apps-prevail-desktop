@@ -89,7 +89,7 @@ pub(crate) fn open_in_terminal(command: String) -> Result<(), String> {
     Ok(())
 }
 
-fn cli_args(cli: &str, prompt: &str, model: Option<&str>, web_denied: bool) -> (String, Vec<String>) {
+fn cli_args(cli: &str, prompt: &str, model: Option<&str>, web_denied: bool, claude_agents_md: bool) -> (String, Vec<String>) {
     // Match the prevail CLI's dispatch table. -p / --prompt for one-shot
     // non-interactive mode. When `model` is supplied, inject the right
     // flag for each vendor (ollama uses a positional arg, the rest use
@@ -124,6 +124,21 @@ fn cli_args(cli: &str, prompt: &str, model: Option<&str>, web_denied: bool) -> (
             if let Some(m) = model {
                 v.push("--model".to_string());
                 v.push(m.to_string());
+            }
+            // Web-off note in the system channel (belt-and-braces beside
+            // --disallowedTools). It used to ride in the instruction file,
+            // which is now shared across runtimes and the same every turn.
+            if web_denied {
+                v.push("--append-system-prompt".to_string());
+                v.push(WEB_DENY_NOTE.to_string());
+            }
+            // Claude Code 2.1.277+ gets Prevail's rules from AGENTS.md; this
+            // launch setting makes it load that file even with a CLAUDE.md
+            // above the folder. The only --settings this path passes (claude
+            // reads one --settings value per launch).
+            if claude_agents_md {
+                v.push("--settings".to_string());
+                v.push(AGENTS_MD_SETTINGS.to_string());
             }
             v.push("-p".to_string());
             // `--` ends option parsing so a prompt that starts with "--"
@@ -317,21 +332,67 @@ pub(crate) fn ideal_state_preamble(vault: &Path) -> String {
 
 // ── Fix 3: native-fallback harness instruction injection ────────────────────
 //
-// The engine sidecar (prevail-cli's cli-bridge.ts::syncHarnessManual) writes a
-// marked "BEGIN PREVAIL … END PREVAIL" block of Prevail's operating rules into
-// each harness's native instruction file (CLAUDE.md / AGENTS.md / GEMINI.md) in
-// the run's cwd before spawning the harness, so codex/gemini (which have no
-// system-prompt flag) still respect the vault architecture. This RARE native
-// fallback path spawns the harness binaries directly and bypassed that. These
-// helpers mirror the injection in Rust: non-destructive (only the marked block;
-// any user content is preserved) and best-effort (a failed write never blocks
-// the turn).
+// The engine sidecar (prevail-cli's harness-manual.ts, called from
+// cli-bridge.ts::runChatTurn) writes a marked "BEGIN PREVAIL … END PREVAIL"
+// block of Prevail's operating rules into each harness's native instruction
+// file in the run's cwd before spawning the harness, so codex/gemini (which
+// have no system-prompt flag) still respect the vault architecture. This RARE
+// native fallback path spawns the harness binaries directly and bypassed that.
+// These helpers mirror the injection in Rust: non-destructive (only the marked
+// block; any user content is preserved) and best-effort (a failed write never
+// blocks the turn).
+//
+// Claude Code 2.1.277+ reads AGENTS.md, so it shares Codex's file there. The
+// block is the same bytes for every runtime and every turn (no file name, no
+// web mode), so the two never rewrite each other's copy, and a CLAUDE.md that
+// Prevail wrote for an older Claude Code is retired.
+
+// The first Claude Code release that loads AGENTS.md natively. Mirrors
+// harness-manual.ts CLAUDE_AGENTS_MD_MIN_VERSION.
+const CLAUDE_AGENTS_MD_MIN: (u64, u64, u64) = (2, 1, 277);
+
+// Launch setting that loads AGENTS.md beside any CLAUDE.md above the working
+// folder (the vault root links CLAUDE.md to VAULT.md, and the default mode
+// skips AGENTS.md when a CLAUDE.md exists). Claude Code honours it from
+// --settings (file or inline JSON), never from a project's settings file.
+// Byte-identical to JSON.stringify(AGENTS_MD_SETTINGS) in claude-settings.ts.
+const AGENTS_MD_SETTINGS: &str =
+    r#"{"pluginConfigs":{"agents-md@builtin":{"options":{"instructionFiles":"claude-md-and-agents-md"}}}}"#;
+
+// "2.1.283 (Claude Code)" -> (2, 1, 283). None when no x.y.z is present.
+fn parse_version(text: &str) -> Option<(u64, u64, u64)> {
+    text.split(|c: char| !(c.is_ascii_digit() || c == '.')).find_map(|token| {
+        let mut parts = token.split('.');
+        let a = parts.next()?.parse().ok()?;
+        let b = parts.next()?.parse().ok()?;
+        let c = parts.next()?.parse().ok()?;
+        Some((a, b, c))
+    })
+}
+
+// True only for a known version at or above the minimum. Unknown means false,
+// so the caller keeps CLAUDE.md, which every Claude Code reads.
+fn claude_reads_agents_md(version: Option<&str>) -> bool {
+    version.and_then(parse_version).is_some_and(|v| v >= CLAUDE_AGENTS_MD_MIN)
+}
+
+// Probed once per app process, with the same `claude --version` probe the
+// Runtimes screen uses (same binary resolution as resolve_bin_abs). Blocking:
+// call it off the async runtime.
+fn claude_uses_agents_md() -> bool {
+    static AGENTS_MD: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *AGENTS_MD.get_or_init(|| {
+        let version = crate::clis::probe_cli_version("claude").ok().flatten();
+        claude_reads_agents_md(version.as_deref())
+    })
+}
 
 // The harness-native instruction file each CLI auto-reads from its working dir.
-// Mirrors cli-bridge.ts::harnessManualFile. None => a runtime with no such file
-// (e.g. ollama), which is skipped.
-fn harness_manual_file(cli: &str) -> Option<&'static str> {
+// Mirrors harness-manual.ts::harnessManualFile. None => a runtime with no such
+// file (e.g. ollama), which is skipped.
+fn harness_manual_file(cli: &str, claude_agents_md: bool) -> Option<&'static str> {
     match cli {
+        "claude" if claude_agents_md => Some("AGENTS.md"),
         "claude" => Some("CLAUDE.md"),
         "codex" => Some("AGENTS.md"),
         "gemini" | "antigravity" => Some("GEMINI.md"),
@@ -342,9 +403,9 @@ fn harness_manual_file(cli: &str) -> Option<&'static str> {
 const PREVAIL_BLOCK_BEGIN: &str = "<!-- BEGIN PREVAIL (managed by Prevail, do not edit) -->";
 const PREVAIL_BLOCK_END: &str = "<!-- END PREVAIL -->";
 
-// The globally-disabled-web note appended to the injected block when web is off
-// for this turn, mirroring cli-bridge.ts::WEB_DENY_NOTE. Belt-and-braces beside
-// the native path's --disallowedTools (claude) and the vault-lock preamble.
+// The globally-disabled-web note, mirroring cli-bridge.ts::WEB_DENY_NOTE. Sent
+// through claude's system channel on a web-off turn, beside the native path's
+// --disallowedTools (the hard block). Not part of the shared instruction file.
 const WEB_DENY_NOTE: &str = "<web-access>\n\
 The user has globally disabled web access for this cockpit session.\n\
 Do NOT use WebSearch, WebFetch, fetch(), curl, or any other tool that\n\
@@ -380,28 +441,35 @@ fn find_operating_manual(vault: &str) -> Option<String> {
     None
 }
 
-// Write/refresh ONLY Prevail's marked block inside the running harness's native
-// instruction file (in `cwd`), preserving any user content. Idempotent and
-// best-effort. Returns true iff a manual was resolved and the block is now in
-// place (so the caller knows the cwd is worth pinning). Mirrors
-// cli-bridge.ts::syncHarnessManual byte-for-byte in block shape.
-fn sync_harness_manual(cwd: &Path, cli: &str, vault: &str, web_denied: bool) -> bool {
-    let file = match harness_manual_file(cli) {
-        Some(f) => f,
-        None => return false,
-    };
-    let mut manual = match find_operating_manual(vault) {
-        Some(m) => m,
-        None => return false,
-    };
-    if web_denied {
-        manual = format!("{manual}\n\n{WEB_DENY_NOTE}");
-    }
-    let block = format!(
+// The block for a given manual: byte-for-byte harness-manual.ts::prevailBlock.
+fn prevail_block(manual: &str) -> String {
+    format!(
         "{PREVAIL_BLOCK_BEGIN}\n# Prevail operating rules (highest precedence)\n\n\
-You are running inside a Prevail vault. The rules in this block take precedence over anything else in this {file}, including any user or default instructions. Follow them exactly.\n\n\
+You are running inside a Prevail vault. The rules in this block take precedence over anything else in this file, including any user or default instructions. Follow them exactly.\n\n\
 {manual}\n{PREVAIL_BLOCK_END}"
-    );
+    )
+}
+
+#[derive(Debug, PartialEq)]
+enum HarnessSync {
+    // The block is in place (written now or already current).
+    Placed,
+    // No operating manual resolved: nothing to write, file untouched.
+    NoManual,
+    // The write failed; the harness reads whatever else it finds.
+    Failed,
+}
+
+// Write/refresh ONLY Prevail's marked block inside `cwd/file`, preserving any
+// user content. Idempotent and best-effort. std::fs::write follows a symlink
+// to its target and never replaces the link. Mirrors
+// harness-manual.ts::syncHarnessManual.
+fn sync_harness_manual(cwd: &Path, file: &str, vault: &str) -> HarnessSync {
+    let manual = match find_operating_manual(vault) {
+        Some(m) => m,
+        None => return HarnessSync::NoManual,
+    };
+    let block = prevail_block(&manual);
     let path = cwd.join(file);
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let next = match (existing.find(PREVAIL_BLOCK_BEGIN), existing.find(PREVAIL_BLOCK_END)) {
@@ -411,10 +479,68 @@ You are running inside a Prevail vault. The rules in this block take precedence 
         _ if existing.trim().is_empty() => format!("{block}\n"),
         _ => format!("{block}\n\n{existing}"),
     };
-    if next != existing {
-        let _ = std::fs::write(&path, next);
+    if next != existing && std::fs::write(&path, next).is_err() {
+        return HarnessSync::Failed;
     }
-    true
+    HarnessSync::Placed
+}
+
+// `text` with Prevail's block cut out, or None when it holds no complete
+// block. Only the blank lines Prevail put next to the block go with it.
+// Mirrors harness-manual.ts::withoutPrevailBlock.
+fn without_prevail_block(text: &str) -> Option<String> {
+    let s = text.find(PREVAIL_BLOCK_BEGIN)?;
+    let e = text.find(PREVAIL_BLOCK_END)?;
+    if e < s {
+        return None;
+    }
+    let before = &text[..s];
+    let after = &text[e + PREVAIL_BLOCK_END.len()..];
+    if before.trim().is_empty() {
+        return Some(after.trim_start_matches('\n').to_string());
+    }
+    if after.trim().is_empty() {
+        let kept = before.trim_end_matches('\n');
+        return Some(if kept.len() < before.len() { format!("{kept}\n") } else { before.to_string() });
+    }
+    Some(format!("{}\n\n{}", before.trim_end_matches('\n'), after.trim_start_matches('\n')))
+}
+
+#[derive(Debug, PartialEq)]
+enum Retire {
+    Absent,
+    Kept,
+    Stripped,
+    Removed,
+}
+
+// Retire the CLAUDE.md Prevail wrote in `dir` for an older Claude Code, once
+// Claude reads its rules from AGENTS.md there. Only Prevail's block (plus
+// whitespace): removed. Block plus other text: only the block goes. No
+// complete block, a symlink (the vault's CLAUDE.md -> VAULT.md) or anything
+// that is not a regular file: untouched, never followed. Mirrors
+// harness-manual.ts::retirePrevailClaudeMd.
+fn retire_prevail_claude_md(dir: &Path) -> Retire {
+    let path = dir.join("CLAUDE.md");
+    match std::fs::symlink_metadata(&path) {
+        Err(_) => return Retire::Absent,
+        Ok(m) if !m.file_type().is_file() => return Retire::Kept,
+        Ok(_) => {}
+    }
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Retire::Kept;
+    };
+    let Some(rest) = without_prevail_block(&text) else {
+        return Retire::Kept;
+    };
+    if rest.trim().is_empty() {
+        return if std::fs::remove_file(&path).is_ok() { Retire::Removed } else { Retire::Kept };
+    }
+    if std::fs::write(&path, rest).is_ok() {
+        Retire::Stripped
+    } else {
+        Retire::Kept
+    }
 }
 
 pub(crate) fn resolve_bin_abs(bin: &str) -> String {
@@ -487,7 +613,11 @@ pub(crate) async fn chat_send(
         ));
     }
 
-    let (bin_name, cli_args) = cli_args(&cli_id, &args.prompt, model, web_denied);
+    // Claude Code 2.1.277+ shares AGENTS.md with Codex. The version probe is
+    // blocking and runs once per process, so keep it off the async runtime.
+    let claude_agents_md = cli_id == "claude"
+        && tauri::async_runtime::spawn_blocking(claude_uses_agents_md).await.unwrap_or(false);
+    let (bin_name, cli_args) = cli_args(&cli_id, &args.prompt, model, web_denied, claude_agents_md);
     let bin_abs = resolve_bin_abs(&bin_name);
 
     let (combined_path, user, logname) = build_cli_env();
@@ -499,14 +629,17 @@ pub(crate) async fn chat_send(
     // the vault root), and run the harness there so it actually reads the block.
     // Confined to this case: ollama, a manual-less vault, or no known vault leave
     // the cwd unset exactly as before (fully backward compatible).
+    // Once Claude reads AGENTS.md there, the CLAUDE.md Prevail wrote for an
+    // older Claude Code is retired (only Prevail's block; user text stays).
     let harness_cwd: Option<std::path::PathBuf> = crate::engine::vault_root().and_then(|v| {
         let cwd = crate::paths::general_dir(&v);
         let _ = std::fs::create_dir_all(&cwd);
-        if sync_harness_manual(&cwd, &cli_id, &v, web_denied) {
-            Some(cwd)
-        } else {
-            None
+        let file = harness_manual_file(&cli_id, claude_agents_md)?;
+        let synced = sync_harness_manual(&cwd, file, &v);
+        if claude_agents_md && synced != HarnessSync::Failed {
+            retire_prevail_claude_md(&cwd);
         }
+        (synced == HarnessSync::Placed).then_some(cwd)
     });
 
     let mut cmd = TokioCommand::new(&bin_abs);
@@ -655,7 +788,7 @@ pub(crate) async fn verify_cli_model(args: VerifyArgs) -> Result<String, String>
     use tokio::process::Command as TokioCommand;
     use tokio::time::{timeout, Duration};
 
-    let (bin_name, cli_args) = cli_args(&args.cli, "respond with just: OK", args.model.as_deref(), false);
+    let (bin_name, cli_args) = cli_args(&args.cli, "respond with just: OK", args.model.as_deref(), false, false);
     let bin_abs = resolve_bin_abs(&bin_name);
     let (combined_path, user, logname) = build_cli_env();
 
@@ -718,7 +851,7 @@ pub(crate) async fn model_oneshot(args: OneshotArgs) -> Result<String, String> {
     use tokio::process::Command as TokioCommand;
     use tokio::time::{timeout, Duration};
 
-    let (bin_name, cli_args) = cli_args(&args.cli, &args.prompt, args.model.as_deref(), false);
+    let (bin_name, cli_args) = cli_args(&args.cli, &args.prompt, args.model.as_deref(), false, false);
     let bin_abs = resolve_bin_abs(&bin_name);
     let (combined_path, user, logname) = build_cli_env();
 
@@ -832,4 +965,187 @@ fn best_error_line(stderr: &str, stdout: &str) -> String {
 fn clamp(s: &str) -> String {
     // Keep error pills readable but useful — JSON errors can be long.
     s.chars().take(240).collect()
+}
+
+#[cfg(test)]
+mod harness_manual_tests {
+    // Invented folder names and text only.
+    use super::*;
+    use std::path::PathBuf;
+
+    const MANUAL: &str = "# Garden rules\nKeep every bed's notes in state.md.";
+    const USER_TEXT: &str = "# My notes\n\nWater the tomatoes before noon.\n";
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("prevail-harness-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    // A vault whose operating manual find_operating_manual resolves.
+    fn vault_with_manual(name: &str) -> (PathBuf, PathBuf) {
+        let vault = scratch(name);
+        std::fs::create_dir_all(vault.join("build")).unwrap();
+        std::fs::write(vault.join("build").join("PREVAIL.md"), MANUAL).unwrap();
+        let cwd = vault.join("general");
+        std::fs::create_dir_all(&cwd).unwrap();
+        (vault, cwd)
+    }
+
+    #[test]
+    fn version_gate() {
+        assert_eq!(parse_version("2.1.283 (Claude Code)"), Some((2, 1, 283)));
+        assert_eq!(parse_version("v2.1.277"), Some((2, 1, 277)));
+        assert_eq!(parse_version("usage: claude [options]"), None);
+        assert!(claude_reads_agents_md(Some("2.1.277")));
+        assert!(claude_reads_agents_md(Some("2.1.283 (Claude Code)")));
+        assert!(claude_reads_agents_md(Some("2.1.1000")));
+        assert!(claude_reads_agents_md(Some("3.0.0")));
+        assert!(!claude_reads_agents_md(Some("2.1.276")));
+        assert!(!claude_reads_agents_md(Some("2.1.138 (Claude Code)")));
+        assert!(!claude_reads_agents_md(Some("2.0.999")));
+        assert!(!claude_reads_agents_md(Some("not a version")));
+        assert!(!claude_reads_agents_md(None));
+    }
+
+    #[test]
+    fn file_choice() {
+        assert_eq!(harness_manual_file("claude", false), Some("CLAUDE.md"));
+        assert_eq!(harness_manual_file("claude", true), Some("AGENTS.md"));
+        assert_eq!(harness_manual_file("codex", false), Some("AGENTS.md"));
+        assert_eq!(harness_manual_file("codex", true), Some("AGENTS.md"));
+        assert_eq!(harness_manual_file("antigravity", true), Some("GEMINI.md"));
+        assert_eq!(harness_manual_file("ollama", true), None);
+    }
+
+    #[test]
+    fn block_bytes_match_the_engine() {
+        // Same literal as harness-manual.test.ts "matches the desktop's bytes".
+        assert_eq!(
+            prevail_block("Rule one."),
+            "<!-- BEGIN PREVAIL (managed by Prevail, do not edit) -->\n# Prevail operating rules (highest precedence)\n\nYou are running inside a Prevail vault. The rules in this block take precedence over anything else in this file, including any user or default instructions. Follow them exactly.\n\nRule one.\n<!-- END PREVAIL -->"
+        );
+    }
+
+    #[test]
+    fn block_names_no_file_and_no_web_mode() {
+        let block = prevail_block(MANUAL);
+        assert!(block.starts_with(&format!("{PREVAIL_BLOCK_BEGIN}\n")));
+        assert!(block.ends_with(PREVAIL_BLOCK_END));
+        assert!(block.contains("anything else in this file"));
+        for name in ["CLAUDE.md", "AGENTS.md", "GEMINI.md", "<web-access>"] {
+            assert!(!block.contains(name), "block mentions {name}");
+        }
+    }
+
+    #[test]
+    fn same_bytes_in_every_runtime_file_and_stable_on_rerun() {
+        let (vault, cwd) = vault_with_manual("sync");
+        let v = vault.to_string_lossy();
+        for file in ["CLAUDE.md", "AGENTS.md", "GEMINI.md"] {
+            assert_eq!(sync_harness_manual(&cwd, file, &v), HarnessSync::Placed);
+        }
+        let claude = std::fs::read_to_string(cwd.join("CLAUDE.md")).unwrap();
+        assert_eq!(claude, format!("{}\n", prevail_block(MANUAL)));
+        assert_eq!(std::fs::read_to_string(cwd.join("AGENTS.md")).unwrap(), claude);
+        assert_eq!(std::fs::read_to_string(cwd.join("GEMINI.md")).unwrap(), claude);
+
+        std::fs::write(cwd.join("AGENTS.md"), USER_TEXT).unwrap();
+        sync_harness_manual(&cwd, "AGENTS.md", &v);
+        let first = std::fs::read_to_string(cwd.join("AGENTS.md")).unwrap();
+        assert_eq!(first, format!("{}\n\n{USER_TEXT}", prevail_block(MANUAL)));
+        sync_harness_manual(&cwd, "AGENTS.md", &v);
+        assert_eq!(std::fs::read_to_string(cwd.join("AGENTS.md")).unwrap(), first);
+        let _ = std::fs::remove_dir_all(&vault);
+    }
+
+    #[test]
+    fn no_manual_writes_nothing() {
+        let cwd = scratch("nomanual");
+        let vault = cwd.join("empty-vault");
+        std::fs::create_dir_all(&vault).unwrap();
+        // HOME may hold a real ~/.prevail manual; only assert when it does not.
+        if find_operating_manual(&vault.to_string_lossy()).is_none() {
+            assert_eq!(sync_harness_manual(&cwd, "AGENTS.md", &vault.to_string_lossy()), HarnessSync::NoManual);
+            assert!(!cwd.join("AGENTS.md").exists());
+        }
+        let _ = std::fs::remove_dir_all(&cwd);
+    }
+
+    #[test]
+    fn cutting_the_block_keeps_user_text() {
+        let block = prevail_block(MANUAL);
+        assert_eq!(without_prevail_block(&format!("{block}\n")).as_deref(), Some(""));
+        assert_eq!(without_prevail_block(&format!("{block}\n\n{USER_TEXT}")).as_deref(), Some(USER_TEXT));
+        assert_eq!(
+            without_prevail_block(&format!("Intro line.\n\n{block}\n\n{USER_TEXT}")).as_deref(),
+            Some(format!("Intro line.\n\n{USER_TEXT}").as_str())
+        );
+        assert_eq!(without_prevail_block(&format!("{USER_TEXT}\n{block}\n")).as_deref(), Some(USER_TEXT));
+        assert_eq!(without_prevail_block(USER_TEXT), None);
+        assert_eq!(without_prevail_block(&format!("{PREVAIL_BLOCK_BEGIN}\nunfinished")), None);
+        assert_eq!(without_prevail_block(&format!("{PREVAIL_BLOCK_END}\n{PREVAIL_BLOCK_BEGIN}")), None);
+    }
+
+    #[test]
+    fn retire_claude_md() {
+        let dir = scratch("retire");
+        let claude_md = dir.join("CLAUDE.md");
+        assert_eq!(retire_prevail_claude_md(&dir), Retire::Absent);
+
+        // Prevail-only (the old shape, web note included): removed.
+        std::fs::write(
+            &claude_md,
+            format!("{PREVAIL_BLOCK_BEGIN}\nold rules in this CLAUDE.md\n<web-access>\noff\n</web-access>\n{PREVAIL_BLOCK_END}\n"),
+        )
+        .unwrap();
+        assert_eq!(retire_prevail_claude_md(&dir), Retire::Removed);
+        assert!(!claude_md.exists());
+
+        // Mixed: only the block goes.
+        std::fs::write(&claude_md, format!("{}\n\n{USER_TEXT}", prevail_block(MANUAL))).unwrap();
+        assert_eq!(retire_prevail_claude_md(&dir), Retire::Stripped);
+        assert_eq!(std::fs::read_to_string(&claude_md).unwrap(), USER_TEXT);
+
+        // No block: untouched.
+        assert_eq!(retire_prevail_claude_md(&dir), Retire::Kept);
+        assert_eq!(std::fs::read_to_string(&claude_md).unwrap(), USER_TEXT);
+        std::fs::remove_file(&claude_md).unwrap();
+
+        // The vault's CLAUDE.md link to its map: never followed or removed.
+        let map = format!("{}\n\n# Map\n", prevail_block(MANUAL));
+        std::fs::write(dir.join("VAULT.md"), &map).unwrap();
+        std::os::unix::fs::symlink("VAULT.md", &claude_md).unwrap();
+        assert_eq!(retire_prevail_claude_md(&dir), Retire::Kept);
+        assert!(std::fs::symlink_metadata(&claude_md).unwrap().file_type().is_symlink());
+        assert_eq!(std::fs::read_to_string(dir.join("VAULT.md")).unwrap(), map);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn claude_launch_flags() {
+        let count = |v: &[String], flag: &str| v.iter().filter(|a| a.as_str() == flag).count();
+        let (_, with) = cli_args("claude", "How are the beds?", None, false, true);
+        assert_eq!(count(&with, "--settings"), 1);
+        let i = with.iter().position(|a| a == "--settings").unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&with[i + 1]).unwrap();
+        assert_eq!(
+            parsed["pluginConfigs"]["agents-md@builtin"]["options"]["instructionFiles"],
+            "claude-md-and-agents-md"
+        );
+        // Settings and the system note sit before `--`, so claude reads them as options.
+        assert!(i < with.iter().position(|a| a == "--").unwrap());
+
+        let (_, without) = cli_args("claude", "How are the beds?", None, false, false);
+        assert_eq!(count(&without, "--settings"), 0);
+        assert_eq!(count(&without, "--append-system-prompt"), 0);
+
+        let (_, web_off) = cli_args("claude", "How are the beds?", None, true, false);
+        let j = web_off.iter().position(|a| a == "--append-system-prompt").unwrap();
+        assert!(web_off[j + 1].contains("<web-access>"));
+
+        let (_, codex) = cli_args("codex", "How are the beds?", None, false, true);
+        assert_eq!(count(&codex, "--settings"), 0);
+    }
 }

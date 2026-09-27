@@ -63,7 +63,7 @@ fn resolve_bin_path(bin: &str) -> Option<String> {
 /// screen always renders.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
-fn probe_cli_version(bin: &str) -> Result<Option<String>, String> {
+pub(crate) fn probe_cli_version(bin: &str) -> Result<Option<String>, String> {
     let Some(path) = resolve_bin_path(bin) else {
         return Ok(None);
     };
