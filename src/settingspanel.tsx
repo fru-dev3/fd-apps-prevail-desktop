@@ -101,7 +101,7 @@ export function SettingsPanel({
         {/* Full width: settings use the whole pane. */}
         
           {section === "general" && <GeneralSection appearance={appearance} />}
-          {section === "privacy" && <PrivacyConnectivitySection enabled={bunkerEnabled} onChange={onBunkerChange} />}
+          {section === "privacy" && <PrivacyConnectivitySection enabled={bunkerEnabled} onChange={onBunkerChange} vaultPath={vaultPath} />}
           {section === "models" && <ModelsSection clis={clis} onStartChatWith={onStartChatWith} onActivated={onRefreshClis} vaultPath={vaultPath} />}
           {section === "benchmark" && <BenchmarkPanel vaultPath={vaultPath} />}
           {/* B2-24 / image #28: Ideals = page header + two big collapsible sections

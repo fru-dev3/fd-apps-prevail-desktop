@@ -2,6 +2,7 @@
 // Council defaults, Configuration (groups the memory/tasks/ideal sub-sections),
 // and the Agents catalog (AgentCard + AgentsSection).
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlwaysAllowedCard } from "./actcard";
 import { AlertTriangle, ArrowUpRight, Brain, Check, ChevronRight, Circle, CircleCheck, CircleX, Cloud, CloudOff, Copy, Cpu, Crown, FileX, Fingerprint, FolderCheck, FolderX, Globe, LineChart, ListChecks, Loader2, Lock, LockOpen, Mail, MailCheck, RefreshCw, Scale, Search, Send, Server, ShieldCheck, ShieldOff, Sigma, Sparkles, Star, Target, Terminal, User, Wifi, WifiOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
@@ -198,7 +199,7 @@ function OutboundGuardrailToggle() {
   );
 }
 
-export function PrivacyConnectivitySection({ enabled, onChange }: { enabled: boolean; onChange: (on: boolean) => void }) {
+export function PrivacyConnectivitySection({ enabled, onChange, vaultPath }: { enabled: boolean; onChange: (on: boolean) => void; vaultPath?: string }) {
   type BunkerStatus = { enabled: boolean; network_blocked: boolean; web_blocked: boolean; cloud_blocked: boolean; local_available: boolean };
   const [status, setStatus] = useState<BunkerStatus | null>(null);
   const [confirmOff, setConfirmOff] = useState(false);
@@ -368,6 +369,17 @@ export function PrivacyConnectivitySection({ enabled, onChange }: { enabled: boo
         />
         <OutboundGuardrailToggle />
       </section>
+
+      {/* ── SECTION 5 - ALWAYS ALLOWED: the approvals you chose not to repeat ── */}
+      {vaultPath && (
+        <section className="mt-6 border-t border-border-subtle pt-6">
+          <PrivacyGroupHead
+            title="Always allowed"
+            blurb="Tools that run without asking in one domain. Anything sensitive still waits for you."
+          />
+          <AlwaysAllowedCard vaultPath={vaultPath} />
+        </section>
+      )}
 
       {/* Telemetry lives under Privacy (moved from Safety). Anonymous, opt-in,
           default-OFF. Brings its own border-t / heading. */}

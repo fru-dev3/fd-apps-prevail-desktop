@@ -3,7 +3,7 @@
 // shared chatviews + domainpanels.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, Check, ClipboardList, Compass, FileText, Folder, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp, X } from "lucide-react";
+import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, CalendarClock, Check, Hourglass, ClipboardList, Compass, FileText, Folder, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp, X } from "lucide-react";
 import { PrevailLogo } from "./PrevailLogo";
 import { invoke, listen } from "./bridge";
 import { addNote } from "./notesstore";
@@ -28,6 +28,10 @@ import { RouteChips } from "./routechips";
 import { GeneralSearch } from "./generalsearch";
 import { ROUTE_WAIT_MS, buildRoutedContext, correctRoute, decodeRouteTurns, encodeRouteTurns, routeText, routeThreshold, routingEnabled, splitRoute, threadIdOf, threadRoutes } from "./routing";
 import { LoopsPanel } from "./loopspanel";
+import { ActApprovalCard } from "./actcard";
+import { mergeExternalTurns } from "./threadmerge";
+import { SchedulePanel } from "./convschedule";
+import { extractActIds, linkActsToThread, pendingActsForThread, useWaitingState } from "./waiting";
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
 import { savedEntitiesForDirective } from "./entitystore";
@@ -1159,6 +1163,7 @@ export function ChatPanel({
       .then((t) => {
         if (cancelled) return;
         displayedPathRef.current = activeThreadPath;
+        syncedRef.current = { path: activeThreadPath, count: t.turns.length };
         setThreadTitle(t.meta?.title?.trim() || "Untitled");
         const routes = decodeRouteTurns(t.meta?.route_turns);
         setMessages(t.turns.map((tn, i) => ({
@@ -1175,6 +1180,9 @@ export function ChatPanel({
   // Auto-save the thread on every message change (debounced). Reads
   // the ref so each save reuses the existing slug once one exists.
   const saveTimer = useRef<number | null>(null);
+  // How many turns the thread file had when this view last loaded or saved it.
+  // A scheduled turn appended on the hub shows up as extra turns past this.
+  const syncedRef = useRef<{ path: string | null; count: number }>({ path: null, count: -1 });
   const savePendingRef = useRef<boolean>(false);
   // Extra guard: once a save with slug=null has been DISPATCHED, block
   // any further slug=null dispatches until activeThreadRef is set.
@@ -1204,6 +1212,22 @@ export function ChatPanel({
         const first = messages.find((m) => m.role === "user");
         const title = first ? first.content.slice(0, 60).replace(/\n/g, " ") : "untitled";
         const current = activeThreadRef.current;
+        // Keep turns another writer (a conversation schedule) appended to this
+        // file since we last synced: fold them in instead of overwriting.
+        if (current && syncedRef.current.path === current) {
+          const disk = await invoke<{ meta: ThreadMeta; turns: ThreadTurn[] }>("load_thread", { path: current }).catch(() => null);
+          if (disk && Array.isArray(disk.turns)) {
+            const diskMsgs: ChatMessage[] = disk.turns.map((tn) => ({ role: tn.role, cli: tn.cli ?? undefined, model: tn.model ?? undefined, content: tn.content, ts: Date.now() }));
+            const merged = mergeExternalTurns(messages, diskMsgs, syncedRef.current.count);
+            if (merged) {
+              // Mid-reply the live bubble must stay last; retry after it ends.
+              if (messages.some((m) => m.streaming)) return;
+              syncedRef.current = { path: current, count: disk.turns.length };
+              setMessages(merged);
+              return; // the merged transcript saves on the next pass
+            }
+          }
+        }
         const slug = current ? current.split("/").pop()?.replace(/\.md$/, "") ?? null : null;
         console.log("[prevail/save_thread]", { slug, current, msgCount: messages.length, domain: tDomain, t: Date.now() });
         const path = await invoke<string>("save_thread", {
@@ -1220,6 +1244,7 @@ export function ChatPanel({
           // General owns routing; any other scope leaves what is on disk.
           ...(tDomain ? {} : { routed: threadRoutes(messages), routeTurns: encodeRouteTurns(messages) }),
         });
+        syncedRef.current = { path, count: messages.length };
         // Adopt the returned path so the NEXT save reuses the same slug.
         if (!activeThreadRef.current) {
           activeThreadRef.current = path;
@@ -1738,6 +1763,59 @@ export function ChatPanel({
     setTimeout(() => taRef.current?.focus(), 0);
   }, []);
 
+  // ── Approvals in the flow ────────────────────────────────────────────
+  // A held connector write names itself with [prevail-act:<id>] in the tool
+  // result; the card renders under that message. Acts the engine tied to this
+  // thread (reopened later, marker gone from the saved text) show under the
+  // last reply instead.
+  const { acts: pendingActs } = useWaitingState(vaultPath);
+  const actIdsOf = useCallback((m: ChatMessage) => extractActIds(
+    m.content, m.stderr, ...(m.steps ?? []).map((st) => st.detail), ...(m.toolLog ?? []),
+  ), []);
+  const markerActIds = useMemo(() => messages.flatMap((m) => (m.role === "assistant" ? actIdsOf(m) : [])), [messages, actIdsOf]);
+  useEffect(() => { linkActsToThread(markerActIds, activeThreadPath); }, [markerActIds, activeThreadPath]);
+  const threadOnlyActIds = useMemo(
+    () => pendingActsForThread(pendingActs, activeThreadPath).map((a) => a.id).filter((id) => !markerActIds.includes(id)),
+    [pendingActs, activeThreadPath, markerActIds],
+  );
+  const lastAssistantIdx = useMemo(() => { for (let k = messages.length - 1; k >= 0; k--) if (messages[k].role === "assistant") return k; return -1; }, [messages]);
+  // After Allow / Always: one short user turn so the agent retries and goes on.
+  // Queued until the current reply has finished streaming.
+  const [queuedFollowUp, setQueuedFollowUp] = useState<string | null>(null);
+  const sendFollowUp = useCallback((text: string) => { setQueuedFollowUp(text); }, []);
+  useEffect(() => {
+    if (!queuedFollowUp || streamingNow) return;
+    if (input !== queuedFollowUp) { setInput(queuedFollowUp); return; }
+    setQueuedFollowUp(null);
+    void send();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedFollowUp, streamingNow, input]);
+  const approvalFooter = (m: ChatMessage, i: number) => {
+    const ids = [...actIdsOf(m), ...(i === lastAssistantIdx ? threadOnlyActIds : [])];
+    if (ids.length === 0) return null;
+    return ids.map((id) => <ActApprovalCard key={id} vaultPath={vaultPath} actId={id} onFollowUp={sendFollowUp} />);
+  };
+  // Conversation schedule panel (in the flow, under the header).
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  useEffect(() => { setScheduleOpen(false); }, [activeThreadPath]);
+  const threadSlug = threadIdOf(activeThreadPath);
+  const lastUserText = useMemo(() => { for (let k = messages.length - 1; k >= 0; k--) if (messages[k].role === "user") return messages[k].content; return ""; }, [messages]);
+  const scheduleButton = !isApp && domainTab === "chat" && messages.length > 0 ? (
+    <button
+      data-testid="open-schedule"
+      onClick={() => setScheduleOpen((v) => !v)}
+      disabled={!threadSlug}
+      title={threadSlug ? "Schedule this conversation" : "Saving the conversation first"}
+      aria-label="Schedule this conversation"
+      aria-pressed={scheduleOpen}
+      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors disabled:opacity-40 ${scheduleOpen ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}
+    >
+      <CalendarClock className="h-4 w-4" />
+    </button>
+  ) : null;
+  // Home: how many things are waiting on you, one tap to the Inbox.
+  const { waiting } = useWaitingState(vaultPath);
+
   async function send() {
     if (!input.trim() || !selectedCli) return;
     // Auto-council: this domain convenes the full council on every send
@@ -2069,6 +2147,9 @@ export function ChatPanel({
           // "connected via Claude Code" passthrough those apps advertise
           // (PayPal etc.). Domain chats keep the strict engine-managed surface.
           inheritUserMcp: isApp,
+          // Links a held approval to this conversation (its slug). A brand-new
+          // thread has none yet; its approval card still shows from the marker.
+          thread: threadIdOf(activeThreadRef.current),
         });
       } else {
         await invoke("chat_send", {
@@ -2375,6 +2456,7 @@ export function ChatPanel({
               score={ctxScore}
               onClick={() => setDomainTab("welcome")}
             />
+            {scheduleButton}
             <ContextButton onClick={() => setContextOpen(true)} />
           </div>
         </div>
@@ -2382,9 +2464,20 @@ export function ChatPanel({
       {/* General and the phone have no domain header; the Context view is
           still one tap away from a slim row above the transcript. */}
       {!inDomainDetail && !isApp && (phone || !domain) && (
-        <div className="flex shrink-0 items-center justify-end border-b border-border-subtle px-3 py-1.5">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border-subtle px-3 py-1.5">
+          {scheduleButton}
           <ContextButton onClick={() => setContextOpen(true)} />
         </div>
+      )}
+      {scheduleOpen && threadSlug && !inDomainDetail && (
+        <SchedulePanel
+          key={activeThreadPath ?? ""}
+          vaultPath={vaultPath}
+          domain={domain || "general"}
+          session={threadSlug}
+          defaultPrompt={lastUserText}
+          onClose={() => setScheduleOpen(false)}
+        />
       )}
 
       {/* C2 (Monday feedback): always show which thread is active in the canvas. */}
@@ -2409,6 +2502,18 @@ export function ChatPanel({
             <p className={`max-w-md text-balance text-center text-text-muted ${phone ? "mt-1.5 text-[13px]" : "mt-3 text-sm"}`}>
               An AI that learns you, gets sharper, and surfaces what you'd have missed.
             </p>
+            {waiting.total > 0 && (
+              <button
+                data-testid="home-waiting"
+                onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "inbox" }))}
+                title="Open the Inbox"
+                className="mt-3 inline-flex items-center gap-2 rounded-full border border-warn/40 bg-warn/10 px-3.5 py-1.5 text-sm font-medium text-text-primary transition-colors hover:border-warn hover:bg-warn/20"
+              >
+                <Hourglass className="h-4 w-4 text-warn" />
+                Waiting for you
+                <span className="rounded-full bg-warn px-1.5 text-[12px] font-semibold tabular-nums text-background">{waiting.total > 99 ? "99+" : waiting.total}</span>
+              </button>
+            )}
             <GeneralSearch
               vaultPath={vaultPath}
               domains={routableDomains}
@@ -2484,6 +2589,7 @@ export function ChatPanel({
               onPinMemory={pinMessageToMemory}
               onMakeLoop={makeLoopFromChat}
               onMakeSkill={makeSkillFromChat}
+              assistantFooter={approvalFooter}
             />
           </div>
         )}
@@ -2929,6 +3035,7 @@ export function ChatPanel({
               onPinMemory={pinMessageToMemory}
               onMakeLoop={makeLoopFromChat}
               onMakeSkill={makeSkillFromChat}
+              assistantFooter={approvalFooter}
             />
           </div>
         )}

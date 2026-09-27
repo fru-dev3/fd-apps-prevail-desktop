@@ -81,6 +81,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     // not here, so an act that leaves this Mac still takes the Mac.
     "tasks_read_all", "work_count", "engine_recommendations", "spark_archive_read",
     "decisions_pending", "engine_gws_pending_list", "engine_acts_pending",
+    // What is waiting on you, the saved Always rules, and the schedules list:
+    // reads only. Answering, revoking and scheduling stay on the Mac.
+    "engine_waiting", "engine_acts_rules", "engine_schedule_list",
     // Context: ideals, omega, their version history, and the alignment read.
     "read_ideal_state", "read_domain_ideal", "read_omega",
     "ideal_state_versions", "omega_versions", "engine_alignment",
@@ -1492,6 +1495,9 @@ mod tests {
             "provider_key_get", "provider_key_set", "provider_key_del",
             "write_text_file", "write_file", "open_in_terminal", "app_uninstall",
             "bunker_set", "vault_lock_set", "engine_acts_approve", "engine_gws_approve",
+            "engine_acts_deny", "engine_acts_rule_revoke",
+            "engine_schedule_thread_add", "engine_schedule_set_enabled", "engine_schedule_remove",
+            "engine_schedule_run",
             "engine_agent_run", "read_file", "read_text_file",
             "engine_app_add", "engine_app_remove", "engine_app_run_skill",
             "engine_app_set_domains", "engine_app_set_schedule", "engine_app_set_soul",

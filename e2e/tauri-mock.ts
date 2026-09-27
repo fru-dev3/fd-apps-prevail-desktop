@@ -41,6 +41,19 @@ export const FIXTURES: Record<string, unknown> = {
   ],
   loop_request_approval: "smoke-approval-token",
   engine_acts_approve: { ok: true },
+  engine_acts_deny: { ok: true },
+  engine_acts_rules: [{ tool: "mcp__claude_ai_Foo__list_items", domain: "career", ts: Date.now() - 86400000 }],
+  engine_acts_rule_revoke: { ok: true },
+  // Waiting for you: the one polled source for the status marks.
+  engine_waiting: {
+    total: 2,
+    items: [
+      { kind: "act", id: "act_smoke1", domain: "career", summary: "PayPal: create_invoice", since: Date.now() - 30000 },
+      { kind: "gws", id: "gws_smoke1", domain: "career", summary: "Gmail: send", since: Date.now() - 60000 },
+    ],
+  },
+  engine_schedule_list: [],
+  engine_schedule_thread_add: { id: "s_foo", name: "Send the foo report", cron: "0 8 * * *", enabled: true, last_run: null, thread: { domain: "general", session: "foo-thread" }, prompt: "Send the foo report" },
   engine_gws_approve: { ok: true, output: "done" },
   // apps panel
   harness_connections_scan: { connections: [{ harness: "claude", name: "PostHog", health: "healthy" }] },

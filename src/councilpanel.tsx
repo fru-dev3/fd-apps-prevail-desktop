@@ -23,6 +23,8 @@ import { BrandMark } from "./brandmark";
 import { DomainStatusBar } from "./chatviews";
 import { ContextButton, ContextCanvas, DomainContextView } from "./domainpanels";
 import { AppRowLogo } from "./panels3";
+import { ActApprovalCard } from "./actcard";
+import { extractActIds } from "./waiting";
 import type { CliInfo, Domain, DomainContextBundle, EngineApp, ModelPick, PanelistReply, PanelistSlot, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 
@@ -836,6 +838,17 @@ export function CouncilPanel({
   async function convene() {
     return conveneWith(prompt);
   }
+  // After Allow / Always on an in-flow approval card: continue the council with
+  // a short user turn once the current round has finished.
+  const [councilFollowUp, setCouncilFollowUp] = useState<string | null>(null);
+  const queueCouncilFollowUp = useCallback((text: string) => setCouncilFollowUp(text), []);
+  useEffect(() => {
+    if (!councilFollowUp || (phase !== "done" && phase !== "idle")) return;
+    const text = councilFollowUp;
+    setCouncilFollowUp(null);
+    void conveneWith(text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [councilFollowUp, phase]);
   async function conveneWith(raw: string) {
     if (!raw.trim() || panelistSlots.length === 0) return;
     sessionRef.current = `council-${Date.now()}`;
@@ -1183,6 +1196,12 @@ export function CouncilPanel({
                       ) : (
                         <ThinkingDots />
                       )}
+                      {/* A panelist's held connector write: answer it here. */}
+                      {extractActIds(r?.content, r?.stderr).map((id) => (
+                        <div key={id} className="mt-3">
+                          <ActApprovalCard vaultPath={_vaultPath} actId={id} onFollowUp={queueCouncilFollowUp} />
+                        </div>
+                      ))}
                     </div>
                   </details>
                 );

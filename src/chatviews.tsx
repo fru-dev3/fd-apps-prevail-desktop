@@ -1,6 +1,6 @@
 // Chat-display leaf components extracted from App.tsx: ChatBubble (one rendered
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronRight, ListPlus, NotebookPen, Pin, Repeat, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { FRAMEWORKS, LENSES, MODELS } from "./constants";
@@ -16,6 +16,7 @@ import { domainIcon } from "./icons";
 import { ThinkingDots, ThinkingWord, useFrameworkLens } from "./hooks";
 import { extractCliError, renderSkillTokens } from "./textutil";
 import { ProviderMark } from "./marks";
+import { stripActMarkers } from "./waiting";
 import type { ChatMessage, DomainContextBundle, DomainToggle, RouteInfo } from "./types";
 
 export const MESSAGE_WINDOW = 80;
@@ -224,10 +225,10 @@ function StepChecklist({ msg, accent }: { msg: ChatMessage; accent: string }) {
                       Full text on hover via title. */}
                   {s.detail && (
                     <div
-                      title={s.detail}
+                      title={stripActMarkers(s.detail)}
                       className={`ml-5 truncate font-mono text-[10px] leading-relaxed ${s.status === "failed" ? "text-warn/80" : "text-text-muted/70"}`}
                     >
-                      {s.detail}
+                      {stripActMarkers(s.detail)}
                     </div>
                   )}
                 </div>
@@ -438,7 +439,8 @@ export function ChatBubble({
           {msg.content ? (
             msg.role === "assistant" ? (() => {
               const showThinking = getPref(PREF.showThinking, "1") === "1";
-              const { thinking, answer } = splitThinking(msg.content);
+              // The gate's approval marker is for the app, not the reader.
+              const { thinking, answer } = splitThinking(stripActMarkers(msg.content));
               return (
                 <>
                   {showThinking && thinking && <ThinkingDisclosure text={thinking} open={!answer} />}
@@ -544,9 +546,11 @@ export function ChatBubble({
 // ─────────────────────────────────────────────────────────────────────
 // COUNCIL PANEL
 
-export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMakeTask, onSaveNote, onPinMemory, onMakeLoop, onMakeSkill, userFooter }: {
+export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMakeTask, onSaveNote, onPinMemory, onMakeLoop, onMakeSkill, userFooter, assistantFooter }: {
   // Extra row under a user message, by index (General's routing chips).
   userFooter?: (m: ChatMessage, i: number) => React.ReactNode;
+  // Extra rows under an assistant message, by index (in-flow approval cards).
+  assistantFooter?: (m: ChatMessage, i: number) => React.ReactNode;
   messages: ChatMessage[];
   resetKey: number;
   onCopy: (text: string) => void;
@@ -578,9 +582,10 @@ export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMak
       )}
       {shown.map((m, idx) => {
         const i = start + idx;
+        const after = m.role === "assistant" && assistantFooter ? assistantFooter(m, i) : null;
         return (
+          <Fragment key={i}>
           <ChatBubble
-            key={i}
             msg={m}
             onCopy={onCopy}
             onRetry={m.role === "assistant" ? () => onRetry(i) : undefined}
@@ -592,6 +597,8 @@ export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMak
             onMakeSkill={m.role === "assistant" ? onMakeSkill : undefined}
             footer={m.role === "user" && userFooter ? userFooter(m, i) : undefined}
           />
+          {after}
+          </Fragment>
         );
       })}
     </>

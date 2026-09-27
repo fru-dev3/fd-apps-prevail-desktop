@@ -3,12 +3,14 @@
 // and want sign-off. The labor is the AI's; the decision is yours. Reads
 // decisions_pending; actions reuse the existing loop execute / task plumbing.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, Check, Inbox, Loader2, ListPlus, Play, RotateCcw, Clock, X } from "lucide-react";
+import { Ban, Bot, Check, Inbox, Loader2, ListPlus, Play, RotateCcw, ShieldCheck, Clock, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase, relTime } from "./format";
 import { PREF, cheapModel, getPref } from "./storage";
 import { startProcess, endProcess } from "./processes";
 import type { DecisionItem } from "./types";
+import { approveAct, denyAct } from "./actcard";
+import { ACTS_CHANGED, announceActsChanged, type PendingAct } from "./waiting";
 
 const SNOOZE_KEY = "prevail:decisions:snoozed";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -18,9 +20,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // delete something) is queued by the CLI to <vault>/_meta/pending_gws.json and
 // surfaced here under "Needs you". Shape matches the CLI contract.
 type GwsPending = { id: string; domain: string; summary: string; args?: string[]; ts?: number };
-// Action Gateway queue: connector writes a PreToolUse hook held. Approval
-// mints a single-use grant; the CHAT retries the tool to actually run it.
-type PendingAct = { id: string; domain: string; summary: string; tool: string; argsJson?: string; categories?: string[]; ts?: number };
+// Action Gateway queue (PendingAct, from ./waiting): connector writes a
+// PreToolUse hook held. Approval mints a single-use grant; the CHAT retries
+// the tool to actually run it.
 
 function readSnoozed(): Record<string, number> {
   try { return JSON.parse(localStorage.getItem(SNOOZE_KEY) || "{}"); } catch { return {}; }
@@ -58,9 +60,12 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
     const f = () => reload();
     window.addEventListener("prevail:tasks-changed", f);
     window.addEventListener("prevail:loops-advanced", f);
+    // An answer given on an in-chat approval card clears it here too.
+    window.addEventListener(ACTS_CHANGED, f);
     return () => {
       window.removeEventListener("prevail:tasks-changed", f);
       window.removeEventListener("prevail:loops-advanced", f);
+      window.removeEventListener(ACTS_CHANGED, f);
     };
   }, [reload]);
 
@@ -191,13 +196,13 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
   // Connector acts (Action Gateway): approving mints a single-use grant; the
   // action then runs when the CHAT calls the tool again. Sensitive categories
   // require the explicit release, same two-tap pattern as held gws writes.
-  const actApprove = async (a: PendingAct, allowSensitive = false) => {
+  const actApprove = async (a: PendingAct, allowSensitive = false, always = false) => {
     setBusy(a.id); setReport(null);
     try {
-      const approval = await invoke<string>("loop_request_approval", { domain: a.domain, action: a.summary });
-      const res = await invoke<{ ok?: boolean; error?: string }>("engine_acts_approve", { vault: vaultPath, id: a.id, domain: a.domain, summary: a.summary, approval, allowSensitive });
+      // Same single-use token spine as the in-chat card (approveAct).
+      const res = await approveAct(vaultPath, a, { allowSensitive, always });
       if (res?.ok) {
-        setReport({ text: a.summary, report: "Approved. Go back to the chat and tell it to retry - the approval is good for one run within 10 minutes." });
+        setReport({ text: a.summary, report: `Approved${always ? ", and always allowed from now on" : ""}. Go back to the chat and tell it to retry. The approval is good for one run within 10 minutes.` });
         setActs((prev) => prev.filter((x) => x.id !== a.id));
       } else {
         setReport({ text: a.summary, report: res?.error || "approval failed" });
@@ -209,6 +214,16 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
   const actDismiss = async (a: PendingAct) => {
     try { await invoke("engine_acts_dismiss", { vault: vaultPath, id: a.id }); } catch (e) { console.error("acts dismiss", e); }
     setActs((prev) => prev.filter((x) => x.id !== a.id));
+    announceActsChanged();
+  };
+  // Deny tells the agent the user said no (dismiss only clears the card).
+  const actDeny = async (a: PendingAct) => {
+    setBusy(a.id);
+    try {
+      await denyAct(vaultPath, a.id);
+      setReport({ text: a.summary, report: "Declined. It was not run, and the agent was told not to retry." });
+      setActs((prev) => prev.filter((x) => x.id !== a.id));
+    } catch (e) { console.error("acts deny", e); } finally { setBusy(null); }
   };
 
   const actCard = (a: PendingAct) => {
@@ -235,6 +250,14 @@ export function DecisionInbox({ vaultPath }: { vaultPath: string }) {
             <>
               <button onClick={() => actApprove(a, sensitive)} className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold ${sensitive ? "border border-warn/60 bg-warn/10 text-text-primary hover:bg-warn/20" : "bg-accent text-background hover:bg-accent-hover"}`}>
                 <Play className="h-3 w-3" /> {sensitive ? "Approve including sensitive info" : "Approve"}
+              </button>
+              {a.alwaysEligible === true && !sensitive && (
+                <button onClick={() => actApprove(a, false, true)} title="Approve, and always allow this tool in this domain" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary hover:border-accent-border hover:text-accent">
+                  <ShieldCheck className="h-3 w-3" /> Always
+                </button>
+              )}
+              <button onClick={() => actDeny(a)} title="Decline and tell the agent not to retry" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:!text-err">
+                <Ban className="h-3 w-3" /> Deny
               </button>
               <button onClick={() => actDismiss(a)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:!text-err">
                 <X className="h-3 w-3" /> Dismiss

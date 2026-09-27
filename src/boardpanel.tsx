@@ -12,6 +12,8 @@ import { isHarnessRuntime } from "./constants";
 import { domainColor } from "./helpers";
 import { PREF, cheapModel, getPref } from "./storage";
 import { DecisionInbox } from "./decisioninbox";
+import { WaitingChip } from "./actcard";
+import { useWaiting, waitingTaskIds } from "./waiting";
 import { TaskDetailPanel } from "./taskdetail";
 import { HarnessPicker } from "./harnesspicker";
 import type { BoardTask, CliInfo } from "./types";
@@ -487,11 +489,15 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
       await invoke("tasks_set", { vault: vaultPath, domain: t.domain, tasks: cur.filter((x) => x.id !== t.id) });
     });
   };
+  // Tasks the engine counts as waiting on you (blocked on your call).
+  const waiting = useWaiting(vaultPath);
+  const heldTaskIds = useMemo(() => waitingTaskIds(waiting.items), [waiting]);
   const setViewMode = (v: "board" | "list" | "horizon") => { setView(v); localStorage.setItem("prevail.board.view", v); };
 
   const renderCard = (t: BoardTask) => {
     const ai = t.owner === "ai";
     const blocked = t.status === "blocked";
+    const held = blocked || (!!t.id && heldTaskIds.has(t.id));
     const overdue = isOverdue(t);
     const editing = editId != null && editId === t.id;
     return (
@@ -533,7 +539,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
           {overdue && <span className="rounded-full bg-err/15 px-1.5 py-px font-bold tracking-wide text-err">Overdue</span>}
           {t.priority === "critical" && <span className="text-err">Critical</span>}
           {t.priority === "high" && <span className="text-warn">Important</span>}
-          {blocked && <span className="text-warn">⏸ needs decision</span>}
+          {held && <span className="font-sans"><WaitingChip /></span>}
         </div>
         <div className="mt-1.5 flex items-center gap-1.5 pl-5">
           <select value={t.status} onChange={(e) => setStatus(t, e.target.value)} disabled={busy === `s:${t.id}`}
@@ -555,6 +561,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
   const renderRow = (t: BoardTask) => {
     const ai = t.owner === "ai";
     const blocked = t.status === "blocked";
+    const held = blocked || (!!t.id && heldTaskIds.has(t.id));
     const overdue = isOverdue(t);
     const editing = editId != null && editId === t.id;
     return (
@@ -573,7 +580,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
             className={`min-w-0 flex-1 cursor-pointer truncate bg-transparent text-left text-[13px] hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${t.status === "done" ? "text-text-muted line-through" : "text-text-primary"}`}>{t.text}</button>
         )}
         <span className="hidden shrink-0 rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-muted sm:inline">{titleCase(t.domain)}</span>
-        {blocked && <span className="shrink-0 text-[11px] text-warn">⏸ decision</span>}
+        {held && <WaitingChip />}
         {overdue && <span className="shrink-0 rounded-full bg-err/15 px-1.5 py-px text-[11px] font-bold tracking-wide text-err">Overdue</span>}
         <span className={`hidden w-20 shrink-0 text-right font-mono text-[10px] md:inline ${dueTone(t.due)} ${overdue ? "font-bold" : ""}`}>{t.due || ""}</span>
         <button onClick={() => cyclePriority(t)} title={`Priority: ${t.priority || "normal"} - click to change`} disabled={busy === `pr:${t.id}`}

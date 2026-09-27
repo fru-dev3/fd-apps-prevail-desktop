@@ -1271,8 +1271,11 @@ export default function App() {
       const d = (e as CustomEvent<{ domain?: string; ref?: string }>).detail;
       if (!vaultPath || !d?.domain || !d.ref || d.ref.startsWith("/") || d.ref.split("/").includes("..")) return;
       const full = `${vaultPath.replace(/\/+$/, "")}/${d.ref}`;
-      try { localStorage.setItem(`prevail.domain.${d.domain}.lastThread`, full); } catch { /* storage off */ }
-      openDomain(d.domain);
+      // "general" names General, which the shell opens as "" (a conversation
+      // schedule carries the engine's domain name).
+      const dom = d.domain === "general" ? "" : d.domain;
+      if (dom) { try { localStorage.setItem(`prevail.domain.${dom}.lastThread`, full); } catch { /* storage off */ } }
+      openDomain(dom);
       window.setTimeout(() => setActiveThreadPath(full), 0);
     };
     window.addEventListener("prevail:open-thread", onOpenThread as EventListener);

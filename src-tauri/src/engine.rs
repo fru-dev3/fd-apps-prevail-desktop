@@ -2593,6 +2593,10 @@ pub async fn engine_chat(
     // (their claude.ai connectors, e.g. PayPal) to this turn. Forwarded as
     // --inherit-user-mcp when true; absent/false keeps the strict surface.
     #[allow(non_snake_case)] inheritUserMcp: Option<bool>,
+    // The desktop thread this turn belongs to (its slug). Forwarded as
+    // --thread so a held approval records which conversation it came from.
+    // Older engines ignore the flag.
+    thread: Option<String>,
 ) -> Result<(), String> {
     // Build the arg vector. `--vault V` goes BEFORE the subcommand,
     // matching every other engine command here.
@@ -2665,6 +2669,10 @@ pub async fn engine_chat(
     }
     if inheritUserMcp.unwrap_or(false) {
         args.push("--inherit-user-mcp".to_string());
+    }
+    if let Some(t) = thread.filter(|s| !s.trim().is_empty()) {
+        args.push("--thread".to_string());
+        args.push(t);
     }
 
     run_engine_stream_stdin(app, session, args, message, "engine-chat", extra_env).await
@@ -2813,13 +2821,21 @@ pub async fn engine_acts_approve(
     summary: String,
     approval: String,
     allow_sensitive: Option<bool>,
+    // "Always": approve this one AND save a per-tool, per-domain rule so the
+    // same tool in the same domain runs without asking next time. The engine
+    // refuses it for a consequential or sensitive act and approves nothing.
+    always: Option<bool>,
 ) -> Result<serde_json::Value, String> {
-    // Same single-use token spine as gws approvals. Do NOT weaken.
+    // Same single-use token spine as gws approvals. Do NOT weaken. An Always
+    // answer goes through the exact same check as a plain approve.
     crate::broker::authorize_action(&domain, &summary, &approval)?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut args: Vec<&str> = vec!["acts", "approve", "--id", &id, "--vault", &vault];
         if allow_sensitive == Some(true) {
             args.push("--allow-sensitive");
+        }
+        if always == Some(true) {
+            args.push("--always");
         }
         run_engine_json(&args)
     })
@@ -2834,6 +2850,122 @@ pub async fn engine_acts_dismiss(vault: String, id: String) -> Result<serde_json
     })
     .await
     .map_err(|e| format!("acts dismiss task failed: {e}"))?
+}
+
+/// Decline a held act: the engine drops it and tells the agent not to retry.
+/// `prevail acts deny --id <id> --vault <v>` -> `{ ok }`. Unlike dismiss (which
+/// clears quietly), a retry of the same call is refused for a while.
+#[tauri::command]
+pub async fn engine_acts_deny(vault: String, id: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_json(&["acts", "deny", "--id", &id, "--vault", &vault])
+    })
+    .await
+    .map_err(|e| format!("acts deny task failed: {e}"))?
+}
+
+/// The saved "Always allowed" rules: `prevail acts rules --vault <v>` ->
+/// `[{ tool, domain, ts }]`.
+#[tauri::command]
+pub async fn engine_acts_rules(vault: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_json(&["acts", "rules", "--vault", &vault])
+    })
+    .await
+    .map_err(|e| format!("acts rules task failed: {e}"))?
+}
+
+/// Revoke one "Always allowed" rule:
+/// `prevail acts rules-revoke --tool <t> --domain <d> --vault <v>` -> `{ ok }`.
+#[tauri::command]
+pub async fn engine_acts_rule_revoke(vault: String, tool: String, domain: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_json(&["acts", "rules-revoke", "--tool", &tool, "--domain", &domain, "--vault", &vault])
+    })
+    .await
+    .map_err(|e| format!("acts rules-revoke task failed: {e}"))?
+}
+
+/// Everything waiting on the user, in one read:
+/// `prevail waiting --vault <v>` -> `{ total, items: [{ kind, id, domain, summary, since, thread? }] }`.
+#[tauri::command]
+pub async fn engine_waiting(vault: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_json(&["waiting", "--vault", &vault])
+    })
+    .await
+    .map_err(|e| format!("waiting task failed: {e}"))?
+}
+
+// Conversation schedules. `schedule` takes the rest of the command line as its
+// own arguments, so `--vault` goes BEFORE the subcommand (where the global
+// parser reads it) and again after it for commands that read it there.
+
+/// Schedule a prompt to run as a new turn in an existing conversation:
+/// `prevail --vault <v> schedule add-thread --domain <d> --session <s> --prompt <p>
+///  --cron <c> --name <n> --vault <v>` -> the created ScheduleEntry.
+#[tauri::command]
+pub async fn engine_schedule_thread_add(
+    vault: String,
+    domain: String,
+    session: String,
+    prompt: String,
+    cron: String,
+    name: String,
+) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_json(&[
+            "--vault", &vault, "schedule", "add-thread",
+            "--domain", &domain, "--session", &session, "--prompt", &prompt,
+            "--cron", &cron, "--name", &name, "--vault", &vault,
+        ])
+    })
+    .await
+    .map_err(|e| format!("schedule add-thread task failed: {e}"))?
+}
+
+/// Every schedule (conversation ones carry `thread` + `prompt`):
+/// `prevail --vault <v> schedule list --vault <v>`.
+#[tauri::command]
+pub async fn engine_schedule_list(vault: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_json(&["--vault", &vault, "schedule", "list", "--vault", &vault])
+    })
+    .await
+    .map_err(|e| format!("schedule list task failed: {e}"))?
+}
+
+/// Pause or resume one schedule:
+/// `prevail --vault <v> schedule enable|disable <id> --vault <v>`.
+#[tauri::command]
+pub async fn engine_schedule_set_enabled(vault: String, id: String, enabled: bool) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let sub = if enabled { "enable" } else { "disable" };
+        run_engine_json(&["--vault", &vault, "schedule", sub, &id, "--vault", &vault])
+    })
+    .await
+    .map_err(|e| format!("schedule {} task failed: {e}", if enabled { "enable" } else { "disable" }))?
+}
+
+/// Remove one schedule: `prevail --vault <v> schedule remove <id> --vault <v>`.
+#[tauri::command]
+pub async fn engine_schedule_remove(vault: String, id: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_json(&["--vault", &vault, "schedule", "remove", &id, "--vault", &vault])
+    })
+    .await
+    .map_err(|e| format!("schedule remove task failed: {e}"))?
+}
+
+/// Run one schedule now: `prevail --vault <v> schedule run <id> --vault <v>`
+/// -> `{ ok, reply?, error? }`. A conversation schedule's turn lands in its thread.
+#[tauri::command]
+pub async fn engine_schedule_run(vault: String, id: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_json(&["--vault", &vault, "schedule", "run", &id, "--vault", &vault])
+    })
+    .await
+    .map_err(|e| format!("schedule run task failed: {e}"))?
 }
 
 /// List the queued gws write actions awaiting approval.

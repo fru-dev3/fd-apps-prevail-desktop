@@ -10,6 +10,7 @@ import { titleCase } from "./format";
 import { PREF, cheapModel, getPref } from "./storage";
 import { startProcess, endProcess, useProcesses } from "./processes";
 import { Toggle } from "./ui";
+import { ConversationSchedules } from "./convschedule";
 import {
   LOOP_AUTONOMY_LABEL, CADENCE_LABEL, type Loop, type LoopsRuntime,
   ensureBriefingLoop, readLoops, readLoopsRuntime, writeLoops,
@@ -249,6 +250,8 @@ export function LoopBoard({ vaultPath }: { vaultPath: string }) {
     <>
       <SettingsHeader icon={Repeat} title="Loop Board"
         subtitle="Every standing loop, and when each runs next." />
+      {/* Prompts scheduled from a conversation run as new turns in that thread. */}
+      <ConversationSchedules vaultPath={vaultPath} />
       {/* Toolbar: a compact searchable domain filter (scales to any count) + sort
           + grouping + refresh, all on one line. */}
       <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">

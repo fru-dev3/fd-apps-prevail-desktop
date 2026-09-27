@@ -9,7 +9,7 @@
 // nav, with a way back to Home at the top.
 import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
-import { Activity, Archive, ArrowLeft, ChevronRight, Folder, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
+import { Activity, Archive, ArrowLeft, ChevronRight, Folder, Hourglass, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
@@ -22,6 +22,7 @@ import { useProcesses } from "./processes";
 import { BENCH_SCHED, useBenchBatches } from "./bench";
 import { BACKUP_CFG } from "./backup";
 import type { Domain, TabId } from "./types";
+import { useWaiting, waitingByDomain } from "./waiting";
 
 // Active row: a light accent tint, accent text, and a short accent bar on the
 // left edge. Every selectable row in the sidebar uses it.
@@ -248,6 +249,9 @@ export function Sidebar({
     return () => { alive = false; window.clearInterval(id); window.removeEventListener("prevail:tasks-changed", pull); };
   }, [vaultPath]);
   const workCounts: Record<string, number> = { "task-list": openTasks, projects: projectCount };
+  // What is waiting on you, counted per domain for the domain rows.
+  const waiting = useWaiting(vaultPath);
+  const waitingPerDomain = useMemo(() => waitingByDomain(waiting.items), [waiting]);
 
   // Archived domains - fetched from the engine, shown under Domains, each with
   // a Restore action.
@@ -387,6 +391,7 @@ export function Sidebar({
     const Icon = domainIcon(d.name);
     const isPinned = pinned.has(d.name);
     const stat = domainStats[d.name] ?? 0;
+    const held = waitingPerDomain[d.name.toLowerCase()] ?? 0;
     if (collapsed) {
       return (
         <li key={d.name}>
@@ -400,6 +405,7 @@ export function Sidebar({
                 {titleCase(d.name).charAt(0)}
               </span>
             )}
+            {held > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-warn" title={`${held} waiting for you`} />}
           </button>
         </li>
       );
@@ -420,7 +426,12 @@ export function Sidebar({
           ) : finishedDomains.has(d.name) ? (
             <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok" title="Just finished: open to view" />
           ) : null}
-          {stat > 0 && <span title={`${stat} imports`} className="shrink-0 text-[12px] tabular-nums text-text-muted group-hover:opacity-0">{cap99(stat)}</span>}
+          {held > 0 ? (
+            <span data-testid="domain-waiting" title={`${held} waiting for you`}
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-warn/15 px-1.5 text-[11px] font-semibold tabular-nums leading-[18px] text-warn group-hover:opacity-0">
+              <Hourglass className="h-3 w-3" />{cap99(held)}
+            </span>
+          ) : stat > 0 && <span title={`${stat} imports`} className="shrink-0 text-[12px] tabular-nums text-text-muted group-hover:opacity-0">{cap99(stat)}</span>}
         </button>
         {/* Row actions behind one kebab: pin, open in Finder, archive. */}
         <div className="absolute right-1 shrink-0" data-domain-menu>

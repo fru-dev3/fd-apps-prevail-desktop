@@ -288,3 +288,119 @@ test("12 · the trust ribbon never claims Bunker Mode the engine does not have",
     .poll(() => page.evaluate(() => localStorage.getItem("prevail.pref.bunkerMode")), { timeout: 10_000 })
     .toBe("0");
 });
+
+// ── Approvals in the flow, Waiting for you, and conversation schedules ─────
+// A General thread whose last reply hit the gate: the tool result carried the
+// [prevail-act:<id>] marker, so the approval card belongs right under it.
+const FOO_THREAD = "/tmp/smoke-vault/_threads/foo-thread.md";
+function chatFixtures(act: Record<string, unknown>) {
+  return {
+    // Sending a turn reads these; the real engine always answers with text.
+    read_ideal_state: "",
+    read_omega: "",
+    read_user_md: "",
+    read_memory_md: "",
+    list_threads: [{ path: FOO_THREAD, slug: "foo-thread", title: "Foo report", domain: null, created: 1783000000, updated: 1783000000, turn_count: 2, preview: "", cli: "claude", model: null }],
+    load_thread: {
+      meta: { path: FOO_THREAD, slug: "foo-thread", title: "Foo report", domain: null, created: 1783000000, updated: 1783000000, turn_count: 2, preview: "", cli: "claude", model: null },
+      turns: [
+        { role: "user", cli: null, model: null, content: "Send the foo report" },
+        { role: "assistant", cli: "claude", model: null, content: "Sending it needs your approval. [prevail-act:act_chat1]" },
+      ],
+    },
+    engine_acts_pending: [{ id: "act_chat1", domain: "general", summary: "Foo: send_report", tool: "mcp__claude_ai_Foo__send_report", argsJson: "{}", categories: [], ts: Date.now() - 20000, actionClass: "write", ...act }],
+    engine_waiting: { total: 1, items: [{ kind: "act", id: "act_chat1", domain: "general", summary: "Foo: send_report", since: Date.now() - 20000, thread: "foo-thread" }] },
+  };
+}
+async function openFooThread(page: import("@playwright/test").Page) {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByTestId("threads-list").getByText("Foo report").first().click();
+  await expect(page.getByText("Sending it needs your approval.")).toBeVisible({ timeout: 10_000 });
+}
+const sentFollowUp = (page: import("@playwright/test").Page) => page.evaluate(() =>
+  ((window as unknown as { __invokeLog: Array<{ cmd: string; args: unknown }> }).__invokeLog ?? [])
+    .some((e) => ["engine_chat", "chat_send", "engine_agent_run"].includes(e.cmd) && JSON.stringify(e.args).includes("Approved. Go ahead.")));
+
+test("13 · a held act renders in the chat flow; Allow approves with the token spine and sends the follow-up", async ({ page }) => {
+  await mockTauri(page, chatFixtures({ alwaysEligible: true }));
+  await page.goto("/");
+  await openFooThread(page);
+  const card = page.getByTestId("act-card");
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  await expect(card).toContainText("Foo: send_report");
+  // The raw marker is for the app, never shown to the reader.
+  await expect(page.getByText(/prevail-act:/)).toHaveCount(0);
+  await expect(card.getByTestId("act-always")).toBeVisible();
+  await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-act-card.png` });
+  await card.getByTestId("act-allow").click();
+  await expect(card).toHaveAttribute("data-state", "approved");
+  const cmds = await invokedCommands(page);
+  expect(cmds).toContain("loop_request_approval");
+  expect(cmds.indexOf("engine_acts_approve")).toBeGreaterThan(cmds.indexOf("loop_request_approval"));
+  await expect.poll(() => sentFollowUp(page), { timeout: 10_000 }).toBe(true);
+});
+
+test("14 · Always is hidden for an ineligible act; Deny declines without a follow-up", async ({ page }) => {
+  await mockTauri(page, chatFixtures({ alwaysEligible: false }));
+  await page.goto("/");
+  await openFooThread(page);
+  const card = page.getByTestId("act-card");
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  await expect(card.getByTestId("act-always")).toHaveCount(0);
+  await card.getByTestId("act-deny").click();
+  await expect(card).toContainText("Declined");
+  const cmds = await invokedCommands(page);
+  expect(cmds).toContain("engine_acts_deny");
+  expect(cmds).not.toContain("engine_acts_approve");
+  await page.waitForTimeout(500);
+  expect(await sentFollowUp(page)).toBe(false);
+});
+
+test("15 · Waiting for you: the thread row says so, and the Home count opens the Inbox", async ({ page }) => {
+  await mockTauri(page, chatFixtures({ alwaysEligible: true }));
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  const row = page.getByTestId("threads-list").locator("li", { hasText: "Foo report" });
+  await expect(row.getByTestId("waiting-chip")).toBeVisible({ timeout: 10_000 });
+  const home = page.getByTestId("home-waiting");
+  await expect(home).toBeVisible();
+  await expect(home).toContainText("1");
+  await home.click();
+  await expect(page.getByTestId("nav-inbox")).toHaveAttribute("aria-current", "page", { timeout: 10_000 });
+  await expect(page.getByText("Foo: send_report")).toBeVisible();
+  // Answering clears it everywhere: the next poll reports nothing waiting.
+  await page.evaluate(() => { const fx = (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures; fx.engine_waiting = { total: 0, items: [] }; fx.engine_acts_pending = []; });
+  await page.evaluate(() => window.dispatchEvent(new Event("prevail:acts-changed")));
+  await expect(page.getByTestId("threads-list").getByTestId("waiting-chip")).toHaveCount(0, { timeout: 10_000 });
+});
+
+test("16 · the chat header schedules the conversation in the flow", async ({ page }) => {
+  await mockTauri(page, chatFixtures({ alwaysEligible: true }));
+  await page.goto("/");
+  await openFooThread(page);
+  await page.getByTestId("open-schedule").click();
+  const panel = page.getByTestId("schedule-panel");
+  await expect(panel).toBeVisible();
+  // Prefilled from the last thing the user asked.
+  await expect(panel.getByLabel("Prompt")).toHaveValue("Send the foo report");
+  await panel.getByRole("radio", { name: "Weekdays" }).click();
+  await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-schedule-panel.png` });
+  await panel.getByTestId("schedule-save").click();
+  await expect(panel.getByTestId("schedule-saved")).toBeVisible();
+  const call = await page.evaluate(() =>
+    ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+      .find((e) => e.cmd === "engine_schedule_thread_add")?.args ?? null);
+  expect(call).toMatchObject({ domain: "general", session: "foo-thread", prompt: "Send the foo report", cron: "0 8 * * 1-5" });
+});
+
+test("17 · Privacy lists Always allowed rules with a revoke per row", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" })));
+  const list = page.getByTestId("always-allowed");
+  await expect(list).toBeVisible({ timeout: 10_000 });
+  await expect(list).toContainText("Foo: list items");
+  await page.evaluate(() => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_acts_rules = []; });
+  await list.getByTestId("rule-revoke").click();
+  expect(await invokedCommands(page)).toContain("engine_acts_rule_revoke");
+  await expect(list).toContainText("Nothing yet");
+});

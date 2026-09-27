@@ -3,6 +3,8 @@ import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } fr
 import { confirm as tauriConfirm, open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { SpineColumn, useSpineCollapsed } from "./sidespine";
 import { RowAction } from "./rowaction";
+import { WaitingChip } from "./actcard";
+import { useWaitingState, waitingThreadPaths } from "./waiting";
 import { Archive, ArrowRight, Check, ChevronDown, ChevronRight, Cpu, Download, Folder, Lightbulb, Link2, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, Search, Shield, Sparkles, Trash2, Wrench, X } from "lucide-react";
 import { siWhatsapp } from "simple-icons";
 import { PrevailLogo } from "./PrevailLogo";
@@ -525,7 +527,10 @@ export function ThreadsRail({
   onRefresh: () => void;
   runningThreadPaths: Set<string>;
 }) {
-  void vaultPath;
+  // Threads held on the user (an approval waiting in them). Clears on its own
+  // when the shared waiting store refreshes.
+  const { waiting, acts } = useWaitingState(vaultPath);
+  const waitingPaths = useMemo(() => waitingThreadPaths(waiting.items, acts, threads), [waiting, acts, threads]);
   // Collapse state persisted across launches.
   const [collapsed, toggleCollapsed] = useSpineCollapsed("prevail.threads.spine");
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -649,6 +654,8 @@ export function ThreadsRail({
                             <span className="pulse-soft inline-block h-1 w-1 rounded-full bg-accent" />
                             writing
                           </span>
+                        ) : waitingPaths.has(t.path) ? (
+                          <WaitingChip />
                         ) : (
                           <>
                             <span>{t.turn_count} turns</span>
