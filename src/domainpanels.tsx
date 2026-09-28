@@ -2,6 +2,9 @@
 // the agent picker rail, the pref-picker column, and the domain prefs panel.
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { AppActivity } from "./appactivity";
+import { AcrossYourLife, useUpdates, yoursIn } from "./linking";
+import { loadEntities, requestEntity, useEntityStore } from "./entitystore";
+import { KindBadge } from "./entitydetail";
 import { ArrowLeft, ArrowRight, Box, Layers, Check, ChevronDown, ChevronRight, Code, Compass, Cpu, Eye, Folder, Globe, Loader2, Lock, Maximize2, MessageSquare, Pencil, Pin, RefreshCw, Share2, SlidersHorizontal, Sparkles, Terminal, X, type LucideIcon } from "lucide-react";
 import { distillCfgFromPrefs } from "./daemoncfg";
 import { invoke } from "./bridge";
@@ -189,6 +192,7 @@ export function DomainContextView({
   phone = false,
   vaultPath,
   domainPath,
+  initialSection,
   onClose,
   onInjectContext,
   onInsertSkill,
@@ -197,6 +201,7 @@ export function DomainContextView({
 }: {
   domain: string;
   phone?: boolean;
+  initialSection?: string;
   vaultPath: string;
   domainPath: string;
   onClose: () => void;
@@ -210,9 +215,15 @@ export function DomainContextView({
   const [err, setErr] = useState<string | null>(null);
   // Which context section the detail pane shows. The global Ideal always
   // exists, so it is the safe default; a domain switch resets to it.
-  const [selected, setSelected] = useState<string>("ideal");
-  const [phoneDetail, setPhoneDetail] = useState(false);
-  useEffect(() => { setSelected("ideal"); setPhoneDetail(false); }, [domain]);
+  const [selected, setSelected] = useState<string>(initialSection ?? "ideal");
+  const [phoneDetail, setPhoneDetail] = useState(!!initialSection);
+  useEffect(() => { setSelected(initialSection ?? "ideal"); setPhoneDetail(!!initialSection); }, [domain, initialSection]);
+  // Linking: what conversations elsewhere noted for this domain, and your
+  // entities whose home is here.
+  const across = useUpdates(domain ? vaultPath : null, domain ? { domain } : null);
+  const store = useEntityStore();
+  useEffect(() => { if (domain) void loadEntities(vaultPath); }, [vaultPath, domain]);
+  const things = domain && store.vault === vaultPath ? yoursIn(store.list?.entities ?? [], domain) : [];
   // A file or item picked inside a folder or list section, previewed in the
   // same pane with a way back to the list.
   type Preview = { title: string; body: string; label: string };
@@ -447,6 +458,28 @@ export function DomainContextView({
           <CtxSection keyName="domainideal" title="Ideal" file="ideal-state.md" count={domainIdeal.trim() ? 1 : undefined}
             action={fileTools(`${titleCase(domain)} ideal`, domainIdeal, `${titleCase(domain)} · ideal`)}
             body={<FileBody body={domainIdeal} empty="Not set. Draft it from the domain's Ideal editor." />} />
+        )}
+        {domain && (
+          <CtxSection keyName="across" title="Across your life" file="memory/updates.jsonl" count={across.lines.length || undefined}
+            body={<AcrossYourLife vaultPath={vaultPath} target={{ domain }} emptyName={titleCase(domain)} />} />
+        )}
+        {domain && (
+          <CtxSection keyName="things" title="Your things" count={things.length || undefined} body={
+            things.length ? (
+              <ul data-testid="your-things" className="grid max-w-3xl grid-cols-1 gap-1 sm:grid-cols-2">
+                {things.map((e) => (
+                  <li key={e.id}>
+                    <button type="button" data-testid="your-thing" onClick={() => requestEntity({ kind: e.kind, value: e.id.slice(e.id.indexOf("/") + 1) })}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-surface-warm">
+                      <KindBadge kind={e.kind} name={e.name} domain={e.domain} size={30} entity={e} />
+                      <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-text-primary">{e.name}</span>
+                      <span className="shrink-0 text-[13px] tabular-nums text-text-muted">{e.conversations}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-[14px] text-text-muted">Nothing yet. The people, places and things of your life that belong to {titleCase(domain)} show here as you talk about them.</p>
+          } />
         )}
         {/* The user's own material (source/) - goals and config they wrote. Real
             grounding context, surfaced per file so the label matches the path. */}

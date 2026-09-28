@@ -127,6 +127,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_entities_duplicates",
     // An entity's files list (read). Pictures, websites and files are writes.
     "engine_entities_files",
+    // Linking: what other conversations noted for a domain or entity (read).
+    // Setting a relation and the autosave mode are writes, desktop only.
+    "engine_updates",
     // Goals: every domain's goals file (read). Writing one stays on the Mac.
     "goals_files_read",
     // Settings the phone displays read-only: which machine this is, whether the
@@ -1511,6 +1514,7 @@ mod tests {
             "engine_acts_deny", "engine_acts_rule_revoke",
             "engine_entity_note_append", "engine_entities_merge", "engine_entities_not_same",
             "engine_entities_set_picture", "engine_entities_set_website", "engine_entities_add_file", "entities_note", "entities_save", "goals_file_write",
+            "engine_entities_set_relation", "engine_config_autosave_set", "engine_config_autosave_get",
             "engine_schedule_thread_add", "engine_schedule_set_enabled", "engine_schedule_remove",
             "engine_schedule_run",
             "engine_agent_run", "read_file", "read_text_file",

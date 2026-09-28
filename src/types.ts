@@ -329,6 +329,9 @@ export interface ChatMessage {
   // Apps as chat scopes: what the engine said about this turn's apps (a
   // routed runtime, an app that needs sign-in, one this runtime lacks).
   appNotices?: AppNotice[];
+  // Linking: the other domains and your entities this turn touched (the
+  // engine's `touched` event), drawn as a quiet line under the reply.
+  touched?: import("./linking").Touched;
 }
 
 export type AppNotice =
@@ -375,6 +378,9 @@ export interface ChatEvent {
   runtime_needed?: string;
   name?: string;
   signin_url?: string;
+  // Present only on the `touched` event (linking).
+  domains?: { slug: string; fact?: string }[];
+  entities?: string[];
 }
 
 // One step in the live execution checklist shown while a chat turn runs.

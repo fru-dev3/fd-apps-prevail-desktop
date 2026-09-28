@@ -39,6 +39,7 @@ import { peekInvoke } from "./query";
 import type { MirrorList } from "./appsmirror-model";
 import { savedEntitiesForDirective } from "./entitystore";
 import { ContextButton, ContextCanvas, DomainContextView, DomainPrefsPanel } from "./domainpanels";
+import { TOUCHED_EVENT, parseTouched } from "./linking";
 import { HomeBriefing } from "./recommendationspanel";
 import type { AppNotice, ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
@@ -420,6 +421,9 @@ export function ChatPanel({
   // Items can be "used in chat" to inject as prompt context.
   // The Context view swaps in for the chat column; always start on the chat.
   const [contextOpen, setContextOpen] = useState(false);
+  // The Context section to land on when it opens (the "updates from other
+  // domains" card opens it on Across your life).
+  const [contextSection, setContextSection] = useState<string | undefined>(undefined);
   // Restore any manual context cached for this scope (survives a tab-switch
   // remount). The scope key mirrors the parent's mount key (tDomain, else General).
   const primedScope = tDomain ?? "general";
@@ -1687,6 +1691,22 @@ export function ChatPanel({
               });
               break;
             }
+            case "touched": {
+              // Linking: after the reply, the other domains and your entities
+              // this turn touched. It lands on the reply just written (the
+              // stream may already be closed), and every "Across your life"
+              // list refetches. No toast.
+              const t = parseTouched(ev);
+              if (!t) break;
+              setMessages((m) => {
+                const i = m.length - 1;
+                if (i < 0 || m[i].role !== "assistant") return m;
+                return [...m.slice(0, i), { ...m[i], touched: t }];
+              });
+              window.dispatchEvent(new CustomEvent(TOUCHED_EVENT, { detail: t }));
+              if (t.entities.length) window.dispatchEvent(new CustomEvent("prevail:entities-changed"));
+              break;
+            }
             case "done":
               // 'done' on the stream closes the turn; the dedicated
               // engine-chat:done event below flips streaming off.
@@ -2238,6 +2258,8 @@ export function ChatPanel({
           // Links a held approval to this conversation (its slug). A brand-new
           // thread has none yet; its approval card still shows from the marker.
           thread: threadIdOf(activeThreadRef.current),
+          // Incognito: the engine skips linking this turn anywhere else.
+          incognito: incognitoActive("chat"),
           // Entity chat: the engine adds this entity's context to the turn.
           entity: entityIdRef.current,
           // @-references and the app scope (--app / --entity / --ref-domain /
@@ -2555,7 +2577,7 @@ export function ChatPanel({
               onClick={() => setDomainTab("welcome")}
             />
             {scheduleButton}
-            <ContextButton onClick={() => setContextOpen(true)} />
+            <ContextButton onClick={() => { setContextSection(undefined); setContextOpen(true); }} />
           </div>
         </div>
       )}
@@ -2564,7 +2586,7 @@ export function ChatPanel({
       {!inDomainDetail && !isApp && !entity && !scopeApp && (phone || !domain) && (
         <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border-subtle px-3 py-1.5">
           {scheduleButton}
-          <ContextButton onClick={() => setContextOpen(true)} />
+          <ContextButton onClick={() => { setContextSection(undefined); setContextOpen(true); }} />
         </div>
       )}
       {scheduleOpen && threadSlug && !inDomainDetail && (
@@ -2635,6 +2657,7 @@ export function ChatPanel({
             onInsertSkill={(name) => insertSkillSlash(name)}
             preferredSet={preferredSkillsSet}
             onTogglePreferred={togglePreferredSkill}
+            onOpenAcross={() => { setContextSection("across"); setContextOpen(true); }}
           />
         )}
         {domain && domainTab === "chat" && messages.length > 0 && (
@@ -3813,6 +3836,7 @@ export function ChatPanel({
           phone={phone}
           vaultPath={vaultPath}
           domainPath={domainPath ?? ""}
+          initialSection={contextSection}
           onClose={() => setContextOpen(false)}
           onInjectContext={(body, label) => injectContext(body, label)}
           onInsertSkill={(name) => { insertSkillSlash(name); setContextOpen(false); }}

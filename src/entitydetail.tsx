@@ -3,7 +3,7 @@
 // Everything comes from `prevail entities show`; the owner's notes are edited
 // here and written back to the page's "Your notes" section only.
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Boxes, Building2, Check, Copy, FileText, FolderOpen, Globe, Image as ImageIcon, Loader2, MapPin, MessageSquare, MessagesSquare, Plus, RefreshCw, Terminal, User } from "lucide-react";
+import { Bookmark, BookOpen, Boxes, Building2, Check, Copy, FileText, FolderOpen, Globe, Image as ImageIcon, Loader2, MapPin, MessageSquare, MessagesSquare, Plus, RefreshCw, Terminal, User } from "lucide-react";
 import { invoke } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
 import { CARD_KINDS, EntityChip, OrgMark, entityIdOf, openMap, type EntityKind } from "./entities";
@@ -20,6 +20,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { EntityFiles } from "./entityfiles";
 import { AppActivity } from "./appactivity";
 import type { EntityChatRequest } from "./entitychat";
+import { AcrossYourLife, DomainChip, isYours, setRelation, type Relation } from "./linking";
 
 // The chat is the whole chat panel, so it is its own chunk. A detail starts
 // fetching it as it mounts, so the Chat tab paints at once when clicked.
@@ -70,6 +71,7 @@ export interface EntityDetail {
   mentions: EntityMention[]; co_mentions: { id: string; name: string; kind: EntityKind; count: number }[];
   page?: string; page_path?: string; saved?: boolean; domain?: string; digest: string; notes: string;
   picture?: string; website?: string;
+  relation?: Relation; relation_confidence?: number; home_domain?: string;
 }
 
 export const KIND_LABEL: Record<string, string> = { person: "Person", place: "Place", org: "Company", thing: "Thing" };
@@ -277,6 +279,14 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
   const absPath = hasPage ? `${root}/${d!.page_path}` : null;
   const folder = hasPage ? entityFolder(d!.page_path) : null;
   const absFolder = folder ? `${root}/${folder}` : null;
+  // Yours or a reference: the engine's call, or the owner's override.
+  const relation: Relation = isYours(d?.found ? d : known) ? "yours" : "reference";
+  const homeDomain = (d?.found ? d.home_domain : undefined) ?? known?.home_domain;
+  const markAs = async (r: Relation) => {
+    setErr(null);
+    try { await setRelation(vaultPath, writeId, r); await load(); }
+    catch (e) { setErr(String(e)); }
+  };
   const menu: RowMenuItem[] = [
     ...(phone ? [{ icon: MessageSquare, label: "Chat", onClick: () => openChat() }] : []),
     { icon: ImageIcon, label: "Set picture", hint: encrypted ? "Off for encrypted vaults" : undefined, disabled: encrypted !== false, onClick: () => { void pickPicture(); } },
@@ -286,6 +296,9 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
       { icon: Copy, label: "Copy path", onClick: () => { void navigator.clipboard?.writeText(absPath).catch(() => {}); } },
     ] : []),
     ...(kind === "place" ? [{ icon: MapPin, label: "Open map", onClick: () => openMap(displayName) }] : []),
+    relation === "reference"
+      ? { icon: Bookmark, label: "This is mine", onClick: () => { void markAs("yours"); } }
+      : { icon: BookOpen, label: "Just a reference", onClick: () => { void markAs("reference"); } },
     { icon: RefreshCw, label: "Refresh", onClick: () => { void load(); void pullThreads(); } },
   ];
   const loading = !d && !err && <div className="flex items-center gap-2 py-8 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your vault</div>;
@@ -313,9 +326,11 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
               {KIND_LABEL[kind] ?? kind}
               {d?.found && d.conversations > 0 && ` · ${d.conversations} ${d.conversations === 1 ? "conversation" : "conversations"}`}
               {d?.found && d.saved && " · Saved"}
+              {relation === "reference" && !phone && " · Reference"}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            {homeDomain && !phone && <span data-testid="entity-home-domain"><DomainChip slug={homeDomain} /></span>}
             {!phone && (
               <button onClick={() => openChat()} onMouseEnter={() => { void loadChat(); }} data-testid="entity-chat-open"
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-white hover:bg-accent-hover">
@@ -380,6 +395,16 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
                 <span className="font-medium text-text-secondary">Also known as </span>{aliases.join(", ")}
               </p>
             )}
+            {relation === "reference" && (
+              <div data-testid="entity-reference-note" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border-subtle bg-surface-warm/60 px-3 py-2.5">
+                <p className="min-w-0 flex-1 text-[14px] text-text-secondary">A reference: only mentioned in replies, not in your own words.</p>
+                <button type="button" onClick={() => { void markAs("yours"); }} data-testid="entity-mark-mine"
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent">
+                  <Bookmark className="h-3.5 w-3.5" />This is mine
+                </button>
+              </div>
+            )}
+            {homeDomain && phone && <div className="mt-3"><DomainChip slug={homeDomain} /></div>}
             {kind === "place" && <div className="mt-5"><PlaceMap name={displayName} /></div>}
             <Section title="In your vault">
               {d.found && d.digest
@@ -388,6 +413,11 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
                     : d.saved || d.conversations >= 3 ? "No summary yet. It is written on the next refresh."
                     : "No summary yet. One is written once it comes up in 3 conversations, or when you save it."}</p>}
             </Section>
+            {relation === "yours" && (
+              <Section title="Across your life">
+                <AcrossYourLife vaultPath={vaultPath} target={{ entity: writeId }} emptyName={displayName} />
+              </Section>
+            )}
             <Section title="Mentioned in">
               {d.found && d.mentions.length
                 ? <ul className="-mx-2">{d.mentions.slice(0, 40).map((m, i) => <MentionRow key={`${m.source}:${m.ref}:${i}`} m={m} />)}</ul>

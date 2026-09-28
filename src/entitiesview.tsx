@@ -18,6 +18,7 @@ import {
 import { SideSpine } from "./sidespine";
 import { SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
+import { DomainChip, isYours } from "./linking";
 
 const GROUPS: { kind: EntityKindName; label: string }[] = [
   { kind: "person", label: "People" },
@@ -47,7 +48,12 @@ function Row({ e, on, onPick }: { e: EntitySummary; on: boolean; onPick: (e: Ent
             <span className={`truncate text-[14px] ${on ? "font-semibold text-text-primary" : "font-medium text-text-primary"}`}>{e.name}</span>
             {e.saved && <span title="Saved to your vault" aria-label="Saved to your vault" className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" data-vault-dot />}
           </span>
-          {e.aliases.length > 0 && <span className="block truncate text-[12px] text-text-muted">{e.aliases.slice(0, 3).join(", ")}</span>}
+          {(e.home_domain || e.aliases.length > 0) && (
+            <span className="flex min-w-0 items-center gap-1.5">
+              {e.home_domain && <DomainChip slug={e.home_domain} still />}
+              {e.aliases.length > 0 && <span className="min-w-0 truncate text-[12px] text-text-muted">{e.aliases.slice(0, 3).join(", ")}</span>}
+            </span>
+          )}
         </span>
         <span className="shrink-0 text-[12px] tabular-nums text-text-muted" title={`${e.conversations} ${e.conversations === 1 ? "conversation" : "conversations"}`}>{e.conversations}</span>
       </button>
@@ -60,6 +66,9 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
   const store = useEntityStore();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | EntityKindName>("all");
+  // Yours (the people and things of your life) or Reference (what only came
+  // up, like the people in an essay). Yours by default.
+  const [rel, setRel] = useState<"yours" | "reference">("yours");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [sel, setSel] = useState<(EntityTarget & { n: number }) | null>(() => {
@@ -98,9 +107,15 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
     const needle = q.trim().toLowerCase();
     const hits = (list?.entities ?? []).filter((e) =>
       (filter === "all" || e.kind === filter)
+      && isYours(e) === (rel === "yours")
       && (!needle || e.name.toLowerCase().includes(needle) || e.aliases.some((a) => a.toLowerCase().includes(needle))));
     return GROUPS.map((g) => ({ ...g, items: hits.filter((e) => e.kind === g.kind) })).filter((g) => g.items.length);
-  }, [list, q, filter]);
+  }, [list, q, filter, rel]);
+  const relCount = useMemo(() => {
+    const all = list?.entities ?? [];
+    const yours = all.filter(isYours).length;
+    return { yours, reference: all.length - yours };
+  }, [list]);
 
   type Group = (typeof groups)[number];
   const shownOf = (g: Group) => (expanded.has(g.kind) || !!q.trim() ? g.items : g.items.slice(0, PER_GROUP));
@@ -126,7 +141,7 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
 
   // On a wide screen the detail is never empty: it opens on the most
   // discussed entity until one is picked.
-  const first = list?.entities[0] ?? null;
+  const first = list?.entities.find((e) => isYours(e) === (rel === "yours")) ?? null;
   const target: EntityTarget | null = sel ?? (!phone && first ? targetOf(first) : null);
   const selectedId = target ? rowIdOf(target) : null;
   const pick = (e: EntitySummary) => { setShowDups(false); setSel((p) => ({ ...targetOf(e), n: (p?.n ?? 0) + 1 })); };
@@ -150,6 +165,15 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names" aria-label="Search entities"
           className="min-w-0 flex-1 bg-transparent text-[14px] text-text-primary outline-none placeholder:text-text-muted" />
       </label>
+      <div role="tablist" aria-label="Yours or reference" data-testid="entity-relation-filter" className="mx-1 mt-2 flex flex-nowrap rounded-lg bg-surface-warm p-0.5">
+        {(["yours", "reference"] as const).map((r) => (
+          <button key={r} role="tab" aria-selected={rel === r} data-testid={`entity-relation-${r}`} onClick={() => setRel(r)}
+            title={r === "yours" ? "The people, places and things of your life" : "Only came up in conversation, like the people in an essay"}
+            className={`inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[13px] ${rel === r ? "bg-surface font-semibold text-text-primary shadow-sm ring-1 ring-black/5" : "text-text-muted hover:text-text-secondary"}`}>
+            {r === "yours" ? "Yours" : "Reference"}<span className="text-[12px] font-normal tabular-nums text-text-muted">{relCount[r]}</span>
+          </button>
+        ))}
+      </div>
       <div role="tablist" aria-label="Entity kind" data-testid="entity-kind-filter" className="mx-1 mt-2 flex flex-nowrap rounded-lg bg-surface-warm p-0.5">
         {FILTERS.map((f) => (
           <button key={f.id} role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)}
@@ -168,8 +192,8 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
       {!list && <div className="flex items-center gap-2 px-2 py-6 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your vault</div>}
       {list && groups.length === 0 && (
         <div className="px-2 py-8 text-center">
-          <p className="text-lg font-semibold text-text-primary">{q || filter !== "all" ? "Nothing matches" : "No entities yet"}</p>
-          <p className="mt-1 text-[13px] text-text-muted">{q || filter !== "all" ? "Try another name or kind." : "They appear as you chat, and as Intent reads your prompts."}</p>
+          <p className="text-lg font-semibold text-text-primary">{q || filter !== "all" ? "Nothing matches" : rel === "reference" ? "No references" : "No entities yet"}</p>
+          <p className="mt-1 text-[13px] text-text-muted">{q || filter !== "all" ? "Try another name or kind." : rel === "reference" ? "What only comes up in conversation, like the people in an essay, lands here." : "They appear as you chat, and as Intent reads your prompts."}</p>
         </div>
       )}
       {flat.length > VIRTUAL_MIN

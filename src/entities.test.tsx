@@ -138,6 +138,13 @@ describe("entityLinkDirective", () => {
     expect(d).not.toContain("keeps pages");
   });
 
+  it("links only the owner's own things, at most 8, never inside generated prose", () => {
+    const d = entityLinkDirective(["home"]);
+    expect(d).toContain("user's own life");
+    expect(d).toContain("at most 8");
+    expect(d).toContain("Never link inside long generated text");
+  });
+
   it("lists the owner's saved entities by address, capped", () => {
     const many = Array.from({ length: 50 }, (_, i) => ({ name: `Sam ${i}`, id: `person/sam-${i}` }));
     const d = entityLinkDirective(["home"], [{ name: "Maple St", id: "place/maple-st" }, { name: "bad", id: "robot/x" }, ...many]);

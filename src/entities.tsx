@@ -302,21 +302,23 @@ function decodeURIComponentSafe(s: string): string {
 
 // Told to the model on every desktop chat turn. Kept short: it rides each
 // prompt. `domains` are the vault's real slugs, so a domain link always
-// resolves to something the app can open. Worded as a hard format rule with a
-// worked example because a softer "please link things" was ignored outright
-// (Sonnet 5, 2026-09-25); this version was followed by Sonnet 5, Haiku 4.5 and
-// GPT-6 Luna.
+// resolves to something the app can open. Worded as a hard format rule with
+// worked examples because a softer "please link things" was ignored outright.
+// Linking restraint: only the things of the owner's own life get an entity
+// link, at most 8 a reply, and never inside generated prose, so an essay
+// about Rome does not fill Entities with its cast.
 export function entityLinkDirective(domains: string[], saved: { name: string; id: string }[] = []): string {
   const slugs = domains.filter(isUserDomain).slice(0, 60);
   const example = slugs.includes("career") ? "career" : (slugs[0] ?? "career");
   const own = saved.filter((e) => e.name && /^(person|place|org|thing)\/[a-z0-9-]+$/.test(e.id)).slice(0, 40);
   return [
-    "# OUTPUT FORMAT (required): LINK EVERY CONCRETE THING",
-    "This app turns special links into clickable chips. In every reply, write each person, place, company or product, named thing, life domain, task, vault file and specific date you mention as a markdown link with a prevail:// address. Plain names for these are a formatting error.",
-    "- person: [Seneca](prevail://person/Seneca)",
-    "- place: [Rome](prevail://place/Rome)",
-    "- company or product: [Stripe](prevail://org/Stripe)",
-    "- named thing (a book, vehicle, device, property, event): [The Odyssey](prevail://thing/The%20Odyssey)",
+    "# OUTPUT FORMAT (required): LINK THE THINGS OF THE USER'S OWN LIFE",
+    "This app turns special links into clickable chips. Write the people, places, companies and things that belong to the user's own life (their property, car, lender, tenant, lawyer, doctor, family, employer), and each life domain, task, vault file and specific date, as a markdown link with a prevail:// address.",
+    "Link at most 8 people, places, companies and things per reply. Never link inside long generated text such as an essay, a story, a summary of a book, or a list of historical or public figures: those names stay plain.",
+    "- person: [Foo Bar](prevail://person/Foo%20Bar)",
+    "- place: [Foo Way](prevail://place/Foo%20Way)",
+    "- company or product: [Foo Bank](prevail://org/Foo%20Bank)",
+    "- named thing (a vehicle, device, property, policy): [the Foo policy](prevail://thing/Foo%20Policy)",
     `- life domain: [${example}](prevail://domain/${example})` + (slugs.length ? `. Only these slugs exist: ${slugs.join(", ")}` : ""),
     "- task (only with a known id): [call the lender](prevail://task/<domain>/<id>)",
     "- vault file (only a path you have seen, relative to the vault root): [state](prevail://file/<path>)",
@@ -324,7 +326,7 @@ export function entityLinkDirective(domains: string[], saved: { name: string; id
     ...(own.length
       ? [`The user keeps pages on these; link them by exactly this address: ${own.map((e) => `${e.name} = prevail://${e.id}`).join("; ")}`]
       : []),
-    "Link each thing the first time it appears, inline in the sentence; later mentions stay plain. Never invent an id, slug or path. Percent-encode spaces (Marcus%20Aurelius).",
+    "Link each thing the first time it appears, inline in the sentence; later mentions stay plain. Never invent an id, slug or path. Percent-encode spaces (Foo%20Bar).",
     "",
   ].join("\n");
 }

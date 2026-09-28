@@ -21,6 +21,11 @@ export interface EntitySummary {
   // Entity folders: an absolute path to picture.<ext>, and an org's website.
   picture?: string;
   website?: string;
+  // Linking: whether it is part of the owner's life ("yours") or only came up
+  // (a "reference"), how sure the engine is, and the domain it belongs to.
+  relation?: "yours" | "reference";
+  relation_confidence?: number;
+  home_domain?: string;
 }
 
 export interface EntityList { generated_ts: number; total: number; entities: EntitySummary[] }

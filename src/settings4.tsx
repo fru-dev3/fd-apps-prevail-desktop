@@ -445,6 +445,17 @@ export function GeneralSection({ appearance, part }: { appearance?: ReturnType<t
   const [showThinking, setShowThinking] = useState(() => getPref(PREF.showThinking, "1") === "1");
   const [showBriefing, setShowBriefing] = useState(() => getPref(PREF.showHomeBriefing, "0") === "1");
   const [showQuickCapture, setShowQuickCapture] = useState(() => getPref(PREF.quickCaptureEnabled, "0") === "1");
+  // Linking: which entities get their own page as you chat. Engine config.
+  const [autosave, setAutosave] = useState<string>("yours");
+  const [autosaveErr, setAutosaveErr] = useState<string | null>(null);
+  useEffect(() => { invoke<string>("engine_config_autosave_get").then((v) => { if (v) setAutosave(v); }).catch(() => {}); }, []);
+  const changeAutosave = async (v: string) => {
+    const prev = autosave;
+    setAutosave(v);
+    setAutosaveErr(null);
+    try { await invoke("engine_config_autosave_set", { value: v }); }
+    catch (e) { setAutosave(prev); setAutosaveErr(String(e)); }
+  };
   const [promptTimeout, setPromptTimeout] = useState<string>(() => getPref(PREF.llmPromptTimeoutSec, "300"));
   const [budgetCap, setBudgetCap] = useState<string>(() => getPref(PREF.budgetMonthlyCapUsd, ""));
   // Running spend estimate. Display-only for now: seeded from localStorage. A
@@ -544,6 +555,23 @@ export function GeneralSection({ appearance, part }: { appearance?: ReturnType<t
             >
               <option value="enter">Enter</option>
               <option value="cmd-enter">⌘ + Enter</option>
+            </select>
+          }
+        />
+        <Row
+          title="Save entities as you chat"
+          desc={autosaveErr ?? "Which people, places and things get their own page. Only mine keeps essays and histories out."}
+          control={
+            <select
+              data-testid="autosave-select"
+              aria-label="Save entities as you chat"
+              value={autosave}
+              onChange={(e) => { void changeAutosave(e.target.value); }}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-accent-border focus:outline-none"
+            >
+              <option value="off">Off</option>
+              <option value="yours">Only mine (recommended)</option>
+              <option value="all">Everything</option>
             </select>
           }
         />

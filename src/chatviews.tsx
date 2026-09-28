@@ -2,6 +2,7 @@
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ReplyApps } from "./chatrefs";
+import { AcrossCard, TouchedLine } from "./linking";
 import { ArrowRight, BookmarkPlus, Check, ChevronDown, ChevronRight, ListPlus, NotebookPen, Pin, Repeat, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { FRAMEWORKS, LENSES, MODELS } from "./constants";
@@ -493,6 +494,7 @@ export function ChatBubble({
           )}
           {msg.streaming && msg.content && <span className="cursor-blink text-accent">▌</span>}
         </div>
+        {msg.role === "assistant" && msg.touched && <TouchedLine touched={msg.touched} />}
         {msg.content && (
           <div className="mt-1 flex h-5 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <ActionButton
@@ -944,9 +946,11 @@ export function DomainHome({
   onInsertSkill,
   preferredSet,
   onTogglePreferred,
+  onOpenAcross,
 }: {
   domain: string;
   vaultPath: string;
+  onOpenAcross?: () => void;
   // When an app is open we reuse DomainHome for the conversation body but hide
   // the "apps refreshing this domain" strip - that's a domain view, and an app
   // shouldn't list its sibling apps.
@@ -1007,6 +1011,7 @@ export function DomainHome({
           <div>
             {tab === "chat" && (
               <div className="w-full">
+                {!isApp && onOpenAcross && <AcrossCard vaultPath={vaultPath} domain={domain} onOpen={onOpenAcross} />}
                 {starterPrompts.length > 0 && (
                   <div className="mb-3 rounded-xl border border-accent-border bg-accent-soft p-3">
                     <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-accent">

@@ -3,7 +3,7 @@
 // commands are thin bridges. Engine calls block, so each runs on the blocking
 // pool.
 
-async fn json(args: Vec<String>) -> Result<serde_json::Value, String> {
+pub(crate) async fn json(args: Vec<String>) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         crate::engine::run_engine_json(&refs)
@@ -14,7 +14,7 @@ async fn json(args: Vec<String>) -> Result<serde_json::Value, String> {
 
 // A write's answer: the engine may say `{ error }` and still exit 0, which
 // must reach the UI as a failure with the engine's own words.
-async fn write_json(args: Vec<String>) -> Result<serde_json::Value, String> {
+pub(crate) async fn write_json(args: Vec<String>) -> Result<serde_json::Value, String> {
     let v = json(args).await?;
     if let Some(e) = v.get("error").and_then(|e| e.as_str()) {
         return Err(e.to_string());

@@ -14,6 +14,7 @@
 mod benchmark;
 mod mirror;
 mod entities_bridge;
+mod linking;
 mod appscope;
 mod goals;
 mod appcmds;
@@ -614,6 +615,10 @@ pub fn run() {
             entities_bridge::engine_entities_files,
             entities_bridge::engine_entities_add_file,
             entities_bridge::engine_entity_picture,
+            linking::engine_updates,
+            linking::engine_entities_set_relation,
+            linking::engine_config_autosave_get,
+            linking::engine_config_autosave_set,
             favicon::app_favicon,
             apps_mirror::apps_mirror_list,
             apps_mirror::apps_mirror_refresh,

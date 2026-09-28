@@ -2630,6 +2630,9 @@ pub async fn engine_chat(
     entities: Option<Vec<String>>,
     ref_domains: Option<Vec<String>>,
     scope_app: Option<String>,
+    // Incognito turns leave no trace, so the engine must not link them into
+    // other domains or entities (--incognito skips the touch step).
+    incognito: Option<bool>,
 ) -> Result<(), String> {
     let refs = chat_ref_args(entity, apps, entities, ref_domains, scope_app)?;
     // Build the arg vector. `--vault V` goes BEFORE the subcommand,
@@ -2707,6 +2710,9 @@ pub async fn engine_chat(
     if let Some(t) = thread.filter(|s| !s.trim().is_empty()) {
         args.push("--thread".to_string());
         args.push(t);
+    }
+    if incognito.unwrap_or(false) {
+        args.push("--incognito".to_string());
     }
     args.extend(refs);
 
