@@ -13,7 +13,6 @@ import { PaletteCard } from "./panels3";
 import { useAppearance } from "./hooks";
 import { ObsidianCard } from "./settings4";
 import { SettingsHeader } from "./sectionutil";
-import { VaultHygieneCard } from "./vaulthygiene";
 import { BACKUP_CFG, backupFreqMs, backupVaultNow } from "./backup";
 import type { Mode } from "./types";
 
@@ -407,55 +406,6 @@ function WorkspaceSubLabel({ icon: Icon, label, desc }: { icon: LucideIcon; labe
   );
 }
 
-// Rebuild the on-disk structure of the active vault: scan every domain and move
-// any loose/legacy files into the clean source/ + memory/ + .system/ layout. Safe
-// to run any time (idempotent: already-clean domains are skipped; originals are
-// archived into each domain's _pre-v4-v4/ backup, never deleted). This is the
-// one-button normalizer for a vault that came from an older layout or was edited
-// by hand.
-function VaultRebuildCard({ vaultPath }: { vaultPath: string }) {
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const rebuild = async () => {
-    setBusy(true); setMsg(null);
-    try {
-      const r = await invoke<{ ok: boolean; domains?: Array<{ domain: string; ops: number; already: boolean }>; error?: string }>("engine_vault_migrate_v4", { vault: vaultPath });
-      if (!r.ok) { setMsg(`Rebuild failed: ${r.error ?? "unknown error"}`); return; }
-      const doms = r.domains ?? [];
-      const moved = doms.filter((d) => !d.already && d.ops > 0);
-      const clean = doms.length - moved.length;
-      window.dispatchEvent(new CustomEvent("prevail:vault-migrated"));
-      setMsg(moved.length === 0
-        ? `All ${doms.length} domain${doms.length === 1 ? "" : "s"} already on the clean layout. Nothing to move.`
-        : `Rebuilt ${moved.length} domain${moved.length === 1 ? "" : "s"} into source/ + memory/ + .system/ (${clean} already clean). Originals archived in each domain's _pre-v4-v4 backup.`);
-    } catch (e) {
-      setMsg(`Rebuild failed: ${e}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="mt-4 rounded-lg border border-border-subtle bg-background p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-semibold text-text-primary"><FolderCog className="h-4 w-4 text-accent" /> Rebuild structure</div>
-          <div className="mt-0.5 text-xs text-text-secondary">
-            Normalizes every domain into the clean layout. Originals are archived, never deleted.
-          </div>
-        </div>
-        <button
-          onClick={rebuild}
-          disabled={busy || !vaultPath}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-40"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-          {busy ? "Rebuilding..." : "Rebuild"}
-        </button>
-      </div>
-      {msg && <div className="mt-3 rounded-md border border-border-subtle bg-surface px-3 py-2 text-xs text-text-secondary">{msg}</div>}
-    </div>
-  );
-}
 
 export function WorkspaceSection({ vaultPath, onSetupDomains, onVaultMoved }: { vaultPath: string; onSetupDomains?: () => void; onVaultMoved?: (path: string) => void }) {
   return (
@@ -469,9 +419,6 @@ export function WorkspaceSection({ vaultPath, onSetupDomains, onVaultMoved }: { 
         <DemoModeSection vaultPath={vaultPath} onVaultMoved={onVaultMoved} onSetupDomains={onSetupDomains} headerless />
       </div>
       {/* One-button structure normalizer for legacy / hand-edited vaults. */}
-      <VaultRebuildCard vaultPath={vaultPath} />
-      {/* F5: vault-hygiene tools (normalize + consolidate). Copy-only, dry-run first. */}
-      <VaultHygieneCard vaultPath={vaultPath} />
     </>
   );
 }

@@ -107,25 +107,22 @@ export function pickSkillColor(name: string): { bg: string; fg: string } {
 // The level-1 header at the top of every Settings page: a big icon tile + title
 // + optional subtitle, with a hairline rule. Picks an icon from the title when
 // one isn't supplied.
+// THE page shell: every Home and Settings page renders in a ScrollPage, whose
+// header row (data-shell="header") holds the page's one SettingsHeader, and
+// whose content is a SideSpine (data-shell="column" and "detail"). Pages never
+// draw their own header band or surfaces; e2e/page-shell.spec.ts fails a page
+// that does.
 // Where a page's header goes. Inside the Settings and Work panes this is a
 // fixed row above the scrolling content (an element to portal into), so the
-// header never scrolls away; "bare" means the caller already wrapped the
-// header in its own fixed row (PageHeaderBar); "detail" means the section is
+// header never scrolls away; "detail" means the section is
 // the detail pane of a larger page (SettingsHub), so its header becomes the
 // pane's heading; null means render in place.
-export const HeaderSlot = createContext<HTMLElement | "bare" | "detail" | null>(null);
+export const HeaderSlot = createContext<HTMLElement | "detail" | null>(null);
 
 // The fixed header row every page uses, laid out like Intent's: full width,
 // a rule under it, outside the scroll area.
 export const PAGE_HEADER_ROW = "sticky top-0 z-20 shrink-0 border-b border-border bg-background px-8 py-5 max-md:px-4 max-md:py-3";
 
-export function PageHeaderBar({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return (
-    <div data-testid="page-header" className={`${PAGE_HEADER_ROW} ${className}`}>
-      <HeaderSlot.Provider value="bare">{children}</HeaderSlot.Provider>
-    </div>
-  );
-}
 
 // A scrolling page with its header held above the scroll: the page's
 // SettingsHeader portals into the fixed row, the rest scrolls under it, full
@@ -135,8 +132,8 @@ export function PageHeaderBar({ children, className = "" }: { children: ReactNod
 export function ScrollPage({ children, testId, flush = false }: { children: ReactNode; testId?: string; flush?: boolean }) {
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid={testId}>
-      <div ref={setSlot} data-testid="page-header" className={`${PAGE_HEADER_ROW} empty:hidden`} />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background" data-testid={testId} data-shell="page">
+      <div ref={setSlot} data-testid="page-header" data-shell="header" className={`${PAGE_HEADER_ROW} empty:hidden`} />
       <HeaderSlot.Provider value={slot}>
         {flush ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-testid="page-flush">{children}</div>
@@ -150,13 +147,15 @@ export function ScrollPage({ children, testId, flush = false }: { children: Reac
   );
 }
 
-export function SettingsHeader({ title, subtitle, icon, right }: { title: string; subtitle?: string; icon?: typeof Folder; right?: ReactNode }) {
+// `tabs`: a page's view switch (a SpineTabs), in the standard place: the
+// header's last row, under the title and subtitle.
+export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: string; subtitle?: string; icon?: typeof Folder; right?: ReactNode; tabs?: ReactNode }) {
   const Icon = icon ?? settingsHeaderIcon(title);
   const phone = useIsPhone();
   const slot = useContext(HeaderSlot);
   if (slot === "detail") {
     return (
-      <div data-settings-header className="mb-5 flex flex-wrap items-start gap-x-5 gap-y-1.5">
+      <div data-pane-heading className="mb-5 flex flex-wrap items-start gap-x-5 gap-y-1.5">
         <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary min-w-0">{title}</h2>
         {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
         {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
@@ -171,8 +170,9 @@ export function SettingsHeader({ title, subtitle, icon, right }: { title: string
       <div data-settings-header className="flex flex-wrap items-center gap-2">
         {subtitle && <p className="min-w-0 flex-1 basis-40 text-[13px] text-text-muted">{subtitle}</p>}
         {right && <div className="min-w-0 max-w-full">{right}</div>}
+        {tabs && <div className="basis-full" data-shell="tabs">{tabs}</div>}
       </div>
-    ) : null
+    ) : tabs ? <div data-settings-header className="flex flex-wrap items-center gap-2"><div className="basis-full" data-shell="tabs">{tabs}</div></div> : null
   ) : (
     // Same header as Intent: the icon and a big title, controls on the
     // right, one calm line under it.
@@ -183,10 +183,10 @@ export function SettingsHeader({ title, subtitle, icon, right }: { title: string
       </h1>
       {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
       {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
+      {tabs && <div className="mt-2 basis-full" data-shell="tabs">{tabs}</div>}
     </div>
   );
   if (!body) return null;
-  if (slot === "bare") return body;
   if (slot) return createPortal(body, slot);
   return <div className="mb-4 border-b border-border-subtle pb-4">{body}</div>;
 }

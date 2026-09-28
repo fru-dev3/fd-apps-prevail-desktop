@@ -106,8 +106,10 @@ export function BridgeStatusChips() {
     if (isBrowser()) return; // these bridges are a desktop-host concern
     let alive = true;
     async function poll() {
-      try { const t = await invoke<{ running: boolean }>("telegram_bridge_status"); if (alive) setTg(!!t.running); } catch { /* ignore */ }
-      try { const w = await invoke<{ running: boolean }>("webui_status"); if (alive) setWeb(!!w.running); } catch { /* ignore */ }
+      await Promise.all([
+        invoke<{ running: boolean }>("telegram_bridge_status").then((t) => { if (alive) setTg(!!t.running); }).catch(() => { /* ignore */ }),
+        invoke<{ running: boolean }>("webui_status").then((w) => { if (alive) setWeb(!!w.running); }).catch(() => { /* ignore */ }),
+      ]);
     }
     void poll();
     const id = window.setInterval(() => void poll(), 4000);

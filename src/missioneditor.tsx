@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, FilePen, Pencil, RotateCcw, X } from "lucide-react";
 import { invoke } from "./bridge";
+import { invokeCached, invokeKey, peekInvoke, setQueryData } from "./query";
 import { Markdown } from "./Markdown";
 import { SpineTabs } from "./sidespine";
 import { BODY, DETAIL_TITLE, META } from "./typescale";
@@ -48,7 +49,10 @@ function versionWhen(v: Version): string {
 }
 
 export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath: string; title?: string }) {
-  const [body, setBody] = useState<string | null>(null);
+  const [body, setBody] = useState<string | null>(() => {
+    const c = peekInvoke<string>("read_ideal_state", { vault: vaultPath });
+    return c === undefined ? null : c || "";
+  });
   const [tab, setTab] = useState<"current" | "versions">("current");
   const [editing, setEditing] = useState<number | "all" | null>(null);
   const [draft, setDraft] = useState("");
@@ -62,7 +66,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
     setVersions(Array.isArray(list) ? list : []);
   }, [vaultPath]);
   useEffect(() => {
-    invoke<string>("read_ideal_state", { vault: vaultPath }).then((s) => setBody(s || "")).catch(() => setBody(""));
+    invokeCached<string>("read_ideal_state", { vault: vaultPath }, { force: true }).then((s) => setBody(s || "")).catch(() => setBody(""));
     void loadVersions();
   }, [vaultPath, loadVersions]);
   // Version texts, read when the Versions tab is open (for the summaries).
@@ -86,6 +90,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
     try {
       await invoke("write_ideal_state", { vault: vaultPath, body: next });
       setBody(next);
+      setQueryData(invokeKey("read_ideal_state", { vault: vaultPath }), next);
       setEditing(null);
       await loadVersions();
     } catch (e) { setErr(`Could not save: ${String(e)}`); }

@@ -11,6 +11,8 @@ import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefO
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { Activity, Archive, ArrowLeft, ChevronRight, Folder, Hourglass, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
 import { invoke } from "./bridge";
+import { useInvokeQuery } from "./query";
+import { prefetchSection, prefetchSettings } from "./prefetch";
 import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
 import { SidebarGatewayLive, SidebarMcpLive } from "./panels";
@@ -20,19 +22,30 @@ import { AppLogo, MIRROR_SELECT_KEY } from "./appsmirror-parts";
 import { RUNTIME_LABEL, RUNTIME_MARK, type MirrorApp, type MirrorList } from "./appsmirror-model";
 import { ProviderMark } from "./marks";
 import { domainIcon } from "./icons";
-import { SidebarBackupActive, SidebarBenchmarkRuns, SidebarBenchScheduled, SidebarProcesses } from "./cards";
+import { SidebarBackupActive, SidebarBenchmarkRuns, SidebarProcesses } from "./cards";
 import { useProcesses } from "./processes";
-import { BENCH_SCHED, useBenchBatches } from "./bench";
+import { useBenchBatches } from "./bench";
 import { BACKUP_CFG } from "./backup";
 import type { Domain, TabId } from "./types";
 import { useWaiting, waitingByDomain } from "./waiting";
 import { isUserDomain } from "./helpers";
+import { STICKY_GROUP_HEAD, markStuck } from "./sidespine";
+
+const TASKS_CHANGED = ["prevail:tasks-changed"];
 
 // Active row: a light accent tint, accent text, and a short accent bar on the
 // left edge. Every selectable row in the sidebar uses it.
 const ACTIVE_ROW = "bg-accent-soft font-semibold text-accent before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-accent";
 const IDLE_ROW = "text-text-secondary hover:bg-surface-warm hover:text-text-primary";
 const SECTION_LABEL = "text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted";
+// Readable names for the side rows old Settings ids open (navdefs EDITOR_SUBS),
+// so "Search settings" finds them too.
+const SUB_LABELS: Record<string, string> = {
+  phone: "Phone", gateway: "Gateway", mcp: "MCP", hooks: "Hooks", remote: "Network",
+  privacy: "Bunker Mode", autonomy: "Autonomy", safety: "Safety", general: "General",
+  appearance: "Appearance", shortcuts: "Shortcuts", vault: "Vault", profiles: "Profiles",
+  about: "About", daemons: "Daemons", memory: "Memory", usage: "Usage", omega: "Omega",
+};
 const cap99 = (n: number) => (n > 99 ? "99+" : String(n));
 
 function CountPill({ n, active, loud = false }: { n: number; active: boolean; loud?: boolean }) {
@@ -47,12 +60,14 @@ function CountPill({ n, active, loud = false }: { n: number; active: boolean; lo
 // One nav row. Collapsed, it is an icon button with the label as its tooltip.
 // `loud`: the count is something to act on (the Inbox), so it is always in
 // the accent colour rather than muted.
-function NavRow({ icon: Icon, label, active, count = 0, loud = false, collapsed, onClick, testId }: {
-  icon: typeof House; label: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; testId?: string;
+function NavRow({ icon: Icon, label, active, count = 0, loud = false, collapsed, onClick, onPrefetch, testId }: {
+  icon: typeof House; label: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; onPrefetch?: () => void; testId?: string;
 }) {
   return (
     <button
       onClick={onClick}
+      onPointerEnter={onPrefetch}
+      onFocus={onPrefetch}
       title={collapsed ? (count > 0 ? `${label} (${count})` : label) : undefined}
       aria-current={active ? "page" : undefined}
       data-testid={testId}
@@ -72,11 +87,32 @@ function Divider() {
   return <div className="mx-3 my-2 h-px bg-border-subtle" />;
 }
 
-function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour }: {
+// Section headers pin to the top of the scrolling list (the sidebar's own
+// surface behind them), each pushed up by the next section's.
+const SIDEBAR_STICKY = `${STICKY_GROUP_HEAD} bg-surface-strong`;
+
+function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour, toggleRight = false }: {
   label: string; count?: number; open: boolean; onToggle: () => void; onAdd?: () => void; addTitle?: string; tour?: string;
+  // The whole row is the toggle, with the chevron at its right edge.
+  toggleRight?: boolean;
 }) {
+  if (toggleRight) {
+    return (
+      <div data-tour={tour} data-sticky-head className={`px-3 pb-1 pt-1 ${SIDEBAR_STICKY}`}>
+        <button onClick={onToggle} aria-expanded={open} data-testid={`sidebar-head-${label.toLowerCase()}`} title={open ? `Hide ${label}` : `Show ${label}`}
+          className={`group/h flex h-7 w-full items-center gap-1.5 rounded-md pl-0 pr-1 text-left transition-colors hover:bg-surface-warm hover:text-text-secondary ${SECTION_LABEL}`}>
+          <span>{label}</span>
+          {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70">{count}</span>}
+          <span className="flex-1" />
+          <span data-testid={`sidebar-toggle-${label.toLowerCase()}`} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted group-hover/h:bg-surface-strong group-hover/h:text-text-primary">
+            <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
+          </span>
+        </button>
+      </div>
+    );
+  }
   return (
-    <div data-tour={tour} className="group/h flex items-center gap-1 px-3 pb-1 pt-1">
+    <div data-tour={tour} data-sticky-head data-testid={`sidebar-head-${label.toLowerCase()}`} className={`group/h flex items-center gap-1 px-3 pb-1 pt-1 ${SIDEBAR_STICKY}`}>
       <button onClick={onToggle} aria-expanded={open} className={`flex flex-1 items-center gap-1.5 text-left transition-colors hover:text-text-secondary ${SECTION_LABEL}`}>
         <span>{label}</span>
         {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70">{count}</span>}
@@ -236,37 +272,28 @@ export function Sidebar({
 
   // Counts for the Work rows, read from the same sources their screens use:
   // open tasks across every domain, and the Projects index.
-  const [openTasks, setOpenTasks] = useState(0);
-  const [projectCount, setProjectCount] = useState(0);
+  // Through the shared cache, so the Tasks and Projects pages open on the
+  // same answers instead of fetching them again.
+  const today = new Date().toISOString().slice(0, 10);
+  const workCount = useInvokeQuery<{ open?: number }>("work_count", vaultPath ? { vault: vaultPath, today, domain: null } : null, { invalidateOn: TASKS_CHANGED });
+  const projectsIdx = useInvokeQuery<{ projects?: unknown[] } | null>("projects_index", vaultPath ? { vault: vaultPath } : null, { invalidateOn: TASKS_CHANGED });
+  const openTasks = workCount.data?.open ?? 0;
+  const projectCount = Array.isArray(projectsIdx.data?.projects) ? projectsIdx.data!.projects!.length : 0;
+  const refreshCounts = useRef<() => void>(() => {});
+  refreshCounts.current = () => { void workCount.refresh(); void projectsIdx.refresh(); };
   useEffect(() => {
     if (!vaultPath) return;
-    let alive = true;
-    const pull = () => {
-      invoke<{ open?: number }>("work_count", { vault: vaultPath, today: new Date().toISOString().slice(0, 10), domain: null })
-        .then((r) => { if (alive) setOpenTasks(r?.open ?? 0); }).catch(() => {});
-      invoke<{ projects?: unknown[] } | null>("projects_index", { vault: vaultPath })
-        .then((r) => { if (alive) setProjectCount(Array.isArray(r?.projects) ? r!.projects!.length : 0); }).catch(() => {});
-    };
-    pull();
-    const id = window.setInterval(pull, 120000);
-    window.addEventListener("prevail:tasks-changed", pull);
-    return () => { alive = false; window.clearInterval(id); window.removeEventListener("prevail:tasks-changed", pull); };
+    const id = window.setInterval(() => refreshCounts.current(), 120000);
+    return () => window.clearInterval(id);
   }, [vaultPath]);
   const workCounts: Record<string, number> = { "task-list": openTasks, projects: projectCount };
   // Apps: the connectors from your AI runtimes, read from the same list the
   // Apps page shows. A click opens that page with the app picked.
-  const [apps, setApps] = useState<MirrorApp[]>([]);
+  const appsList = useInvokeQuery<MirrorList>("apps_mirror_list", vaultPath ? { vault: vaultPath } : null, { staleMs: Infinity });
+  const apps: MirrorApp[] = Array.isArray(appsList.data?.apps) ? appsList.data!.apps : [];
   const [appsOpen, setAppsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsOpen") !== "0");
   useEffect(() => { lsSet("prevail.sidebar.appsOpen", appsOpen ? "1" : "0"); }, [appsOpen]);
   const [activeApp, setActiveApp] = useState<string | null>(null);
-  useEffect(() => {
-    if (!vaultPath) return;
-    let alive = true;
-    invoke<MirrorList>("apps_mirror_list", { vault: vaultPath })
-      .then((r) => { if (alive) setApps(Array.isArray(r?.apps) ? r.apps : []); })
-      .catch(() => { if (alive) setApps([]); });
-    return () => { alive = false; };
-  }, [vaultPath]);
   useEffect(() => {
     const onPick = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (typeof id === "string") setActiveApp(id); };
     window.addEventListener("prevail:mirror-select", onPick);
@@ -284,6 +311,7 @@ export function Sidebar({
       <li key={a.id}>
         <button
           onClick={() => openApp(a.id)}
+          onMouseDown={(e) => startAppDrag(e, a)}
           title={`${a.name}, via ${RUNTIME_LABEL[a.runtime] ?? a.runtime}${signin ? ": needs sign-in" : ""}`}
           aria-current={active ? "page" : undefined}
           data-testid={`sidebar-app-${a.id}`}
@@ -369,7 +397,17 @@ export function Sidebar({
   // Manual drag of a domain row into the chat (WKWebView's HTML5 DnD does not
   // reliably fire dragstart). On mouseup after moving, the chat panel's global
   // attach hook takes the domain as context.
-  const startDomainDrag = (e: ReactMouseEvent, name: string) => {
+  const startDomainDrag = (e: ReactMouseEvent, name: string) => startDrag(e, titleCase(name), (ev) => {
+    const hook = (window as unknown as { __prevailAttach?: (n: string, mode?: "light" | "full" | "folder") => void }).__prevailAttach;
+    if (hook) hook(name, ev.altKey ? "folder" : ev.shiftKey ? "full" : "light");
+    else console.warn("[prevail/drag] no attach hook registered: drop fell outside chat panel");
+  });
+  // An app row dragged onto a chat becomes an @-chip there.
+  const startAppDrag = (e: ReactMouseEvent, a: MirrorApp) => startDrag(e, `@${a.name}`, () => {
+    const hook = (window as unknown as { __prevailAddRef?: (r: { kind: "app"; id: string; label: string }) => void }).__prevailAddRef;
+    if (hook) hook({ kind: "app", id: a.id, label: a.name });
+  });
+  const startDrag = (e: ReactMouseEvent, label: string, drop: (ev: MouseEvent) => void) => {
     if (e.button !== 0) return;
     const startX = e.clientX;
     const startY = e.clientY;
@@ -380,7 +418,7 @@ export function Sidebar({
       if (!dragging) {
         dragging = true;
         pill = document.createElement("div");
-        pill.textContent = titleCase(name);
+        pill.textContent = label;
         pill.style.cssText =
           "position:fixed;z-index:9999;pointer-events:none;padding:6px 10px;border-radius:9999px;" +
           "background:var(--color-accent);color:var(--color-on-accent,#fff);font-size:12px;font-weight:600;" +
@@ -398,9 +436,9 @@ export function Sidebar({
       if (!dragging) return; // a click: let onClick fire
       ev.preventDefault();
       ev.stopPropagation();
-      const hook = (window as unknown as { __prevailAttach?: (n: string, mode?: "light" | "full" | "folder") => void }).__prevailAttach;
-      if (hook) hook(name, ev.altKey ? "folder" : ev.shiftKey ? "full" : "light");
-      else console.warn("[prevail/drag] no attach hook registered: drop fell outside chat panel");
+      // A drop back on the sidebar is not a drop on a chat.
+      if ((ev.target as HTMLElement | null)?.closest?.("aside, [data-sidebar]")) return;
+      drop(ev);
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -410,20 +448,52 @@ export function Sidebar({
   const editorMode = tab === "settings";
   const homeActive = !editorMode && tab !== "work" && !selectedDomain;
 
+  // Home mode's one way into Settings: a quiet gear beside the profile.
   const settingsButton = (
     <button
-      onClick={() => (editorMode ? goHome() : setTab("settings"))}
-      title={editorMode ? "Close settings" : "Settings"}
-      aria-label={editorMode ? "Close settings" : "Settings"}
-      aria-pressed={editorMode}
+      onClick={() => setTab("settings")}
+      onPointerEnter={prefetchSettings}
+      onFocus={prefetchSettings}
+      title="Settings"
+      aria-label="Settings"
       data-tour="settings"
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${
-        editorMode ? "border-accent-border bg-accent-soft text-accent" : "border-border-subtle bg-surface text-text-secondary hover:border-accent-border hover:text-accent"
-      }`}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-text-primary"
     >
-      {editorMode ? <X className="h-4 w-4" /> : <SettingsIcon className="h-4 w-4" />}
+      <SettingsIcon className="h-4 w-4" />
     </button>
   );
+
+  // Settings mode filters its own nav as you type: the page rows, plus the
+  // side rows old ids still open (EDITOR_SUBS). Enter opens the first match.
+  const [navQuery, setNavQuery] = useState("");
+  useEffect(() => { if (!editorMode) setNavQuery(""); }, [editorMode]);
+  const q = navQuery.trim().toLowerCase();
+  const navGroups = q
+    ? EDITOR_NAV.map((g) => ({ ...g, items: g.items.filter((i) => i.label.toLowerCase().includes(q) || g.heading.toLowerCase().includes(q)) })).filter((g) => g.items.length > 0)
+    : EDITOR_NAV;
+  const pageFor = (id: string) => EDITOR_NAV.flatMap((g) => g.items).find((i) => i.id === id);
+  const subMatches = q
+    ? Object.entries(SUB_LABELS).filter(([, l]) => l.toLowerCase().includes(q)).map(([id, label]) => ({ id, label, page: pageFor(navSection(id)) })).filter((m) => m.page)
+    : [];
+  const openSub = (id: string) => { setNavQuery(""); window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: id })); };
+  const openFirstMatch = () => {
+    const first = navGroups[0]?.items[0];
+    if (first) { setNavQuery(""); selectEditor(first.id); }
+    else if (subMatches[0]) openSub(subMatches[0].id);
+  };
+  // Esc leaves Settings, unless you are typing somewhere.
+  useEffect(() => {
+    if (!editorMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      goHome();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorMode]);
 
   const groupHeader = (label: string, open: boolean, onToggle: () => void, count: number, icon?: ReactNode) => (
     <li key={`${label}-header`}>
@@ -536,46 +606,82 @@ export function Sidebar({
       className="flex shrink-0 flex-col border-r border-border-subtle bg-surface-strong"
       style={{ width: collapsed ? 64 : railWidth }}
     >
-      <ProfileSwitcher collapsed={collapsed} trailing={settingsButton} />
-
-      {/* Search opens the command palette (it searches every screen, action
-          and domain). */}
-      <div className={collapsed ? "px-2 pb-2" : "px-3 pb-2"}>
-        <button
-          onClick={() => window.dispatchEvent(new Event("prevail:open-palette"))}
-          title="Search (⌘K)"
-          aria-label="Search"
-          className={`flex w-full items-center rounded-lg border border-border-subtle bg-background text-text-muted transition-colors hover:border-accent-border hover:text-text-secondary ${
-            collapsed ? "h-10 justify-center" : "h-9 gap-2 px-3"
-          }`}
-        >
-          <Search className="h-4 w-4 shrink-0" />
+      {editorMode ? (
+        <>
+          {/* Settings mode: one way out. The whole row returns Home. */}
+          <div className={collapsed ? "flex justify-center px-2 py-3" : "px-3 pb-2 pt-3"}>
+            <button
+              onClick={goHome}
+              title="Back to Home (Esc)"
+              aria-label="Back to Home"
+              data-testid="settings-back"
+              className={`flex w-full items-center rounded-lg text-text-primary transition-colors hover:bg-surface-warm ${collapsed ? "h-10 justify-center" : "h-10 gap-2 px-2"}`}
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0 text-text-muted" />
+              {!collapsed && <span className="text-[15px] font-semibold">Settings</span>}
+            </button>
+          </div>
           {!collapsed && (
-            <>
-              <span className="flex-1 text-left text-[14px]">Search</span>
-              <kbd className="rounded-md border border-border-subtle bg-surface px-1.5 text-[11px] font-medium leading-[18px] text-text-muted">⌘K</kbd>
-            </>
+            <div className="px-3 pb-2">
+              <label className="flex h-9 w-full items-center gap-2 rounded-lg border border-border-subtle bg-background px-3 text-text-muted focus-within:border-accent-border">
+                <Search className="h-4 w-4 shrink-0" />
+                <input
+                  value={navQuery}
+                  onChange={(e) => setNavQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); openFirstMatch(); }
+                    else if (e.key === "Escape" && navQuery) { e.preventDefault(); setNavQuery(""); }
+                  }}
+                  placeholder="Search settings"
+                  aria-label="Search settings"
+                  className="min-w-0 flex-1 bg-transparent text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none"
+                />
+              </label>
+            </div>
           )}
-        </button>
-      </div>
+        </>
+      ) : (
+        <>
+          <ProfileSwitcher collapsed={collapsed} trailing={settingsButton} />
+          {/* Search opens the command palette (it searches every screen, action
+              and domain). */}
+          <div className={collapsed ? "px-2 pb-2" : "px-3 pb-2"}>
+            <button
+              onClick={() => window.dispatchEvent(new Event("prevail:open-palette"))}
+              title="Search (⌘K)"
+              aria-label="Search"
+              className={`flex w-full items-center rounded-lg border border-border-subtle bg-background text-text-muted transition-colors hover:border-accent-border hover:text-text-secondary ${
+                collapsed ? "h-10 justify-center" : "h-9 gap-2 px-3"
+              }`}
+            >
+              <Search className="h-4 w-4 shrink-0" />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left text-[14px]">Search</span>
+                  <kbd className="rounded-md border border-border-subtle bg-surface px-1.5 text-[11px] font-medium leading-[18px] text-text-muted">⌘K</kbd>
+                </>
+              )}
+            </button>
+          </div>
+        </>
+      )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2" onScroll={(e) => markStuck(e.currentTarget)} data-testid="sidebar-scroll">
         {editorMode ? (
           <div className={collapsed ? "px-2" : "px-3"}>
-            <NavRow icon={ArrowLeft} label="Back to Home" active={false} collapsed={collapsed} onClick={goHome} />
-            <Divider />
-            {EDITOR_NAV.map((group) => {
+            {navGroups.map((group) => {
               const holdsActive = group.items.some((i) => i.id === editorActive);
               // A group that is one page is just its row: no heading to fold.
               const single = group.items.length === 1;
-              const open = collapsed || single || holdsActive || !closedNavGroups.has(group.heading);
+              const open = collapsed || single || holdsActive || !!q || !closedNavGroups.has(group.heading);
               return (
                 <div key={group.heading} className="mb-1.5">
                   {!collapsed && !single && (
                     <button
                       onClick={() => toggleNavGroup(group.heading)}
                       aria-expanded={open}
-                      className={`mb-0.5 mt-2 flex w-full items-center gap-1.5 rounded px-3 py-0.5 transition-colors hover:text-text-secondary ${SECTION_LABEL}`}
+                      data-sticky-head
+                      className={`mb-0.5 mt-2 flex w-full items-center gap-1.5 px-3 py-0.5 transition-colors hover:text-text-secondary ${SECTION_LABEL} ${SIDEBAR_STICKY}`}
                     >
                       <span className="flex-1 text-left">{group.heading}</span>
                       {!open && <span className="font-medium tabular-nums text-text-muted/70">{group.items.length}</span>}
@@ -585,47 +691,62 @@ export function Sidebar({
                   {open && (
                     <div className="space-y-0.5">
                       {group.items.map((it) => (
-                        <NavRow key={it.id} icon={it.icon} label={it.label} active={editorActive === it.id} collapsed={collapsed} onClick={() => selectEditor(it.id)} />
+                        <NavRow key={it.id} icon={it.icon} label={it.label} active={editorActive === it.id} collapsed={collapsed} onClick={() => selectEditor(it.id)} onPrefetch={() => prefetchSection("settings", it.id, vaultPath)} />
                       ))}
                     </div>
                   )}
                 </div>
               );
             })}
+            {subMatches.length > 0 && (
+              <div data-testid="settings-sub-matches" className="space-y-0.5">
+                {subMatches.map((m) => (
+                  <NavRow key={m.id} icon={m.page!.icon} label={`${m.label} in ${m.page!.label}`} active={false} collapsed={collapsed} onClick={() => openSub(m.id)} />
+                ))}
+              </div>
+            )}
+            {q && navGroups.length === 0 && subMatches.length === 0 && (
+              <p className="px-3 py-2 text-[13px] text-text-muted">No settings match.</p>
+            )}
           </div>
         ) : (
           <>
             <nav aria-label="Home" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
               <NavRow icon={House} label="Home" active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
-              <NavRow icon={Inbox} label="Inbox" count={waiting.total} loud active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} testId="nav-inbox" />
+              <NavRow icon={Inbox} label="Inbox" count={waiting.total} loud active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} onPrefetch={() => prefetchSection("work", "inbox", vaultPath)} testId="nav-inbox" />
               {WORK_NAV[0].items.map((it) => (
-                <NavRow key={it.id} icon={it.icon} label={it.label} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} />
+                <NavRow key={it.id} icon={it.icon} label={it.label} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
               ))}
             </nav>
 
             <Divider />
+            <section>
             {!collapsed && <SectionHeader label="Work" open={workOpen} onToggle={() => setWorkOpen((v) => !v)} onAdd={newTask} addTitle="New task" />}
             {(collapsed || workOpen) && (
               <nav aria-label="Work" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
                 {WORK_NAV.slice(1).flatMap((g) => g.items).map((it) => (
-                  <NavRow key={it.id} icon={it.icon} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} />
+                  <NavRow key={it.id} icon={it.icon} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
                 ))}
               </nav>
             )}
+            </section>
 
             {apps.length > 0 && (
               <>
                 <Divider />
-                {!collapsed && <SectionHeader label="Apps" count={apps.length} open={appsOpen} onToggle={() => setAppsOpen((v) => !v)} />}
+                <section>
+                {!collapsed && <SectionHeader label="Apps" count={apps.length} open={appsOpen} onToggle={() => setAppsOpen((v) => !v)} toggleRight />}
                 {(collapsed || appsOpen) && (
                   <ul aria-label="Apps" data-testid="sidebar-apps" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
                     {apps.map(appRow)}
                   </ul>
                 )}
+                </section>
               </>
             )}
 
             <Divider />
+            <section>
             {!collapsed && (
               <SectionHeader
                 label="Domains"
@@ -724,6 +845,7 @@ export function Sidebar({
                 </div>
               </div>
             )}
+            </section>
           </>
         )}
       </div>
@@ -788,9 +910,8 @@ function ProcessesPopover(
 ) {
   const procs = useProcesses();
   const runningBench = useBenchBatches().filter((b) => b.running);
-  const benchSched = lsGet(BENCH_SCHED.enabled, "0") === "1";
   const backupOn = lsGet(BACKUP_CFG.enabled, "0") === "1";
-  const empty = procs.length === 0 && runningBench.length === 0 && !benchSched && !backupOn;
+  const empty = procs.length === 0 && runningBench.length === 0 && !backupOn;
   // A small live count of the actively running work (processes + benchmark
   // runs) for the header badge. Scheduled/armed items are not counted here since
   // they are waiting, not running.
@@ -883,7 +1004,6 @@ function ProcessesPopover(
             <div className="flex flex-col gap-1.5">
               <SidebarProcesses collapsed={false} setTab={setTab} />
               <SidebarBenchmarkRuns collapsed={false} />
-              <SidebarBenchScheduled collapsed={false} />
               <SidebarBackupActive collapsed={false} />
               <SidebarGatewayLive collapsed={false} />
               <SidebarMcpLive collapsed={false} setTab={setTab} />

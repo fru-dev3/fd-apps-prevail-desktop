@@ -7,10 +7,11 @@ import { invoke, isBrowser } from "./bridge";
 import { relTime, titleCase } from "./format";
 import { toast } from "./toast";
 import {
-  RUNTIME_LABEL, emptyDraft, recipeSavePayload, syncBlockedReason, syncableTools, toolBadge,
+  RUNTIME_LABEL, emptyDraft, statusMeta, recipeSavePayload, syncBlockedReason, syncableTools, toolBadge,
   type MirrorApp, type RecipeDraft, type Schedule, type SyncResult,
 } from "./appsmirror-model";
-import { AppLogo, PinButton, SigninHelp, StatusPill, TONE_PILL } from "./appsmirror-parts";
+import { PinButton, SigninHelp, TONE_PILL, TONE_TEXT } from "./appsmirror-parts";
+import { AppScopeView } from "./appchat";
 
 const card = "rounded-xl border border-border-subtle bg-surface p-4 sm:p-5";
 const SCHEDULES: { id: Schedule; label: string }[] = [
@@ -98,197 +99,195 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
       ? `Last sync ${relTime(app.last_sync)}${typeof app.records_last_sync === "number" ? `, ${app.records_last_sync} record${app.records_last_sync === 1 ? "" : "s"}` : ""}`
       : "Never synced";
 
+  const status = statusMeta(app.status);
   return (
-    <div className="space-y-4 p-4 sm:p-6">
-      {/* Identity + the one primary action. */}
-      <div className="flex flex-wrap items-start gap-3 sm:gap-4">
-        <AppLogo name={app.name} url={app.url} size={44} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 title={app.name} className="min-w-0 break-words text-xl font-bold text-text-primary [overflow-wrap:anywhere]">{app.name}</h3>
-            <StatusPill status={app.status} />
-          </div>
-          <p className="mt-0.5 text-[13px] text-text-muted [overflow-wrap:anywhere]">
-            From {runtimeLabel}{app.status_detail ? `. ${app.status_detail}` : ""}
-          </p>
-          <p className="mt-0.5 text-[13px] text-text-secondary">{lastLine}</p>
-        </div>
-        <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
-          <div className="flex items-stretch gap-1.5">
-          <PinButton app={app} />
-          <button
-            type="button"
-            onClick={syncNow}
-            disabled={!!blocked || busy !== null || phone}
-            title={blocked ?? (phone ? "Sync runs on your Mac" : "Run this recipe now")}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            {busy === "sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sync now
-          </button>
-          </div>
-          {(blocked || phone) && <span className="text-[12px] text-text-muted sm:max-w-[16rem] sm:text-right">{blocked ?? "Sync runs on your Mac."}</span>}
-        </div>
-      </div>
-
-      {app.last_error && (
-        <div className="flex items-start gap-2 rounded-lg border border-err/30 bg-err/5 px-3 py-2 text-[13px] text-err">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> <span className="min-w-0 break-words">{app.last_error}</span>
-        </div>
-      )}
-      {lastRun && !lastRun.error && lastRun.ok && (
-        <div className="flex items-center gap-2 rounded-lg border border-ok/30 bg-ok/5 px-3 py-2 text-[13px] text-ok">
-          <Check className="h-4 w-4 shrink-0" /> Wrote {lastRun.records} record{lastRun.records === 1 ? "" : "s"} to {lastRun.files} file{lastRun.files === 1 ? "" : "s"}.
-        </div>
-      )}
-
-      {app.status !== "connected" && (
-        <div className={`${card} flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between`}>
+    <AppScopeView
+      vaultPath={vaultPath}
+      app={{ id: app.id, name: app.name, url: app.url, runtime: app.runtime }}
+      subtitle={<>via {runtimeLabel} · <span className={TONE_TEXT[status.tone]}>{status.label}</span>{app.status_detail && app.status !== "connected" ? ` · ${app.status_detail}` : ""}</>}
+      actions={<PinButton app={app} />}
+      notice={app.status !== "connected" ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-border-subtle bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[13px] text-text-secondary">
             {app.status === "disabled" ? `${app.name} is turned off in ${runtimeLabel}.` : app.status === "error" ? `${runtimeLabel} reports a problem with ${app.name}.` : `${app.name} needs you to sign in again in ${runtimeLabel}.`}
             {" "}Prevail uses the sign-in your runtime already has.
           </p>
           <SigninHelp app={app} />
         </div>
-      )}
-
-      {!app.syncable ? (
-        <div className={`${card} flex items-start gap-3`}>
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
-          <p className="text-[13px] leading-relaxed text-text-secondary">
-            Listed from {runtimeLabel} so you can see everything in one place. It cannot be synced yet: Prevail runs recipes through runtimes that support unattended, read-only runs.
-          </p>
+      ) : null}
+      tools={
+        <div className="space-y-4">
+          <section className={card} aria-label="Tools">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-base font-semibold text-text-primary">Tools{tools?.length ? <span className="ml-2 text-[13px] font-normal text-text-muted">{tools.length}</span> : null}</h4>
+              {!phone && app.status === "connected" && (
+                <button
+                  type="button"
+                  onClick={loadTools}
+                  disabled={busy !== null}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45"
+                >
+                  {busy === "tools" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />} {tools?.length ? "Check again" : "Load tools"}
+                </button>
+              )}
+            </div>
+            {!tools?.length ? (
+              <p className="mt-2 text-[13px] text-text-muted">{app.status === "connected" ? "Tools have not been checked yet." : "Sign in to see this connector's tools."}</p>
+            ) : (
+              <>
+                <ul className="mt-3 divide-y divide-border-subtle">
+                  {tools.map((t) => {
+                    const b = toolBadge(t);
+                    return (
+                      <li key={t.name} className="flex min-w-0 items-center gap-3 py-2" title={b.reason}>
+                        <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-text-primary">{t.name}</span>
+                        <span data-testid="tool-badge" className={`shrink-0 rounded-full px-2 py-0.5 text-[12px] font-medium ring-1 ${TONE_PILL[b.tone]}`}>{b.label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-3 text-[12px] leading-relaxed text-text-muted">
+                  Read tools can feed a sync. Write tools stay in chat only. Send and payment tools are blocked from sync; mail stays draft-only, so you are always the one who sends.
+                </p>
+              </>
+            )}
+          </section>
         </div>
-      ) : (
-        <section className={card} aria-label="Sync recipe">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-base font-semibold text-text-primary">Sync recipe</h4>
-            <button
-              type="button"
-              onClick={draftWithAi}
-              disabled={busy !== null || phone}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45"
-            >
-              {busy === "draft" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Draft with AI
-            </button>
-          </div>
-          <p className="mt-1 text-[13px] text-text-muted">What to pull from {app.name}, where it goes, and how often. Runs with read tools only.</p>
-
-          <label className="mt-4 block text-[13px] font-semibold text-text-primary" htmlFor={`prompt-${app.id}`}>What to pull</label>
-          <textarea
-            id={`prompt-${app.id}`}
-            rows={4}
-            value={draft.prompt}
-            onChange={(e) => edit({ prompt: e.target.value })}
-            placeholder="e.g. Pull what is new since the last sync and list anything that needs action."
-            className="mt-1.5 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted/70 focus:border-accent-border focus:outline-none"
-          />
-
-          <div className="mt-4 text-[13px] font-semibold text-text-primary">Feeds these domains</div>
-          {domainChoices.length === 0 ? (
-            <p className="mt-1 text-[13px] text-text-muted">No domains in this vault yet.</p>
-          ) : (
-            <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-label="Domains">
-              {domainChoices.map((d) => {
-                const on = draft.domains.includes(d);
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => edit({ domains: on ? draft.domains.filter((x) => x !== d) : [...draft.domains, d] })}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[13px] transition-colors ${
-                      on ? "border-accent-border bg-accent-soft font-medium text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-text-primary"
-                    }`}
-                  >
-                    {on && <Check className="h-3 w-3" />} {titleCase(d)}
-                  </button>
-                );
-              })}
+      }
+      connection={
+        <div className="space-y-4">
+          {app.last_error && (
+            <div className="flex items-start gap-2 rounded-lg border border-err/30 bg-err/5 px-3 py-2 text-[13px] text-err">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> <span className="min-w-0 break-words">{app.last_error}</span>
+            </div>
+          )}
+          {lastRun && !lastRun.error && lastRun.ok && (
+            <div className="flex items-center gap-2 rounded-lg border border-ok/30 bg-ok/5 px-3 py-2 text-[13px] text-ok">
+              <Check className="h-4 w-4 shrink-0" /> Wrote {lastRun.records} record{lastRun.records === 1 ? "" : "s"} to {lastRun.files} file{lastRun.files === 1 ? "" : "s"}.
             </div>
           )}
 
-          <label className="mt-4 block text-[13px] font-semibold text-text-primary" htmlFor={`schedule-${app.id}`}>Schedule</label>
-          <select
-            id={`schedule-${app.id}`}
-            value={draft.schedule}
-            onChange={(e) => edit({ schedule: e.target.value as Schedule })}
-            className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-text-primary focus:border-accent-border focus:outline-none sm:w-72"
-          >
-            {SCHEDULES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-
-          <div className="mt-4 text-[13px] font-semibold text-text-primary">Read tools it may use</div>
-          {readable.length === 0 ? (
-            <p className="mt-1 text-[13px] text-text-muted">{(tools ?? []).length ? "This connector has no read tools a sync may use." : "Load the tool list below to choose. With none picked, the recipe may use any read tool."}</p>
-          ) : (
-            <div className="mt-1.5 grid gap-1">
-              {readable.map((t) => {
-                const on = draft.read_tools.includes(t.name);
-                return (
-                  <label key={t.name} className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-text-secondary hover:bg-surface-warm">
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={() => edit({ read_tools: on ? draft.read_tools.filter((x) => x !== t.name) : [...draft.read_tools, t.name] })}
-                      className="h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-                    />
-                    <span className="min-w-0 truncate font-mono text-[12px]" title={t.full_name}>{t.name}</span>
-                  </label>
-                );
-              })}
+          <div className={`${card} flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between`}>
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold text-text-primary">{lastLine ?? "Last sync failed"}</p>
+              <p className="text-[13px] text-text-muted">{blocked ?? (phone ? "Sync runs on your Mac." : "Pull what is new now, with read tools only.")}</p>
             </div>
-          )}
-
-          <div className="mt-5 flex items-center gap-3">
             <button
               type="button"
-              onClick={save}
-              disabled={busy !== null || !draft.prompt.trim() || phone}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-45"
+              onClick={syncNow}
+              disabled={!!blocked || busy !== null || phone}
+              title={blocked ?? (phone ? "Sync runs on your Mac" : "Run this recipe now")}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save recipe
+              {busy === "sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sync now
             </button>
-            {dirty && <span className="text-[12px] text-text-muted">Unsaved changes</span>}
-            {!dirty && app.recipe?.updated_at && <span className="text-[12px] text-text-muted">Saved {relTime(app.recipe.updated_at)}</span>}
           </div>
-        </section>
-      )}
+          {!app.syncable ? (
+            <div className={`${card} flex items-start gap-3`}>
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
+              <p className="text-[13px] leading-relaxed text-text-secondary">
+                Listed from {runtimeLabel} so you can see everything in one place. It cannot be synced yet: Prevail runs recipes through runtimes that support unattended, read-only runs.
+              </p>
+            </div>
+          ) : (
+            <section className={card} aria-label="Sync recipe">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-base font-semibold text-text-primary">Sync recipe</h4>
+                <button
+                  type="button"
+                  onClick={draftWithAi}
+                  disabled={busy !== null || phone}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45"
+                >
+                  {busy === "draft" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Draft with AI
+                </button>
+              </div>
+              <p className="mt-1 text-[13px] text-text-muted">What to pull from {app.name}, where it goes, and how often. Runs with read tools only.</p>
 
-      <section className={card} aria-label="Tools">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-base font-semibold text-text-primary">Tools{tools?.length ? <span className="ml-2 text-[13px] font-normal text-text-muted">{tools.length}</span> : null}</h4>
-          {!phone && app.status === "connected" && (
-            <button
-              type="button"
-              onClick={loadTools}
-              disabled={busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45"
-            >
-              {busy === "tools" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />} {tools?.length ? "Check again" : "Load tools"}
-            </button>
+              <label className="mt-4 block text-[13px] font-semibold text-text-primary" htmlFor={`prompt-${app.id}`}>What to pull</label>
+              <textarea
+                id={`prompt-${app.id}`}
+                rows={4}
+                value={draft.prompt}
+                onChange={(e) => edit({ prompt: e.target.value })}
+                placeholder="e.g. Pull what is new since the last sync and list anything that needs action."
+                className="mt-1.5 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted/70 focus:border-accent-border focus:outline-none"
+              />
+
+              <div className="mt-4 text-[13px] font-semibold text-text-primary">Feeds these domains</div>
+              {domainChoices.length === 0 ? (
+                <p className="mt-1 text-[13px] text-text-muted">No domains in this vault yet.</p>
+              ) : (
+                <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-label="Domains">
+                  {domainChoices.map((d) => {
+                    const on = draft.domains.includes(d);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => edit({ domains: on ? draft.domains.filter((x) => x !== d) : [...draft.domains, d] })}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[13px] transition-colors ${
+                          on ? "border-accent-border bg-accent-soft font-medium text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-text-primary"
+                        }`}
+                      >
+                        {on && <Check className="h-3 w-3" />} {titleCase(d)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <label className="mt-4 block text-[13px] font-semibold text-text-primary" htmlFor={`schedule-${app.id}`}>Schedule</label>
+              <select
+                id={`schedule-${app.id}`}
+                value={draft.schedule}
+                onChange={(e) => edit({ schedule: e.target.value as Schedule })}
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-text-primary focus:border-accent-border focus:outline-none sm:w-72"
+              >
+                {SCHEDULES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+
+              <div className="mt-4 text-[13px] font-semibold text-text-primary">Read tools it may use</div>
+              {readable.length === 0 ? (
+                <p className="mt-1 text-[13px] text-text-muted">{(tools ?? []).length ? "This connector has no read tools a sync may use." : "Load the tool list below to choose. With none picked, the recipe may use any read tool."}</p>
+              ) : (
+                <div className="mt-1.5 grid gap-1">
+                  {readable.map((t) => {
+                    const on = draft.read_tools.includes(t.name);
+                    return (
+                      <label key={t.name} className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-text-secondary hover:bg-surface-warm">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => edit({ read_tools: on ? draft.read_tools.filter((x) => x !== t.name) : [...draft.read_tools, t.name] })}
+                          className="h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                        />
+                        <span className="min-w-0 truncate font-mono text-[12px]" title={t.full_name}>{t.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-5 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={busy !== null || !draft.prompt.trim() || phone}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-45"
+                >
+                  {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save recipe
+                </button>
+                {dirty && <span className="text-[12px] text-text-muted">Unsaved changes</span>}
+                {!dirty && app.recipe?.updated_at && <span className="text-[12px] text-text-muted">Saved {relTime(app.recipe.updated_at)}</span>}
+              </div>
+            </section>
           )}
+
+
         </div>
-        {!tools?.length ? (
-          <p className="mt-2 text-[13px] text-text-muted">{app.status === "connected" ? "Tools have not been checked yet." : "Sign in to see this connector's tools."}</p>
-        ) : (
-          <>
-            <ul className="mt-3 divide-y divide-border-subtle">
-              {tools.map((t) => {
-                const b = toolBadge(t);
-                return (
-                  <li key={t.name} className="flex min-w-0 items-center gap-3 py-2" title={b.reason}>
-                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-text-primary">{t.name}</span>
-                    <span data-testid="tool-badge" className={`shrink-0 rounded-full px-2 py-0.5 text-[12px] font-medium ring-1 ${TONE_PILL[b.tone]}`}>{b.label}</span>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="mt-3 text-[12px] leading-relaxed text-text-muted">
-              Read tools can feed a sync. Write tools stay in chat only. Send and payment tools are blocked from sync; mail stays draft-only, so you are always the one who sends.
-            </p>
-          </>
-        )}
-      </section>
-    </div>
+      }
+    />
   );
 }

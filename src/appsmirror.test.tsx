@@ -108,17 +108,29 @@ describe("apps mirror model", () => {
 });
 
 // ── Screen ──────────────────────────────────────────────────────────────────
-const invokeMock = vi.fn(async (cmd: string, _args?: Record<string, unknown>): Promise<unknown> => {
+const defaultInvoke = async (cmd: string, _args?: Record<string, unknown>): Promise<unknown> => {
   switch (cmd) {
     case "apps_mirror_list": return LIST;
     case "scan_vault": return [{ name: "work" }, { name: "money" }];
     case "app_favicon": return "";
     case "engine_apps_list": return [];
+    case "engine_apps_threads": return [];
+    case "apps_untrusted_sources": return [{ id: "foo-src", name: "Foo Source", integration: "mcp-remote", urls: ["https://foo.example/mcp"] }];
+    case "engine_apps_access_log": return String(_args?.app) === "bar-mail" ? [
+      { ts: Date.now() - 60_000, tool: "list_threads", access: "read", outcome: "ran", thread: "2026-09-28_foo", domain: "work", summary: "query: from the foo team", app: "bar-mail" },
+      { ts: Date.now() - 30_000, tool: "send_message", access: "blocked", outcome: "queued", thread: "2026-09-28_foo", summary: "to: [an email address]", app: "bar-mail" },
+    ] : [];
+    case "engine_apps_add_source": return {
+      app: { id: "context-fru-dev", name: "Context (fru.dev)", runtime: "claude", server: "context-fru-dev", status: "connected", signin_hint: "", syncable: false, domains: [], trusted: true, integration: "mcp-remote", urls: ["https://context.fru.dev/mcp"] },
+      probe: { ok: true, checked_at: 1, tools: [{ name: "search", kind: "read", read_only_hint: true }, { name: "list_sources", kind: "read", read_only_hint: true }], server: { name: "ibis-context" } },
+      adopted: false,
+    };
     case "ingestion_cli_providers": return [];
     case "apps_mirror_recipe_save": return { ok: true, app: { ...mail, recipe: { prompt: "List new threads", domains: ["money"], schedule: "weekly", read_tools: ["list_threads"] } } };
     default: return undefined;
   }
-});
+};
+const invokeMock = vi.fn(defaultInvoke);
 vi.mock("./bridge", () => ({
   invoke: (cmd: string, args?: Record<string, unknown>) => invokeMock(cmd, args),
   listen: vi.fn(async () => () => {}),
@@ -126,6 +138,8 @@ vi.mock("./bridge", () => ({
 }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(async () => {}) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+// The app's Chat tab is the whole chat panel; here it only has to be there.
+vi.mock("./chatpanel", () => ({ ChatPanel: (p: { scopeApp?: { id: string } }) => <div data-testid="chat-panel" data-scope-app={p.scopeApp?.id} /> }));
 
 import { AppsMirrorPanel } from "./appsmirror";
 
@@ -143,7 +157,7 @@ describe("AppsMirrorPanel", () => {
     const codex = screen.getByRole("region", { name: "Codex" });
     expect(within(codex).getByText("codex mcp login baz-helper")).toBeTruthy();
     // The page header stays in view while scrolling; the content is one column.
-    expect(screen.getByTestId("page-header").className).toMatch(/\bsticky\b/);
+    expect(document.querySelector("[data-settings-header]")).not.toBeNull();
     expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]/);
   });
 
@@ -152,7 +166,9 @@ describe("AppsMirrorPanel", () => {
     await waitFor(() => expect(screen.getByTestId("mirror-row-bar-mail")).toBeTruthy());
     fireEvent.click(screen.getByTestId("mirror-row-bar-mail"));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Bar Mail" })).toBeTruthy());
+    fireEvent.click(screen.getByTestId("app-tab-tools"));
     expect(screen.getAllByTestId("tool-badge").map((b) => b.textContent)).toEqual(["Read", "Blocked", "Blocked"]);
+    fireEvent.click(screen.getByTestId("app-tab-connection"));
     expect((screen.getByRole("button", { name: /Sync now/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText("Save a sync recipe first.")).toBeTruthy();
     // Only the read tool is offered in the recipe checklist.
@@ -172,14 +188,71 @@ describe("AppsMirrorPanel", () => {
     render(<AppsMirrorPanel vaultPath="/v" />);
     await waitFor(() => expect(screen.getByTestId("mirror-row-baz-helper")).toBeTruthy());
     fireEvent.click(screen.getByTestId("mirror-row-baz-helper"));
+    fireEvent.click(await screen.findByTestId("app-tab-connection"));
     await waitFor(() => expect(screen.getByText(/It cannot be synced yet/)).toBeTruthy());
     expect(screen.queryByRole("region", { name: "Sync recipe" })).toBeNull();
   });
 
-  it("keeps the fallback lanes on the page", async () => {
+  it("keeps the fallback lanes in their own groups, never under an app", async () => {
     render(<AppsMirrorPanel vaultPath="/v" />);
+    await waitFor(() => expect(screen.getByTestId("app-scope")).toBeTruthy());
+    expect(screen.queryByText("Sites without a connector")).toBeNull();
+    expect(screen.queryByTestId("apps-lane-sites")).toBeNull();
+    fireEvent.click(screen.getByTestId("apps-row-sites"));
     await waitFor(() => expect(screen.getByText("Sites without a connector")).toBeTruthy());
-    expect(screen.getByText("Obsidian import")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("apps-row-obsidian"));
+    await waitFor(() => expect(screen.getByTestId("apps-lane-obsidian")).toBeTruthy());
+    expect(screen.queryByText("Sites without a connector")).toBeNull();
+  });
+
+  it("opens an app on its Chat tab, scoped to the app", async () => {
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    await waitFor(() => expect(screen.getByTestId("mirror-row-bar-mail")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("mirror-row-bar-mail"));
+    await waitFor(() => expect(screen.getByTestId("chat-panel").getAttribute("data-scope-app")).toBe("bar-mail"));
+    expect(screen.getByTestId("app-tab-chat").getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("lists the access log on the Activity tab", async () => {
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    await waitFor(() => expect(screen.getByTestId("mirror-row-bar-mail")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("mirror-row-bar-mail"));
+    fireEvent.click(await screen.findByTestId("app-tab-activity"));
+    await waitFor(() => expect(screen.getAllByTestId("access-line")).toHaveLength(2));
+    expect(screen.getByText("to: [an email address]")).toBeTruthy();
+    expect(screen.getByText("Waiting for you")).toBeTruthy();
+    expect(invokeMock.mock.calls.find((c) => c[0] === "engine_apps_access_log")?.[1]).toMatchObject({ vault: "/v", app: "bar-mail" });
+  });
+
+  it("adds the suggested source in one click and shows what it found", async () => {
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    fireEvent.click(await screen.findByTestId("apps-row-add-source"));
+    const s = await screen.findByTestId("suggested-source");
+    expect(within(s).getByText("Context (fru.dev)")).toBeTruthy();
+    fireEvent.click(within(s).getByRole("button", { name: /Add/ }));
+    await waitFor(() => expect(screen.getByTestId("probe-ok")).toBeTruthy());
+    expect(invokeMock).toHaveBeenCalledWith("engine_apps_add_source", { vault: "/v", kind: "mcp-remote", urls: ["https://context.fru.dev/mcp"], name: "Context (fru.dev)" });
+    expect(screen.getByText("list_sources")).toBeTruthy();
+  });
+
+  it("offers to trust a source that synced from another Mac", async () => {
+    render(<AppsMirrorPanel vaultPath="/v" />);
+    fireEvent.click(await screen.findByTestId("apps-row-untrusted-foo-src"));
+    expect(within(await screen.findByTestId("untrusted-source")).getByText("Not trusted on this Mac yet")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("trust-here"));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("engine_apps_add_source", { vault: "/v", kind: "mcp-remote", urls: ["https://foo.example/mcp"], name: "Foo Source" }));
+  });
+
+  it("reads untrusted sources from the engine's fields, without the manifest fallback", async () => {
+    const synced = { id: "baz-src", name: "Baz Source", runtime: "claude", server: "baz-src", status: "untrusted_here" as const, status_detail: "Trusted on another Mac", signin_hint: "", syncable: false, domains: [], trusted: true, trusted_here: false, integration: "web", urls: ["https://baz.example"] };
+    invokeMock.mockImplementation(async (cmd: string) => cmd === "apps_mirror_list" ? { ...LIST, apps: [...LIST.apps, synced] } : cmd === "scan_vault" ? [] : undefined);
+    try {
+      render(<AppsMirrorPanel vaultPath="/v" />);
+      fireEvent.click(await screen.findByTestId("apps-row-untrusted-baz-src"));
+      expect(within(await screen.findByTestId("untrusted-source")).getByText("Baz Source")).toBeTruthy();
+      expect(screen.queryByTestId("apps-row-untrusted-foo-src")).toBeNull();
+      expect(invokeMock.mock.calls.some(([c]) => c === "apps_untrusted_sources")).toBe(false);
+    } finally { invokeMock.mockImplementation(defaultInvoke); }
   });
 
   it("shows the full name of a long connector on hover", async () => {
@@ -229,8 +302,7 @@ describe("Apps uses the canonical SideSpine", () => {
   it("keeps the header outside the scroll and the detail in one column", async () => {
     render(<AppsMirrorPanel vaultPath="/v" />);
     await waitFor(() => expect(screen.getByTestId("mirror-row-acme-notes")).toBeTruthy());
-    const header = screen.getByTestId("page-header");
-    expect(header.className).toMatch(/\bshrink-0\b/);
+    const header = document.querySelector("[data-settings-header]")!;
     expect(header.contains(screen.getByTestId("spine-detail"))).toBe(false);
     expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]|max-w-(2xl|3xl|4xl)/);
   });

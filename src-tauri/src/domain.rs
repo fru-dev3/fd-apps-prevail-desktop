@@ -48,8 +48,9 @@ fn skill_key(domain: &str, name: &str) -> String {
 
 /// Enable or disable a skill (persisted in disabled-skills.json). Enabling
 /// removes it from the disabled set; disabling adds it. Idempotent.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn skill_set_enabled(vault: String, domain: String, name: String, enabled: bool) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let mut set = read_disabled_skills(&vault);
     let key = skill_key(&domain, &name);
     if enabled { set.remove(&key); } else { set.insert(key); }
@@ -135,7 +136,7 @@ pub struct DomainContext {
 /// Read a domain's starter prompts from `<vault>/<domain>/PROMPTS.md` (written
 /// by pack import). Returns the bullet-list entries so the chat empty-state can
 /// offer one-click conversation starters. Empty vec if the file is absent.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn read_domain_prompts(vault: String, domain: String) -> Result<Vec<String>, String> {
     let p = PathBuf::from(&vault).join(&domain).join("PROMPTS.md");
     let body = match read_to_string_retry(&p) {
@@ -156,7 +157,7 @@ pub(crate) fn read_domain_prompts(vault: String, domain: String) -> Result<Vec<S
 
 /// Flat file listing of a domain folder (relative paths + sizes, capped), so
 /// "attach the whole folder" can hand the model a map of what it may read.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn domain_tree(vault: String, domain: String) -> Result<serde_json::Value, String> {
     // B2-27: resolve via the v4-aware path (data/domains/<d>, then v3, then flat)
     // so a migrated vault still finds its domains.
@@ -194,7 +195,7 @@ pub(crate) fn domain_tree(vault: String, domain: String) -> Result<serde_json::V
     Ok(serde_json::json!({ "root": root.to_string_lossy(), "files": files }))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn domain_context(vault: String, domain: String) -> Result<DomainContext, String> {
     // B2-27: v4-aware resolution (data/domains/<d>, v3, then flat) so a migrated
     // vault's context panel still loads instead of "domain not found".
@@ -384,7 +385,7 @@ fn context_for_root(root: PathBuf, extra_base: Option<PathBuf>, domain_label: &s
     Ok(DomainContext { state, decisions, journal, recent_logs, skills, layout_v4 })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn scan_skills(vault: String) -> Result<Vec<SkillEntry>, String> {
     let root = PathBuf::from(&vault);
     if !root.exists() {
@@ -541,13 +542,14 @@ pub(crate) fn scan_skills(vault: String) -> Result<Vec<SkillEntry>, String> {
 /// Writes `<vault>/<domain>/_skills/<slug>/SKILL.md` with `runner: llm` frontmatter
 /// and the supplied body as the prompt. Returns the file path. The slug is
 /// sanitized to `[a-z0-9-]` which also makes path-traversal impossible.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn skill_create(
     vault: String,
     domain: Option<String>,
     name: String,
     body: String,
 ) -> Result<String, String> {
+    let _serial = crate::vaultio::serial();
     // Sanitize → lowercase kebab slug; collapse runs of dashes; trim ends.
     let mut slug = String::new();
     let mut prev_dash = false;

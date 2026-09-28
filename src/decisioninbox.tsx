@@ -6,6 +6,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, Bot, Check, Loader2, ListPlus, Play, RotateCcw, ShieldCheck, Clock, X } from "lucide-react";
 import { invoke } from "./bridge";
+import { invokeCached, peekInvoke } from "./query";
+
+const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 import { titleCase, relTime } from "./format";
 import { PREF, cheapModel, getPref } from "./storage";
 import { startProcess, endProcess } from "./processes";
@@ -50,7 +53,9 @@ export function DecisionInbox({ vaultPath, category = "all", onCounts, selected,
   selected?: string | null;
   onRows?: (rows: InboxRow[]) => void;
 }) {
-  const [items, setItems] = useState<DecisionItem[]>([]);
+  // Seeded from the shared cache so a revisit paints the last answer at once;
+  // reload() always fetches fresh behind it.
+  const [items, setItems] = useState<DecisionItem[]>(() => arr(peekInvoke("decisions_pending", { vault: vaultPath })));
   const [busy, setBusy] = useState<string | null>(null);
   const [report, setReport] = useState<{ text: string; report: string } | null>(null);
   const [snoozed, setSnoozed] = useState<Record<string, number>>(() => readSnoozed());
@@ -58,18 +63,18 @@ export function DecisionInbox({ vaultPath, category = "all", onCounts, selected,
   // Queued Google Workspace writes awaiting approval, plus ids dismissed locally
   // (v1 has no CLI drop command, so a dismiss just hides the card; the item stays
   // in pending_gws.json until run).
-  const [gws, setGws] = useState<GwsPending[]>([]);
-  const [acts, setActs] = useState<PendingAct[]>([]);
+  const [gws, setGws] = useState<GwsPending[]>(() => arr(peekInvoke("engine_gws_pending_list", { vault: vaultPath })));
+  const [acts, setActs] = useState<PendingAct[]>(() => arr(peekInvoke("engine_acts_pending", { vault: vaultPath })));
   const [gwsDismissed, setGwsDismissed] = useState<Record<string, boolean>>({});
 
   const reload = useCallback(() => {
-    invoke<DecisionItem[]>("decisions_pending", { vault: vaultPath })
+    invokeCached<DecisionItem[]>("decisions_pending", { vault: vaultPath }, { force: true })
       .then((d) => setItems(Array.isArray(d) ? d : []))
       .catch((e) => console.error("decisions_pending", e));
-    invoke<GwsPending[]>("engine_gws_pending_list", { vault: vaultPath })
+    invokeCached<GwsPending[]>("engine_gws_pending_list", { vault: vaultPath }, { force: true })
       .then((d) => setGws(Array.isArray(d) ? d : []))
       .catch((e) => console.error("engine_gws_pending_list", e));
-    invoke<PendingAct[]>("engine_acts_pending", { vault: vaultPath })
+    invokeCached<PendingAct[]>("engine_acts_pending", { vault: vaultPath }, { force: true })
       .then((a) => setActs(Array.isArray(a) ? a : []))
       .catch((e) => console.error("engine_acts_pending", e));
   }, [vaultPath]);

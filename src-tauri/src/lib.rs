@@ -14,6 +14,7 @@
 mod benchmark;
 mod mirror;
 mod entities_bridge;
+mod appscope;
 mod goals;
 mod appcmds;
 mod bunker;
@@ -37,6 +38,9 @@ mod settings;
 mod threads;
 mod usage;
 mod vault;
+mod perf;
+#[cfg(test)]
+mod perf_bench;
 pub(crate) use chat::{build_cli_env, ideal_state_preamble, resolve_bin_abs, scrubbed_env_pairs};
 pub(crate) use settings::close_to_tray_enabled;
 pub(crate) use appcmds::secs_to_ymdhms;
@@ -380,7 +384,7 @@ pub fn run() {
         .manage(taskgen::TaskGenState::new())
         .manage(skillgen::SkillGenState::new())
         .manage(webui::WebuiState::default())
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(perf_handler(tauri::generate_handler![
             vault::scan_vault,
             vault::vault_migrate_layout,
             normalize::vault_normalize_plan,
@@ -593,10 +597,23 @@ pub fn run() {
             entities_bridge::entities_save,
             entities_bridge::entities_note,
             entities_bridge::engine_entity_threads,
+            appscope::engine_apps_access_log,
+            appscope::engine_apps_threads,
+            appscope::engine_apps_add_source,
+            appscope::engine_apps_remove_source,
+            appscope::apps_untrusted_sources,
             goals::goals_files_read,
             goals::goals_file_write,
             entities_bridge::engine_entity_note_append,
             entities_bridge::entities_refresh,
+            entities_bridge::engine_entities_duplicates,
+            entities_bridge::engine_entities_merge,
+            entities_bridge::engine_entities_not_same,
+            entities_bridge::engine_entities_set_picture,
+            entities_bridge::engine_entities_set_website,
+            entities_bridge::engine_entities_files,
+            entities_bridge::engine_entities_add_file,
+            entities_bridge::engine_entity_picture,
             favicon::app_favicon,
             apps_mirror::apps_mirror_list,
             apps_mirror::apps_mirror_refresh,
@@ -716,7 +733,7 @@ pub fn run() {
             email_bridge::email_bridge_start,
             email_bridge::email_bridge_stop,
             email_bridge::email_bridge_status,
-        ])
+        ]))
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|app, event| {
@@ -724,10 +741,28 @@ pub fn run() {
             // not die with its parent, so kill it here or the public address
             // keeps pointing at a port nobody answers.
             if let tauri::RunEvent::Exit = event {
+                perf::print_summary();
                 use tauri::Manager;
                 app.state::<webui::WebuiState>().stop_tunnel();
             }
         });
+}
+
+/// Wraps the generated invoke handler so PREVAIL_PERF=1 records how long each
+/// command held the main thread (see perf.rs). Off, it is one bool check.
+fn perf_handler<R: tauri::Runtime>(
+    h: impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static,
+) -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    move |invoke| {
+        if !perf::enabled() {
+            return h(invoke);
+        }
+        let name = invoke.message.command().to_string();
+        let t0 = std::time::Instant::now();
+        let handled = h(invoke);
+        perf::record("main", &name, t0.elapsed());
+        handled
+    }
 }
 
 #[cfg(test)]

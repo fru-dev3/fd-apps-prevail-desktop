@@ -32,8 +32,9 @@ pub(crate) async fn read_omega(vault: String) -> Result<String, String> {
 
 /// Write `<vault>/omega.md`, snapshotting the prior text into
 /// _meta/omega-versions/ first (same safety as the constitution).
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn write_omega(vault: String, body: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let p = crate::idealstate::config_write_path(&vault, "omega.md");
     if let Some(parent) = p.parent() { let _ = fs::create_dir_all(parent); }
     if let Ok(existing) = read_to_string_retry(&p) {
@@ -54,7 +55,7 @@ pub(crate) fn write_omega(vault: String, body: String) -> Result<(), String> {
 }
 
 /// Dated snapshots of omega.md, newest first.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn omega_versions(vault: String) -> Result<Vec<serde_json::Value>, String> {
     let vdir = crate::paths::build_root(&vault).join("_meta").join("omega-versions");
     let mut out = Vec::new();

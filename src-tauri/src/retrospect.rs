@@ -127,7 +127,7 @@ fn discover_ledgers(vault: &Path) -> Vec<(String, PathBuf)> {
 /// Roll the intent ledgers up into time periods. `vantage` is day|week|month|year.
 /// Returns `{ vantage, periods: [{ key, label, total, byDomain:[{domain,count}],
 /// threads:[{domain,message,ts,count}] }] }`, newest period first.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn retrospect_rollup(
     vault: String,
     vantage: String,

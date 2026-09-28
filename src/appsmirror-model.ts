@@ -20,7 +20,9 @@ export interface Recipe {
   updated_at?: number;
 }
 export type RuntimeId = "claude" | "codex" | "gemini" | "agy";
-export type MirrorStatus = "connected" | "needs_auth" | "disabled" | "error";
+// untrusted_here: a trusted source synced from another Mac that this Mac has
+// not trusted yet (engine cli b9890c5 and later).
+export type MirrorStatus = "connected" | "needs_auth" | "disabled" | "error" | "untrusted_here";
 export interface MirrorApp {
   id: string;
   name: string;
@@ -39,6 +41,13 @@ export interface MirrorApp {
   last_sync?: number | null;
   last_error?: string | null;
   records_last_sync?: number;
+  // Trusted sources (apps add-source): an app with a read-only integration
+  // the owner added themselves. Listed as runtime "claude".
+  trusted?: boolean;
+  trusted_here?: boolean;
+  integration?: "mcp-remote" | "web" | "links" | string;
+  urls?: string[];
+  source?: { title?: string; llms?: string; endpoints?: { path: string; summary?: string }[] };
 }
 export interface RuntimeInfo {
   runtime: RuntimeId;
@@ -86,7 +95,7 @@ export interface RuntimeGroup {
   apps: MirrorApp[];
 }
 
-const STATUS_RANK: Record<MirrorStatus, number> = { connected: 0, needs_auth: 1, error: 2, disabled: 3 };
+const STATUS_RANK: Record<MirrorStatus, number> = { connected: 0, needs_auth: 1, error: 2, disabled: 3, untrusted_here: 4 };
 
 // One group per known runtime, in a fixed order, plus any runtime the engine
 // reports that this build does not know yet (so nothing is silently dropped).
@@ -94,7 +103,8 @@ const STATUS_RANK: Record<MirrorStatus, number> = { connected: 0, needs_auth: 1,
 // by name.
 export function groupByRuntime(list: MirrorList | null): RuntimeGroup[] {
   const runtimes = list?.runtimes ?? [];
-  const apps = list?.apps ?? [];
+  // Trusted sources have their own group.
+  const apps = (list?.apps ?? []).filter((a) => !a.trusted);
   const ids: string[] = [...RUNTIME_ORDER];
   for (const r of runtimes) if (!ids.includes(r.runtime)) ids.push(r.runtime);
   for (const a of apps) if (!ids.includes(a.runtime)) ids.push(a.runtime);
@@ -118,6 +128,7 @@ export const STATUS_META: Record<MirrorStatus, { label: string; tone: Tone }> = 
   needs_auth: { label: "Needs sign-in", tone: "warn" },
   disabled: { label: "Disabled", tone: "muted" },
   error: { label: "Error", tone: "err" },
+  untrusted_here: { label: "Not trusted on this Mac yet", tone: "warn" },
 };
 export function statusMeta(s: MirrorStatus | string): { label: string; tone: Tone } {
   return STATUS_META[s as MirrorStatus] ?? { label: "Unknown", tone: "muted" };

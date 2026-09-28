@@ -20,6 +20,7 @@ import { useCliVerifyLive } from "./verify";
 import { BrandMark } from "./brandmark";
 import type { CliInfo, DiagCheck, TgBridgeStatus } from "./types";
 import type { UnlistenFn } from "./bridge";
+import { invokeCached } from "./query";
 import { isUserDomain } from "./helpers";
 
 export const COMING_SOON_GATEWAYS: { name: string; icon?: { path: string; hex: string }; mono?: typeof Mail }[] = [
@@ -148,7 +149,7 @@ export function TelegramCard() {
   // active"). cliVerifyLive is the app-wide validation map.
   const verify = useCliVerifyLive();
   const [tgClis, setTgClis] = useState<CliInfo[]>([]);
-  useEffect(() => { invoke<CliInfo[]>("detect_clis").then((v) => setTgClis(Array.isArray(v) ? v : [])).catch(() => {}); }, []);
+  useEffect(() => { invokeCached<CliInfo[]>("detect_clis").then((v) => setTgClis(Array.isArray(v) ? v : [])).catch(() => {}); }, []);
   const routableClis = tgClis.filter((c) => c.available && verify.get(c.id)?.status !== "failed");
   // Keep the selection valid: if the chosen CLI isn't routable, fall back.
   useEffect(() => {
@@ -403,7 +404,7 @@ export function WebhookCard() {
   const [status, setStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" });
   const routable = clis.filter((c) => c.available && verify.get(c.id)?.status !== "failed");
 
-  useEffect(() => { invoke<CliInfo[]>("detect_clis").then((v) => setClis(Array.isArray(v) ? v : [])).catch(() => {}); }, []);
+  useEffect(() => { invokeCached<CliInfo[]>("detect_clis").then((v) => setClis(Array.isArray(v) ? v : [])).catch(() => {}); }, []);
   useEffect(() => { invoke<boolean>("provider_key_exists", { provider: "webhook" }).then((ok) => setSecretSaved(!!ok)).catch(() => {}); }, []);
   useEffect(() => { lsSet("prevail.webhook.port", port); }, [port]);
   useEffect(() => { lsSet("prevail.webhook.cli", cli); }, [cli]);
@@ -526,7 +527,7 @@ export function NativeBridgeCard({ platform, label, icon, mono, urlLabel, urlPla
   const [status, setStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" });
   const routable = clis.filter((c) => c.available && verify.get(c.id)?.status !== "failed");
 
-  useEffect(() => { invoke<CliInfo[]>("detect_clis").then((v) => setClis(Array.isArray(v) ? v : [])).catch(() => {}); }, []);
+  useEffect(() => { invokeCached<CliInfo[]>("detect_clis").then((v) => setClis(Array.isArray(v) ? v : [])).catch(() => {}); }, []);
   useEffect(() => { invoke<boolean>("provider_key_exists", { provider }).then((ok) => setTokenSaved(!!ok)).catch(() => {}); }, [provider]);
   useEffect(() => { lsSet(`prevail.native.${platform}.url`, baseUrl); }, [baseUrl, platform]);
   useEffect(() => { lsSet(`prevail.native.${platform}.channel`, channel); }, [channel, platform]);
@@ -618,7 +619,7 @@ function useBridgeCli(key: string) {
   const [cli, setCli] = useState(lsGet(key) || "claude");
   const verify = useCliVerifyLive();
   const [clis, setClis] = useState<CliInfo[]>([]);
-  useEffect(() => { invoke<CliInfo[]>("detect_clis").then((v) => setClis(Array.isArray(v) ? v : [])).catch(() => {}); }, []);
+  useEffect(() => { invokeCached<CliInfo[]>("detect_clis").then((v) => setClis(Array.isArray(v) ? v : [])).catch(() => {}); }, []);
   const routable = clis.filter((c) => c.available && verify.get(c.id)?.status !== "failed");
   useEffect(() => { lsSet(key, cli); }, [key, cli]);
   useEffect(() => { if (routable.length > 0 && !routable.some((c) => c.id === cli)) setCli(routable[0].id);
@@ -1086,8 +1087,10 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
 
     // Background surfaces.
     try {
-      const tg = await invoke<{ running: boolean }>("telegram_bridge_status");
-      const wu = await invoke<{ running: boolean }>("webui_status");
+      const [tg, wu] = await Promise.all([
+        invoke<{ running: boolean }>("telegram_bridge_status"),
+        invoke<{ running: boolean }>("webui_status"),
+      ]);
       const surfaces = [tg.running ? "Telegram" : null, wu.running ? "WebUI" : null].filter(Boolean);
       out.push({
         label: "External access", status: surfaces.length > 0 ? "info" : "ok",

@@ -21,3 +21,9 @@ if (typeof globalThis.localStorage === "undefined") {
     },
   } as Storage;
 }
+
+// The shared query cache is module state: start every test with it empty so a
+// page never paints the previous test's data. Imported lazily: a static
+// import here would load ./bridge before a test file's vi.mock("./bridge").
+import { afterEach } from "vitest";
+afterEach(async () => { (await import("./query")).clearQueryCache(); });

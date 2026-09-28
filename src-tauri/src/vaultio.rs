@@ -99,3 +99,33 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+/// One process-wide lane for the commands that read-modify-write local files
+/// (tasks, journal, prefs, threads, ideals...). Those commands used to run on
+/// the main thread, which serialized them for free; now that they run off it,
+/// this keeps two of them from interleaving and losing an update. Re-entrant
+/// on the same thread, so a guarded command may call another (tasks_add calls
+/// tasks_set). Hold it only for the local file work.
+pub(crate) struct Serial(Option<std::sync::MutexGuard<'static, ()>>);
+
+thread_local! {
+    static SERIAL_HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub(crate) fn serial() -> Serial {
+    if SERIAL_HELD.with(|h| h.get()) {
+        return Serial(None);
+    }
+    static LANE: Mutex<()> = Mutex::new(());
+    let g = LANE.lock().unwrap_or_else(|e| e.into_inner());
+    SERIAL_HELD.with(|h| h.set(true));
+    Serial(Some(g))
+}
+
+impl Drop for Serial {
+    fn drop(&mut self) {
+        if self.0.is_some() {
+            SERIAL_HELD.with(|h| h.set(false));
+        }
+    }
+}

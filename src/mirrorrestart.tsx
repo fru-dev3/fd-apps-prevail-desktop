@@ -39,7 +39,7 @@ function Section({ title, rows, excluded, toggle, readOnly }: { title: string; r
   if (!rows.length) return null;
   return (
     <section className="mt-5">
-      <h4 className="mb-2 text-[16px] font-semibold text-text-primary">{title}</h4>
+      {title && <h4 className="mb-2 text-[16px] font-semibold text-text-primary">{title}</h4>}
       <ul className="space-y-1.5">
         {rows.map((r) => {
           const off = excluded.has(r.text);
@@ -117,7 +117,10 @@ function RebuildCheck({ vaultPath, slug }: { vaultPath: string; slug: string }) 
   );
 }
 
-export function RestartEditor({ vaultPath, slug, phone }: { vaultPath: string; slug: string; phone: boolean }) {
+// One project's restart document, shared by the detail's tabs: the Overview
+// carries the copy buttons, Requirements the tick list, Technical details the
+// rest. What is unticked anywhere is left out of every copy.
+export function useRestart(vaultPath: string, slug: string) {
   const [doc, setDoc] = useState<RestartDoc | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
@@ -133,34 +136,74 @@ export function RestartEditor({ vaultPath, slug, phone }: { vaultPath: string; s
   const exclude = useMemo(() => [...excluded], [excluded]);
   const text = (format: "handoff" | "intent" | "raw") => () =>
     invoke<string>("projects_restart_text", { vault: vaultPath, slug, format, exclude: exclude.length ? exclude : null });
+  return { vaultPath, slug, doc, err, excluded, toggle, text };
+}
+export type Restart = ReturnType<typeof useRestart>;
 
-  const sections: { title: string; rows: Row[] }[] = doc ? [
-    { title: "Goal", rows: doc.goal ? [{ text: doc.goal }] : [] },
-    { title: "Requirements", rows: (doc.requirements ?? []).map((r) => ({ text: r.text, tag: r.source })) },
-    { title: "Rules you already had to give", rows: (doc.rules ?? []).map((text) => ({ text })) },
-    { title: "Decisions", rows: (doc.decisions ?? []).map((text) => ({ text })) },
-    { title: "Dead ends", rows: (doc.dead_ends ?? []).map((text) => ({ text })) },
-    { title: "Open questions", rows: (doc.open_questions ?? []).map((text) => ({ text })) },
-  ] : [];
+const loading = <div className="mt-4 flex items-center gap-2 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading the project</div>;
 
+export function RestartCard({ r, phone }: { r: Restart; phone: boolean }) {
+  const { doc, err } = r;
   return (
-    <>
-      <section className="mt-6 rounded-xl border border-accent-border bg-accent-soft/30 p-5" data-testid="restart">
-        <h3 className="text-[19px] font-semibold text-text-primary flex items-center gap-2"><RotateCcw className="h-5 w-5 text-accent" />Restart</h3>
-        <p className="mt-1 text-[14px] leading-snug text-text-secondary">
-          Everything a newer model needs to do this properly, without the back-and-forth.{!phone && " Untick what should not carry over."}
-          {doc?.brief_model ? ` Distilled by ${modelName(doc.brief_model)}.` : ""}
-        </p>
-        <div className={`mt-4 flex flex-wrap gap-2 ${phone ? "" : ""}`}>
-          <CopyBtn primary big={phone} label="Copy restart brief" get={text("handoff")} />
-          {!phone && <CopyBtn label="Copy intent" get={text("intent")} />}
-          {!phone && <CopyBtn label="Copy raw prompts" get={text("raw")} />}
-        </div>
-        {err && <div className="mt-3 text-[13px] text-err">{err}</div>}
-        {!doc && !err && <div className="mt-4 flex items-center gap-2 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading the project</div>}
-        {sections.map((s) => <Section key={s.title} title={s.title} rows={s.rows} excluded={excluded} toggle={toggle} readOnly={phone} />)}
-      </section>
-      {!phone && <RebuildCheck vaultPath={vaultPath} slug={slug} />}
-    </>
+    <section className="mt-6 rounded-xl border border-accent-border bg-accent-soft/30 p-5" data-testid="restart">
+      <h3 className="text-[19px] font-semibold text-text-primary flex items-center gap-2"><RotateCcw className="h-5 w-5 text-accent" />Restart</h3>
+      <p className="mt-1 text-[14px] leading-snug text-text-secondary">
+        Everything a newer model needs to do this properly, without the back-and-forth.{!phone && " Untick what should not carry over under Requirements and Technical details."}
+        {doc?.brief_model ? ` Distilled by ${modelName(doc.brief_model)}.` : ""}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <CopyBtn primary big={phone} label="Copy restart brief" get={r.text("handoff")} />
+        {!phone && <CopyBtn label="Copy intent" get={r.text("intent")} />}
+        {!phone && <CopyBtn label="Copy raw prompts" get={r.text("raw")} />}
+      </div>
+      {err && <div className="mt-3 text-[13px] text-err">{err}</div>}
+      {!doc && !err && loading}
+      {doc?.goal && <Section title="Goal" rows={[{ text: doc.goal }]} excluded={r.excluded} toggle={r.toggle} readOnly={phone} />}
+    </section>
+  );
+}
+
+type Who = "all" | "you" | "inferred";
+export function RequirementsPane({ r, phone }: { r: Restart; phone: boolean }) {
+  const [who, setWho] = useState<Who>("all");
+  if (!r.doc) return r.err ? <div className="mt-4 text-[13px] text-err">{r.err}</div> : loading;
+  const all = r.doc.requirements ?? [];
+  const n = (w: Who) => (w === "all" ? all.length : all.filter((x) => x.source === w).length);
+  const rows = all.filter((x) => who === "all" || x.source === who).map((x) => ({ text: x.text, tag: x.source }));
+  const opts: { id: Who; label: string }[] = [{ id: "all", label: "All" }, { id: "you", label: "From you" }, { id: "inferred", label: "Inferred" }];
+  return (
+    <div data-testid="project-requirements" className="pt-5">
+      <div role="radiogroup" aria-label="Who said it" className="inline-flex rounded-lg bg-surface-warm p-0.5">
+        {opts.map((o) => (
+          <button key={o.id} role="radio" aria-checked={who === o.id} onClick={() => setWho(o.id)} data-testid={`req-filter-${o.id}`}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] ${who === o.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
+            {o.label}<span className="text-[12px] font-normal tabular-nums text-text-muted">{n(o.id)}</span>
+          </button>
+        ))}
+      </div>
+      {rows.length === 0
+        ? <p className="mt-5 text-[14px] text-text-muted">{all.length ? "None of this kind." : "No requirements found yet."}</p>
+        : <Section title="" rows={rows} excluded={r.excluded} toggle={r.toggle} readOnly={phone} />}
+    </div>
+  );
+}
+
+// Rules, decisions, dead ends, open questions and the rebuild check: folded
+// away until asked for.
+export function TechnicalDetails({ r, phone }: { r: Restart; phone: boolean }) {
+  const d = r.doc;
+  if (!d) return null;
+  const sections: { title: string; rows: Row[] }[] = [
+    { title: "Rules you already had to give", rows: (d.rules ?? []).map((text) => ({ text })) },
+    { title: "Decisions", rows: (d.decisions ?? []).map((text) => ({ text })) },
+    { title: "Dead ends", rows: (d.dead_ends ?? []).map((text) => ({ text })) },
+    { title: "Open questions", rows: (d.open_questions ?? []).map((text) => ({ text })) },
+  ];
+  return (
+    <details data-testid="project-technical" className="group mt-6 rounded-xl border border-border-subtle bg-surface px-5 py-3">
+      <summary className="cursor-pointer select-none text-[15px] font-semibold text-text-primary">Technical details</summary>
+      {sections.map((s) => <Section key={s.title} title={s.title} rows={s.rows} excluded={r.excluded} toggle={r.toggle} readOnly={phone} />)}
+      {!phone && <RebuildCheck vaultPath={r.vaultPath} slug={r.slug} />}
+    </details>
   );
 }

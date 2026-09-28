@@ -11,10 +11,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
+import { hasInvoke, invokeCached, peekInvoke } from "./query";
 import { relTime, titleCase } from "./format";
 import { modelLabel } from "./helpers2";
 import { distillCfgFromPrefs } from "./daemoncfg";
-import { SideSpine, STICKY_HEAD } from "./sidespine";
+import { SideSpine } from "./sidespine";
+import { SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
 import { PREF, setPref } from "./storage";
 import { toast } from "./toast";
@@ -179,7 +181,11 @@ function SpineList({ counts, sel, onSelect }: { counts: Record<SpineKey, number>
 
 export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
   const phone = useIsPhone();
-  const [recs, setRecs] = useState<Rec[] | null>(null);
+  const [recs, setRecs] = useState<Rec[] | null>(() => {
+    if (!hasInvoke("engine_recommendations", { vault: vaultPath })) return null;
+    const c = peekInvoke<{ recommendations?: Rec[] }>("engine_recommendations", { vault: vaultPath });
+    return Array.isArray(c?.recommendations) ? c!.recommendations!.map(normalizeRec) : [];
+  });
   const [dismissed, setDismissed] = useState<Set<string>>(() => loadSet(REC_DISMISSED));
   const [saved, setSaved] = useState<Set<string>>(() => loadSet(REC_SAVED));
   const [sel, setSel] = useState<SpineKey>(() => {
@@ -192,12 +198,14 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
   const [daemon, setDaemon] = useState<DistillStatus | null>(null);
   const [running, setRunning] = useState(false);
 
+  // The two reads are independent: run them together.
   const load = useCallback(async () => {
-    try {
-      const r = await invoke<{ ok: boolean; recommendations?: Rec[] }>("engine_recommendations", { vault: vaultPath });
-      setRecs(Array.isArray(r?.recommendations) ? r.recommendations.map(normalizeRec) : []);
-    } catch { setRecs([]); }
-    try { setDaemon(await invoke<DistillStatus>("distill_status")); } catch { /* daemon not started */ }
+    await Promise.all([
+      invokeCached<{ ok: boolean; recommendations?: Rec[] }>("engine_recommendations", { vault: vaultPath }, { force: true })
+        .then((r) => setRecs(Array.isArray(r?.recommendations) ? r.recommendations.map(normalizeRec) : []))
+        .catch(() => setRecs([])),
+      invoke<DistillStatus>("distill_status").then(setDaemon).catch(() => { /* daemon not started */ }),
+    ]);
   }, [vaultPath]);
   useEffect(() => { void load(); }, [load]);
 
@@ -290,27 +298,21 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
     </div>
   );
   const detail = <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{toolbar}{body}</div>;
+  // When it last learned, and Learn now: under the column title, never a
+  // lone button in the page header.
+  const learned = isLearning ? "Learning now" : daemon?.last_run_ts ? `Learned ${relTime(daemon.last_run_ts * 1000)}` : "Not learned yet";
+  const learnBtn = (
+    <button onClick={() => void runNow()} disabled={isLearning} title="Learn now and refresh" aria-label="Learn now and refresh" className={iconBtn}>
+      {isLearning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+    </button>
+  );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background" data-testid="recommendations-page">
-      <div data-testid="page-header" className={`${STICKY_HEAD} flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border ${phone ? "px-4 py-3" : "px-8 py-5"}`}>
-        {/* On a phone the shell's header bar already names the page. */}
-        {!phone && (
-          <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><Lightbulb className="h-5 w-5" /></span>
-            Recommendations
-          </h1>
-        )}
-        <div className="ml-auto flex items-center gap-2 text-[13px] text-text-muted">
-          <span className={`h-2 w-2 rounded-full ${isLearning ? "bg-accent" : "bg-text-muted/40"}`} />
-          <span>{isLearning ? "Learning now" : daemon?.last_run_ts ? `Learned ${relTime(daemon.last_run_ts * 1000)}` : "Not learned yet"}</span>
-          <button onClick={() => void runNow()} disabled={isLearning} title="Learn now and refresh" aria-label="Learn now and refresh" className={iconBtn}>
-            {isLearning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-          </button>
-        </div>
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="recommendations-page">
+      <SettingsHeader icon={Lightbulb} title="Recommendations" subtitle="Next steps learned from your prompts, projects, apps and benchmarks." />
       {phone ? (
         <>
+          <div className="flex items-center justify-between gap-2 px-4 pt-2 text-[13px] text-text-muted"><span>{learned}</span>{learnBtn}</div>
           <div className="flex gap-1.5 overflow-x-auto border-b border-border-subtle px-4 py-2" role="tablist" aria-label="Recommendation categories">
             {SPINE.map(({ key, label }) => (
               <button key={key} role="tab" aria-selected={sel === key} onClick={() => select(key)}
@@ -322,7 +324,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
           <div className="min-h-0 flex-1 overflow-y-auto">{detail}</div>
         </>
       ) : (
-        <SideSpine storageKey="prevail.recs.spine" title="Categories" label="categories" testId="recs-spine" detail={detail}>
+        <SideSpine storageKey="prevail.recs.spine" title="Categories" label="categories" testId="recs-spine" detail={detail} meta={learned} actions={learnBtn}>
           <SpineList counts={counts} sel={sel} onSelect={select} />
         </SideSpine>
       )}
@@ -335,7 +337,11 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
 type BriefIntent = { title?: string; goal?: string };
 const BRIEF_ICON: Record<RecCategory, LucideIcon> = { rules: ScrollText, projects: FolderKanban, apps: Plug, people: Users, models: BarChart3, context: Gauge };
 export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
-  const [raw, setRaw] = useState<Rec[] | null>(null);
+  const [raw, setRaw] = useState<Rec[] | null>(() => {
+    if (!hasInvoke("engine_recommendations", { vault: vaultPath })) return null;
+    const c = peekInvoke<{ recommendations?: Rec[] }>("engine_recommendations", { vault: vaultPath });
+    return Array.isArray(c?.recommendations) ? c!.recommendations! : [];
+  });
   const [dismissed, setDismissed] = useState<Set<string>>(() => loadSet(REC_DISMISSED));
   const [intents, setIntents] = useState<BriefIntent[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -344,7 +350,7 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     let alive = true;
-    invoke<{ ok: boolean; recommendations?: Rec[] }>("engine_recommendations", { vault: vaultPath })
+    invokeCached<{ ok: boolean; recommendations?: Rec[] }>("engine_recommendations", { vault: vaultPath })
       .then((r) => { if (alive) setRaw(Array.isArray(r?.recommendations) ? r.recommendations : []); })
       .catch(() => { if (alive) setRaw([]); });
     invoke<{ intents?: BriefIntent[] }>("intents_distilled_read", { vault: vaultPath })

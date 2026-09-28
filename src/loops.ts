@@ -189,36 +189,9 @@ export function makeBriefingLoop(domain: string): Loop {
   });
 }
 
-// The Model Scout — a built-in loop that lives ONLY in the General domain. Each
-// day it searches the web for AI models worth adding to the Arena benchmark
-// (open-weight + frontier) and writes build/_meta/model_suggestions.json, which
-// the Arena surfaces. Runs autonomously (read-only research, nothing to approve).
-export function makeModelScoutLoop(): Loop {
-  return normalizeLoop({
-    id: "loop-model-scout",
-    name: "Model Scout",
-    purpose: "Scan the web daily for AI models worth benchmarking - both open-weight (Llama, Qwen, DeepSeek, ...) and frontier (Claude, GPT, Gemini, Grok, ...) - and recommend ones to add to the Arena so the benchmark tracks the current model landscape.",
-    type: "open",
-    signals: ["new AI model releases", "open-source models", "frontier models", "benchmark coverage"],
-    condition: "always on",
-    cadence: "daily",
-    autonomy: "auto",
-    evaluation: "The benchmark's model list reflects the current notable models; new releases are surfaced for inclusion.",
-    actions: [],
-    status: "active",
-    enabled: true,
-    kind: "scout",
-    createdTs: Date.now(),
-  });
-}
-
-// Ensure the General domain's doc contains the built-in Model Scout loop. No-op
-// for every other domain (the scout is a global concern, so it lives in General).
-export function ensureModelScoutLoop(doc: LoopsDoc, domain: string): { doc: LoopsDoc; added: boolean } {
-  if (domain.toLowerCase() !== "general") return { doc, added: false };
-  if (doc.loops.some((l) => l.kind === "scout" || l.id === "loop-model-scout")) return { doc, added: false };
-  return { doc: { ...doc, loops: [makeModelScoutLoop(), ...doc.loops] }, added: true };
-}
+// The Model Scout loop (kind "scout") was retired in 0.4.1 with the Arena's
+// Model Scout page. The app no longer creates it; a scout loop already in a
+// vault is user data and is left exactly as it is.
 
 // Ensure the doc contains the domain's built-in Briefing loop. Returns the doc
 // (possibly with the briefing loop appended) and whether it was added, so the

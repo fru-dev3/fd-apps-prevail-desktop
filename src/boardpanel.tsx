@@ -3,9 +3,11 @@
 // consequential waits in the Inbox. Reads tasks_read_all; moves via
 // tasks_set_status / tasks_set_owner. Trash and Icebox sit behind More.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { VIRTUAL_MIN, VirtualRows } from "./virtualrows";
 import { Bot, CornerUpLeft, Filter, Flag, LayoutGrid, ListChecks, Loader2, Play, Plus, RotateCcw, Search, Trash2, User, X, Zap } from "lucide-react";
 import { invoke, listen } from "./bridge";
 import type { UnlistenFn } from "./bridge";
+import { invokeCached, peekInvoke, useInvokeQuery } from "./query";
 import { SettingsHeader } from "./sectionutil";
 import { titleCase } from "./format";
 import { isHarnessRuntime } from "./constants";
@@ -64,7 +66,7 @@ function humanizeAgentError(label: string, cli: string, raw: string): string {
 }
 
 export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: string; initialDomain?: string; clis?: CliInfo[] }) {
-  const [tasks, setTasks] = useState<BoardTask[]>([]);
+  const [tasks, setTasks] = useState<BoardTask[]>(() => { const c = peekInvoke<BoardTask[]>("tasks_read_all", { vault: vaultPath, limit: 200 }); return Array.isArray(c) ? c : []; });
   // Installed harness agents available to run a task (Hermes/Pi/OpenCode/…).
   const harnesses = useMemo(() => (clis ?? []).filter((c) => isHarnessRuntime(c.id) && c.available), [clis]);
   // Which task's "Run with agent" picker is open, and which tasks are mid-run.
@@ -91,16 +93,17 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
     return () => window.removeEventListener("prevail:board-add", open);
   }, []);
   const [running, setRunning] = useState(false);
-  const [allDomains, setAllDomains] = useState<string[]>([]);
+  const domainsQ = useInvokeQuery<{ name: string }[]>("scan_vault", { path: vaultPath });
+  const allDomains = useMemo(() => (Array.isArray(domainsQ.data) ? domainsQ.data.map((d) => d.name).filter(isUserDomain) : []), [domainsQ.data]);
   // Backend pagination: read a bounded first page (open/time-sensitive tasks
   // first) so a huge vault doesn't ship every task at once. "Load more tasks"
   // raises the cap. Default page is generous so normal vaults load everything.
   const TASK_PAGE = 200;
   const [taskLimit, setTaskLimit] = useState(TASK_PAGE);
-  const [maybeMore, setMaybeMore] = useState(false);
+  const [maybeMore, setMaybeMore] = useState(() => tasks.length >= TASK_PAGE);
 
   const reload = useCallback(() => {
-    invoke<BoardTask[]>("tasks_read_all", { vault: vaultPath, limit: taskLimit })
+    invokeCached<BoardTask[]>("tasks_read_all", { vault: vaultPath, limit: taskLimit }, { force: true })
       .then((t) => { const arr = Array.isArray(t) ? t : []; setTasks(arr); setMaybeMore(arr.length >= taskLimit); })
       .catch((e) => console.error("tasks_read_all", e));
   }, [vaultPath, taskLimit]);
@@ -128,12 +131,8 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
     } catch { /* storage off */ }
     return () => window.removeEventListener("prevail:open-task", onOpenTask as EventListener);
   }, []);
-  // Full domain list (so you can add a task to a domain that has none yet).
-  useEffect(() => {
-    invoke<{ name: string }[]>("scan_vault", { path: vaultPath })
-      .then((ds) => setAllDomains(Array.isArray(ds) ? ds.map((d) => d.name).filter(isUserDomain) : []))
-      .catch(() => {});
-  }, [vaultPath]);
+  // Full domain list (so you can add a task to a domain that has none yet):
+  // domainsQ above, shared with every other domain picker.
 
   // Filter dropdown shows only domains with tasks; the add picker offers every domain.
   const domains = useMemo(() => [...new Set(tasks.map((t) => t.domain))].sort(), [tasks]);
@@ -425,6 +424,16 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
     { id: "trash", label: "Trash" }, { id: "icebox", label: "Icebox" },
   ];
 
+  const domainHead = (d: string, n: number) => (
+    <h3 className="flex items-baseline gap-2 px-2.5 pb-1 pt-1 text-[15px] font-semibold text-text-primary">{titleCase(d)}<span className="text-[13px] font-normal text-text-muted">{n}</span></h3>
+  );
+  type FlatRow = { kind: "h"; d: string; n: number; first: boolean } | { kind: "t"; t: BoardTask };
+  const flatRows: FlatRow[] = [];
+  byDomain.forEach(([d, items], i) => {
+    flatRows.push({ kind: "h", d, n: items.length, first: i === 0 });
+    for (const t of items.slice(0, 200)) flatRows.push({ kind: "t", t });
+  });
+
   return (
     <div className={`flex min-h-0 flex-col ${initialDomain ? "h-[75vh]" : "h-full"}`} data-testid="tasks-page">
       <SettingsHeader title="Tasks" icon={ListChecks} subtitle="Your tasks, yours or handed to AI."
@@ -520,9 +529,13 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
           </div>
         }>
         <div className="p-2" data-testid="tasks-list">
-          {byDomain.map(([d, items]) => (
+          {flatRows.length > VIRTUAL_MIN
+            // A large board: one windowed list of domain headings and task rows.
+            ? <VirtualRows items={flatRows} estimate={52} getKey={(r) => (r.kind === "h" ? `h:${r.d}` : r.t.id ?? r.t.text)}
+                render={(r) => (r.kind === "h" ? <div className={r.first ? "" : "pt-3"}>{domainHead(r.d, r.n)}</div> : row(r.t))} />
+            : byDomain.map(([d, items]) => (
             <section key={d} className="mb-3">
-              <h3 className="flex items-baseline gap-2 px-2.5 pb-1 pt-1 text-[15px] font-semibold text-text-primary">{titleCase(d)}<span className="text-[13px] font-normal text-text-muted">{items.length}</span></h3>
+              {domainHead(d, items.length)}
               {items.slice(0, 200).map(row)}
             </section>
           ))}

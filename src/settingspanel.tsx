@@ -2,7 +2,7 @@
 // left-nav and composes every Settings section from its own module.
 import { useEffect, useState } from "react";
 import { BarChart3, Bot, Database, EyeOff, Github, Keyboard, ListChecks, Lock, MessagesSquare, Network, Palette, Send, Settings as SettingsIcon, Shield, ShieldCheck, SlidersHorizontal, Smartphone, UserRound, Webhook, Wrench } from "lucide-react";
-import { invoke } from "./bridge";
+import { useInvokeQuery } from "./query";
 import { useAppearance } from "./hooks";
 import { SettingsHub, type HubGroup } from "./settingshub";
 import { ScrollPage } from "./sectionutil";
@@ -19,7 +19,8 @@ import { AutonomyPanel } from "./autonomypanel";
 import { GeneralSection, SafetySection } from "./settings4";
 import { AboutSection, GatewayLogsCard, GatewaySection } from "./settings5";
 import { IntegrationsPanel } from "./integrationspanel";
-import { CouncilSettingsSection, PrivacyConnectivitySection, type PrivacyPart } from "./settings6";
+import { PrivacyConnectivitySection, type PrivacyPart } from "./settings6";
+import { CouncilSettingsSection } from "./councils";
 import { track } from "./telemetry";
 import { ModelsSection } from "./settings7";
 import { WorkspaceSection } from "./settings8";
@@ -84,18 +85,17 @@ export function SettingsPanel({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // One-word statuses for the Connections rows, from what those pages read.
-  const [conn, setConn] = useState<{ phone?: string; mcp?: string; network?: string }>({});
-  useEffect(() => {
-    if (section !== "connections") return;
-    let alive = true;
-    invoke<{ running?: boolean }>("webui_status").then((s) => { if (alive) setConn((c) => ({ ...c, phone: s?.running ? "On" : "Off" })); }).catch(() => {});
-    invoke<{ clients?: { registered: boolean }[] }>("mcp_install_status").then((m) => {
-      const n = (m?.clients ?? []).filter((x) => x.registered).length;
-      if (alive) setConn((c) => ({ ...c, mcp: `${n} client${n === 1 ? "" : "s"}` }));
-    }).catch(() => {});
-    invoke<string>("machine_role_get").then((r) => { if (alive) setConn((c) => ({ ...c, network: r === "client" ? "Client" : "Hub" })); }).catch(() => {});
-    return () => { alive = false; };
-  }, [section]);
+  // Through the shared cache: a revisit shows the last statuses at once.
+  const connOn = section === "connections" ? {} : null;
+  const webQ = useInvokeQuery<{ running?: boolean }>("webui_status", connOn);
+  const mcpQ = useInvokeQuery<{ clients?: { registered: boolean }[] }>("mcp_install_status", connOn);
+  const roleQ = useInvokeQuery<string>("machine_role_get", connOn);
+  const mcpN = (mcpQ.data?.clients ?? []).filter((x) => x.registered).length;
+  const conn: { phone?: string; mcp?: string; network?: string } = {
+    phone: webQ.loading ? undefined : webQ.data?.running ? "On" : "Off",
+    mcp: mcpQ.loading ? undefined : `${mcpN} client${mcpN === 1 ? "" : "s"}`,
+    network: roleQ.loading ? undefined : roleQ.data === "client" ? "Client" : "Hub",
+  };
 
   const connections: HubGroup[] = [{ items: [
     { id: "phone", label: "Phone", icon: Smartphone, status: conn.phone, render: () => <PhoneSection /> },
@@ -111,11 +111,12 @@ export function SettingsPanel({
       { id: "vault-lock", label: "Vault Lock", icon: Lock, render: privacy("vault-lock") },
       { id: "incognito", label: "Incognito", icon: EyeOff, render: privacy("incognito") },
       { id: "guardrail", label: "Outbound Guardrail", icon: Send, render: privacy("guardrail") },
-      { id: "always", label: "Always allowed", icon: ListChecks, render: privacy("always") },
       { id: "telemetry", label: "Telemetry", icon: BarChart3, render: privacy("telemetry") },
     ]},
     { heading: "Autonomy", items: [
       { id: "autonomy", label: "Autonomy", icon: Bot, render: () => <AutonomyPanel vaultPath={vaultPath} /> },
+      // The approvals you chose not to repeat: what agents may do unasked.
+      { id: "always", label: "Runs without asking", icon: ListChecks, render: privacy("always") },
     ]},
     { heading: "Safety", items: [
       { id: "safety-access", label: "Access protection", icon: Lock, render: () => <SafetySection vaultPath={vaultPath} part="access" /> },
@@ -148,10 +149,10 @@ export function SettingsPanel({
         {/* Full width: settings use the whole pane. */}
         
           {section === "models" && <ModelsSection clis={clis} onStartChatWith={onStartChatWith} onActivated={onRefreshClis} vaultPath={vaultPath} />}
-          {section === "benchmark" && <BenchmarkPanel vaultPath={vaultPath} />}
+          {section === "benchmark" && <BenchmarkPanel key={row ?? ""} vaultPath={vaultPath} initial={row} />}
           {section === "council" && <CouncilSettingsSection clis={clis} />}
           {section === "toolkit" && <ToolkitSection vaultPath={vaultPath} />}
-          {section === "intent" && <MirrorPanel vaultPath={vaultPath} />}
+          {section === "intent" && <MirrorPanel vaultPath={vaultPath} title="Intent" />}
           {section === "entities" && <EntitiesView vaultPath={vaultPath} />}
           {section === "ideal-state" && <IdealsSection vaultPath={vaultPath} initial={row} />}
           {/* Activity gathers what Prevail did (by kind) and Usage. */}

@@ -6,15 +6,18 @@
 // keeps a readable copy (prompts.md) and an exact one (prompts.jsonl).
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight, Bot, Check, Lightbulb, Loader2, RefreshCw, Sparkles, Target, type LucideIcon,
+  ArrowRight, Check, Lightbulb, Loader2, RefreshCw, Sparkles, Target, type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
+import { hasInvoke, invokeCached, invokeKey, peekInvoke, setQueryData } from "./query";
 import { titleCase } from "./format";
 import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { useIsPhone } from "./useisphone";
 import { SideSpine } from "./sidespine";
-import { RestartEditor } from "./mirrorrestart";
+import { DetailTitle, META } from "./typescale";
+import { RequirementsPane, RestartCard, TechnicalDetails, useRestart } from "./mirrorrestart";
+import type { HistoryDoc } from "./mirror";
 
 export interface ProjectIntent { title: string; goal: string; status: string }
 export interface ProjectEntry {
@@ -89,6 +92,17 @@ function ActivityChart({ p }: { p: ProjectEntry }) {
   );
 }
 
+// A project's title as a title, whatever case the model wrote it in: each
+// word capitalized, small joining words kept low, acronyms and brands kept.
+const SMALL = new Set(["a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with", "at", "by", "vs"]);
+export function displayTitle(t: string): string {
+  return t.trim().split(/(\s+)/).map((w, i) => {
+    if (/^\s+$/.test(w) || !w) return w;
+    if (i > 0 && SMALL.has(w.toLowerCase())) return w.toLowerCase();
+    return /[A-Z]/.test(w.slice(1)) || /\./.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1);
+  }).join("");
+}
+
 const fmtDay = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const fmtSpan = (a: number, b: number) => {
   const A = new Date(a); const B = new Date(b);
@@ -130,13 +144,148 @@ function Sparkline({ monthly, months, color }: { monthly: Record<string, number>
   );
 }
 
-function DomainPill({ domain }: { domain: string }) {
+// The project's badge in its detail header: a small tile with its domain's icon.
+function ProjectBadge({ domain }: { domain: string }) {
   const c = domainColor(domain);
-  const Icon = domainIcon(domain);
+  const Icon = domainIcon(domain) ?? Target;
   return (
-    <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide" style={{ color: c, backgroundColor: `${c}1f` }}>
-      {Icon && <Icon size={11} aria-hidden />}{titleCase(domain)}
+    <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-warm" style={{ color: c }}>
+      <Icon size={16} />
     </span>
+  );
+}
+
+type ProjectTab = "overview" | "requirements" | "prompts" | "timeline";
+const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
+  { id: "overview", label: "Overview" }, { id: "requirements", label: "Requirements" }, { id: "prompts", label: "Your prompts" }, { id: "timeline", label: "Timeline" },
+];
+
+// The project's own prompts, exactly as typed (the capture streams, through
+// `intent history --project`), oldest first within each sitting.
+function useProjectPrompts(vaultPath: string, slug: string, on: boolean) {
+  const [doc, setDoc] = useState<HistoryDoc | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!on || doc) return;
+    let alive = true;
+    invoke<HistoryDoc>("mirror_history", { vault: vaultPath, q: null, tool: null, project: slug, before: null, limit: 2000, week: null, day: null, tz: new Date().getTimezoneOffset() })
+      .then((d) => { if (alive) setDoc(d && Array.isArray(d.weeks) ? d : { total: 0, tools: [], weeks: [] }); })
+      .catch((e) => { if (alive) setErr(String(e)); });
+    return () => { alive = false; };
+  }, [vaultPath, slug, on, doc]);
+  const sittings = useMemo(() => (doc?.weeks ?? []).flatMap((w) => w.sittings).sort((a, b) => b.start_ts - a.start_ts), [doc]);
+  return { doc, err, sittings };
+}
+
+const fmtWhen = (ts: number) => new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+function ProjectDetail({ vaultPath, p, phone, building, onRewrite }: { vaultPath: string; p: ProjectEntry; phone: boolean; building: string | null; onRewrite: () => void }) {
+  const [tab, setTab] = useState<ProjectTab>("overview");
+  const [seen, setSeen] = useState<Set<ProjectTab>>(new Set(["overview"]));
+  const go = (t: ProjectTab) => { setTab(t); setSeen((s) => new Set(s).add(t)); };
+  const r = useRestart(vaultPath, p.slug);
+  const hist = useProjectPrompts(vaultPath, p.slug, seen.has("prompts") || seen.has("timeline"));
+  const pane = (t: ProjectTab) => (tab === t ? "" : "hidden");
+  const tools = Object.entries(p.tools).sort((x, y) => y[1] - x[1]).map(([t]) => titleCase(t)).join(", ");
+  const histState = hist.err ? <p className="text-[13px] text-err">{hist.err}</p>
+    : !hist.doc ? <div className="flex items-center gap-2 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your prompts</div>
+    : hist.sittings.length === 0 ? <p className="text-[14px] text-text-muted">No prompts found for this project.</p> : null;
+  return (
+    <div data-testid="project-detail">
+      {/* The header and tabs stay pinned while the pane scrolls. */}
+      <div className={`sticky top-0 z-10 bg-background ${phone ? "-mx-4 -mt-4 px-4 pt-4" : "-mx-6 -mt-6 px-6 pt-6"}`}>
+        <div className="flex items-center gap-3" data-testid="project-header">
+          <ProjectBadge domain={p.domain} />
+          <div className="min-w-0 flex-1">
+            <DetailTitle className="truncate">{displayTitle(p.title)}</DetailTitle>
+            <p className={`${META} truncate`}>
+              {titleCase(p.status)} · {titleCase(p.domain)} · {nPrompts(p.prompt_count)} · {fmtSpan(p.first_ts, p.last_ts)} · {tools}
+            </p>
+          </div>
+          {!phone && (
+            <button onClick={onRewrite} disabled={!!building}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
+              {building === p.slug ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {building === p.slug ? "Rewriting" : "Rewrite brief"}
+            </button>
+          )}
+        </div>
+        <div role="tablist" aria-label="Project" className="mt-4 flex overflow-x-auto border-b border-border-subtle">
+          {PROJECT_TABS.map((t) => (
+            <button key={t.id} role="tab" aria-selected={tab === t.id} data-testid={`project-tab-${t.id}`} onClick={() => go(t.id)}
+              className={`-mb-px h-10 shrink-0 border-b-2 ${phone ? "px-2 text-[13px]" : "px-3 text-[14px]"} font-medium transition-colors ${tab === t.id ? "border-accent text-text-primary" : "border-transparent text-text-muted hover:text-text-secondary"}`}>
+              {t.label}
+              {t.id === "requirements" && r.doc && <span className="ml-1.5 text-[12px] font-normal text-text-muted">{(r.doc.requirements ?? []).length}</span>}
+              {t.id === "prompts" && <span className="ml-1.5 text-[12px] font-normal text-text-muted">{p.prompt_count.toLocaleString()}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={pane("overview")} data-testid="project-overview">
+        {p.summary && <p className="mt-5 text-[15px] leading-snug text-text-secondary">{p.summary}</p>}
+        <RestartCard r={r} phone={phone} />
+        {p.intents.length > 0 && (
+          <section className="mt-7">
+            <h3 className="mb-2.5 flex items-center gap-2 text-lg font-semibold text-text-primary"><Target className="h-4 w-4 text-accent" />Intents</h3>
+            <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+              {p.intents.map((it, i) => (
+                <div key={i} className="flex items-start gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14px] font-medium text-text-primary">{it.title}</div>
+                    <div className="mt-0.5 text-[13px] leading-snug text-text-muted">{it.goal}</div>
+                  </div>
+                  <span className={`shrink-0 whitespace-nowrap rounded-md px-1.5 py-px text-[12px] font-medium ${STATUS_TONE[statusKind(it.status)]}`}>{titleCase(it.status)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+        <ListBlock icon={Check} title="Takeaways" items={p.takeaways} />
+        <ListBlock icon={Lightbulb} title="Ideas not built yet" items={p.ideas} />
+        <ListBlock icon={Target} title="Open questions" items={p.open_questions} />
+        <TechnicalDetails r={r} phone={phone} />
+      </div>
+
+      <div className={pane("requirements")}><RequirementsPane r={r} phone={phone} /></div>
+
+      <div className={pane("prompts")} data-testid="project-prompts">
+        <div className="pt-5">
+          {histState ?? (
+            <ol className="space-y-4">
+              {hist.sittings.map((st) => (
+                <li key={st.id} className="rounded-xl border border-border-subtle bg-surface">
+                  <div className="flex items-center gap-2 border-b border-border-subtle px-4 py-2 text-[13px] text-text-muted">
+                    <span className="font-medium text-text-secondary">{titleCase(st.tool)}</span><span aria-hidden>·</span><span>{fmtWhen(st.start_ts)}</span>
+                  </div>
+                  <ul className="divide-y divide-border-subtle">
+                    {st.prompts.map((q, i) => (
+                      <li key={`${q.ts}-${i}`} data-testid="project-prompt" className="whitespace-pre-wrap break-words px-4 py-2.5 text-[14px] leading-relaxed text-text-primary">{q.text}</li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+
+      <div className={pane("timeline")} data-testid="project-timeline">
+        <ActivityChart p={p} />
+        <div className="mt-5">
+          {histState ?? (
+            <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+              {hist.sittings.map((st) => (
+                <li key={st.id} className="flex items-center gap-3 px-4 py-2.5 text-[14px]">
+                  <span className="w-40 shrink-0 tabular-nums text-text-muted">{fmtWhen(st.start_ts)}</span>
+                  <span className="min-w-0 flex-1 truncate text-text-primary">{st.prompts[0]?.text ?? ""}</span>
+                  <span className="shrink-0 text-[13px] text-text-muted">{titleCase(st.tool)} · {nPrompts(st.prompts.length)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -154,8 +303,9 @@ function ListBlock({ icon: Icon, title, items }: { icon: LucideIcon; title: stri
 
 export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; initialSlug?: string }) {
   const phone = useIsPhone();
-  const [idx, setIdx] = useState<ProjectsIndex | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Seeded from the shared cache (the sidebar count reads the same index).
+  const [idx, setIdx] = useState<ProjectsIndex | null>(() => peekInvoke<ProjectsIndex>("projects_index", { vault: vaultPath }) ?? null);
+  const [loading, setLoading] = useState(() => !hasInvoke("projects_index", { vault: vaultPath }));
   const [err, setErr] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(initialSlug ?? null); // slug, or null = overview
   const [show, setShow] = useState<"active" | "all">("all");
@@ -163,7 +313,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
 
   const load = () => {
     setLoading(true);
-    invoke<ProjectsIndex>("projects_index", { vault: vaultPath })
+    invokeCached<ProjectsIndex>("projects_index", { vault: vaultPath })
       .then((d) => { setIdx(d); setErr(null); })
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
@@ -175,6 +325,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     try {
       const d = await invoke<ProjectsIndex>("projects_build", { vault: vaultPath, rebrief: !!slug, only: slug ? [slug] : null });
       setIdx(d); setErr(null);
+      setQueryData(invokeKey("projects_index", { vault: vaultPath }), d);
     } catch (e) { setErr(String(e)); }
     finally { setBuilding(null); }
   };
@@ -221,7 +372,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
         return (
           <button key={p.slug} onClick={() => setSel(p.slug)} className={`mb-1 flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
             <div className="min-w-0 flex-1">
-              <div className={`truncate text-[13px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{p.title}</div>
+              <div className={`truncate text-[13px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{displayTitle(p.title)}</div>
               <div className="mt-0.5 text-[11px] text-text-muted">{nPrompts(p.prompt_count)} · {new Date(p.last_ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
             </div>
             <Sparkline monthly={p.monthly} months={months} color={domainColor(p.domain)} />
@@ -231,59 +382,19 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     </div>
   );
 
-  const header = (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle px-6 py-3 text-[12px] text-text-muted">
-      <span>{idx.stats ? `${idx.stats.kept.toLocaleString()} of your prompts, ${idx.projects.length} projects` : `${idx.projects.length} projects`}</span>
-      {idx.model && <span className="inline-flex items-center gap-1"><Bot className="h-3.5 w-3.5" /> briefs by {modelName(idx.model)}</span>}
-      <span>updated {fmtDay(idx.generated_ts)}</span>
-      <button onClick={() => build()} disabled={!!building} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
-        {building === "all" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {building === "all" ? "Refreshing" : "Refresh"}
-      </button>
-    </div>
+  // The count sits under the column title and Refresh is an icon beside it:
+  // no band under the page header. The hover title carries the date.
+  const meta = idx.stats ? `${idx.stats.kept.toLocaleString()} prompts · ${idx.projects.length} projects` : `${idx.projects.length} projects`;
+  const refreshBtn = (
+    <button onClick={() => build()} disabled={!!building} data-testid="projects-refresh" aria-label="Refresh projects"
+      title={building === "all" ? "Refreshing" : `Refresh projects · briefs updated ${fmtDay(idx.generated_ts)}`}
+      className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-60">
+      {building === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+    </button>
   );
 
   const detail = cur ? (
-    <div>
-      <div className="flex flex-wrap items-center gap-2">
-        <DomainPill domain={cur.domain} />
-        <span className={`rounded-md px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide ${STATUS_TONE[cur.status]}`}>{cur.status}</span>
-        {!phone && (
-          <button onClick={() => void build(cur.slug)} disabled={!!building}
-            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
-            {building === cur.slug ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {building === cur.slug ? "Rewriting" : "Rewrite brief"}
-          </button>
-        )}
-      </div>
-      <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary mt-2">{cur.title}</h2>
-      {cur.summary && <p className="mt-1.5 text-[15px] leading-snug text-text-secondary">{cur.summary}</p>}
-      <div className="mt-2 text-[12px] text-text-muted">
-        {nPrompts(cur.prompt_count)} · {fmtSpan(cur.first_ts, cur.last_ts)} · {Object.entries(cur.tools).sort((a, b) => b[1] - a[1]).map(([t]) => titleCase(t)).join(", ")}
-      </div>
-
-      <ActivityChart p={cur} />
-
-      <RestartEditor vaultPath={vaultPath} slug={cur.slug} phone={phone} />
-
-      {cur.intents.length > 0 && (
-        <section className="mt-7">
-          <h3 className="mb-2.5 flex items-center gap-2 text-lg font-semibold text-text-primary"><Target className="h-4 w-4 text-accent" />Intents</h3>
-          <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
-            {cur.intents.map((it, i) => (
-              <div key={i} className="flex items-start gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-medium text-text-primary">{it.title}</div>
-                  <div className="mt-0.5 text-[13px] leading-snug text-text-muted">{it.goal}</div>
-                </div>
-                <span className={`shrink-0 whitespace-nowrap rounded-md px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide ${STATUS_TONE[statusKind(it.status)]}`}>{it.status}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      <ListBlock icon={Check} title="Takeaways" items={cur.takeaways} />
-      <ListBlock icon={Lightbulb} title="Ideas not built yet" items={cur.ideas} />
-      <ListBlock icon={Target} title="Open questions" items={cur.open_questions} />
-    </div>
+    <ProjectDetail key={cur.slug} vaultPath={vaultPath} p={cur} phone={phone} building={building} onRewrite={() => void build(cur.slug)} />
   ) : (
     <div data-testid="projects-overview">
       <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Your projects</h2>
@@ -303,9 +414,8 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {header}
       {err && <div className="border-b border-border-subtle bg-surface px-6 py-2 text-[12px] text-err">{err}</div>}
-      <SideSpine storageKey="prevail.intent.spine.projects" title="Projects" label="projects" testId="projects-list"
+      <SideSpine storageKey="prevail.intent.spine.projects" title="Projects" label="projects" testId="projects-list" meta={meta} actions={refreshBtn}
         phone={phone} phoneDetail={sel !== null} onBack={() => setSel(null)} backLabel="All projects"
         detail={<div className={phone ? "p-4" : "p-6"}>{detail}</div>}>
         {list}

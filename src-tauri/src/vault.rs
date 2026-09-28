@@ -215,7 +215,7 @@ fn remove_if_empty(dir: &Path) {
 /// is preserved under build/_archive (never overwritten, never deleted). Every
 /// relocation is an fs::rename (a MOVE). Idempotent on an already-canonical vault
 /// (returns 0). Returns the number of entries moved.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn vault_migrate_layout(path: String) -> Result<u64, String> {
     let root = PathBuf::from(&path);
     if !root.is_dir() {

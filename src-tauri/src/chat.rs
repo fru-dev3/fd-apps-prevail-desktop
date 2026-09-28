@@ -67,7 +67,7 @@ const ALLOWED_INSTALL_COMMANDS: &[&str] = &[
 /// can authenticate (sudo/brew), and confirm — never a silent background install.
 /// The command must be one of ALLOWED_INSTALL_COMMANDS; anything else is refused
 /// server-side. macOS-only (the app ships on macOS).
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn open_in_terminal(command: String) -> Result<(), String> {
     let cmd = command.trim();
     if cmd.is_empty() {
@@ -100,6 +100,9 @@ fn cli_args(cli: &str, prompt: &str, model: Option<&str>, web_denied: bool) -> (
     // like "scan my Mac for big files" cannot reach outside the vault.
     let locked = crate::vault_lock::vault_lock_enabled();
     let vault = crate::engine::vault_root();
+    // "auto" is Prevail's router, not a model any CLI knows, and "" means the
+    // CLI's own default. Either way, no --model flag.
+    let model = model.map(str::trim).filter(|m| !m.is_empty() && !m.eq_ignore_ascii_case("auto"));
     let prompt_owned = if locked { format!("{}{}", vault_lock_preamble(), prompt) } else { prompt.to_string() };
     let prompt = prompt_owned.as_str();
     match cli {
@@ -832,4 +835,19 @@ fn best_error_line(stderr: &str, stdout: &str) -> String {
 fn clamp(s: &str) -> String {
     // Keep error pills readable but useful — JSON errors can be long.
     s.chars().take(240).collect()
+}
+
+#[cfg(test)]
+mod auto_model_tests {
+    use super::cli_args;
+
+    #[test]
+    fn auto_and_empty_never_become_a_model_flag() {
+        for m in [Some("auto"), Some("AUTO"), Some(""), None] {
+            let (_, args) = cli_args("claude", "hi", m, false);
+            assert!(!args.iter().any(|a| a == "--model"), "{m:?} leaked a --model flag: {args:?}");
+        }
+        let (_, args) = cli_args("claude", "hi", Some("foo"), false);
+        assert!(args.windows(2).any(|w| w[0] == "--model" && w[1] == "foo"));
+    }
 }

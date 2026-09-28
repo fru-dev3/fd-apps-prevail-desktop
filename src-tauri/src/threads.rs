@@ -39,6 +39,19 @@ pub struct ThreadMeta {
     // Entity chat: the entity this conversation is about (frontmatter
     // `entity: kind/slug`). None for an ordinary thread.
     pub entity: Option<String>,
+    // App chat: the app whose own space this conversation lives in
+    // (frontmatter `app: <id>`). None for an ordinary thread.
+    pub app: Option<String>,
+}
+
+// An app id as the engine accepts it (^[a-z0-9][a-z0-9-]{0,80}$); anything
+// else is dropped, so a crafted value can never add a frontmatter line.
+pub(crate) fn clean_app(v: Option<&str>) -> Option<String> {
+    let v = v?.trim();
+    let mut cs = v.chars();
+    let first_ok = cs.next().map(|c| c.is_ascii_lowercase() || c.is_ascii_digit()).unwrap_or(false);
+    let ok = first_ok && v.len() <= 81 && v.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if ok { Some(v.to_string()) } else { None }
 }
 
 // Keep an `entity:` value to the kind/slug shape; anything else is dropped.
@@ -305,6 +318,7 @@ fn thread_meta_from(
         linked_from: None,
         route_turns: meta.get("route_turns").cloned().unwrap_or_default(),
         entity: clean_entity(meta.get("entity").map(|s| s.as_str())),
+        app: clean_app(meta.get("app").map(|s| s.as_str())),
     }
 }
 
@@ -327,7 +341,7 @@ fn is_prefix_of(short: &[(String, String)], long: &[(String, String)]) -> bool {
     short.len() <= long.len() && short.iter().zip(long.iter()).all(|(a, b)| a == b)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn list_threads(vault: String, domain: Option<String>) -> Result<Vec<ThreadMeta>, String> {
     // Read from EVERY directory a thread may live in (v4 memory/threads AND the
     // legacy _threads), so a thread is never hidden by the v4 remap split. A
@@ -442,7 +456,7 @@ fn list_general_threads(vault: &str) -> Vec<ThreadMeta> {
     out
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn load_thread(path: String) -> Result<ThreadFull, String> {
     // Accept BOTH the v4 home (.../memory/threads/x.md, contains "/threads/")
     // AND the legacy flat dir (.../_threads/x.md, contains "/_threads/" but NOT
@@ -502,7 +516,7 @@ fn fnv1a32(data: &[u8]) -> u32 {
     h
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn save_thread(
     vault: String,
     domain: Option<String>,
@@ -514,7 +528,11 @@ pub(crate) fn save_thread(
     // Entity chat: tag the thread as a conversation about this entity. None
     // keeps whatever tag the file already carries.
     entity: Option<String>,
+    // App chat: tag the thread as the app's own (`app: <id>`). None keeps
+    // whatever tag the file already carries.
+    app: Option<String>,
 ) -> Result<String, String> {
+    let _serial = crate::vaultio::serial();
     // A thread opened from a domain's list may be a linked General thread. Its
     // slug is not in the domain's dirs, so without this the save would fork a
     // copy into the domain. Write it back where it lives, as General.
@@ -683,6 +701,10 @@ pub(crate) fn save_thread(
         Some(e) => clean_entity(Some(&e)),
         None => clean_entity(existing_fm.as_ref().and_then(|m| m.get("entity")).map(|s| s.as_str())),
     };
+    let app: Option<String> = match app {
+        Some(a) => clean_app(Some(&a)),
+        None => clean_app(existing_fm.as_ref().and_then(|m| m.get("app")).map(|s| s.as_str())),
+    };
     let (created_secs, preserved_title) = if file_path.exists() {
         let fm = existing_fm.clone();
         let created = fm
@@ -729,6 +751,9 @@ pub(crate) fn save_thread(
     if let Some(e) = &entity {
         body.push_str(&format!("entity: {}\n", e));
     }
+    if let Some(a) = &app {
+        body.push_str(&format!("app: {}\n", a));
+    }
     body.push_str("---\n\n");
     for t in &turns {
         let speaker = if t.role == "user" {
@@ -757,8 +782,9 @@ pub(crate) fn save_thread(
     Ok(file_path.to_string_lossy().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn rename_thread(path: String, new_title: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     // Accept BOTH the v4 home (.../memory/threads/x.md, contains "/threads/")
     // AND the legacy flat dir (.../_threads/x.md, contains "/_threads/" but NOT
     // "/threads/"). The substring "threads/" is common to both, so a legacy
@@ -817,8 +843,9 @@ pub(crate) fn rename_thread(path: String, new_title: String) -> Result<(), Strin
     fs::write(&p, out).map_err(|e| format!("write thread: {e}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn delete_thread(path: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     // Accept BOTH the v4 home (.../memory/threads/x.md, contains "/threads/")
     // AND the legacy flat dir (.../_threads/x.md, contains "/_threads/" but NOT
     // "/threads/"). The substring "threads/" is common to both, so a legacy
@@ -896,8 +923,8 @@ mod tests {
     fn distinct_first_messages_never_collide() {
         let v = fresh_vault("distinct");
         let dom = Some("health".to_string());
-        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("weather?"), asst("sunny")], None, None, None).unwrap();
-        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("stocks?"), asst("up")], None, None, None).unwrap();
+        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("weather?"), asst("sunny")], None, None, None, None).unwrap();
+        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("stocks?"), asst("up")], None, None, None, None).unwrap();
         assert_ne!(pa, pb, "different openers -> different files");
         assert_eq!(load_thread(pa).unwrap().turns[0].content, "weather?");
         assert_eq!(load_thread(pb).unwrap().turns[0].content, "stocks?");
@@ -912,8 +939,8 @@ mod tests {
     fn same_opener_distinct_conversation_does_not_clobber() {
         let v = fresh_vault("sameopener");
         let dom = Some("health".to_string());
-        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("hi"), asst("hello, I am A")], None, None, None).unwrap();
-        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("hi"), asst("hello, I am B")], None, None, None).unwrap();
+        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("hi"), asst("hello, I am A")], None, None, None, None).unwrap();
+        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("hi"), asst("hello, I am B")], None, None, None, None).unwrap();
         assert_ne!(pa, pb, "same opener but distinct convo -> distinct files, no reuse");
         assert_eq!(load_thread(pa.clone()).unwrap().turns[1].content, "hello, I am A", "A not clobbered");
         assert_eq!(load_thread(pb.clone()).unwrap().turns[1].content, "hello, I am B");
@@ -928,9 +955,9 @@ mod tests {
     fn same_conversation_extended_reuses_file() {
         let v = fresh_vault("extend");
         let dom = Some("work".to_string());
-        let p1 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week")], None, None, None).unwrap();
+        let p1 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week")], None, None, None, None).unwrap();
         // Same conversation, now with the assistant reply appended.
-        let p2 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week"), asst("here is a plan")], None, None, None).unwrap();
+        let p2 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week"), asst("here is a plan")], None, None, None, None).unwrap();
         assert_eq!(p1, p2, "extension of the same conversation reuses the file");
         assert_eq!(turn_count_on_disk(&p2), 2);
         assert_eq!(list_threads(v, dom).unwrap().len(), 1, "no duplicate row");
@@ -942,8 +969,8 @@ mod tests {
     fn empty_stub_never_overwrites_real_thread() {
         let v = fresh_vault("stub");
         let dom = Some("health".to_string());
-        let real = save_thread(v.clone(), dom.clone(), None, "real".into(), vec![user("important"), asst("noted")], None, None, None).unwrap();
-        let stub = save_thread(v.clone(), dom.clone(), None, "Untitled".into(), vec![], None, None, None).unwrap();
+        let real = save_thread(v.clone(), dom.clone(), None, "real".into(), vec![user("important"), asst("noted")], None, None, None, None).unwrap();
+        let stub = save_thread(v.clone(), dom.clone(), None, "Untitled".into(), vec![], None, None, None, None).unwrap();
         assert_ne!(real, stub);
         assert_eq!(turn_count_on_disk(&real), 2, "real thread untouched by the empty stub");
     }
@@ -954,10 +981,10 @@ mod tests {
     fn create_never_reduces_disk_turns() {
         let v = fresh_vault("noreduce");
         let dom = Some("work".to_string());
-        let p = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a1"), asst("a2")], None, None, None).unwrap();
+        let p = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a1"), asst("a2")], None, None, None, None).unwrap();
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
         // A KNOWN-slug update MAY shrink (edit / retry rewinds) - same live convo.
-        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "t".into(), vec![user("q")], None, None, None).unwrap();
+        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "t".into(), vec![user("q")], None, None, None, None).unwrap();
         assert_eq!(p, p2);
         assert_eq!(turn_count_on_disk(&p2), 1, "known-slug edit legitimately rewinds");
     }
@@ -975,7 +1002,7 @@ mod tests {
         fs::write(dpath.join(crate::paths::V4_MARKER), "1").unwrap();
         let dom = Some("health".to_string());
         // A save lands in memory/threads and round-trips through list + load.
-        let p = save_thread(v.clone(), dom.clone(), None, "new".into(), vec![user("hello v4"), asst("hi")], None, None, None).unwrap();
+        let p = save_thread(v.clone(), dom.clone(), None, "new".into(), vec![user("hello v4"), asst("hi")], None, None, None, None).unwrap();
         assert!(p.contains("memory/threads"), "v4 save goes to memory/threads: {p}");
         assert_eq!(load_thread(p.clone()).unwrap().turns[0].content, "hello v4");
         // A pre-existing legacy thread sitting in the flat _threads/ dir.
@@ -997,7 +1024,7 @@ mod tests {
     fn list_hides_prefix_duplicates_only() {
         let v = fresh_vault("prefixdup");
         let dom = Some("work".to_string());
-        let full = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a")], None, None, None).unwrap();
+        let full = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a")], None, None, None, None).unwrap();
         let dir = Path::new(&full).parent().unwrap().to_path_buf();
         let fm = |t: &str| format!("---\ntitle: {t}\ndomain: work\ncreated: 2020-01-01T00:00:00Z\nupdated: 2020-01-01T00:00:00Z\nturns: 1\n---\n\n");
         fs::write(dir.join("2020-01-01_00-00-00_aaaaaaaa.md"), fm("Short") + "## You\n\nq\n\n").unwrap();
@@ -1014,14 +1041,33 @@ mod tests {
     #[test]
     fn entity_tag_round_trips_and_persists() {
         let v = fresh_vault("entity");
-        let p = save_thread(v.clone(), None, None, "Foo".into(), vec![user("about foo"), asst("ok")], None, None, Some("person/foo".into())).unwrap();
+        let p = save_thread(v.clone(), None, None, "Foo".into(), vec![user("about foo"), asst("ok")], None, None, Some("person/foo".into()), None).unwrap();
         assert!(fs::read_to_string(&p).unwrap().contains("\nentity: person/foo\n"));
         assert_eq!(load_thread(p.clone()).unwrap().meta.entity.as_deref(), Some("person/foo"));
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
-        let p2 = save_thread(v.clone(), None, Some(slug), "Foo".into(), vec![user("about foo"), asst("ok"), user("more")], None, None, None).unwrap();
+        let p2 = save_thread(v.clone(), None, Some(slug), "Foo".into(), vec![user("about foo"), asst("ok"), user("more")], None, None, None, None).unwrap();
         assert_eq!(load_thread(p2).unwrap().meta.entity.as_deref(), Some("person/foo"));
-        let p3 = save_thread(v.clone(), None, None, "Bar".into(), vec![user("bar")], None, None, Some("nope\ntitle: x".into())).unwrap();
+        let p3 = save_thread(v.clone(), None, None, "Bar".into(), vec![user("bar")], None, None, Some("nope\ntitle: x".into()), None).unwrap();
         assert!(load_thread(p3).unwrap().meta.entity.is_none());
+    }
+
+    // App chat: an `_app-<id>` thread lives in the app's own space, carries
+    // `app: <id>`, keeps it across saves that do not pass it, and a crafted
+    // value is dropped.
+    #[test]
+    fn app_tag_round_trips_in_app_scope() {
+        let v = fresh_vault("appscope");
+        fs::create_dir_all(PathBuf::from(&v).join("data/apps")).unwrap();
+        fs::create_dir_all(PathBuf::from(&v).join("data/domains")).unwrap();
+        let dom = Some("_app-foo-mail".to_string());
+        let p = save_thread(v.clone(), dom.clone(), None, "Foo".into(), vec![user("any news?"), asst("two")], None, None, None, Some("foo-mail".into())).unwrap();
+        assert!(p.contains("/data/apps/foo-mail/_scope/"), "app threads live with the app: {p}");
+        assert!(fs::read_to_string(&p).unwrap().contains("\napp: foo-mail\n"));
+        let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
+        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "Foo".into(), vec![user("any news?"), asst("two"), user("more")], None, None, None, None).unwrap();
+        assert_eq!(load_thread(p2).unwrap().meta.app.as_deref(), Some("foo-mail"));
+        let p3 = save_thread(v.clone(), None, None, "Bar".into(), vec![user("bar")], None, None, None, Some("Bad\ntitle: x".into())).unwrap();
+        assert!(load_thread(p3).unwrap().meta.app.is_none());
     }
 
     // A General thread routed to a domain lists in that domain as a linked
@@ -1032,7 +1078,7 @@ mod tests {
         let v = fresh_vault("routed");
         fs::create_dir_all(PathBuf::from(&v).join("real-estate")).unwrap();
         let p = save_thread(v.clone(), None, None, "Lease".into(), vec![user("renew the lease"), asst("ok")],
-            Some(vec!["Real-Estate".into(), "../x".into()]), Some("0:real-estate".into()), None).unwrap();
+            Some(vec!["Real-Estate".into(), "../x".into()]), Some("0:real-estate".into()), None, None).unwrap();
         let meta = load_thread(p.clone()).unwrap().meta;
         assert_eq!(meta.routed, vec!["real-estate".to_string()], "unsafe slug dropped, case folded");
         assert_eq!(meta.route_turns, "0:real-estate");
@@ -1044,7 +1090,7 @@ mod tests {
         // Continue from the domain view with no routing passed.
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
         let p2 = save_thread(v.clone(), Some("real-estate".into()), Some(slug), "Lease".into(),
-            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], None, None, None).unwrap();
+            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], None, None, None, None).unwrap();
         assert_eq!(p2, p, "written back to General");
         let again = load_thread(p2).unwrap();
         assert_eq!(again.turns.len(), 3);
@@ -1052,7 +1098,7 @@ mod tests {
         assert!(again.meta.domain.is_none(), "still a General thread");
         // Untagging removes it from the domain list.
         save_thread(v.clone(), None, Some(Path::new(&p).file_stem().unwrap().to_string_lossy().to_string()), "Lease".into(),
-            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], Some(vec![]), Some(String::new()), None).unwrap();
+            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], Some(vec![]), Some(String::new()), None, None).unwrap();
         assert!(list_threads(v, Some("real-estate".into())).unwrap().is_empty());
     }
 

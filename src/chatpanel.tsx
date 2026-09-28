@@ -33,10 +33,14 @@ import { SchedulePanel } from "./convschedule";
 import { extractActIds, linkActsToThread, pendingActsForThread, useWaitingState } from "./waiting";
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
+import { RefChips, RefSuggest, atMatchAt, useRefCandidates, type RefCandidate } from "./chatrefs";
+import { addRef, appStepLabel, refsToChatArgs, type ChatRef, type RefKind } from "./appscope";
+import { peekInvoke } from "./query";
+import type { MirrorList } from "./appsmirror-model";
 import { savedEntitiesForDirective } from "./entitystore";
 import { ContextButton, ContextCanvas, DomainContextView, DomainPrefsPanel } from "./domainpanels";
 import { HomeBriefing } from "./recommendationspanel";
-import type { ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
+import type { AppNotice, ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { savePastedImages } from "./paste";
 
@@ -123,7 +127,12 @@ export function ChatPanel({
   phone = false,
   phoneMic,
   entity = null,
+  scopeApp = null,
 }: {
+  /// App chat: this panel is one app's own conversation (the app's Chat tab).
+  /// Threads live in `_app-<id>` tagged `app: <id>`, and every turn goes
+  /// through the engine with --scope-app.
+  scopeApp?: { id: string; name: string } | null;
   /// Entity chat: this panel is scoped to one entity (the Entities detail
   /// pane renders it). Every turn goes through the engine with --entity, the
   /// thread is tagged with it, and each reply can be added to its notes.
@@ -317,7 +326,7 @@ export function ChatPanel({
   useEffect(() => {
     const onSeed = (e: Event) => {
       // An entity chat is its own conversation; seeds are for the main chat.
-      if (entity) return;
+      if (entity || scopeApp) return;
       const text = (e as CustomEvent<string>).detail;
       if (typeof text === "string" && text) {
         setInput(text); setDomainTab("chat");
@@ -330,7 +339,7 @@ export function ChatPanel({
     // Pending seed from a view that wasn't mounted when it fired (e.g. a task's
     // "Discuss with AI"): pick it up on mount so it reliably lands here.
     try {
-      const pending = entity ? null : localStorage.getItem("prevail.compose.pending");
+      const pending = entity || scopeApp ? null : localStorage.getItem("prevail.compose.pending");
       if (pending) { localStorage.removeItem("prevail.compose.pending"); setInput(pending); setDomainTab("chat"); }
     } catch { /* ignore */ }
     return () => window.removeEventListener("prevail:compose-seed", onSeed as EventListener);
@@ -865,6 +874,41 @@ export function ChatPanel({
   // nothing." Track the caret in state instead, updated from the very events
   // that move it, so the matchers always see a correct, committed position.
   const [caretPos, setCaretPos] = useState<number>(0);
+  // @-references: apps, people and things, and domains, as chips sent with
+  // every turn (--app / --entity / --ref-domain). `refOnly` narrows the list
+  // when it was opened from the + menu.
+  const [refs, setRefs] = useState<ChatRef[]>([]);
+  const refsRef = useRef<ChatRef[]>(refs);
+  refsRef.current = refs;
+  const [refOnly, setRefOnly] = useState<RefKind | null>(null);
+  const atMatch = useMemo(() => atMatchAt(input, caretPos), [input, caretPos]);
+  const refCandidates = useRefCandidates(vaultPath, atMatch?.token ?? null, refOnly);
+  const [refIdx, setRefIdx] = useState(0);
+  useEffect(() => { setRefIdx(0); }, [atMatch?.token]);
+  useEffect(() => { if (!atMatch) setRefOnly(null); }, [atMatch]);
+  function applyRef(item: RefCandidate | undefined) {
+    if (!atMatch || !item) return;
+    const head = input.slice(0, atMatch.start).replace(/\s$/, "");
+    const tail = input.slice(atMatch.end);
+    const next = `${head}${head && tail && !tail.startsWith(" ") ? " " : ""}${tail}`;
+    setInput(next);
+    setCaretPos(head.length);
+    setRefs((cur) => addRef(cur, { kind: item.kind, id: item.id, label: item.label }));
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(head.length, head.length);
+    });
+  }
+  function startRef(kind: RefKind) {
+    const next = `${input}${input && !/\s$/.test(input) ? " " : ""}@`;
+    setInput(next);
+    setCaretPos(next.length);
+    setRefOnly(kind);
+    setPlusOpen(false);
+    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(next.length, next.length); } });
+  }
   const syncCaret = useCallback((el: HTMLTextAreaElement | null) => {
     if (el) setCaretPos(el.selectionStart ?? el.value.length);
   }, []);
@@ -1256,6 +1300,8 @@ export function ChatPanel({
           ...(tDomain ? {} : { routed: threadRoutes(messages), routeTurns: encodeRouteTurns(messages) }),
           // Entity chat: tag the thread (null keeps what is on disk).
           entity: entityIdRef.current,
+          // App chat: tag the thread as the app's own.
+          app: scopeApp?.id ?? null,
         });
         syncedRef.current = { path, count: messages.length };
         // Adopt the returned path so the NEXT save reuses the same slug.
@@ -1312,6 +1358,8 @@ export function ChatPanel({
   // current turn (before ANSI/sycophancy stripping) so the intent ledger
   // records the model's true output, not just the displayed text.
   const rawReplyRef = useRef<string>("");
+  // The app names this turn referenced, for the "Using Claude for Gmail" line.
+  const turnAppNamesRef = useRef<string[]>([]);
   const persistUsage = useCallback(
     (session: string, ok: boolean, usage?: ChatMessage["usage"]) => {
       const p = pendingUsageRef.current;
@@ -1597,22 +1645,45 @@ export function ChatPanel({
                 const steps = [...(last.steps ?? [])];
                 if (step && step.id) {
                   const i = steps.findIndex((s) => s.id === step.id);
+                  const tool = typeof ev.tool === "string" ? ev.tool : undefined;
+                  const tag = ev.app ? { app: ev.app, thread: ev.thread, ...(tool ? { tool } : {}), ...(ev.access ? { access: ev.access } : {}) } : {};
+                  // An app tool reads "Gmail · Search threads"; without the
+                  // engine's tool field (or a known app name), its own label.
+                  const appName = ev.app ? peekInvoke<MirrorList>("apps_mirror_list", { vault: vaultPath })?.apps?.find((a) => a.id === ev.app)?.name : undefined;
+                  const label = (fallback: string) => appStepLabel(appName, tool, fallback);
                   if (step.status === "running") {
-                    if (i === -1) steps.push({ id: step.id, label: step.label || note || "Working", status: "running", startedAt: Date.now(), detail: step.detail });
-                    else steps[i] = { ...steps[i], label: step.label || steps[i].label, detail: step.detail ?? steps[i].detail };
+                    if (i === -1) steps.push({ id: step.id, label: label(step.label || note || "Working"), status: "running", startedAt: Date.now(), detail: step.detail, ...tag });
+                    else steps[i] = { ...steps[i], label: label(step.label || steps[i].label), detail: step.detail ?? steps[i].detail };
                   } else if (i !== -1) {
                     // A failed result's detail is the error snippet - it replaces
                     // the call-time detail; a success keeps what was shown.
-                    steps[i] = { ...steps[i], status: step.status, endedAt: Date.now(), label: step.label || steps[i].label, detail: step.detail ?? steps[i].detail };
+                    steps[i] = { ...steps[i], ...tag, status: step.status, endedAt: Date.now(), label: label(step.label || steps[i].label), detail: step.detail ?? steps[i].detail };
                   } else {
                     // A result with no prior running step (rare): show it already finished.
-                    steps.push({ id: step.id, label: step.label || note || "Working", status: step.status, startedAt: Date.now(), endedAt: Date.now(), detail: step.detail });
+                    steps.push({ id: step.id, label: label(step.label || note || "Working"), status: step.status, startedAt: Date.now(), endedAt: Date.now(), detail: step.detail, ...tag });
                   }
                 } else {
                   // Legacy text-only tool note (agent path): a completed step.
                   steps.push({ id: `note-${steps.length}`, label: note, status: "done", startedAt: Date.now(), endedAt: Date.now() });
                 }
                 return [...m.slice(0, -1), { ...last, steps }];
+              });
+              break;
+            }
+            case "routed":
+            case "app_unavailable":
+            case "app_needs_auth": {
+              // What the engine decided about this turn's apps, drawn at the
+              // top of the reply.
+              const n: AppNotice = ev.type === "routed"
+                ? { kind: "routed", runtime: ev.runtime ?? "", reason: ev.reason, apps: turnAppNamesRef.current }
+                : ev.type === "app_unavailable"
+                  ? { kind: "unavailable", app: ev.app ?? "", runtime_needed: ev.runtime_needed ?? "" }
+                  : { kind: "needs_auth", app: ev.app ?? "", name: ev.name ?? ev.app ?? "", signin_url: ev.signin_url };
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || !last.streaming) return m;
+                return [...m.slice(0, -1), { ...last, appNotices: [...(last.appNotices ?? []), n] }];
               });
               break;
             }
@@ -2076,7 +2147,11 @@ export function ChatPanel({
     // run through the engine (so General + OpenRouter/LM Studio/MLX works).
     // An entity chat always goes through the engine: that is where the
     // entity's context block is built (--entity).
-    const useEngine = ENGINE_CHAT_ENABLED && engineAvailable && (!!domain || !!entityIdRef.current || (!!sendCli && ENGINE_ONLY.has(sendCli)));
+    // So does an app's own chat, and any turn with an @-reference: the engine
+    // builds each app's context block and attaches its tools.
+    const turnRefs = refsToChatArgs(refsRef.current);
+    const useEngine = ENGINE_CHAT_ENABLED && engineAvailable && (!!domain || !!entityIdRef.current || !!scopeApp || refsRef.current.length > 0 || (!!sendCli && ENGINE_ONLY.has(sendCli)));
+    turnAppNamesRef.current = [...(scopeApp ? [scopeApp.name] : []), ...refsRef.current.filter((r) => r.kind === "app" && r.id !== scopeApp?.id).map((r) => r.label)];
     // The engine treats General as the "general" domain (general_dir), so a
     // null/empty domain maps to that here.
     const engineDomain = domain || "general";
@@ -2165,6 +2240,12 @@ export function ChatPanel({
           thread: threadIdOf(activeThreadRef.current),
           // Entity chat: the engine adds this entity's context to the turn.
           entity: entityIdRef.current,
+          // @-references and the app scope (--app / --entity / --ref-domain /
+          // --scope-app).
+          apps: turnRefs.apps,
+          entities: turnRefs.entities,
+          refDomains: turnRefs.refDomains,
+          scopeApp: scopeApp?.id ?? null,
         });
       } else {
         await invoke("chat_send", {
@@ -2338,6 +2419,8 @@ export function ChatPanel({
     };
     w.__prevailAttach = (n, mode) => void attachDomainRef.current(n, mode ?? "light");
     w.__prevailAttachApp = (id) => void attachAppRef.current(id);
+    // An app dragged from the sidebar lands as an @-chip.
+    (window as unknown as { __prevailAddRef?: (r: ChatRef) => void }).__prevailAddRef = (r) => setRefs((cur) => addRef(cur, r));
   }, [active]);
 
   // Domain detail shell (mirrors AppDetail): a header + horizontal pill tab bar,
@@ -2478,7 +2561,7 @@ export function ChatPanel({
       )}
       {/* General and the phone have no domain header; the Context view is
           still one tap away from a slim row above the transcript. */}
-      {!inDomainDetail && !isApp && !entity && (phone || !domain) && (
+      {!inDomainDetail && !isApp && !entity && !scopeApp && (phone || !domain) && (
         <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border-subtle px-3 py-1.5">
           {scheduleButton}
           <ContextButton onClick={() => setContextOpen(true)} />
@@ -2503,12 +2586,17 @@ export function ChatPanel({
         </div>
       )}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        {messages.length === 0 && scopeApp && domainTab === "chat" && (
+          <div data-testid="app-chat-empty" className="flex h-full items-center justify-center px-6 py-10 text-center text-[15px] text-text-muted">
+            Ask {scopeApp.name} anything. Reads run right away; anything that writes or sends waits for your yes.
+          </div>
+        )}
         {messages.length === 0 && entity && domainTab === "chat" && (
           <div data-testid="entity-chat-empty" className="flex h-full items-center justify-center px-6 py-10 text-center text-[15px] text-text-muted">
             Ask anything about {entity.name}. What your vault knows about it comes along.
           </div>
         )}
-        {messages.length === 0 && !domain && !entity && domainTab === "chat" && (
+        {messages.length === 0 && !domain && !entity && !scopeApp && domainTab === "chat" && (
           <div className={`flex h-full flex-col items-center justify-center ${phone ? "px-5 py-4" : "px-6 py-8"}`} style={{ justifyContent: "safe center" }}>
             {/* Starred apps as a horizontal strip at the top of home - same
                 chip language as the in-domain Apps strip, per user feedback.
@@ -3166,6 +3254,11 @@ export function ChatPanel({
               ))}
             </div>
           )}
+          {atMatch && (
+            <RefSuggest items={refCandidates} index={refIdx} onPick={applyRef}
+              empty={refOnly === "app" ? "No apps yet. Connect one in Apps." : refOnly === "entity" ? "No people or things yet." : "Nothing matches. Keep typing, or press Escape."} />
+          )}
+          <RefChips refs={refs} onRemove={(r) => setRefs((cur) => cur.filter((x) => !(x.kind === r.kind && x.id === r.id)))} />
           <textarea
             ref={taRef}
             value={input}
@@ -3242,6 +3335,15 @@ export function ChatPanel({
                   // Insert a space after the `/` to break the match.
                   setInput((cur) => cur + " ");
                   return;
+                }
+              }
+              // The @-reference list takes the nav keys while it is open.
+              if (atMatch) {
+                if (e.key === "Escape") { e.preventDefault(); setInput((cur) => cur + " "); setCaretPos(input.length + 1); return; }
+                if (refCandidates.length > 0) {
+                  if (e.key === "ArrowDown") { e.preventDefault(); setRefIdx((i) => (i + 1) % refCandidates.length); return; }
+                  if (e.key === "ArrowUp") { e.preventDefault(); setRefIdx((i) => (i - 1 + refCandidates.length) % refCandidates.length); return; }
+                  if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); applyRef(refCandidates[refIdx]); return; }
                 }
               }
               // If the `$` context-mention popover is open, route nav keys to it.
@@ -3440,6 +3542,16 @@ export function ChatPanel({
                   >
                     <Paperclip className="h-4 w-4 text-text-muted" />
                     Add files
+                  </button>
+                  <button onClick={() => startRef("app")} data-testid="plus-add-app"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-warm">
+                    <Plug className="h-4 w-4 text-text-muted" />
+                    Add app
+                  </button>
+                  <button onClick={() => startRef("entity")} data-testid="plus-add-entity"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-warm">
+                    <Boxes className="h-4 w-4 text-text-muted" />
+                    Add person or thing
                   </button>
                   {domain && domainPath && (
                     <button

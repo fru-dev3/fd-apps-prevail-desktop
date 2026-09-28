@@ -27,7 +27,7 @@ pub(crate) fn config_write_path(vault: &str, f: &str) -> PathBuf {
 // User-level context — a single `<vault>/user.md` that captures who
 // the user is, persistent preferences, recurring details. Mirrors the
 // OpenClaw / Hermes user-profile pattern. Read/write via these calls.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn read_user_md(vault: String) -> Result<String, String> {
     // The canonical user-profile file is `_profile.md`, which config_read_path
     // routes into build/ (build/_profile.md). profile.md / user.md are honored
@@ -40,8 +40,9 @@ pub(crate) fn read_user_md(vault: String) -> Result<String, String> {
     }
     Ok(String::new())
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn write_user_md(vault: String, body: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     // Write the canonical build/_profile.md (config_write_path is build-rooted).
     let p = config_write_path(&vault, "_profile.md");
     if let Some(parent) = p.parent() { let _ = fs::create_dir_all(parent); }
@@ -57,7 +58,7 @@ pub(crate) fn write_user_md(vault: String, body: String) -> Result<(), String> {
 // fresh vault opens with a sensible, editable default.
 pub(crate) const DEFAULT_IDEAL_STATE: &str = include_str!("default_ideal_state.md");
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn read_ideal_state(vault: String) -> Result<String, String> {
     let p = config_read_path(&vault, "ideal-state.md");
     if !p.exists() {
@@ -77,8 +78,9 @@ fn legacy_versions_dir(vault: &str) -> PathBuf {
     crate::paths::build_root(vault).join("_meta").join("ideal-state-versions")
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn write_ideal_state(vault: String, body: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let p = config_write_path(&vault, "ideal-state.md");
     if let Some(parent) = p.parent() { let _ = fs::create_dir_all(parent); }
     // The constitution is never silently overwritten: every save that changes
@@ -106,7 +108,7 @@ pub(crate) fn write_ideal_state(vault: String, body: String) -> Result<(), Strin
 }
 
 /// Dated versions of the constitution, newest first: { name, path, ts }.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn ideal_state_versions(vault: String) -> Result<Vec<serde_json::Value>, String> {
     let mut out: Vec<(String, serde_json::Value)> = Vec::new();
     for vdir in [ideal_versions_dir(&vault), legacy_versions_dir(&vault)] {
@@ -129,7 +131,7 @@ pub(crate) fn ideal_state_versions(vault: String) -> Result<Vec<serde_json::Valu
 
 /// Read one version's text by the path the list returned (only files in the
 /// versions folders are readable this way).
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn ideal_state_version_read(vault: String, path: String) -> Result<String, String> {
     let p = PathBuf::from(&path);
     let ok = [ideal_versions_dir(&vault), legacy_versions_dir(&vault)].iter().any(|d| p.parent() == Some(d.as_path()));
@@ -169,7 +171,7 @@ mod version_tests {
 // domain, layered under the global ideal-state.md (which still wins conflicts).
 // The engine injects it whenever the chat's cwd is that domain (cli-bridge
 // findDomainIdeal). domain_dir resolves the v3 (domains/<d>) or legacy layout.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn read_domain_ideal(vault: String, domain: Option<String>) -> Result<String, String> {
     let p = domain_dir(&vault, &domain).join("ideal-state.md");
     if !p.exists() {
@@ -178,8 +180,9 @@ pub(crate) fn read_domain_ideal(vault: String, domain: Option<String>) -> Result
     let raw = read_to_string_retry(&p).map_err(|e| e.to_string())?;
     Ok(engine::maybe_decrypt(&p, raw))
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn write_domain_ideal(vault: String, domain: Option<String>, body: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let dir = domain_dir(&vault, &domain);
     let _ = fs::create_dir_all(&dir);
     let p = dir.join("ideal-state.md");
@@ -201,8 +204,9 @@ pub(crate) async fn read_memory_md(vault: String, domain: Option<String>) -> Res
 /// a "Pinned by you" section of `_memory.md` so it grounds every future answer
 /// in that domain, alongside the daemon-distilled memory. User-authored, so it is
 /// never overwritten by distillation (which manages its own section).
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn append_memory_md(vault: String, domain: Option<String>, note: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let note = note.trim();
     if note.is_empty() {
         return Err("nothing to pin".into());

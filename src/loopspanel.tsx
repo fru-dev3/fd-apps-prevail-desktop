@@ -27,7 +27,6 @@ import {
   type LoopsDoc,
   type LoopsRuntime,
   ensureBriefingLoop,
-  ensureModelScoutLoop,
   hasSeed,
   makeLoop,
   readLoops,
@@ -95,20 +94,18 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
     readLoops(domainPath).then((d) => {
       if (!alive) return;
       // Apps start with a clean loops list (the user adds app-appropriate loops
-      // like "Inbox Zero"); the domain built-ins (Briefing / Model Scout) are
-      // domain-flavored, so don't seed them into an app.
+      // like "Inbox Zero"); the domain built-in Briefing is
+      // domain-flavored, so it is not seeded into an app.
       if (isApp) { setDoc(d); return; }
       const { doc: withBrief, added: addedB } = ensureBriefingLoop(d, domain);
-      // General also gets the built-in Model Scout (web-searches models for the Arena).
-      const { doc: withScout, added: addedS } = ensureModelScoutLoop(withBrief, domain);
-      setDoc(withScout);
-      if (addedB || addedS) writeLoops(domainPath, withScout).catch((e) => console.error("seed built-in loops", e));
+      setDoc(withBrief);
+      if (addedB) writeLoops(domainPath, withBrief).catch((e) => console.error("seed built-in loops", e));
     });
     readLoopsRuntime(domainPath).then((rt) => { if (alive) setRuntime(rt); });
     // The background loop runner advances loops + queues approvals; refresh when
     // it reports a pass so new actions/proposals appear without a manual reload.
     const onAdvanced = () => {
-      readLoops(domainPath).then((d) => { if (alive) setDoc(isApp ? d : ensureModelScoutLoop(ensureBriefingLoop(d, domain).doc, domain).doc); });
+      readLoops(domainPath).then((d) => { if (alive) setDoc(isApp ? d : ensureBriefingLoop(d, domain).doc); });
       readLoopsRuntime(domainPath).then((rt) => { if (alive) setRuntime(rt); });
     };
     window.addEventListener("prevail:loops-advanced", onAdvanced);

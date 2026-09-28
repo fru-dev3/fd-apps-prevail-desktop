@@ -86,9 +86,11 @@ export const FIXTURES: Record<string, unknown> = {
   ],
 };
 
-export async function mockTauri(page: Page, overrides: Record<string, unknown> = {}): Promise<void> {
+// `latencyMs` delays every non-plugin answer, standing in for the engine's
+// per-call subprocess cost (the perf budgets run with 150 ms).
+export async function mockTauri(page: Page, overrides: Record<string, unknown> = {}, opts: { latencyMs?: number } = {}): Promise<void> {
   const fixtures = { ...FIXTURES, ...overrides };
-  await page.addInitScript((fx: Record<string, unknown>) => {
+  await page.addInitScript(([fx, latency]: [Record<string, unknown>, number]) => {
     // A configured vault is the app's boot gate (first-launch onboarding
     // otherwise): the desktop reads it from localStorage.
     localStorage.setItem("prevail.desktop.vaultPath", "/tmp/smoke-vault");
@@ -100,25 +102,39 @@ export async function mockTauri(page: Page, overrides: Record<string, unknown> =
     // mid-flow (a status that flips after an action) via page.evaluate.
     (window as unknown as Record<string, unknown>).__fixtures = fx;
     let cb = 0;
+    // Event listeners, so a test can play an engine stream: window.__emit(
+    // "engine-chat:line", payload) calls every handler listening for it.
+    const cbs: Record<number, (v: unknown) => void> = {};
+    const listeners: Record<string, number[]> = {};
+    (window as unknown as Record<string, unknown>).__emit = (event: string, payload: unknown) => {
+      for (const id of listeners[event] ?? []) cbs[id]?.({ event, id, payload });
+    };
     // The event plugin's unlisten path reaches this internal directly.
     (window as unknown as Record<string, unknown>).__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
     (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {
-      transformCallback: () => ++cb,
+      transformCallback: (fn?: (v: unknown) => void) => { const id = ++cb; if (fn) cbs[id] = fn; return id; },
       metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
       invoke: (cmd: string, args: unknown) => {
         log.push({ cmd, args });
         // Tauri plugin internals: event listeners return an id, everything
         // else falls through to fixtures.
-        if (cmd.startsWith("plugin:event|")) return Promise.resolve(++cb);
-        if (cmd.startsWith("plugin:")) return Promise.resolve(null);
+        // A fixture wins, so a test can answer a plugin call (a file picker).
+        const later = (v: unknown) => (latency > 0 ? new Promise((r) => setTimeout(() => r(v), latency)) : Promise.resolve(v));
         if (cmd in fx) {
           const v = fx[cmd];
-          return Promise.resolve(typeof v === "function" ? (v as (a: unknown) => unknown)(args) : v);
+          return later(typeof v === "function" ? (v as (a: unknown) => unknown)(args) : v);
         }
-        return Promise.resolve(null);
+        if (cmd === "plugin:event|listen") {
+          const a = args as { event?: string; handler?: number };
+          if (a?.event && typeof a.handler === "number") (listeners[a.event] ??= []).push(a.handler);
+          return Promise.resolve(a?.handler ?? ++cb);
+        }
+        if (cmd.startsWith("plugin:event|")) return Promise.resolve(++cb);
+        if (cmd.startsWith("plugin:")) return Promise.resolve(null);
+        return later(null);
       },
     };
-  }, fixtures);
+  }, [fixtures, opts.latencyMs ?? 0] as [Record<string, unknown>, number]);
 }
 
 export async function invokedCommands(page: Page): Promise<string[]> {

@@ -326,7 +326,15 @@ export interface ChatMessage {
   // event fills this in with the model it chose and why. Renders as a routing
   // chip with a one-click override. Absent on non-auto turns.
   route?: RouteInfo;
+  // Apps as chat scopes: what the engine said about this turn's apps (a
+  // routed runtime, an app that needs sign-in, one this runtime lacks).
+  appNotices?: AppNotice[];
 }
+
+export type AppNotice =
+  | { kind: "routed"; runtime: string; reason?: string; apps?: string[] }
+  | { kind: "needs_auth"; app: string; name: string; signin_url?: string }
+  | { kind: "unavailable"; app: string; runtime_needed: string };
 
 export interface RouteInfo {
   cli: string;
@@ -344,7 +352,10 @@ export interface ChatEvent {
   domain?: string;
   role?: "user" | "assistant" | "system" | "tool";
   text?: string;
-  tool?: { name?: string; input?: unknown; output?: unknown };
+  // On an app tool step: the tool's short name ("search_threads"). An older
+  // shape sent an object here; only a string is read.
+  tool?: string | { name?: string; input?: unknown; output?: unknown };
+  access?: "read" | "write" | "blocked";
   // Structured live step (a real tool call), streamed on `type: "tool"` so the UI
   // can render a checklist of what the model is doing. Matched by `id`.
   step?: { id: string; label: string; status: "running" | "done" | "failed"; detail?: string };
@@ -356,6 +367,14 @@ export interface ChatEvent {
   error?: string;
   // Present only on the `route` event (auto model routing): the chosen model + why.
   route?: RouteInfo;
+  // Apps as chat scopes: the mirrored app a tool step belongs to, and the
+  // routed / app_unavailable / app_needs_auth fields.
+  app?: string;
+  runtime?: string;
+  reason?: string;
+  runtime_needed?: string;
+  name?: string;
+  signin_url?: string;
 }
 
 // One step in the live execution checklist shown while a chat turn runs.
@@ -368,6 +387,12 @@ export interface ChatStep {
   // The concrete target of the call (query / file / command / connector argv)
   // while running; replaced by the error snippet when the step fails.
   detail?: string;
+  // The mirrored app this call went to, and the thread it was logged under.
+  app?: string;
+  thread?: string;
+  // The app tool's short name and access class, from the engine's step event.
+  tool?: string;
+  access?: "read" | "write" | "blocked";
 }
 
 export interface SurfaceResult { questions: string[]; actions: string[]; generated_at: number; stale: boolean }

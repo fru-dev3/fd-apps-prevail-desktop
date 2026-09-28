@@ -189,7 +189,7 @@ fn run_dirs(vault: &str) -> Vec<PathBuf> {
     out
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_runs(vault: String) -> Result<Vec<BenchmarkRun>, String> {
     let mut out = Vec::new();
     for p in run_dirs(&vault) {
@@ -274,7 +274,7 @@ pub(crate) fn benchmark_runs(vault: String) -> Result<Vec<BenchmarkRun>, String>
     Ok(out)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_run_detail(run_dir: String) -> Result<serde_json::Value, String> {
     if run_dir.contains("..") || !run_dir.contains("/benchmark/") {
         return Err("invalid run_dir".into());
@@ -445,7 +445,7 @@ fn question_files(vault: &str) -> Vec<PathBuf> {
     out
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_questions(vault: String) -> Result<Vec<BenchQuestion>, String> {
     let mut out = Vec::new();
     for p in question_files(&vault) {
@@ -475,8 +475,9 @@ fn slugify(s: &str) -> String {
     out.trim_matches('-').to_string()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_save_question(vault: String, q: BenchQuestionInput) -> Result<BenchQuestion, String> {
+    let _serial = crate::vaultio::serial();
     let dir = crate::paths::build_root(&vault).join("benchmark").join("questions");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     // Determine the id: keep existing, else slug from domain + prompt (unique).
@@ -577,8 +578,9 @@ pub(crate) fn benchmark_save_question(vault: String, q: BenchQuestionInput) -> R
 /// Archive / unarchive a question in place: flips the frontmatter flag, so
 /// the file (and every past run that referenced it) stays intact while new
 /// runs and the active list exclude it.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_set_question_archived(path: String, archived: bool) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     if !path.replace('\\', "/").contains("/benchmark/questions/") || !path.ends_with(".md") {
         return Err("not a benchmark question file".into());
     }
@@ -606,8 +608,9 @@ pub(crate) fn benchmark_set_question_archived(path: String, archived: bool) -> R
     Err("malformed question file (no frontmatter)".into())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_delete_question(path: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     // Guard: only delete inside a benchmark/questions directory.
     if !path.replace('\\', "/").contains("/benchmark/questions/") || !path.ends_with(".md") {
         return Err("refusing to delete: not a benchmark question file".into());
@@ -619,7 +622,7 @@ pub(crate) fn benchmark_delete_question(path: String) -> Result<(), String> {
 // can be shared, backed up, or moved between vaults. Format:
 //   { "schema": "prevail.bench/v1", "questions": [BenchQuestionInput…] }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_export_questions(vault: String, dest: Option<String>) -> Result<String, String> {
     let questions = benchmark_questions(vault)?;
     let items: Vec<serde_json::Value> = questions
@@ -654,8 +657,9 @@ pub(crate) struct BenchImportReport {
     skipped: Vec<String>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_import_questions(vault: String, json: String) -> Result<BenchImportReport, String> {
+    let _serial = crate::vaultio::serial();
     let doc: serde_json::Value = serde_json::from_str(&json).map_err(|e| format!("invalid JSON: {e}"))?;
     if doc.get("schema").and_then(|s| s.as_str()) != Some("prevail.bench/v1") {
         return Err("not a prevail.bench/v1 file (missing/incorrect \"schema\")".into());
@@ -730,7 +734,7 @@ pub(crate) struct MatrixRow {
     per_domain: std::collections::HashMap<String, DomainCell>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn benchmark_matrix(vault: String) -> Result<Vec<MatrixRow>, String> {
     let mut rows = Vec::new();
     for run_path in run_dirs(&vault) {

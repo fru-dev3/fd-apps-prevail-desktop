@@ -9,10 +9,19 @@ import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 // takes the freed width. The choice is remembered per view under `storageKey`.
 // On a phone there is no room for two columns: the list shows first, a pick
 // opens the detail with a back button above it.
-//
-// A screen's page header stays in view while the pane scrolls, pinned to the
-// pane's top edge.
-export const STICKY_HEAD = "sticky top-0 z-20 bg-background";
+
+// Group headers in a scrolling list pin to its top, each pushed up by the
+// next (wrap every group, header and rows, in its own element). A pinned
+// header shows a hairline under it: call markStuck on the list's scroll.
+export const STICKY_GROUP_HEAD = "sticky top-0 z-10 border-b border-transparent data-[stuck]:border-border-subtle";
+export function markStuck(scroller: HTMLElement) {
+  const top = scroller.getBoundingClientRect().top;
+  scroller.querySelectorAll<HTMLElement>("[data-sticky-head]").forEach((h) => {
+    const r = h.getBoundingClientRect();
+    const group = h.parentElement?.getBoundingClientRect();
+    h.toggleAttribute("data-stuck", r.top <= top + 0.5 && !!group && group.top < top - 0.5);
+  });
+}
 
 export function useSpineCollapsed(storageKey: string): [boolean, () => void] {
   const [collapsed, setCollapsed] = useState(() => {
@@ -33,7 +42,10 @@ type ColumnProps = {
   // What the column lists ("periods", "projects"): used in the button labels.
   label: string;
   testId?: string;
-  // Small icon buttons beside the title (a "New" button, say).
+  // A muted line under the title: the column's count ("335 · 0 saved").
+  // Pages put their counts here, never in a band under the page header.
+  meta?: ReactNode;
+  // Small icon buttons beside the title (a "New" button, say, or Refresh).
   actions?: ReactNode;
   // Pinned under the title, above the scrolling list (a search box, filters).
   toolbar?: ReactNode;
@@ -47,7 +59,7 @@ const iconBtn = "rounded-md p-1.5 text-text-muted transition-colors hover:bg-sur
 // The column on its own, for screens whose detail area is laid out by the
 // caller (the chat Threads column sits beside the whole chat). Most screens
 // want SideSpine below, which adds the detail pane.
-export function SpineColumn({ collapsed, onToggle, title, label, testId, actions, toolbar, footer, children }: Omit<ColumnProps, "storageKey"> & { collapsed: boolean; onToggle: () => void }) {
+export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, actions, toolbar, footer, children }: Omit<ColumnProps, "storageKey"> & { collapsed: boolean; onToggle: () => void }) {
   if (collapsed) {
     return (
       <div data-testid="spine-collapsed" className="flex w-9 shrink-0 flex-col items-center border-r border-border bg-surface/40 py-2">
@@ -58,9 +70,12 @@ export function SpineColumn({ collapsed, onToggle, title, label, testId, actions
     );
   }
   return (
-    <div data-testid={testId} data-spine-column className="flex w-72 shrink-0 flex-col border-r border-border bg-surface/40">
+    <div data-testid={testId} data-spine-column data-shell="column" className="flex w-72 shrink-0 flex-col border-r border-border bg-surface/40">
       <div className="flex shrink-0 items-center justify-between gap-2 pl-4 pr-2 pt-2">
-        <span className="min-w-0 truncate text-[13px] font-semibold text-text-secondary">{title}</span>
+        <span className="min-w-0">
+          <span className="block truncate text-[13px] font-semibold text-text-secondary">{title}</span>
+          {meta && <span data-testid="spine-meta" className="block truncate text-[12px] tabular-nums text-text-muted">{meta}</span>}
+        </span>
         <div className="flex shrink-0 items-center gap-0.5">
           {actions}
           <button onClick={onToggle} title="Collapse" aria-label={`Collapse ${label}`} className={iconBtn}>
@@ -69,7 +84,7 @@ export function SpineColumn({ collapsed, onToggle, title, label, testId, actions
         </div>
       </div>
       {toolbar && <div className="shrink-0 px-2 pb-2 pt-2">{toolbar}</div>}
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto" onScroll={(e) => markStuck(e.currentTarget)}>{children}</div>
       {footer && <div className="shrink-0 border-t border-border-subtle p-2">{footer}</div>}
     </div>
   );
@@ -100,6 +115,12 @@ export function SideSpine({ storageKey, detail, phone = false, phoneDetail = fal
           </div>
         ) : (
           <div data-testid={col.testId} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+            {(col.meta || col.actions) && (
+              <div className="flex items-center justify-between gap-2 px-4 pt-3">
+                <span data-testid="spine-meta" className="min-w-0 truncate text-[13px] tabular-nums text-text-muted">{col.meta}</span>
+                <span className="flex shrink-0 items-center gap-0.5">{col.actions}</span>
+              </div>
+            )}
             {col.toolbar && <div className="px-3 pt-3">{col.toolbar}</div>}
             {col.children}
             {col.footer && <div className="border-t border-border-subtle p-3">{col.footer}</div>}
@@ -111,7 +132,7 @@ export function SideSpine({ storageKey, detail, phone = false, phoneDetail = fal
   return (
     <div className="flex h-full min-h-0 flex-1">
       <SpineColumn {...col} collapsed={collapsed} onToggle={toggle} />
-      <div data-testid="spine-detail" data-spine={collapsed ? "collapsed" : "open"} className="min-w-0 flex-1 overflow-y-auto">{detail}</div>
+      <div data-testid="spine-detail" data-shell="detail" data-spine={collapsed ? "collapsed" : "open"} className="min-w-0 flex-1 overflow-y-auto">{detail}</div>
     </div>
   );
 }
@@ -125,7 +146,7 @@ export function SpineTabs<T extends string>({ tabs, value, onChange, label }: {
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:w-full">
+    <div role="tablist" aria-label={label} className="flex w-fit items-center rounded-lg bg-surface-warm p-1 max-sm:w-full">
       {tabs.map((t) => (
         <button key={t.id} role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)} data-testid={`tab-${t.id}`}
           className={`inline-flex h-9 items-center gap-1.5 rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-2 ${value === t.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>

@@ -180,20 +180,18 @@ describe("Noticed", () => {
     expect(screen.getByTestId("visual-dots").children).toHaveLength(20);
     expect(byCmd("mirror_period")[0].args).toMatchObject({ vault: "/v", kind: "week", key: "2026-09-21" });
     expect(byCmd("mirror_generate")).toHaveLength(0);
-    await waitFor(() => expect(screen.getByTestId("tool-dot-claude").dataset.on).toBe("1"));
-    expect(screen.getByTestId("tool-dot-codex").dataset.on).toBe("0");
-    // The header stays in view while scrolling; the content is one column.
-    expect(screen.getByTestId("page-header").className).toMatch(/\bsticky\b/);
-    // The header is its own row, outside the scrolling body, and says in one
-    // calm line what Intent is.
-    expect(screen.getByTestId("intent-body").contains(screen.getByTestId("page-header"))).toBe(false);
-    expect(screen.getByTestId("intent-about").textContent).toMatch(/every prompt you typed/);
+    // Capture is one quiet status: how many tools are captured.
+    await waitFor(() => expect(screen.getByTestId("capture-state").textContent).toBe("Capturing from 1 tool"));
+    // One shared header, outside the scrolling body, with one short subtitle.
+    const header = document.querySelector("[data-settings-header]")!;
+    expect(screen.getByTestId("intent-body").contains(header)).toBe(false);
+    expect(header.textContent).toContain("What your prompts say you're working on.");
     expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]|max-w-(2xl|3xl|4xl)/);
     // The capture setup opens in the page, not in a drawer or dialog.
-    fireEvent.click(screen.getByRole("button", { name: "Capture setup" }));
+    fireEvent.click(screen.getByTestId("capture-state"));
     expect(screen.getByTestId("capture-view")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("button", { name: "Capture setup" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("capture-state").getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: /back to noticed/i }));
     expect(screen.queryByTestId("capture-view")).toBeNull();
   });
@@ -312,7 +310,7 @@ describe("Projects restart", () => {
   it("excludes unchecked items from the copy and checks a rebuild", async () => {
     localStorage.setItem("prevail.mirror.view", "projects");
     render(<MirrorPanel vaultPath="/v" />);
-    fireEvent.click((await screen.findAllByText("acme shop"))[0]);
+    fireEvent.click((await screen.findAllByText("Acme Shop"))[0]);
     expect(await screen.findByText("Rules you already had to give")).toBeTruthy();
     expect(screen.getByText("inferred")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Include: Works on phones"));
@@ -392,7 +390,7 @@ describe("phone", () => {
     phone = true;
     localStorage.setItem("prevail.mirror.view", "projects");
     render(<MirrorPanel vaultPath="/v" />);
-    fireEvent.click((await screen.findAllByText("acme shop"))[0]);
+    fireEvent.click((await screen.findAllByText("Acme Shop"))[0]);
     expect(await screen.findByRole("button", { name: /Copy restart brief/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Copy intent/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Copy raw prompts/ })).toBeNull();

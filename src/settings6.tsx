@@ -1,25 +1,24 @@
 // Settings sections extracted from App.tsx: Privacy & Connectivity (Bunker Mode),
 // Council defaults, Configuration (groups the memory/tasks/ideal sub-sections),
 // and the Agents catalog (AgentCard + AgentsSection).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlwaysAllowedCard } from "./actcard";
-import { AlertTriangle, ArrowUpRight, Brain, Check, ChevronRight, Circle, CircleCheck, CircleX, Cloud, CloudOff, Copy, Cpu, Crown, FileX, Fingerprint, FolderCheck, FolderX, Globe, LineChart, Loader2, Lock, LockOpen, Mail, MailCheck, Pencil, RefreshCw, Scale, Search, Send, Server, ShieldCheck, ShieldOff, Sigma, Sparkles, Star, Target, Terminal, User, Wifi, WifiOff } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Brain, Check, ChevronRight, Circle, CircleCheck, CircleX, Cloud, CloudOff, Copy, Cpu, FileX, Fingerprint, FolderCheck, FolderX, Globe, LineChart, Loader2, Lock, LockOpen, Mail, MailCheck, RefreshCw, Search, Send, Server, ShieldCheck, ShieldOff, Sigma, Sparkles, Star, Target, Terminal, User, Wifi, WifiOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
-import { DISCOVERED_MODELS, RUNTIME_META, VENDOR_BRAND, isHarnessRuntime } from "./constants";
-import { isLocalCli } from "./helpers";
-import { modelsFor, prettyModelId } from "./helpers2";
-import { LS, PREF, getPref, isBunkerOn, lsGet, lsSet, setPref } from "./storage";
+import { RUNTIME_META, VENDOR_BRAND, isHarnessRuntime } from "./constants";
+import { modelsFor } from "./helpers2";
+import { PREF, getPref, lsGet, lsSet, setPref } from "./storage";
 import { Ghost, MessageSquare } from "lucide-react";
 import { RowMenu, Toggle } from "./ui";
 import type { RowMenuItem } from "./ui";
-import { COUNCIL_CHAIR_KEY, COUNCIL_MEMBERS_KEY, councilModelsFor, councilSlotKey, readCouncilChair, readCouncilMembers } from "./council";
 import { SettingsHeader, authLoginCmd } from "./sectionutil";
 import { cliVerifyLive, loadVerifyMap, recheckCli, saveVerifyMap, setCliVerify, useCliVerifyLive } from "./verify";
 import { ProviderMark } from "./marks";
-import { SideSpine } from "./sidespine";
+import { SideSpine, STICKY_GROUP_HEAD } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { RowAction } from "./rowaction";
+import { ErrorLine } from "./errorline";
 import { TelemetrySettings } from "./settings4";
 import type { CliInfo, ModelVerifyStatus, UsageSummary } from "./types";
 
@@ -205,7 +204,7 @@ const PRIVACY_PART_TITLE: Record<PrivacyPart, [string, string]> = {
   "vault-lock": ["Vault Lock", "What files the assistant can touch."],
   incognito: ["Incognito", "How much of you the model sees."],
   guardrail: ["Outbound Guardrail", "Whether anything can reach another party without you."],
-  always: ["Always allowed", "Tools that run without asking in one domain. Anything sensitive still waits for you."],
+  always: ["Runs without asking", "Tools you approved once that now run without asking in one domain. Anything sensitive still waits for you."],
   telemetry: ["Telemetry", "Anonymous, opt-in, off by default."],
 };
 // part: one control on its own (the Privacy & Safety page gives each a row).
@@ -385,7 +384,7 @@ export function PrivacyConnectivitySection({ enabled, onChange, vaultPath, part 
       {vaultPath && show("always") && (
         <section className={part ? "" : "mt-6 border-t border-border-subtle pt-6"}>
           {!part && <PrivacyGroupHead
-            title="Always allowed"
+            title="Runs without asking"
             blurb="Tools that run without asking in one domain. Anything sensitive still waits for you."
           />}
           <AlwaysAllowedCard vaultPath={vaultPath} />
@@ -404,130 +403,6 @@ export function PrivacyConnectivitySection({ enabled, onChange, vaultPath, part 
 // defaults. Exported helpers used at call sites (textarea, chat chunk
 // handlers, etc.) to read live.
 
-// A visual "round table": the panel drawn as seats around a ring, the chair
-// crowned at the top, spokes to a central emblem. New seats animate in as members
-// are added, so picking a council feels like assembling a table, not editing a
-// list. Why it matters: the council's value is the spread of independent minds -
-// seeing them arranged makes that legible at a glance.
-function CouncilCircle({ members, chair, clis }: { members: string[]; chair: string; clis: CliInfo[] }) {
-  const size = 232, R = 84, cx = size / 2, cy = size / 2, seat = 46;
-  // Chair first so it always takes the top seat; the rest fan around clockwise.
-  const ordered = [chair, ...members.filter((m) => m && m !== chair)].filter(Boolean);
-  const n = ordered.length;
-  const labelFor = (key: string) => {
-    const [cli, model] = key.split("::");
-    const c = clis.find((x) => x.id === cli);
-    const m = councilModelsFor(cli).find((x) => x.id === model);
-    return `${c?.label ?? cli} · ${m?.label ?? (prettyModelId(model || "") || "default")}`;
-  };
-  // B2-4: the short model name shown UNDER each seat (e.g. "Opus 4.7"), so the
-  // ring labels its models, not just provider glyphs.
-  const modelShort = (key: string) => {
-    const [cli, model] = key.split("::");
-    const m = councilModelsFor(cli).find((x) => x.id === model);
-    return (m?.label ?? (prettyModelId(model || "") || "default")).replace(/\s*\(.*?\)\s*/g, "").trim();
-  };
-  if (n === 0) {
-    return (
-      <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 text-center">
-        <Crown className="h-7 w-7 text-text-muted" />
-        <div className="text-sm text-text-secondary">No one seated yet</div>
-        <div className="text-xs text-text-muted">Pick a runtime on the left to seat its models.</div>
-      </div>
-    );
-  }
-  return (
-    <div className="flex h-full w-full items-center justify-center py-2">
-      <style>{`@keyframes councilSeatIn{from{opacity:0;transform:translate(-50%,-50%) scale(.4)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}`}</style>
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="absolute inset-0" aria-hidden>
-          <circle cx={cx} cy={cy} r={R} fill="none" className="stroke-border-subtle" strokeWidth={1} />
-          {ordered.map((key, i) => {
-            const a = -Math.PI / 2 + i * ((2 * Math.PI) / n);
-            return <line key={key} x1={cx} y1={cy} x2={cx + R * Math.cos(a)} y2={cy + R * Math.sin(a)} className="stroke-border-subtle" strokeWidth={1} />;
-          })}
-        </svg>
-        {/* Center emblem: the panel size at a glance. */}
-        <div className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-border bg-background">
-          <span className="font-display text-base font-bold leading-none text-text-primary">{members.length}</span>
-          <span className="text-[11px] text-text-muted">Panel</span>
-        </div>
-        {ordered.map((key, i) => {
-          const a = -Math.PI / 2 + i * ((2 * Math.PI) / n);
-          const x = cx + R * Math.cos(a), y = cy + R * Math.sin(a);
-          const isChair = key === chair;
-          const cli = key.split("::")[0];
-          return (
-            <div
-              key={key}
-              title={`${labelFor(key)}${isChair ? " (chair)" : ""}`}
-              className="absolute"
-              style={{ left: x, top: y, width: seat, height: seat, transform: "translate(-50%,-50%)", animation: "councilSeatIn .3s cubic-bezier(0.22,1,0.36,1)" }}
-            >
-              <div className={`relative flex h-full w-full items-center justify-center rounded-full border bg-background ${isChair ? "border-accent ring-2 ring-accent/30" : "border-border"}`}>
-                <ProviderMark vendor={cli} size={26} />
-                {isChair && (
-                  <span className="absolute -top-2.5 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-accent text-background shadow-sm">
-                    <Crown className="h-3 w-3" />
-                  </span>
-                )}
-              </div>
-              {/* B2-4: model name under the seat. */}
-              <div className="absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap text-center text-[11px] leading-tight text-text-secondary">
-                {modelShort(key)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// Council summary inputs. A member counts as local (open-source, on-device)
-// when its cli, model or label matches one of these tokens.
-const COUNCIL_OSS_TOKENS = ["ollama", "llama", "mistral", "qwen", "deepseek", "gemma", "phi", "mixtral", "mlx", "lmstudio"];
-
-// Estimated dollar cost for ONE member to answer one council question. Local /
-// open-source models run on-device, so $0. Cloud models use a rough blended
-// $/1M-tokens by tier times a typical council-turn size. Deliberately an
-// estimate (real prices vary by provider + exact model), but a concrete figure
-// is far more useful than "$$$". Tuned to land in a believable per-run range.
-const COUNCIL_TURN_TOKENS = 6000; // ~prompt + context + answer for one seat
-function councilMemberCostUsd(hay: string, isOss: boolean): number {
-  if (isOss) return 0; // on-device, no API spend
-  const flagship = ["fable", "opus", "astra", "gpt-6", "gpt-5", "gpt5", "gemini-3.1-pro", "gemini-pro", "grok-4", "o3", "o1"];
-  const perMillion = flagship.some((t) => hay.includes(t)) ? 18 : 4; // blended $/1M tokens
-  return (COUNCIL_TURN_TOKENS / 1_000_000) * perMillion;
-}
-// Format a small USD figure without losing precision on cheap panels.
-function fmtUsd(n: number): string {
-  if (n <= 0) return "$0";
-  if (n < 0.01) return "<$0.01";
-  return `$${n.toFixed(2)}`;
-}
-
-// The panel in one plain line: seats, providers, local seats and a rough cost
-// for one full run. The caveat lives in the hover title.
-function useCouncilSummary(members: string[], clis: CliInfo[]) {
-  return useMemo(() => {
-    const classify = members.map((key) => {
-      const [cli, model] = key.split("::");
-      const c = clis.find((x) => x.id === cli);
-      const m = councilModelsFor(cli).find((x) => x.id === model);
-      const hay = `${cli} ${model ?? ""} ${c?.label ?? cli} ${m?.label ?? ""}`.toLowerCase();
-      return { cli, hay, isOss: COUNCIL_OSS_TOKENS.some((t) => hay.includes(t)) };
-    });
-    const seats = members.length;
-    const providers = new Set(classify.map((x) => x.cli)).size;
-    const local = classify.filter((x) => x.isOss).length;
-    const cost = classify.reduce((sum, x) => sum + councilMemberCostUsd(x.hay, x.isOss), 0);
-    const line = `${seats} seat${seats === 1 ? "" : "s"} · ${providers} provider${providers === 1 ? "" : "s"} · ${local} local · about ${fmtUsd(cost)} a run`;
-    const caveat = `Rough estimate: about ${(COUNCIL_TURN_TOKENS / 1000).toFixed(0)}K tokens a seat at blended cloud rates; local models are free. Actual prices vary.`;
-    return { line, caveat };
-  }, [members, clis]);
-}
-
 // Local, cloud and harness runtimes, grouped the same way on the Models page
 // and the Council page.
 const LOCAL_RUNTIME_IDS = new Set(["ollama", "omlx", "mlx", "lmstudio", "lm-studio", "localai", "llamacpp"]);
@@ -542,239 +417,6 @@ function groupRuntimes(list: CliInfo[]): { key: string; label: string; list: Cli
     { key: "harness", label: "Harnesses", list: list.filter((c) => isHarnessRuntime(c.id)).sort(sortReady) },
   ].filter((g) => g.list.length > 0);
 }
-
-const councilIconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface-warm";
-
-// Council: the same master-detail as Models. The column holds the Panel
-// overview and the runtimes (grouped like Models); the detail is the seat
-// diagram and settings, or one runtime's models with tiny on-panel and chair
-// actions. The panel and chair save to the same keys as before, on change.
-export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
-  const available = useMemo(() => clis.filter((c) => c.available && (!isBunkerOn() || isLocalCli(c.id))), [clis]);
-  const [members, setMembers] = useState<Set<string>>(() => new Set(readCouncilMembers()));
-  const [chair, setChair] = useState<string>(() => readCouncilChair());
-  // "" is the Panel overview; otherwise a runtime id.
-  const [sel, setSel] = useState("");
-  const [picked, setPicked] = useState(false);
-  const phone = useIsPhone();
-  const select = (id: string) => { setSel(id); setPicked(true); };
-  // Per-provider catalog search (aggregators like OpenRouter expose hundreds of
-  // models: search, don't scroll a fixed list).
-  const [panelSearch, setPanelSearch] = useState<Record<string, string>>({});
-  const [choosingChair, setChoosingChair] = useState(false);
-  // Global auto-council: a high-stakes judgment call asked through any AI tool
-  // (over MCP) or the Prevail chat auto-escalates to a multi-model council.
-  const [autoCouncil, setAutoCouncil] = useState(false);
-  const [autoCouncilBusy, setAutoCouncilBusy] = useState(false);
-  useEffect(() => {
-    invoke<{ auto?: string }>("get_auto_council").then((m) => setAutoCouncil(m?.auto === "auto")).catch(() => {});
-  }, []);
-  async function toggleAutoCouncil(on: boolean) {
-    setAutoCouncilBusy(true);
-    setAutoCouncil(on); // optimistic
-    try { await invoke("set_auto_council", { domain: "general", on }); }
-    catch { setAutoCouncil(!on); /* revert on failure */ }
-    finally { setAutoCouncilBusy(false); }
-  }
-  // Once providers are detected: prune any stale slot keys that no longer map to
-  // a real (available provider, model), then seed a sensible default if the
-  // panel is empty. Discovered (live-catalog) models count as valid too.
-  useEffect(() => {
-    if (available.length === 0) return;
-    const valid = new Set<string>();
-    for (const c of available) {
-      for (const m of councilModelsFor(c.id)) valid.add(councilSlotKey(c.id, m.id));
-      for (const m of (DISCOVERED_MODELS[c.id] ?? [])) valid.add(councilSlotKey(c.id, m.id));
-    }
-    setMembers((prev) => {
-      const pruned = new Set([...prev].filter((k) => valid.has(k)));
-      if (pruned.size > 0) return pruned.size === prev.size ? prev : pruned;
-      return new Set(available.slice(0, 3).map((c) => councilSlotKey(c.id, councilModelsFor(c.id)[0].id)));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [available]);
-  useEffect(() => { lsSet(COUNCIL_MEMBERS_KEY, JSON.stringify([...members])); window.dispatchEvent(new Event("prevail:council-changed")); }, [members]);
-  useEffect(() => {
-    lsSet(COUNCIL_CHAIR_KEY, chair);
-    const cli = chair.split("::")[0];
-    if (cli) lsSet(LS.defaultChairCli, cli); // back-compat
-    window.dispatchEvent(new Event("prevail:council-changed"));
-  }, [chair]);
-  // Chair must be a current member.
-  useEffect(() => {
-    if (members.size && !members.has(chair)) setChair([...members][0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [members]);
-
-  const toggle = (key: string) => setMembers((m) => { const n = new Set(m); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-  // The chair always sits on the panel, so making one also seats it.
-  const makeChair = (key: string) => { setMembers((m) => (m.has(key) ? m : new Set(m).add(key))); setChair(key); };
-  const labelFor = (key: string) => {
-    const [cli, model] = key.split("::");
-    const c = clis.find((x) => x.id === cli);
-    const m = councilModelsFor(cli).find((x) => x.id === model) ?? (DISCOVERED_MODELS[cli] ?? []).find((x) => x.id === model);
-    return `${c?.label ?? cli} · ${m?.label ?? (prettyModelId(model || "") || "default")}`;
-  };
-  const memberList = [...members];
-  const summary = useCouncilSummary(memberList, clis);
-  const onPanel = (id: string) => memberList.filter((k) => k.startsWith(`${id}::`)).length;
-  const groups = groupRuntimes(available);
-  const verify = useCliVerifyLive();
-  const runtime = available.find((c) => c.id === sel) ?? null;
-
-  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft shadow-sm ring-1 ring-accent-border" : "border-l-transparent ring-1 ring-transparent hover:bg-surface-warm"}`;
-  const listEl = (
-    <div className="space-y-3">
-      <button data-testid="council-row-panel" aria-current={sel === "" ? "true" : undefined} onClick={() => select("")} className={rowCls(sel === "" && (!phone || picked))}>
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent"><Scale className="h-4 w-4" /></span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-text-primary">Panel</span>
-          <span className="block truncate text-[12px] text-text-muted">{members.size} seat{members.size === 1 ? "" : "s"}</span>
-        </span>
-      </button>
-      {available.length === 0 && (
-        <p className="px-2.5 text-[13px] text-text-muted">
-          {clis.length === 0 ? "Checking the runtimes on this Mac." : `No runtime is ready to join a panel${isBunkerOn() ? " in Bunker Mode, which allows local models only" : ""}.`}
-        </p>
-      )}
-      {groups.map((g) => (
-        <div key={g.key} className="space-y-1">
-          <div className="px-2.5 pb-1 pt-2 text-[15px] font-semibold text-text-primary">
-            {g.label} <span className="text-[13px] font-normal text-text-muted">{g.list.length}</span>
-          </div>
-          {g.list.map((c) => {
-            const n = onPanel(c.id);
-            return (
-              <button key={c.id} data-testid={`council-row-${c.id}`} aria-current={sel === c.id ? "true" : undefined} onClick={() => select(c.id)} className={rowCls(sel === c.id)}>
-                <ProviderMark vendor={c.id} size={28} />
-                <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-sm font-semibold ${sel === c.id ? "text-accent" : "text-text-primary"}`}>{c.label}</span>
-                  {n > 0 && <span className="block truncate text-[12px] text-accent">{n} on panel</span>}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-
-  const overview = (
-    <div data-testid="council-overview" className="space-y-5">
-      <div className="flex justify-center rounded-xl border border-border-subtle bg-surface p-4">
-        <CouncilCircle members={memberList} chair={chair} clis={clis} />
-      </div>
-      <p data-testid="council-summary" title={summary.caveat} className="text-[15px] text-text-secondary">{summary.line}</p>
-      <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
-        <div data-testid="council-chair" className="flex items-center gap-3 px-4 py-3">
-          <Crown className="h-4 w-4 shrink-0 text-accent" />
-          <span className="text-sm text-text-muted">Chair</span>
-          {choosingChair && members.size > 0 ? (
-            <select autoFocus value={chair} aria-label="Chair" onChange={(e) => { setChair(e.target.value); setChoosingChair(false); }} onBlur={() => setChoosingChair(false)}
-              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm text-text-primary focus:border-accent-border focus:outline-none">
-              {memberList.map((k) => <option key={k} value={k}>{labelFor(k)}</option>)}
-            </select>
-          ) : (
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{chair ? labelFor(chair) : "No chair yet"}</span>
-          )}
-          {!choosingChair && members.size > 1 && (
-            <button onClick={() => setChoosingChair(true)} title="Change the chair" aria-label="Change the chair" className={`${councilIconBtn} text-text-muted hover:text-accent`}>
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-3 px-4 py-3">
-          <Scale className={`h-4 w-4 shrink-0 ${autoCouncil ? "text-accent" : "text-text-muted"}`} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-text-primary">Auto-convene on high-stakes questions</div>
-            <div className="mt-0.5 text-xs text-text-secondary">Judgment calls go to this council automatically and the verdict is saved. Routine questions stay single-model.</div>
-          </div>
-          <Toggle on={autoCouncil} disabled={autoCouncilBusy} onChange={toggleAutoCouncil} label="Auto-convene the council on high-stakes questions" />
-        </div>
-      </div>
-      <p className="text-[13px] text-text-muted">The Council tab in any domain starts with this panel.</p>
-    </div>
-  );
-
-  const runtimeDetail = (c: CliInfo) => {
-    const curated = councilModelsFor(c.id);
-    const live = DISCOVERED_MODELS[c.id] ?? [];
-    const isAggregator = live.length > 0;
-    const q = (panelSearch[c.id] ?? "").trim().toLowerCase();
-    const onPanelIds = memberList.filter((k) => k.startsWith(`${c.id}::`)).map((k) => k.slice(c.id.length + 2));
-    let models: { id: string; label: string; blurb?: string }[];
-    if (isAggregator && q) {
-      models = live.filter((m) => `${m.id} ${m.label ?? ""}`.toLowerCase().includes(q)).slice(0, 40)
-        .map((m) => ({ id: m.id, label: m.label && m.label !== m.id ? m.label : m.id, blurb: "" }));
-    } else if (isAggregator) {
-      const curatedIds = new Set(curated.map((m) => m.id));
-      const extras = onPanelIds.filter((id) => !curatedIds.has(id)).map((id) => ({ id, label: live.find((x) => x.id === id)?.label ?? id, blurb: "" }));
-      models = [...curated, ...extras];
-    } else {
-      models = curated;
-    }
-    const v = verify.get(c.id)?.status;
-    const status: { tone: ChipTone; label: string } = v === "ok" ? { tone: "ok", label: "Ready" } : v === "failed" ? { tone: "warn", label: "Not working" } : { tone: "muted", label: "Detected" };
-    return (
-      <div data-testid="council-runtime" className="space-y-4">
-        <div className="flex items-center gap-3">
-          <ProviderMark vendor={c.id} size={36} />
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary min-w-0 truncate">{c.label}</h2>
-          <StatusChip tone={status.tone} label={status.label} spin={v === "verifying"} />
-          {onPanelIds.length > 0 && <span className="ml-auto text-[13px] text-accent">{onPanelIds.length} on panel</span>}
-        </div>
-        {isAggregator && (
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
-            <input value={panelSearch[c.id] ?? ""} onChange={(e) => setPanelSearch((s) => ({ ...s, [c.id]: e.target.value }))}
-              placeholder={`Search all ${live.length} models`}
-              className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none" />
-          </div>
-        )}
-        {models.length === 0 && <p className="text-[14px] text-text-muted">No models match.</p>}
-        <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
-          {models.map((m) => {
-            const key = councilSlotKey(c.id, m.id);
-            const on = members.has(key);
-            const isChair = chair === key;
-            return (
-              <div key={key} data-council-model={m.id} data-on={on ? "1" : "0"} className={`flex items-center gap-3 border-l-2 px-3 py-2.5 ${on ? "border-l-accent bg-accent-soft/60" : "border-l-transparent"}`}>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`truncate text-sm font-medium ${on ? "text-accent" : "text-text-primary"}`}>{m.label}</span>
-                    {isChair && <span data-testid="council-chair-mark" className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-accent"><Crown className="h-3 w-3" /> Chair</span>}
-                  </div>
-                  {m.blurb && <div className="mt-0.5 truncate text-[12px] text-text-muted">{m.blurb}</div>}
-                </div>
-                <button onClick={() => toggle(key)} aria-pressed={on} title={on ? "Remove from the panel" : "Add to the panel"} aria-label={on ? `Remove ${m.label} from the panel` : `Add ${m.label} to the panel`}
-                  className={`${councilIconBtn} ${on ? "text-accent" : "text-text-muted hover:text-accent"}`}>
-                  {on ? <CircleCheck className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
-                </button>
-                <button onClick={() => makeChair(key)} disabled={isChair} aria-pressed={isChair} title={isChair ? "Chairs the council" : "Make chair"} aria-label={isChair ? `${m.label} is the chair` : `Make ${m.label} the chair`}
-                  className={`${councilIconBtn} ${isChair ? "text-accent" : "text-text-muted hover:text-accent"}`}>
-                  <Crown className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <>
-      <SettingsHeader title="Council" icon={Scale} subtitle="Several models answer, a chair writes the verdict." />
-      <SideSpine storageKey="prevail.council.spine" title="Council" label="runtimes" testId="council-list"
-        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Panel and runtimes"
-        detail={<div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{runtime ? runtimeDetail(runtime) : overview}</div>}>
-        <div className="p-2">{listEl}</div>
-      </SideSpine>
-    </>
-  );
-}
-
-
 
 // FrameworkPickerCard was deleted with v0.2.92 - the chip-row UI
 // it provided lived only in Settings → Defaults as a duplicate of
@@ -832,10 +474,10 @@ function RoutingRow() {
     window.dispatchEvent(new Event("prevail:route-cascade-changed"));
   };
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border-subtle bg-surface-warm/50 px-3 py-2">
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text-primary">
-        <Sparkles className="h-3.5 w-3.5 text-accent" /> Auto routing
-      </span>
+    <section data-testid="auto-routing" className="border-t border-border-subtle px-5 py-4">
+      <h4 className="flex items-center gap-1.5 text-base font-semibold text-text-primary"><Sparkles className="h-4 w-4 text-accent" /> Auto routing</h4>
+      <p className="mt-0.5 text-[13px] text-text-muted">When a chat uses Auto, Prevail picks a model for each prompt. Lean it toward cost or quality.</p>
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
       <div className="inline-flex rounded-md border border-border bg-background p-0.5" role="radiogroup" aria-label="Auto routing bias">
         {ROUTE_BIAS_OPTIONS.map((o) => (
           <button
@@ -859,7 +501,13 @@ function RoutingRow() {
         Try a cheaper model first
       </label>
     </div>
+    </section>
   );
+}
+
+// A model matches the page search by its name, id or one-line blurb.
+function modelMatches(m: { id: string; label: string; blurb?: string }, q: string): boolean {
+  return m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || (m.blurb ?? "").toLowerCase().includes(q);
 }
 
 // A quiet status pill: colored dot (or spinner) + a two-word sentence-case
@@ -887,7 +535,10 @@ export function AgentCard({
   cost,
   chattable = true,
   forceOpen = false,
+  query = "",
 }: {
+  /** The page search: only the models that match are listed. */
+  query?: string;
   cli: CliInfo;
   onStartChat?: (cliId: string, modelId?: string) => void;
   isDefault?: boolean;
@@ -910,7 +561,10 @@ export function AgentCard({
     window.addEventListener("prevail:models-refreshed", h);
     return () => window.removeEventListener("prevail:models-refreshed", h);
   }, []);
-  const models = modelsFor(cli.id);
+  const allModels = modelsFor(cli.id);
+  const q = query.trim().toLowerCase();
+  const runtimeHit = !q || cli.label.toLowerCase().includes(q) || cli.id.includes(q);
+  const models = runtimeHit ? allModels : allModels.filter((m) => modelMatches(m, q));
   // "auto" is a router sentinel, not a real model: it can't be verified and must
   // not count against the "N of M verified" tally or trigger a verify call.
   const verifiable = models.filter((m) => m.id !== "auto");
@@ -1004,7 +658,7 @@ export function AgentCard({
 
   // The one-line fact strip under the name: vendor, version, spend, verified.
   const metaParts: string[] = [brand.name];
-  if (cli.available) metaParts.push(cli.version ? `Version ${cli.version}` : `${cli.bin} in PATH`);
+  if (cli.available && cli.version) metaParts.push(`Version ${cli.version}`);
   if (typeof cost === "number" && cost > 0) metaParts.push(`$${cost < 1 ? cost.toFixed(2) : cost < 100 ? cost.toFixed(1) : Math.round(cost)} spent`);
   if (cli.available && verifiable.length > 0) metaParts.push(`${verifiedCount} of ${verifiable.length} models verified`);
 
@@ -1032,7 +686,7 @@ export function AgentCard({
             {isDefault && <span className="shrink-0 rounded-full bg-accent px-2 py-px text-[10px] font-semibold text-background">Default</span>}
             <StatusChip tone={health.tone} label={health.label} spin={health.spin} title={health.title} />
           </span>
-          <span className="mt-0.5 block truncate text-xs text-text-muted">{metaParts.join("  ·  ")}</span>
+          <span data-testid="runtime-meta" className="mt-0.5 block truncate text-xs text-text-muted">{metaParts.join("  ·  ")}</span>
         </button>
         {cli.available && chattable ? (
           <button onClick={() => onStartChat?.(cli.id)} className={btnPrimary}>
@@ -1059,20 +713,22 @@ export function AgentCard({
           so lead with the fix (the login command) rather than the stack. */}
       {cli.available && cliErr?.status === "failed" && cliErr.error && (
         <div className="flex items-center gap-2.5 border-t border-border-subtle bg-warn/5 px-5 py-2.5">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn" />
           <div className="min-w-0 flex-1 text-xs text-text-secondary">
             {(() => {
               const loginCmd = authLoginCmd(cli.id, cliErr.error ?? "");
               return loginCmd ? (
-                <>Not signed in. Run <code className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[11px] text-accent">{loginCmd}</code> in a terminal, then re-check.</>
+                <span className="flex items-center gap-2.5"><AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn" /><span>Not signed in. Run <code className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[11px] text-accent">{loginCmd}</code> in a terminal, then re-check.</span></span>
               ) : (
-                <span className="line-clamp-2">{cliErr.error}</span>
+                <ErrorLine error={cliErr.error ?? ""} />
               );
             })()}
           </div>
           <button onClick={() => recheckCli(cli.id)} className={btnSecondary}>Re-check</button>
         </div>
       )}
+
+      {/* Auto routing, its own section, only for runtimes that offer "Auto". */}
+      {isOpen && cli.available && models.some((m) => m.id === "auto") && <RoutingRow />}
 
       {isOpen && cli.available && models.length > 0 && (
         <div className="border-t border-border-subtle px-5 py-4">
@@ -1085,8 +741,6 @@ export function AgentCard({
               </button>
             )}
           </div>
-          {/* Auto routing, one compact row, only for runtimes that offer "Auto". */}
-          {models.some((m) => m.id === "auto") && <div className="mb-3"><RoutingRow /></div>}
           <div className="divide-y divide-border-subtle rounded-lg border border-border-subtle bg-background">
             {models.map((m) => {
               const s = status[m.id];
@@ -1137,7 +791,9 @@ export function AgentCard({
                       )}
                     </div>
                     {m.blurb && <div className={`truncate text-xs ${failed ? "text-text-muted/60" : "text-text-muted"}`}>{m.blurb}</div>}
+                    {failed && err && !loginCmd && <ErrorLine error={err} tone="err" className="mt-1" />}
                   </div>
+                  {!failed && <span data-testid="model-status" className="shrink-0 text-[12px] text-text-muted">{isAuto ? "Router" : s === "ok" ? "Verified" : s === "verifying" ? "Checking" : "Not checked"}</span>}
                   {chattable && (
                     <RowAction icon={MessageSquare} label={`Chat with ${m.label}`} doneLabel="Opening chat" onClick={() => onStartChat?.(cli.id, m.id)} testId="model-chat" />
                   )}
@@ -1182,12 +838,7 @@ export function AgentCard({
           </div>
           {/* Broken install: show the actual failure so the user knows what to
               fix (the most common cause is a wrapper pointing at a removed env). */}
-          {cli.error && (
-            <div className="flex items-start gap-2 rounded-md border border-err/30 bg-err/5 px-2.5 py-2">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-err" />
-              <code className="min-w-0 flex-1 break-all font-mono text-[11px] leading-relaxed text-text-secondary">{cli.error}</code>
-            </div>
-          )}
+          {cli.error && <ErrorLine error={cli.error} tone="err" className="rounded-md border border-err/30 bg-err/5 px-2.5 py-2" />}
           <div className="space-y-2.5 rounded-lg border border-border-subtle bg-background p-3">
             <div className="text-sm font-semibold text-text-primary">{cli.error ? `Reinstall ${cli.label}` : `Set up ${cli.label}`}</div>
             <p className="text-xs leading-relaxed text-text-secondary">
@@ -1248,7 +899,9 @@ export function AgentCard({
 // One row in the Runtimes master-detail list: provider mark, name, a health
 // dot, version sub-line, and the default marker. Selecting it shows the runtime
 // detail (an always-open AgentCard) on the right.
-function RuntimeRow({ cli, active, vstatus, isDefault, onSelect }: {
+function RuntimeRow({ cli, active, vstatus, isDefault, onSelect, matches }: {
+  // Models that matched the page search, named under the runtime.
+  matches?: string[];
   cli: CliInfo;
   active: boolean;
   vstatus?: string;
@@ -1259,7 +912,6 @@ function RuntimeRow({ cli, active, vstatus, isDefault, onSelect }: {
   // from genuinely not-installed, so the row never disagrees with the detail
   // panel's BROKEN / "won't run" status.
   const broken = !cli.available && !!cli.error;
-  const sub = cli.available ? (cli.version ? `Version ${cli.version.slice(0, 22)}` : "Detected") : broken ? "Won't run" : "Not installed";
   // One lucide glyph per state, colored, no badge background: the row stays
   // quiet and the color alone says ready / checking / failed / absent.
   const state: { Icon: LucideIcon; cls: string; tip: string } = !cli.available
@@ -1272,7 +924,10 @@ function RuntimeRow({ cli, active, vstatus, isDefault, onSelect }: {
         ? { Icon: CircleX, cls: "text-warn", tip: "Not working" }
         : vstatus === "verifying"
           ? { Icon: Loader2, cls: "animate-spin text-text-muted", tip: "Checking" }
-          : { Icon: Circle, cls: "text-text-muted/60", tip: "Detected, not checked yet" };
+          : { Icon: Circle, cls: "text-text-muted/60", tip: "Not checked yet" };
+  // Status in words first, then the version.
+  const sub = matches?.length ? `Matches ${matches.slice(0, 3).join(", ")}${matches.length > 3 ? ` +${matches.length - 3}` : ""}`
+    : cli.available && cli.version ? `${state.tip} · ${cli.version.slice(0, 18)}` : state.tip;
   return (
     <button
       onClick={onSelect}
@@ -1281,7 +936,7 @@ function RuntimeRow({ cli, active, vstatus, isDefault, onSelect }: {
       <ProviderMark vendor={cli.id} size={28} />
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>{cli.label}</span>
-        <span className="block truncate text-[11px] text-text-muted">{sub}</span>
+        <span data-testid="runtime-status" className="block truncate text-[12px] text-text-muted">{sub}</span>
       </span>
       {isDefault && <span className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10px] font-semibold text-background">Default</span>}
       <span className="flex shrink-0" title={state.tip} aria-label={state.tip}><state.Icon className={`h-4 w-4 ${state.cls}`} /></span>
@@ -1332,12 +987,21 @@ export function AgentsSection({
 
   // Master-detail: pick a runtime on the left, see its full detail (an
   // always-open AgentCard) on the right - the canonical app layout.
-  const groups = groupRuntimes(clis);
+  // Search across runtimes and their models: a runtime stays when its name
+  // matches or any of its models does.
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const modelHits = (c: CliInfo) => (q ? modelsFor(c.id).filter((m) => modelMatches(m, q)).map((m) => m.label) : []);
+  const runtimeHit = (c: CliInfo) => !q || c.label.toLowerCase().includes(q) || c.id.includes(q);
+  const groups = groupRuntimes(clis)
+    .map((g) => ({ ...g, list: g.list.filter((c) => runtimeHit(c) || modelHits(c).length > 0) }))
+    .filter((g) => g.list.length > 0);
   const all = groups.flatMap((g) => g.list);
   const verify = useCliVerifyLive();
   const [selectedId, setSelectedId] = useState("");
   const phone = useIsPhone();
-  const selectedEff = selectedId || defaultChatCli || all.find((c) => c.available)?.id || all[0]?.id || "";
+  const pickable = (id: string | undefined) => (id && all.some((c) => c.id === id) ? id : "");
+  const selectedEff = pickable(selectedId) || pickable(defaultChatCli) || all.find((c) => c.available)?.id || all[0]?.id || "";
   const selected = all.find((c) => c.id === selectedEff) ?? null;
   // Collapsible sub-groups (Cloud / Local / Harnesses), matching the Arena rail's
   // expandable provider groups. Collapsed keys persisted so the rail reopens the
@@ -1363,7 +1027,8 @@ export function AgentsSection({
             <button
               onClick={() => toggleGroup(g.key)}
               aria-expanded={open}
-              className="flex w-full items-baseline justify-between rounded-md px-2.5 pb-1 pt-2 transition-colors hover:bg-surface-warm"
+              data-sticky-head
+              className={`flex w-full items-baseline justify-between px-2.5 pb-1 pt-2 transition-colors hover:text-accent ${STICKY_GROUP_HEAD} ${phone ? "bg-background" : "spine-sticky-head"}`}
             >
               <span className="flex items-center gap-1.5 text-[15px] font-semibold text-text-primary">
                 <ChevronRight className={`h-3.5 w-3.5 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
@@ -1379,6 +1044,7 @@ export function AgentsSection({
                 vstatus={verify.get(c.id)?.status}
                 isDefault={defaultChatCli === c.id}
                 onSelect={() => setSelectedId(c.id)}
+                matches={runtimeHit(c) ? undefined : modelHits(c)}
               />
             ))}
           </div>
@@ -1397,9 +1063,10 @@ export function AgentsSection({
       onMakeDefault={onMakeDefault ? () => onMakeDefault(selected.id) : undefined}
       cost={costByCli[selected.id]}
       chattable={!isHarnessRuntime(selected.id)}
+      query={query}
     />
   ) : (
-    <div className="p-8 text-center text-sm text-text-muted">Select a runtime to see its status, models, and actions.</div>
+    <div className="p-8 text-center text-sm text-text-muted">{q ? "Nothing matches that search." : "Select a runtime to see its status, models, and actions."}</div>
   );
 
   return (
@@ -1411,6 +1078,13 @@ export function AgentsSection({
         />
       )}
       <SideSpine storageKey="prevail.runtimes.spine" title="Runtimes" label="runtimes" testId="runtimes-list"
+        toolbar={
+          <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2.5 focus-within:border-accent-border">
+            <Search className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search runtimes and models" aria-label="Search runtimes and models"
+              className="min-w-0 flex-1 bg-transparent text-[14px] text-text-primary outline-none placeholder:text-text-muted" />
+          </label>
+        }
         phone={phone} phoneDetail={phone && !!selectedId} onBack={() => setSelectedId("")} backLabel="All runtimes"
         detail={<div className="px-2 pb-10 pt-2">{detailEl}</div>}>
         <div className="p-2">{listEl}</div>

@@ -200,6 +200,25 @@ pub fn run_engine_raw(args: &[&str]) -> Result<String, String> {
 /// Uses the same enriched env (PATH/USER/LOGNAME) as lib.rs chat_send so
 /// Finder-launched GUI apps can still find node-shebang binaries and so
 /// claude-backed audits can read their Keychain entry.
+/// A short name for an engine call in the perf log: the subcommand words,
+/// without `--vault <path>` or later flags and values.
+fn engine_label(args: &[&str]) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    let mut i = 0;
+    while i < args.len() && out.len() < 2 {
+        if args[i] == "--vault" {
+            i += 2;
+            continue;
+        }
+        if args[i].starts_with('-') {
+            break;
+        }
+        out.push(args[i]);
+        i += 1;
+    }
+    out.join(" ")
+}
+
 pub fn run_engine_json(args: &[&str]) -> Result<serde_json::Value, String> {
     use std::process::Command;
 
@@ -232,7 +251,9 @@ pub fn run_engine_json(args: &[&str]) -> Result<serde_json::Value, String> {
     if let Some(p) = skill_packs_path() {
         cmd.env("PREVAIL_SKILL_PACKS_DIR", p);
     }
+    let t0 = std::time::Instant::now();
     let out = cmd.output().map_err(|e| format!("spawn {bin} failed: {e}"))?;
+    crate::perf::record("engine", &engine_label(args), t0.elapsed());
 
     if !out.status.success() {
         let code = out.status.code().unwrap_or(-1);
@@ -299,6 +320,7 @@ pub fn run_engine_json_stdin(
     if let Some(p) = skill_packs_path() {
         cmd.env("PREVAIL_SKILL_PACKS_DIR", p);
     }
+    let t0 = std::time::Instant::now();
     let mut child = cmd.spawn().map_err(|e| format!("spawn {bin} failed: {e}"))?;
 
     {
@@ -315,6 +337,7 @@ pub fn run_engine_json_stdin(
     let out = child
         .wait_with_output()
         .map_err(|e| format!("wait {bin} failed: {e}"))?;
+    crate::perf::record("engine", &engine_label(args), t0.elapsed());
 
     if !out.status.success() {
         let code = out.status.code().unwrap_or(-1);
@@ -504,21 +527,12 @@ fn apply_engine_env(
         // etc.). Read from the Keychain and injected here so the engine can make
         // its in-process HTTP call. Named PREVAIL_OPENROUTER_KEY to avoid the
         // engine's scrubbedEnv strip list (OPENAI_/ANTHROPIC_…).
-        if let Ok(key) = crate::ingestion::keychain::get("prevail.providers", "openrouter") {
-            if !key.is_empty() {
-                cmd.env("PREVAIL_OPENROUTER_KEY", key);
-            }
-        }
-        // Direct single-vendor providers (G1): inject each configured key as
-        // PREVAIL_<ID>_KEY (the PREVAIL_ prefix dodges the engine's scrubbedEnv
-        // strip list). The engine's DIRECT_PROVIDERS table reads these to make
-        // the provider available + route to it.
-        for (id, env_key) in DIRECT_PROVIDER_ENVS {
-            if let Ok(key) = crate::ingestion::keychain::get("prevail.providers", id) {
-                if !key.is_empty() {
-                    cmd.env(env_key, key);
-                }
-            }
+        // Direct single-vendor providers (G1) ride along: each configured key
+        // as PREVAIL_<ID>_KEY (the PREVAIL_ prefix dodges the engine's
+        // scrubbedEnv strip list). The engine's DIRECT_PROVIDERS table reads
+        // these to make the provider available + route to it.
+        for (k, v) in provider_key_pairs() {
+            cmd.env(k, v);
         }
         // App connector secrets (PayPal Client ID/Secret, etc.): each app's
         // auth_env_vars are stored in the Keychain (service "prevail.appsecrets")
@@ -985,7 +999,7 @@ pub struct DomainManifest {
 /// serde_json::Value because the desktop already has its own richer
 /// Domain shape from native scanning (lib.rs scan_vault); this is the
 /// engine's own view for parity/debugging.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_domains(vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["--vault", &vault, "domains"])
 }
@@ -993,7 +1007,7 @@ pub fn engine_domains(vault: String) -> Result<serde_json::Value, String> {
 /// The user's REAL connected apps as the engine sees them (community apps under
 /// ~/.prevail/apps + vault apps), with connection + sync state. This is the
 /// live counterpart to the static connector catalog: what is actually wired up.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_apps_list(vault: Option<String>) -> Result<serde_json::Value, String> {
     // Scope the listing to the SAME vault the UI adds into. engine_app_add passes
     // --vault explicitly; if the list relied only on the ambient env it could
@@ -1009,7 +1023,7 @@ pub fn engine_apps_list(vault: Option<String>) -> Result<serde_json::Value, Stri
 /// Import an existing Obsidian vault folder into a Prevail domain as AI-readable
 /// source (wikilinks/embeds converted, tags + frontmatter kept). Idempotent;
 /// registers an `obsidian` connector app. Returns { ok, imported, domain, ... }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_obsidian_import(vault: String, from: String, domain: Option<String>) -> Result<serde_json::Value, String> {
     let dom = domain.unwrap_or_else(|| "notes".to_string());
     run_engine_json(&["obsidian", "import", "--from", &from, "--into", &dom, "--vault", &vault, "--json"])
@@ -1017,7 +1031,7 @@ pub fn engine_obsidian_import(vault: String, from: String, domain: Option<String
 
 /// Scaffold a new app from a catalog pick — writes ~/.prevail/apps/<id>/ so it
 /// becomes a real connectable App. Returns { ok, path?, error? }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_app_add(
     vault: String,
     id: String,
@@ -1049,7 +1063,7 @@ pub fn engine_app_add(
 /// Rewrite an app's many-to-many domain binding. Pass the full desired list;
 /// the engine normalizes/validates/dedups and writes only the manifest's
 /// `domains` array. Returns { ok, path?, domains?, error? }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_app_set_domains(id: String, domains: Vec<String>, vault: Option<String>) -> Result<serde_json::Value, String> {
     let doms = domains.join(",");
     // Bind on the SAME vault the UI added the app to, so the domain link persists
@@ -1065,7 +1079,7 @@ pub fn engine_app_set_domains(id: String, domains: Vec<String>, vault: Option<St
 
 /// Record one skill USE in the vault's usage ledger (fire-and-forget from the
 /// chat/council send paths). Powers skill popularity + archive-the-bloat.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_skill_used(domain: String, skill: String, source: String) -> Result<(), String> {
     // Best-effort by contract: a usage tick must never disturb the send path.
     let _ = run_engine_json(&["skill-usage", "used", &domain, &skill, "--source", &source, "--json"]);
@@ -1074,13 +1088,13 @@ pub fn engine_skill_used(domain: String, skill: String, source: String) -> Resul
 
 /// Usage report for every skill in the vault: uses, last-used, verdict
 /// (active | dormant | unused). Computed live from the ledger + scan.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_skills_report() -> Result<serde_json::Value, String> {
     run_engine_json(&["skill-usage", "report", "--json"])
 }
 
 /// Archive (or restore) a skill: moved to skills/_archive/<id>, never deleted.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_skill_archive(domain: String, skill: String, restore: Option<bool>) -> Result<serde_json::Value, String> {
     let action = if restore.unwrap_or(false) { "unarchive" } else { "archive" };
     run_engine_json(&["skill-usage", action, &domain, &skill, "--json"])
@@ -1156,7 +1170,7 @@ pub async fn engine_attachments_caption() -> Result<(), String> {
 /// the desktop drops the returned body into the NewSkillForm editor for review,
 /// and the existing `skill_create` Save writes it. Bunker-mode aware in the CLI.
 /// Returns the full SKILL.md text so the editor can show it verbatim.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_skill_draft(
     vault: String,
     domain: String,
@@ -1206,7 +1220,7 @@ pub fn engine_skill_draft(
 /// writes anything: the user turns a chosen idea into a real draft via
 /// `engine_skill_draft`. Returns the raw JSON value { ok, ideas: [{name, describe}] }
 /// so the UI can render the suggestions without a second call.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_skill_ideas(
     vault: String,
     domain: String,
@@ -1285,7 +1299,7 @@ pub async fn engine_bench_preset_suggest(
 
 /// Global autonomy state + per-action-class policy. Returns
 /// { state: "active"|"paused", policy: {...}, monthlyFinancialCapUsd }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_autonomy_status() -> Result<serde_json::Value, String> {
     run_engine_json(&["autonomy", "status", "--json"])
 }
@@ -1293,25 +1307,25 @@ pub fn engine_autonomy_status() -> Result<serde_json::Value, String> {
 /// Set the master autonomy mode: "paused" (kill switch) | "ask" (propose, you
 /// approve) | "auto" (run allow-policy actions unattended). Legacy "pause"/
 /// "resume" are accepted by the engine too.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_autonomy_set(state: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["autonomy", &state, "--json"])
 }
 
 /// Set (or clear, with "off") the monthly financial spend cap in USD.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_autonomy_cap(cap: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["autonomy", "cap", &cap, "--json"])
 }
 
 /// Set the pre-emptive policy for an action class: allow | ask | never.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_autonomy_policy(class: String, decision: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["autonomy", "policy", &class, &decision, "--json"])
 }
 
 /// List available playbooks: [{ id, name, goal }].
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_list_playbooks() -> Result<serde_json::Value, String> {
     run_engine_json(&["playbooks", "--json"])
 }
@@ -1331,7 +1345,7 @@ pub async fn engine_run_playbook_stream(
 /// Enable / disable an app's autonomous sync. A disabled app stays configured
 /// and chattable; only the sync daemon's scheduled tick skips it (an explicit
 /// "Sync now" still runs). Returns { ok, path?, enabled?, error? }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_app_set_enabled(id: String, enabled: bool) -> Result<serde_json::Value, String> {
     run_engine_json(&[
         "connectors", "set", &id, "enabled",
@@ -1340,7 +1354,7 @@ pub fn engine_app_set_enabled(id: String, enabled: bool) -> Result<serde_json::V
 }
 
 /// Sync one app on demand ("Sync now"). Returns { ok, artifacts, error? }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_app_sync(id: String, vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["connectors", "sync", &id, "--vault", &vault, "--json"])
 }
@@ -1349,7 +1363,7 @@ pub fn engine_app_sync(id: String, vault: String) -> Result<serde_json::Value, S
 /// what data has been loaded in the app's folder"). Reads <vault>/data/apps/<id>/
 /// data/** recursively → [{ path, name, bytes, mtime }], newest first. Empty when
 /// nothing's been synced yet.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn app_data_files(vault: String, app_id: String) -> Result<Vec<serde_json::Value>, String> {
     // The id is joined into a path and the result is walked recursively, so an
     // id like "../../../../.." listed (and sized) any `data/` directory on the
@@ -1393,7 +1407,7 @@ pub(crate) fn is_safe_app_id(id: &str) -> bool {
 /// The proactive Recommendations feed: domains to create (from recurring
 /// intents), best model per benchmarked domain, and domains with no app feeding
 /// them. Computed from existing vault signals. Returns { ok, recommendations }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_recommendations(vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["recommendations", "--vault", &vault, "--json"])
 }
@@ -1401,7 +1415,7 @@ pub fn engine_recommendations(vault: String) -> Result<serde_json::Value, String
 /// Read the stored per-domain app suggestions (the learning layer's output).
 /// Reads the file directly (build-first, legacy fallback) so it's cheap to call
 /// on every Apps view mount. Returns {} when none generated yet.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn app_suggestions_read(vault: String) -> Result<serde_json::Value, String> {
     let p = crate::paths::runtime_path(&vault, "_meta").join("app_suggestions.json");
     match crate::read_to_string_retry(&p) {
@@ -1413,7 +1427,7 @@ pub fn app_suggestions_read(vault: String) -> Result<serde_json::Value, String> 
 /// Generate app suggestions for a domain (or "all") by learning from its signals,
 /// then return the full suggestions map. This is a model call, so it blocks until
 /// the CLI finishes; the UI awaits it. A daily daemon can call the same path.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn app_suggestions_generate(
     vault: String,
     domain: String,
@@ -1433,7 +1447,7 @@ pub fn app_suggestions_generate(
 
 /// Read the Model Scout's latest web-search results (models worth adding to the
 /// Arena benchmark). Cheap file read; returns {} when the scout hasn't run yet.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn model_suggestions_read(vault: String) -> Result<serde_json::Value, String> {
     let p = crate::paths::runtime_path(&vault, "_meta").join("model_suggestions.json");
     match crate::read_to_string_retry(&p) {
@@ -1473,14 +1487,14 @@ pub async fn model_scout_run(
 /// Run one autonomous-sync pass over every DUE app (the in-app scheduler calls
 /// this on a tick; the headless `daemon --sync` runs the same on a loop).
 /// Returns { ran, ok, failed }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_apps_sync_due(vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["connectors", "sync-due", "--vault", &vault, "--json"])
 }
 
 /// Ideal-state alignment report: per-pillar fit score + rationale + actions.
 /// Signal mode (no model) by default; fast + side-effect-light.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_alignment(vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["--vault", &vault, "alignment", "--json"])
 }
@@ -1489,7 +1503,7 @@ pub fn engine_alignment(vault: String) -> Result<serde_json::Value, String> {
 /// file under skills/, each with { id, name, path, summary, body, primary }.
 /// Powers the chat "attach this app's skill" suggestions when chatting in an
 /// app's context. Returns [] when the app has no skills.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_app_skill_files(id: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["connectors", "skill-files", &id, "--json"])
 }
@@ -1497,23 +1511,23 @@ pub fn engine_app_skill_files(id: String) -> Result<serde_json::Value, String> {
 /// App lock (Phase 0 passcode). The passcode is sent on the child's STDIN so it
 /// never appears in argv/process list. Desktop-only — deliberately NOT in
 /// WEBUI_ALLOWED; the WebUI has its own login.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_lock_status() -> Result<serde_json::Value, String> {
     run_engine_json(&["lock", "status"])
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_lock_set(passcode: String) -> Result<serde_json::Value, String> {
     run_engine_json_stdin(&["lock", "set"], &passcode)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_lock_verify(passcode: String) -> Result<serde_json::Value, String> {
     run_engine_json_stdin(&["lock", "verify"], &passcode)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_lock_clear(passcode: String) -> Result<serde_json::Value, String> {
     run_engine_json_stdin(&["lock", "clear"], &passcode)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_lock_reset() -> Result<serde_json::Value, String> {
     // Recovery path for "forgot passcode" — deletes the lock file without
     // requiring the existing passcode. The lock file is at:
@@ -1535,7 +1549,7 @@ pub fn engine_lock_reset() -> Result<serde_json::Value, String> {
 // Prompts the OS biometric (Touch ID on macOS), falling back to the device
 // password. Returns whether the user authenticated. Used only as a convenience
 // gate for the Phase-0 app lock — it does NOT release any encryption key.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_biometric_authenticate(reason: String) -> Result<bool, String> {
     use robius_authentication::{AndroidText, BiometricStrength, Context, PolicyBuilder, Text, WindowsText};
     let policy = PolicyBuilder::new()
@@ -1587,19 +1601,25 @@ pub(crate) fn provider_env_pairs() -> Vec<(String, String)> {
         out.push(("PREVAIL_BUNKER".to_string(), "1".to_string()));
         return out;
     }
-    if let Ok(key) = crate::ingestion::keychain::get("prevail.providers", "openrouter") {
-        if !key.is_empty() {
-            out.push(("PREVAIL_OPENROUTER_KEY".to_string(), key));
-        }
-    }
-    for (id, env_key) in DIRECT_PROVIDER_ENVS {
-        if let Ok(key) = crate::ingestion::keychain::get("prevail.providers", id) {
-            if !key.is_empty() {
-                out.push((env_key.to_string(), key));
-            }
-        }
-    }
+    out.extend(provider_key_pairs());
     out
+}
+
+/// The stored gateway (OpenRouter) and direct-provider keys as engine env
+/// pairs, OpenRouter first, then DIRECT_PROVIDER_ENVS order; unset ones left
+/// out. The Keychain reads run side by side (keychain::get_many).
+fn provider_key_pairs() -> Vec<(String, String)> {
+    let mut ids: Vec<&str> = vec!["openrouter"];
+    let mut envs: Vec<&str> = vec!["PREVAIL_OPENROUTER_KEY"];
+    for (id, env_key) in DIRECT_PROVIDER_ENVS {
+        ids.push(id);
+        envs.push(env_key);
+    }
+    crate::ingestion::keychain::get_many("prevail.providers", &ids)
+        .into_iter()
+        .zip(envs)
+        .filter_map(|(r, env)| r.ok().filter(|k| !k.is_empty()).map(|k| (env.to_string(), k)))
+        .collect()
 }
 
 /// Direct single-vendor providers (G1): (Keychain provider id, engine env var).
@@ -1631,7 +1651,7 @@ fn engine_config_path() -> Option<std::path::PathBuf> {
 }
 
 /// Read the engine's configured vault path (the authoritative active vault).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_config_vault() -> Option<String> {
     let p = engine_config_path()?;
     let raw = std::fs::read_to_string(p).ok()?;
@@ -1642,7 +1662,7 @@ pub fn engine_config_vault() -> Option<String> {
 /// Point the engine's config at `path`, preserving every other field. Called by
 /// the desktop whenever the active vault changes so the daemons + engine follow
 /// the UI instead of stranding on a stale vault.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_set_config_vault(path: String) -> Result<(), String> {
     // Mirror the configured vault into the in-memory VAULT_ROOT so EVERY engine
     // call (including no-arg ones like `connectors list`)
@@ -1669,8 +1689,9 @@ pub(crate) fn app_secret_env_pairs() -> Vec<(String, String)> {
     let mut out = Vec::new();
     let Some(p) = app_secret_index_path() else { return out };
     let Ok(txt) = std::fs::read_to_string(&p) else { return out };
-    for name in txt.lines().map(|l| l.trim()).filter(|l| !l.is_empty()) {
-        if let Ok(v) = crate::ingestion::keychain::get("prevail.appsecrets", name) {
+    let names: Vec<&str> = txt.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+    for (name, r) in names.iter().zip(crate::ingestion::keychain::get_many("prevail.appsecrets", &names)) {
+        if let Ok(v) = r {
             if !v.is_empty() {
                 out.push((name.to_string(), v));
             }
@@ -1838,7 +1859,7 @@ fn learn_agent_plist() -> Option<std::path::PathBuf> {
 }
 
 /// Is the headless self-learning launchd agent installed?
-#[tauri::command]
+#[tauri::command(async)]
 pub fn headless_learn_status() -> bool {
     learn_agent_plist().map(|p| p.exists()).unwrap_or(false)
 }
@@ -1911,7 +1932,7 @@ pub async fn machine_role_set(role: String) -> Result<String, String> {
 }
 
 /// Is this vault encrypted, and is the session currently unlocked?
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_status(vault: String) -> Result<serde_json::Value, String> {
     let encrypted = std::path::Path::new(&vault).join(".prevail-encrypted").exists();
     Ok(serde_json::json!({ "encrypted": encrypted, "unlocked": vault_key().is_some() }))
@@ -1933,7 +1954,7 @@ fn read_dek_from_unlock(r: &serde_json::Value) -> Result<Option<String>, String>
 
 /// Unlock the session: verify the passcode, hold the returned DEK in memory.
 /// Returns { ok } only — the key stays in Rust, never reaching JS.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_unlock(vault: String, passcode: String) -> Result<serde_json::Value, String> {
     let r = run_engine_json_stdin(&["--vault", &vault, "vault", "unlock"], &passcode)?;
     if r.get("ok").and_then(|v| v.as_bool()) == Some(true) {
@@ -1947,7 +1968,7 @@ pub fn engine_vault_unlock(vault: String, passcode: String) -> Result<serde_json
 }
 
 /// Clear the in-memory DEK (re-lock the session).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_lock_session() -> Result<(), String> {
     set_vault_key(None);
     set_vault_root(None);
@@ -1957,13 +1978,13 @@ pub fn engine_vault_lock_session() -> Result<(), String> {
 /// Encrypt the vault in place (self-verifying + auto-rollback in the engine).
 /// Returns { ok, recoveryCode, ... }. Caller should then unlock to set the
 /// session DEK.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_encrypt(vault: String, passcode: String) -> Result<serde_json::Value, String> {
     run_engine_json_stdin(&["--vault", &vault, "vault", "encrypt"], &passcode)
 }
 
 /// Decrypt the vault back to plaintext, then clear the session DEK.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_decrypt(vault: String, passcode: String) -> Result<serde_json::Value, String> {
     let r = run_engine_json_stdin(&["--vault", &vault, "vault", "decrypt"], &passcode)?;
     if r.get("ok").and_then(|v| v.as_bool()) == Some(true) {
@@ -1977,7 +1998,7 @@ pub fn engine_vault_decrypt(vault: String, passcode: String) -> Result<serde_jso
 /// code and install a NEW passcode in one step. The two secrets go to the engine
 /// as JSON on stdin (never argv). On success the engine hands back the DEK, so
 /// the session opens immediately — the same in-memory-key handoff as unlock.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_recover(
     vault: String,
     recovery_code: String,
@@ -2000,7 +2021,7 @@ pub fn engine_vault_recover(
 }
 
 /// `prevail appmode get` — the demo vs production flag (engine config, global).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_appmode_get() -> Result<serde_json::Value, String> {
     run_engine_json(&["appmode", "get"])
 }
@@ -2009,7 +2030,7 @@ pub fn engine_appmode_get() -> Result<serde_json::Value, String> {
 /// `vault` is forwarded so a first-launch `set --mode demo` (before any engine
 /// config exists) seeds the config pointed at the seeded sandbox rather than the
 /// bundled demo default.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_appmode_set(
     mode: String,
     vault: Option<String>,
@@ -2027,7 +2048,7 @@ pub fn engine_appmode_set(
 /// it. `vault` is the clean target (empty default: the embedded vault).
 /// `clear_demo`, when set, is emptied ONLY if it carries the demo marker — an
 /// unmarked (possibly real) vault is never deleted (engine-side guard).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_production_init(
     vault: Option<String>,
     clear_demo: Option<String>,
@@ -2047,7 +2068,7 @@ pub fn engine_production_init(
 
 /// `prevail appmode mark-demo --vault <path>` — tag a seeded sandbox as demo so a
 /// later production switch may safely clear it.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_appmode_mark_demo(vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["appmode", "mark-demo", "--vault", &vault])
 }
@@ -2055,14 +2076,14 @@ pub fn engine_appmode_mark_demo(vault: String) -> Result<serde_json::Value, Stri
 /// `prevail models <provider> --json` — live model discovery so newly released
 /// models surface without a code change (ollama/lmstudio/openrouter query a real
 /// catalog; subscription CLIs return []). Returns { provider, models: [...] }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_discover_models(provider: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["models", &provider])
 }
 
 /// `prevail --vault <vault> score <domain> [--audit] --json`
 /// Returns a fully typed ContextScore.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_score(
     vault: String,
     domain: String,
@@ -2112,7 +2133,7 @@ pub async fn engine_calendar_pull(vault: String) -> Result<serde_json::Value, St
 
 /// `prevail --vault <vault> manifest get <domain> --json`
 /// Returns a fully typed DomainManifest.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_manifest_get(
     vault: String,
     domain: String,
@@ -2145,7 +2166,7 @@ pub struct LifeReadiness {
 /// ContextScore. The CLI is expected to emit either an object matching
 /// `LifeReadiness`, or a bare array of ContextScore — both are handled so
 /// the desktop stays robust as the CLI evolves.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_score_all(vault: String) -> Result<LifeReadiness, String> {
     let value = run_engine_json(&["--vault", &vault, "score", "--all"])?;
 
@@ -2305,7 +2326,7 @@ pub struct ScoreHistoryPoint {
 /// registers the `score` verb). This used to call a non-existent
 /// `score-history` verb, which the engine treated as "no verb" and answered
 /// by launching the TUI, so the score trend never loaded.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_score_history(
     vault: String,
     domain: String,
@@ -2337,7 +2358,7 @@ pub fn engine_score_history(
 /// `answers_json` is the raw JSON document the contract expects on stdin,
 /// e.g. `{ "answers": { "focus": "building ventures", ... } }`.
 /// Returns an `OnboardingRecommendation`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_onboard_recommend(
     vault: String,
     #[allow(non_snake_case)] answersJson: String,
@@ -2353,7 +2374,7 @@ pub fn engine_onboard_recommend(
 /// `picks_json` is the raw JSON document the contract expects on stdin,
 /// e.g. `{ "picks": ["wealth", "business"] }`.
 /// Returns a `Domain[]` for the picked names.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_onboard_apply(
     vault: String,
     #[allow(non_snake_case)] picksJson: String,
@@ -2365,7 +2386,7 @@ pub fn engine_onboard_apply(
 ///
 /// `domain_opt` limits the backup to a single domain when `Some`; the whole
 /// vault is backed up when `None`. Returns a `BackupResult`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_backup(
     vault: String,
     #[allow(non_snake_case)] domainOpt: Option<String>,
@@ -2388,7 +2409,7 @@ fn default_backup_dir() -> Option<std::path::PathBuf> {
 
 /// The directory backups are written to right now: the saved override if set,
 /// else the default. Lets the UI show the user exactly where backups live.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_backup_dir(dest_dir: Option<String>) -> Result<String, String> {
     let dir = match dest_dir.filter(|d| !d.trim().is_empty()) {
         Some(d) => std::path::PathBuf::from(d),
@@ -2400,7 +2421,7 @@ pub fn vault_backup_dir(dest_dir: Option<String>) -> Result<String, String> {
 /// Back up the whole vault into a directory (default: app-support/backups) as a
 /// timestamped archive, then prune old ones. Returns the engine BackupResult
 /// plus the archive path. Used by manual + scheduled + pre-event backups.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_backup_to(
     vault: String,
     dest_dir: Option<String>,
@@ -2454,7 +2475,7 @@ fn prune_backups(dir: &std::path::Path, keep: usize) {
 
 /// List backup archives in `dest_dir` (default app-support/backups), newest
 /// first, with size and timestamp for the restore picker.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_backups_list(dest_dir: Option<String>) -> Result<Vec<serde_json::Value>, String> {
     let dir = match dest_dir.filter(|d| !d.is_empty()) {
         Some(d) => std::path::PathBuf::from(d),
@@ -2483,7 +2504,7 @@ pub fn vault_backups_list(dest_dir: Option<String>) -> Result<Vec<serde_json::Va
 }
 
 /// Restore the whole vault from a backup archive (`prevail vault restore <path>`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_restore_archive(vault: String, archive: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["--vault", &vault, "vault", "restore", &archive, "--json", "--force"])
 }
@@ -2491,7 +2512,7 @@ pub fn vault_restore_archive(vault: String, archive: String) -> Result<serde_jso
 /// `prevail --vault <vault> vault archive <domain> --json`
 /// Archives a domain (sets `archived: true`). Never deletes data.
 /// Returns `{ "ok": true }`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_archive(
     vault: String,
     domain: String,
@@ -2501,7 +2522,7 @@ pub fn engine_vault_archive(
 
 /// `prevail --vault <vault> vault restore <domain> --json`
 /// Un-archives a domain. Returns `{ "ok": true }`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_vault_restore(
     vault: String,
     domain: String,
@@ -2512,7 +2533,7 @@ pub fn engine_vault_restore(
 /// `prevail --vault <vault> vault list-archived --json`
 /// Returns the array of archived domain names. Tolerates the CLI wrapping
 /// the list in `{ "domains": [...] }` or returning a bare array.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_list_archived(vault: String) -> Result<Vec<String>, String> {
     let value = run_engine_json(&["--vault", &vault, "vault", "list-archived"])?;
     let arr = if value.is_array() {
@@ -2532,7 +2553,7 @@ pub fn engine_list_archived(vault: String) -> Result<Vec<String>, String> {
 ///
 /// `json` is a partial or full `DomainManifest`; the engine deep-merges it
 /// onto the existing manifest. Returns the resulting `DomainManifest`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn engine_manifest_set(
     vault: String,
     domain: String,
@@ -2601,7 +2622,16 @@ pub async fn engine_chat(
     // Forwarded as --entity so the engine adds that entity's context block
     // to every turn. Anything that is not an entity id is refused.
     entity: Option<String>,
+    // Apps as chat scopes. `apps` (--app, repeatable) and `ref_domains`
+    // (--ref-domain, repeatable) are the @-references on this turn; more
+    // `entities` add to `entity` (--entity is repeatable). `scope_app` is the
+    // app whose own chat this thread is (--scope-app).
+    apps: Option<Vec<String>>,
+    entities: Option<Vec<String>>,
+    ref_domains: Option<Vec<String>>,
+    scope_app: Option<String>,
 ) -> Result<(), String> {
+    let refs = chat_ref_args(entity, apps, entities, ref_domains, scope_app)?;
     // Build the arg vector. `--vault V` goes BEFORE the subcommand,
     // matching every other engine command here.
     let mut args: Vec<String> = vec![
@@ -2678,15 +2708,43 @@ pub async fn engine_chat(
         args.push("--thread".to_string());
         args.push(t);
     }
-    if let Some(e) = entity.filter(|s| !s.trim().is_empty()) {
-        if !crate::entities_bridge::valid_id(&e) {
-            return Err(format!("not an entity id: {e}"));
-        }
-        args.push("--entity".to_string());
-        args.push(e.trim().to_string());
-    }
+    args.extend(refs);
 
     run_engine_stream_stdin(app, session, args, message, "engine-chat", extra_env).await
+}
+
+/// The scope and @-reference flags for one chat turn, each value checked so a
+/// crafted id can never pose as a flag. Duplicates are sent once.
+pub(crate) fn chat_ref_args(
+    entity: Option<String>,
+    apps: Option<Vec<String>>,
+    entities: Option<Vec<String>>,
+    ref_domains: Option<Vec<String>>,
+    scope_app: Option<String>,
+) -> Result<Vec<String>, String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut push = |flag: &str, v: String| {
+        let taken = out.chunks(2).any(|p| p[0] == flag && p[1] == v);
+        if !taken { out.push(flag.to_string()); out.push(v); }
+    };
+    if let Some(a) = scope_app.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) {
+        if !crate::appscope::valid_app_id(&a) { return Err(format!("invalid app id: {a}")); }
+        push("--scope-app", a);
+    }
+    for a in apps.unwrap_or_default().into_iter().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) {
+        if !crate::appscope::valid_app_id(&a) { return Err(format!("invalid app id: {a}")); }
+        push("--app", a);
+    }
+    let ents = entity.into_iter().chain(entities.unwrap_or_default());
+    for e in ents.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) {
+        if !crate::entities_bridge::valid_id(&e) { return Err(format!("not an entity id: {e}")); }
+        push("--entity", e);
+    }
+    for d in ref_domains.unwrap_or_default().into_iter().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty()) {
+        if !crate::paths::is_safe_domain(&d) || d.starts_with('-') { return Err(format!("invalid domain: {d}")); }
+        push("--ref-domain", d);
+    }
+    Ok(out)
 }
 
 /// Record one Auto-routing override to the LOCAL learned-router store
@@ -2697,7 +2755,7 @@ pub async fn engine_chat(
 /// Best-effort and fire-and-forget: a failed log must never disrupt the chat, so
 /// any spawn/engine error is swallowed to `Ok(())`. `--vault` goes BEFORE the
 /// subcommand, matching every other engine command here.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn route_learn_record(
     vault: String,
     domain: String,

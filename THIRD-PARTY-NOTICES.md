@@ -19,6 +19,7 @@ ThirdPartyNotices.txt ship inside the app bundle).
 - **posthog-js** — MIT — PostHog
 - **@sentry/browser** — MIT — Functional Software (Sentry)
 - **@tauri-apps/api** — MIT/Apache-2.0 — Tauri Programme
+- **@tanstack/react-virtual** (with @tanstack/virtual-core): MIT, Tanner Linsley
 
 ## Full dependency set
 

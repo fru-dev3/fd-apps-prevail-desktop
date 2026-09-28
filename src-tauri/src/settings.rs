@@ -12,7 +12,7 @@ use crate::read_to_string_retry;
 // Provider API-key storage (Keychain service "prevail.providers"). Used by the
 // Settings → Providers section + the AI-provider onboarding. get returns "" if
 // unset (so the UI shows "not configured" without treating it as an error).
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn provider_key_set(provider: String, key: String) -> Result<(), String> {
     ingestion::keychain::set("prevail.providers", &provider, &key)
 }
@@ -22,7 +22,7 @@ pub(crate) fn provider_key_set(provider: String, key: String) -> Result<(), Stri
 // connector reads. The set of names is tracked in a plaintext index file (names
 // only, never values) so the engine spawn can inject them all. `name` is the
 // env-var name; on save it's added to the index (deduped).
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn app_secret_set(name: String, value: String) -> Result<(), String> {
     if name.trim().is_empty() {
         return Err("empty secret name".into());
@@ -47,7 +47,7 @@ pub(crate) fn app_secret_set(name: String, value: String) -> Result<(), String> 
 }
 
 // Presence check only — never returns the secret value.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn app_secret_exists(name: String) -> bool {
     ingestion::keychain::get("prevail.appsecrets", &name)
         .ok()
@@ -55,7 +55,7 @@ pub(crate) fn app_secret_exists(name: String) -> bool {
         .unwrap_or(false)
 }
 // Presence check only — never returns the secret value to the frontend.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn provider_key_last4(provider: String) -> Option<String> {
     ingestion::keychain::get("prevail.providers", &provider)
         .ok()
@@ -63,13 +63,13 @@ pub(crate) fn provider_key_last4(provider: String) -> Option<String> {
         .map(|k| k[k.len() - 4..].to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn provider_key_exists(provider: String) -> bool {
     ingestion::keychain::get("prevail.providers", &provider)
         .map(|k| !k.is_empty())
         .unwrap_or(false)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn provider_key_del(provider: String) -> Result<(), String> {
     ingestion::keychain::del("prevail.providers", &provider)
 }
@@ -78,7 +78,7 @@ pub(crate) fn provider_key_del(provider: String) -> Result<(), String> {
 // Unlike provider keys (write-only for security), this getter is intentional -
 // it's the user's own login, which they set, view (show/hide), and which must be
 // passed to webui_start. Keychain service "prevail.webui", account "password".
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn webui_secret_set(pass: String) -> Result<(), String> {
     // Password floor (M1): the WebUI bridge is a real remote-access credential;
     // reject trivially guessable passwords at the setter so a weak one can't be
@@ -88,7 +88,7 @@ pub(crate) fn webui_secret_set(pass: String) -> Result<(), String> {
     }
     ingestion::keychain::set("prevail.webui", "password", &pass)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn webui_secret_get() -> String {
     ingestion::keychain::get("prevail.webui", "password").unwrap_or_default()
 }
@@ -101,7 +101,7 @@ fn ui_settings_path() -> Option<std::path::PathBuf> {
 /// Cross-device UI settings (theme, palette, …) persisted on the desktop as a
 /// JSON blob so the WebUI inherits the same look-and-feel instead of starting
 /// from a blank browser localStorage. Returns "{}" when nothing is saved yet.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn ui_settings_get() -> String {
     ui_settings_path()
         .and_then(|p| read_to_string_retry(&p).ok())
@@ -118,7 +118,7 @@ fn ui_prefs_path() -> Option<std::path::PathBuf> {
     Some(std::path::Path::new(&home).join("Library/Application Support/sh.prevail.desktop/ui-prefs.json"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn ui_prefs_get() -> String {
     ui_prefs_path()
         .and_then(|p| read_to_string_retry(&p).ok())
@@ -127,8 +127,9 @@ pub(crate) fn ui_prefs_get() -> String {
         .unwrap_or_else(|| "{}".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn ui_prefs_set(json: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     serde_json::from_str::<serde_json::Value>(&json)
         .map_err(|e| format!("invalid ui prefs json: {e}"))?;
     let p = ui_prefs_path().ok_or("no HOME directory")?;
@@ -147,7 +148,7 @@ fn profile_prefs_path(vault: &str) -> std::path::PathBuf {
     crate::paths::runtime_path(vault, "_meta").join("profile-prefs.json")
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn profile_prefs_get(vault: String) -> String {
     read_to_string_retry(&profile_prefs_path(&vault))
         .ok()
@@ -156,8 +157,9 @@ pub(crate) fn profile_prefs_get(vault: String) -> String {
         .unwrap_or_else(|| "{}".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn profile_prefs_set(vault: String, json: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     serde_json::from_str::<serde_json::Value>(&json)
         .map_err(|e| format!("invalid profile prefs json: {e}"))?;
     let p = profile_prefs_path(&vault);
@@ -169,8 +171,9 @@ pub(crate) fn profile_prefs_set(vault: String, json: String) -> Result<(), Strin
 
 /// Persist cross-device UI settings. The frontend owns the schema; we only
 /// validate that it's well-formed JSON so we never write garbage to disk.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn ui_settings_set(json: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     serde_json::from_str::<serde_json::Value>(&json)
         .map_err(|e| format!("invalid ui settings json: {e}"))?;
     let p = ui_settings_path().ok_or("no HOME directory")?;
@@ -190,8 +193,9 @@ fn close_to_tray_marker() -> Option<PathBuf> {
 pub(crate) fn close_to_tray_enabled() -> bool {
     close_to_tray_marker().map(|p| p.exists()).unwrap_or(false)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn set_close_to_tray(enabled: bool) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let p = close_to_tray_marker().ok_or("no HOME")?;
     if enabled {
         if let Some(parent) = p.parent() {

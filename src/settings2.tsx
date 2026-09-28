@@ -135,12 +135,15 @@ export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { 
 
   useEffect(() => {
     let alive = true;
+    // Independent reads: all five at once.
     const poll = async () => {
-      try { const s = await invoke<DaemonStatus>("distill_status"); if (alive) setDistillSt(s); } catch {}
-      try { const s = await invoke<DaemonStatus>("reminders_daemon_status"); if (alive) setRemindersSt(s); } catch {}
-      try { const s = await invoke<DaemonStatus>("taskgen_status"); if (alive) setTaskgenSt(s); } catch {}
-      try { const s = await invoke<DaemonStatus>("skillgen_status"); if (alive) setSkillgenSt(s); } catch {}
-      try { const s = await invoke<typeof intentSt>("intent_daemon_status"); if (alive) setIntentSt(s); } catch {}
+      await Promise.all([
+        invoke<DaemonStatus>("distill_status").then((s) => { if (alive) setDistillSt(s); }).catch(() => {}),
+        invoke<DaemonStatus>("reminders_daemon_status").then((s) => { if (alive) setRemindersSt(s); }).catch(() => {}),
+        invoke<DaemonStatus>("taskgen_status").then((s) => { if (alive) setTaskgenSt(s); }).catch(() => {}),
+        invoke<DaemonStatus>("skillgen_status").then((s) => { if (alive) setSkillgenSt(s); }).catch(() => {}),
+        invoke<typeof intentSt>("intent_daemon_status").then((s) => { if (alive) setIntentSt(s); }).catch(() => {}),
+      ]);
     };
     poll();
     const id = window.setInterval(poll, 2000);

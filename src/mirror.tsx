@@ -13,11 +13,13 @@
 // The header's tool dots show which tools are captured; a click opens the
 // capture setup in place of the current view (in the page, never a drawer).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { VirtualRows } from "./virtualrows";
 import {
   ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardCopy, Clock, FolderKanban, Loader2,
   PauseCircle, Play, RefreshCw, RotateCcw, ScanFace, Search, Sparkles, Terminal, ThumbsDown,
 } from "lucide-react";
 import { invoke } from "./bridge";
+import { hasInvoke, invokeCached, invokeKey, peekInvoke, setQueryData, useInvokeQuery } from "./query";
 import { titleCase } from "./format";
 import { domainColor } from "./helpers";
 import { Markdown } from "./Markdown";
@@ -25,7 +27,9 @@ import { CAPTURE_LABELS, PromptCapturePanel, type CaptureStatus } from "./prompt
 import { ProjectsView } from "./projectsview";
 import { EntitiesView } from "./entitiesview";
 import { useIsPhone } from "./useisphone";
-import { SideSpine, STICKY_HEAD } from "./sidespine";
+import { SideSpine, SpineTabs } from "./sidespine";
+import { HeaderSlot, SettingsHeader } from "./sectionutil";
+import { META } from "./typescale";
 import { RowAction, RowActions } from "./rowaction";
 import type { LifeReadiness } from "./types";
 
@@ -92,31 +96,35 @@ function ProjectChip({ slug, title }: { slug: string; title: string }) {
 }
 
 // ── Header ──────────────────────────────────────────────────────────────────
-function ToolDots({ vaultPath, active, onOpen }: { vaultPath: string; active: boolean; onOpen: () => void }) {
+// Life Readiness, one plain line: the average context score across domains.
+function readinessText(r: LifeReadiness | null): string | null {
+  if (!r || typeof r.life_readiness !== "number" || !Array.isArray(r.domains)) return null;
+  return `Life Readiness ${r.life_readiness} of 100 across ${r.domains.length} domain${r.domains.length === 1 ? "" : "s"}`;
+}
+
+// Capture, as one quiet status on the header's right: how many tools are
+// captured, with a dot (green when capturing, muted when off). It opens the
+// capture setup in the page, where the per-tool detail lives.
+function CaptureState({ vaultPath, active, onOpen }: { vaultPath: string; active: boolean; onOpen: () => void }) {
   const [status, setStatus] = useState<CaptureStatus | null>(null);
   useEffect(() => {
     let alive = true;
     invoke<CaptureStatus>("capture_status", { vault: vaultPath }).then((s) => { if (alive) setStatus(s); }).catch(() => {});
     return () => { alive = false; };
   }, [vaultPath]);
-  const tools = (status?.harnesses ?? []).filter((h) => h.present || h.wired);
+  const on = (status?.harnesses ?? []).filter((h) => h.wired && h.enabled !== false).length;
   return (
-    <button onClick={onOpen} aria-label="Capture setup" aria-pressed={active} title="Which tools are captured"
-      className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[13px] hover:border-accent-border hover:text-accent ${active ? "border-accent-border bg-accent-soft text-accent" : "border-border bg-surface text-text-secondary"}`}>
-      <span className="flex items-center gap-1.5">
-        {tools.length === 0 && <span className="h-2.5 w-2.5 rounded-full bg-border" />}
-        {tools.map((h) => {
-          const on = h.wired && h.enabled !== false;
-          return <span key={h.tool} data-testid={`tool-dot-${h.tool}`} data-on={on ? "1" : "0"} title={`${toolLabel(h.tool)}: ${on ? "captured" : "off"}`}
-            className={`h-2.5 w-2.5 rounded-full ${on ? "bg-accent" : "bg-text-muted/40"}`} />;
-        })}
-      </span>
-      <span className="hidden sm:inline">Capture</span>
+    <button onClick={onOpen} aria-pressed={active} data-testid="capture-state" title="Which tools are captured"
+      className={`inline-flex h-9 items-center gap-2 rounded-lg px-2.5 text-[13px] transition-colors hover:bg-surface-warm hover:text-accent ${active ? "text-accent" : "text-text-secondary"}`}>
+      <span aria-hidden className={`h-2 w-2 rounded-full ${on > 0 ? "bg-ok" : "bg-text-muted/40"}`} />
+      {on > 0 ? `Capturing from ${on} ${on === 1 ? "tool" : "tools"}` : "Capture is off"}
     </button>
   );
 }
 
-export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
+// Opened as Home > Insights and as Settings > Intent: one page, titled after
+// the row that opened it.
+export function MirrorPanel({ vaultPath, title = "Insights" }: { vaultPath: string; title?: string }) {
   const phone = useIsPhone();
   const [view, setViewState] = useState<MirrorView>(() => {
     try {
@@ -128,14 +136,9 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   const setView = (v: MirrorView) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage off */ } };
   // Life Readiness: the average context score across your domains. It used to
   // sit on Home; one plain line here now.
-  const [readiness, setReadiness] = useState<LifeReadiness | null>(null);
-  useEffect(() => {
-    let on = true;
-    invoke<LifeReadiness>("engine_score_all", { vault: vaultPath })
-      .then((lr) => { if (on) setReadiness(lr); })
-      .catch(() => { if (on) setReadiness(null); });
-    return () => { on = false; };
-  }, [vaultPath]);
+  const readinessQ = useInvokeQuery<LifeReadiness>("engine_score_all", { vault: vaultPath });
+  const readiness = readinessQ.error ? null : readinessQ.data ?? null;
+  const readinessLine = readinessText(readiness);
   const [focus, setFocus] = useState<{ ts: number; n: number } | null>(null);
   // Recommendations opens a project here by leaving its slug under this key.
   const [projectSlug, setProjectSlug] = useState<{ slug: string; n: number } | null>(() => {
@@ -145,12 +148,17 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
       return slug ? { slug, n: 1 } : null;
     } catch { return null; }
   });
-  const [periods, setPeriods] = useState<PeriodsDoc | null>(null);
+  // Seeded from the shared cache, so a revisit opens on the last answer.
+  const [periods, setPeriods] = useState<PeriodsDoc | null>(() => {
+    if (!hasInvoke("mirror_periods", { vault: vaultPath, tz: tzNow() })) return null;
+    const c = peekInvoke<PeriodsDoc>("mirror_periods", { vault: vaultPath, tz: tzNow() });
+    return c && Array.isArray(c.weeks) ? c : { generated_ts: 0, weeks: [] };
+  });
   const [periodsErr, setPeriodsErr] = useState<string | null>(null);
-  const [sel, setSel] = useState<PeriodSel | null>(null);
+  const [sel, setSel] = useState<PeriodSel | null>(() => (periods?.weeks[0] ? { kind: "week", key: periods.weeks[0].week } : null));
 
   const loadPeriods = useCallback(() => {
-    invoke<PeriodsDoc>("mirror_periods", { vault: vaultPath, tz: tzNow() })
+    invokeCached<PeriodsDoc>("mirror_periods", { vault: vaultPath, tz: tzNow() }, { force: true })
       .then((d) => {
         const doc = d && Array.isArray(d.weeks) ? d : { generated_ts: 0, weeks: [] };
         setPeriods(doc); setPeriodsErr(null);
@@ -209,6 +217,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
             </p>
             <button onClick={() => setView("capture")} className={`${btnPrimary} mt-5 h-11 px-5`}>Set up capture</button>
             {periodsErr && <div className="mt-3 text-[13px] text-err">{periodsErr}</div>}
+            {readinessLine && <p data-testid="life-readiness" className={`mt-4 ${META}`}>{readinessLine}</p>}
           </div>
         </div>
       );
@@ -216,7 +225,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
       body = (
         <PeriodFrame key={view} storageKey={`prevail.intent.spine.${view}`} periods={periods} sel={sel} onSelect={select} phone={phone}>
           {view === "noticed"
-            ? <NoticedView key={`${sel.kind}:${sel.key}`} vaultPath={vaultPath} phone={phone} periods={periods} sel={sel} onSelect={select} onReceipt={jumpToPrompt} onProject={openProject} onPeriodsChanged={loadPeriods} />
+            ? <NoticedView key={`${sel.kind}:${sel.key}`} readiness={readiness} vaultPath={vaultPath} phone={phone} periods={periods} sel={sel} onSelect={select} onReceipt={jumpToPrompt} onProject={openProject} onPeriodsChanged={loadPeriods} />
             : <HistoryView vaultPath={vaultPath} phone={phone} periods={periods} sel={sel} focus={focus} />}
         </PeriodFrame>
       );
@@ -224,35 +233,10 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background" data-testid="mirror">
-      {/* The header sits in its own row above the scrolling area, so it
-          never scrolls away. */}
-      <div data-testid="page-header" className={`${STICKY_HEAD} flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-border ${phone ? "px-4 py-3" : "px-8 py-5"}`}>
-        {/* On a phone the shell's header bar already names the page. */}
-        {!phone && (
-          <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><ScanFace className="h-5 w-5" /></span>
-            Intent
-          </h1>
-        )}
-        <div role="tablist" aria-label="Intent view" className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:order-3 max-sm:w-full">
-          {VIEWS.map((v) => (
-            <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => setView(v.id)}
-              className={`h-9 rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:px-2 ${view === v.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
-              {v.label}
-            </button>
-          ))}
-        </div>
-        <div className="ml-auto"><ToolDots vaultPath={vaultPath} active={view === "capture"} onOpen={() => setView("capture")} /></div>
-        <p data-testid="intent-about" className="basis-full text-[14px] leading-snug text-text-muted max-sm:order-2">
-          Intent reads every prompt you typed, in every tool, to show what you were really working on, what you keep repeating, and what to hand to a newer model.
-        </p>
-        {readiness && typeof readiness.life_readiness === "number" && Array.isArray(readiness.domains) && (
-          <p data-testid="life-readiness" className="basis-full text-[14px] text-text-secondary max-sm:order-2">
-            Life Readiness <span className="font-semibold text-accent">{readiness.life_readiness}</span> of 100 across {readiness.domains.length} domain{readiness.domains.length === 1 ? "" : "s"}
-          </p>
-        )}
-      </div>
+    <div className="flex h-full min-h-0 flex-col" data-testid="mirror">
+      <SettingsHeader icon={ScanFace} title={title} subtitle="What your prompts say you're working on."
+        right={<CaptureState vaultPath={vaultPath} active={view === "capture"} onOpen={() => setView("capture")} />}
+        tabs={<SpineTabs label="Intent view" tabs={VIEWS} value={view === "capture" ? ("" as MirrorView) : view} onChange={setView} />} />
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="intent-body">
         {periodView && body}
         {view === "projects" && <ProjectsView vaultPath={vaultPath} initialSlug={projectSlug?.slug} key={projectSlug?.n ?? 0} />}
@@ -262,7 +246,7 @@ export function MirrorPanel({ vaultPath }: { vaultPath: string }) {
             <button onClick={() => setView("noticed")} className="mb-4 inline-flex items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
               <ArrowLeft className="h-4 w-4" />Back to Noticed
             </button>
-            <PromptCapturePanel vaultPath={vaultPath} />
+            <HeaderSlot.Provider value="detail"><PromptCapturePanel vaultPath={vaultPath} /></HeaderSlot.Provider>
           </div>
         )}
       </div>
@@ -710,7 +694,8 @@ function LetterBlock({ letter, status, busy, current, onLastWeek }: { letter: Fi
 }
 
 // ── Noticed ─────────────────────────────────────────────────────────────────
-function NoticedView({ vaultPath, phone, periods, sel, onSelect, onReceipt, onProject, onPeriodsChanged }: {
+function NoticedView({ readiness, vaultPath, phone, periods, sel, onSelect, onReceipt, onProject, onPeriodsChanged }: {
+  readiness: LifeReadiness | null;
   vaultPath: string; phone: boolean; periods: PeriodsDoc; sel: PeriodSel;
   onSelect: (s: PeriodSel) => void; onReceipt: (ts: number) => void; onProject: (slug: string) => void; onPeriodsChanged: () => void;
 }) {
@@ -730,6 +715,8 @@ function NoticedView({ vaultPath, phone, periods, sel, onSelect, onReceipt, onPr
       if (id !== reqRef.current) return null;
       const ok = d && Array.isArray(d.findings) ? d : null;
       setDoc(ok); setErr(null);
+      // Kept for the next visit, which paints it while this reloads.
+      if (ok) setQueryData(invokeKey("mirror_period", { vault: vaultPath, kind: sel.kind, key: sel.key, tz: tzNow(), fresh: false }), ok);
       return ok;
     } catch (e) { if (id === reqRef.current) { setDoc(null); setErr(String(e)); } return null; }
     finally { if (id === reqRef.current) setLoading(false); }
@@ -748,7 +735,8 @@ function NoticedView({ vaultPath, phone, periods, sel, onSelect, onReceipt, onPr
   }, [vaultPath, load, onPeriodsChanged]);
 
   useEffect(() => {
-    setDoc(null);
+    const c = peekInvoke<PeriodDoc>("mirror_period", { vault: vaultPath, kind: sel.kind, key: sel.key, tz: tzNow(), fresh: false });
+    setDoc(c && Array.isArray(c.findings) ? c : null);
     void load().then((d) => {
       if (!d || !d.totals.sittings) return;
       const needs = d.letter_status === "missing" || !d.intent_line;
@@ -789,6 +777,7 @@ function NoticedView({ vaultPath, phone, periods, sel, onSelect, onReceipt, onPr
   return (
     <div className={phone ? "p-4" : "px-8 py-7"} data-testid="noticed">
       <PeriodHeading label={doc.period.label} line={doc.intent_line} lineBusy={writing} totals={doc.totals} right={phone ? undefined : refreshBtn} />
+      {readinessText(readiness) && <p data-testid="life-readiness" className={`-mt-4 mb-6 ${META}`}>{readinessText(readiness)}</p>}
       {doc.period.kind === "week" && (
         <LetterBlock letter={doc.letter} status={doc.letter_status} busy={writing} current={doc.current}
           onLastWeek={doc.current && prevWeek?.has_letter ? () => onSelect({ kind: "week", key: prevWeek.week }) : undefined} />
@@ -863,7 +852,14 @@ function HistoryView({ vaultPath, phone, periods, sel, focus }: { vaultPath: str
   const [qDebounced, setQDebounced] = useState("");
   const [tool, setTool] = useState("");
   const [project, setProject] = useState("");
-  const [doc, setDoc] = useState<HistoryDoc | null>(null);
+  const historyArgs = (qd: string, tl: string, pj: string) => ({
+    vault: vaultPath, q: qd || null, tool: tl || null, project: pj || null, before: null, limit: 2000,
+    week: sel.kind === "week" ? sel.key : null, day: sel.kind === "day" ? sel.key : null, tz: tzNow(),
+  });
+  const [doc, setDoc] = useState<HistoryDoc | null>(() => {
+    const c = peekInvoke<HistoryDoc>("mirror_history", historyArgs("", "", ""));
+    return c && Array.isArray(c.weeks) ? c : null;
+  });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const reqRef = useRef(0);
@@ -876,10 +872,7 @@ function HistoryView({ vaultPath, phone, periods, sel, focus }: { vaultPath: str
   useEffect(() => {
     const id = ++reqRef.current;
     setLoading(true);
-    invoke<HistoryDoc>("mirror_history", {
-      vault: vaultPath, q: qDebounced || null, tool: tool || null, project: project || null, before: null, limit: 2000,
-      week: sel.kind === "week" ? sel.key : null, day: sel.kind === "day" ? sel.key : null, tz: tzNow(),
-    })
+    invokeCached<HistoryDoc>("mirror_history", historyArgs(qDebounced, tool, project), { force: true })
       .then((d) => { if (id === reqRef.current) { setDoc(d && Array.isArray(d.weeks) ? d : { total: 0, tools: [], weeks: [] }); setErr(null); } })
       .catch((e) => { if (id === reqRef.current) { setDoc({ total: 0, tools: [], weeks: [] }); setErr(String(e)); } })
       .finally(() => { if (id === reqRef.current) setLoading(false); });
@@ -932,7 +925,9 @@ function HistoryView({ vaultPath, phone, periods, sel, focus }: { vaultPath: str
           </div>
         ) : (
           <div className="space-y-3">
-            {sittings.map((s) => <SittingCard key={s.id} s={s} focusTs={focusTs} phone={phone} />)}
+            <VirtualRows items={sittings} estimate={160} gap={12} getKey={(s) => s.id}
+              focusIndex={focusTs == null ? null : sittings.findIndex((s) => s.prompts.some((p) => p.ts === focusTs))}
+              render={(s) => <SittingCard key={s.id} s={s} focusTs={focusTs} phone={phone} />} />
           </div>
         )}
     </div>

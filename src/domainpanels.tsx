@@ -1,9 +1,11 @@
 // Domain-scoped panels extracted from App.tsx: the in-flow Context view,
 // the agent picker rail, the pref-picker column, and the domain prefs panel.
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { AppActivity } from "./appactivity";
 import { ArrowLeft, ArrowRight, Box, Layers, Check, ChevronDown, ChevronRight, Code, Compass, Cpu, Eye, Folder, Globe, Loader2, Lock, Maximize2, MessageSquare, Pencil, Pin, RefreshCw, Share2, SlidersHorizontal, Sparkles, Terminal, X, type LucideIcon } from "lucide-react";
 import { distillCfgFromPrefs } from "./daemoncfg";
 import { invoke } from "./bridge";
+import { invokeCached, peekInvoke } from "./query";
 import { FRAMEWORKS, LENSES } from "./constants";
 import { curatedFor, modelsFor } from "./helpers2";
 import { formatFreshness, titleCase } from "./format";
@@ -234,12 +236,15 @@ export function DomainContextView({
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    // A domain opened before paints its last context at once while it reloads.
+    const cachedCtx = peekInvoke<DomainContextBundle>("domain_context", { vault: vaultPath, domain: domain || "" });
+    if (cachedCtx) setCtx(cachedCtx);
     const load = () => {
       // C1 (Monday feedback): General now gets the SAME context items as domains.
       // domain_context with an empty domain reads the vault ROOT, which is exactly
       // where General's journal / session logs / skills / decisions live - so the
       // panel shows them instead of only the cross-cutting trio.
-      invoke<DomainContextBundle>("domain_context", { vault: vaultPath, domain: domain || "" })
+      invokeCached<DomainContextBundle>("domain_context", { vault: vaultPath, domain: domain || "" }, { force: true })
         .then((c) => { if (mounted) { setCtx(c); setErr(null); } })
         .catch((e) => { if (mounted) { setCtx(null); setErr(domain ? String(e) : null); } })
         .finally(() => { if (mounted) setLoading(false); });
@@ -265,15 +270,15 @@ export function DomainContextView({
       // The user's own material + the task board. Read straight off disk by
       // path (v4 first, then legacy) so absence just yields empty - no error.
       void (async () => {
-        const tasks =
-          (await invoke<string>("read_text_file", { path: `${domainPath}/memory/tasks.md` }).catch(() => "")) ||
-          (await invoke<string>("read_text_file", { path: `${domainPath}/_tasks.md` }).catch(() => ""));
-        if (mounted) setDomainTasks(tasks || "");
+        // All four reads at once (they were awaited one after another).
+        const read = (path: string) => invoke<string>("read_text_file", { path }).catch(() => "");
+        const [v4Tasks, legacyTasks, ...bodies] = await Promise.all([
+          read(`${domainPath}/memory/tasks.md`), read(`${domainPath}/_tasks.md`),
+          ...["goals.md", "config.md"].map((f) => read(`${domainPath}/source/${f}`)),
+        ]);
+        if (mounted) setDomainTasks(v4Tasks || legacyTasks || "");
         const src: { name: string; body: string }[] = [];
-        for (const f of ["goals.md", "config.md"]) {
-          const t = await invoke<string>("read_text_file", { path: `${domainPath}/source/${f}` }).catch(() => "");
-          if (t && t.trim()) src.push({ name: `source/${f}`, body: t });
-        }
+        ["goals.md", "config.md"].forEach((f, i) => { const t = bodies[i]; if (t && t.trim()) src.push({ name: `source/${f}`, body: t }); });
         if (mounted) setSourceFiles(src);
       })();
       // Imports row shows only when the domain has any.
@@ -578,6 +583,11 @@ export function DomainContextView({
             )}
           </>
         )}
+        {/* Every call this domain's conversations made to an app. */}
+        <CtxSection keyName="apps-used" title="Apps used" file="data/apps/*/_log/access.jsonl" body={
+          <AppActivity vaultPath={vaultPath} filter={{ domain: domain || "general", limit: 100 }} showApp
+            empty={`No app calls from ${where} yet. When a conversation here reads from or writes to an app, it shows here.`} />
+        } />
       </CtxMode.Provider>
   );
 

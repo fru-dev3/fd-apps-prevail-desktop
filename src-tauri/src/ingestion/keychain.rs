@@ -89,6 +89,20 @@ pub fn get(service: &str, account: &str) -> Result<String, String> {
     Ok(s)
 }
 
+/// `get` for several accounts at once, answers in the given order. Each read
+/// is its own `security` process (about 13 ms); the engine spawn env needs
+/// nine of them, so reading them one after another cost 120 ms per engine
+/// call. Run side by side they cost about one.
+pub fn get_many(service: &str, accounts: &[&str]) -> Vec<Result<String, String>> {
+    std::thread::scope(|s| {
+        let handles: Vec<_> = accounts.iter().map(|a| s.spawn(move || get(service, a))).collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap_or_else(|_| Err("keychain read panicked".to_string())))
+            .collect()
+    })
+}
+
 /// Remove a generic-password entry. Silent success if missing.
 pub fn del(service: &str, account: &str) -> Result<(), String> {
     let out = run(

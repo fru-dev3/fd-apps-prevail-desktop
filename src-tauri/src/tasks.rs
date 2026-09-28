@@ -212,7 +212,7 @@ fn render_tasks(tasks: &[Task]) -> String {
     s
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tasks_read(vault: String, domain: String) -> Result<Vec<Task>, String> {
     let p = tasks_path(&vault, &domain);
     match crate::read_to_string_retry(&p) {
@@ -222,8 +222,9 @@ pub fn tasks_read(vault: String, domain: String) -> Result<Vec<Task>, String> {
 }
 
 // Replace the whole list (used for toggles/reorder/delete from the UI).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tasks_set(vault: String, domain: String, tasks: Vec<Task>) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let p = tasks_path(&vault, &domain);
     if let Some(parent) = p.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -235,8 +236,9 @@ pub fn tasks_set(vault: String, domain: String, tasks: Vec<Task>) -> Result<(), 
 
 // Append one task if not already present (used by "add as task" on a surfaced
 // next-step). Returns the updated list. Mints id + owner/status defaults.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tasks_add(vault: String, domain: String, text: String, source: Option<String>) -> Result<Vec<Task>, String> {
+    let _serial = crate::vaultio::serial();
     let text = text.trim().to_string();
     if text.is_empty() {
         return Err("empty task".into());
@@ -265,8 +267,9 @@ pub fn tasks_add(vault: String, domain: String, text: String, source: Option<Str
 }
 
 // Set a single task's status by id (kanban move). Keeps done ⇔ status:done.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tasks_set_status(vault: String, domain: String, id: String, status: String) -> Result<Vec<Task>, String> {
+    let _serial = crate::vaultio::serial();
     if !VALID_STATUS.contains(&status.as_str()) {
         return Err(format!("invalid status: {status}"));
     }
@@ -285,8 +288,9 @@ pub fn tasks_set_status(vault: String, domain: String, id: String, status: Strin
 }
 
 // Set a single task's owner by id ("me" | "ai").
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tasks_set_owner(vault: String, domain: String, id: String, owner: String) -> Result<Vec<Task>, String> {
+    let _serial = crate::vaultio::serial();
     if owner != "me" && owner != "ai" {
         return Err(format!("invalid owner: {owner}"));
     }
@@ -338,7 +342,7 @@ fn write_details_doc(vault: &str, domain: &str, doc: &serde_json::Value) -> Resu
 
 /// The detail object for one task: { description, comments: [{ts, text, author}] }.
 /// Returns an empty shell when nothing has been recorded yet.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn task_detail_get(vault: String, domain: String, id: String) -> Result<serde_json::Value, String> {
     let doc = read_details_doc(&vault, &domain)?;
     let entry = doc.get(&id).cloned().unwrap_or_else(|| serde_json::json!({ "description": "", "comments": [] }));
@@ -346,8 +350,9 @@ pub fn task_detail_get(vault: String, domain: String, id: String) -> Result<serd
 }
 
 /// Set a task's long-form description (sidecar). Returns the updated detail.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn task_detail_set_description(vault: String, domain: String, id: String, description: String) -> Result<serde_json::Value, String> {
+    let _serial = crate::vaultio::serial();
     let mut doc = read_details_doc(&vault, &domain)?;
     let entry = doc.as_object_mut().ok_or("corrupt details doc")?
         .entry(id.clone()).or_insert_with(|| serde_json::json!({ "description": "", "comments": [] }));
@@ -357,8 +362,9 @@ pub fn task_detail_set_description(vault: String, domain: String, id: String, de
 }
 
 /// Append a comment to a task's thread. author is "me" or "ai". Returns updated detail.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn task_detail_add_comment(vault: String, domain: String, id: String, text: String, author: Option<String>) -> Result<serde_json::Value, String> {
+    let _serial = crate::vaultio::serial();
     let text = text.trim().to_string();
     if text.is_empty() { return Err("empty comment".into()); }
     let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
@@ -377,7 +383,7 @@ pub fn task_detail_add_comment(vault: String, domain: String, id: String, text: 
 /// `today` is passed in (YYYY-MM-DD) so we need no date crate. This is the one
 /// the badge trusts: it never goes through tasks_read's per-domain resolution,
 /// which returned empty for some layouts and left the badge blank.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn work_count(vault: String, today: String, domain: Option<String>) -> Result<serde_json::Value, String> {
     let mut open: u32 = 0;
     let mut overdue: u32 = 0;
@@ -475,7 +481,7 @@ pub async fn tasks_read_all(vault: String, limit: Option<usize>) -> Result<Vec<s
 /// domain's `_loops_runtime.json:loops[*].pending[]`, and (2) AI-owned tasks now
 /// sitting in `status:review` (a workflow finished and wants sign-off). Returns
 /// `DecisionItem[]` newest-first. Actions reuse existing plumbing in the UI.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn decisions_pending(vault: String) -> Result<Vec<serde_json::Value>, String> {
     let mut out: Vec<serde_json::Value> = Vec::new();
     {

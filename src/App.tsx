@@ -1,8 +1,11 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode, type UnlistenFn } from "./bridge";
+import { invokeCached } from "./query";
+import { lazyPanel, loadBenchmarkPanel, loadChatPanel, loadCouncilPanel, loadSettingsPanel, loadWorkPanel, prefetchPanelsWhenIdle } from "./prefetch";
 import { useIsPhone, useVisualViewportHeight } from "./useisphone";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { USE_COUNCIL_EVENT } from "./council";
 import { titleCase } from "./format";
 import type { CliInfo, Domain, DomainTab, EngineApp, TabId, ThreadMeta } from "./types";
 import { BUNKER_LS, LS, PREF, getPref, hydrateUiPrefs, hydrateProfilePrefs, saveProfilePrefs, isBunkerOn, lsGet, lsSet } from "./storage";
@@ -18,11 +21,12 @@ import { PhoneVoiceBar } from "./phonevoice";
 // inflating the initial bundle (and the live memory footprint). SettingsPanel
 // alone transitively pulls in every settings section, so deferring it is the
 // biggest single win. Mirrors how the engine spawns work lazily.
-const ChatPanel = lazy(() => import("./chatpanel").then((m) => ({ default: m.ChatPanel })));
-const CouncilPanel = lazy(() => import("./councilpanel").then((m) => ({ default: m.CouncilPanel })));
-const SettingsPanel = lazy(() => import("./settingspanel").then((m) => ({ default: m.SettingsPanel })));
-const WorkPanel = lazy(() => import("./workpanel").then((m) => ({ default: m.WorkPanel })));
-const BenchmarkPanel = lazy(() => import("./benchpanel").then((m) => ({ default: m.BenchmarkPanel })));
+// The loaders live in prefetch.ts so the sidebar can start them on hover.
+const ChatPanel = lazyPanel(loadChatPanel, (m) => m.ChatPanel);
+const CouncilPanel = lazyPanel(loadCouncilPanel, (m) => m.CouncilPanel);
+const SettingsPanel = lazyPanel(loadSettingsPanel, (m) => m.SettingsPanel);
+const WorkPanel = lazyPanel(loadWorkPanel, (m) => m.WorkPanel);
+const BenchmarkPanel = lazyPanel(loadBenchmarkPanel, (m) => m.BenchmarkPanel);
 // The phone frame (bottom tab bar, big header, one full-width surface). Only
 // fetched at phone width, so the desktop bundle stays as it was.
 const PhoneShell = lazy(() => import("./phoneshell").then((m) => ({ default: m.PhoneShell })));
@@ -31,9 +35,8 @@ import { ObsidianImportModal } from "./obsidianmodal";
 import { useAppearance, useFrameworkLens } from "./hooks";
 import { distillCfgFromPrefs, intentDaemonCfgFromPrefs, skillgenCfgFromPrefs, taskgenCfgFromPrefs } from "./daemoncfg";
 import { autoVerifyClis } from "./verify";
-import { startBenchScheduler } from "./bench";
 import { bumpBackupChangeCount, startBackupScheduler } from "./backup";
-import { startLoopsScheduler, readLoops, ensureBriefingLoop, ensureModelScoutLoop } from "./loops";
+import { startLoopsScheduler, readLoops, ensureBriefingLoop } from "./loops";
 import { startAppsScheduler } from "./appstatus";
 import { startOmegaScheduler } from "./omega";
 import { OnboardingTour } from "./onboarding";
@@ -243,6 +246,10 @@ class PanelBoundary extends Component<{ resetKey: unknown; children: ReactNode }
 
 export default function App() {
   const appearance = useAppearance();
+  // Fetch the code-split panels once the window is idle, so the first visit
+  // to a page does not wait on its chunk. Desktop only (a phone on the tunnel
+  // loads what it opens).
+  useEffect(() => { if (!isBrowser()) prefetchPanelsWhenIdle(); }, []);
   // WebUI login gate - in a browser tab the app must authenticate to the
   // bridge server before any invoke works. On the desktop this is always true.
   const [webAuthed, setWebAuthed] = useState(() => !isBrowser() || !!getWebToken());
@@ -680,7 +687,7 @@ export default function App() {
   const refreshDomains = useCallback(async () => {
     if (!vaultPath) return;
     try {
-      const d = await invoke<Domain[]>("scan_vault", { path: vaultPath });
+      const d = await invokeCached<Domain[]>("scan_vault", { path: vaultPath }, { force: true });
       setDomains(Array.isArray(d) ? d : []);
       setVaultError(null);
       setDomainsLoaded(true);
@@ -748,9 +755,6 @@ export default function App() {
     if (getPref(PREF.taskgenEnabled, "0") === "1") {
       invoke("taskgen_start", { cfg: taskgenCfgFromPrefs(vaultPath) }).catch((e) => console.error("taskgen_start", e));
     }
-    // Scheduled benchmark re-runs (drift tracking) - module-level timer; the
-    // tick itself checks the enabled pref, so toggling needs no restart.
-    startBenchScheduler(vaultPath);
     // Scheduled vault backups (data protection) - same pattern.
     startBackupScheduler(vaultPath);
     // Domain Loops - advance due loops behind the scenes (self-driving), not just
@@ -1135,7 +1139,7 @@ export default function App() {
         // Scope the Loops count to the selected domain (global only on General /
         // no domain), so the badge matches the domain the user is on.
         const targetDomains = selectedDomain ? domains.filter((d) => d.name === selectedDomain) : domains;
-        const docs = await Promise.all(targetDomains.map((d) => readLoops(d.path).then((doc) => ensureModelScoutLoop(ensureBriefingLoop(doc, d.name).doc, d.name).doc).catch(() => null)));
+        const docs = await Promise.all(targetDomains.map((d) => readLoops(d.path).then((doc) => ensureBriefingLoop(doc, d.name).doc).catch(() => null)));
         if (!alive) return;
         let n = 0;
         for (const doc of docs) n += Array.isArray(doc?.loops) ? doc!.loops.length : 0;
@@ -1376,6 +1380,13 @@ export default function App() {
     window.addEventListener("prevail:council-seed", onSeed as EventListener);
     return () => window.removeEventListener("prevail:council-seed", onSeed as EventListener);
   }, []);
+  // "Use in chat" on a council (Settings > Council) opens the Council tab,
+  // which picks that council up.
+  useEffect(() => {
+    const onUse = () => setTab("council");
+    window.addEventListener(USE_COUNCIL_EVENT, onUse);
+    return () => window.removeEventListener(USE_COUNCIL_EVENT, onUse);
+  }, []);
   const [vaultError, setVaultError] = useState<string | null>(null);
   // Phone layout: below PHONE_MAX_PX the desktop cockpit is replaced by the
   // PhoneShell (bottom tab bar + one full-width surface, see phoneshell.tsx).
@@ -1492,7 +1503,7 @@ export default function App() {
   // server can refresh the picker without a reload. Returns the fresh list.
   const refreshClis = useCallback(async (): Promise<CliInfo[]> => {
     try {
-      const list = await invoke<CliInfo[]>("detect_clis");
+      const list = await invokeCached<CliInfo[]>("detect_clis", undefined, { force: true });
       setClis(Array.isArray(list) ? list : []);
       setClisDetected(true);
       // Validate every detected provider right away (once per session), so
@@ -1527,7 +1538,7 @@ export default function App() {
     const tryScan = async () => {
       while (!cancelled && attempts < 5) {
         try {
-          const d = await invoke<Domain[]>("scan_vault", { path: vaultPath });
+          const d = await invokeCached<Domain[]>("scan_vault", { path: vaultPath }, { force: true });
           if (cancelled) return;
           setDomains(Array.isArray(d) ? d : []);
           setVaultError(null);

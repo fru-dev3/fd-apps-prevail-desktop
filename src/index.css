@@ -517,3 +517,12 @@
 .prose-prevail--compact ol { margin-bottom: 0.6em; }
 .prose-prevail--compact h1, .prose-prevail--compact h2,
 .prose-prevail--compact h3, .prose-prevail--compact h4 { margin: 1em 0 0.4em; }
+
+/* A sticky group header inside a SideSpine column: the column's own surface
+   (bg-surface/40 over the page background), made opaque so rows scroll under
+   it. */
+.spine-sticky-head {
+  background:
+    linear-gradient(color-mix(in srgb, var(--color-surface) 40%, transparent), color-mix(in srgb, var(--color-surface) 40%, transparent)),
+    var(--color-background);
+}

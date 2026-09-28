@@ -62,7 +62,7 @@ pub struct ArtifactEntry {
 /// Returns newest-first. Reads the sidecar `<file>.meta.json` if it
 /// exists; otherwise returns the entry with `meta = None` (handles
 /// files dropped in by the user directly).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ingestion_list_artifacts(domain: String) -> Result<Vec<ArtifactEntry>, String> {
     let dir = match storage::imports_dir(&domain) {
         Ok(d) => d,
@@ -133,13 +133,13 @@ fn load_cli_providers(app: &tauri::AppHandle) -> Result<Vec<tier_d_cli::CliProvi
     serde_json::from_str(&raw).map_err(|e| format!("parse cli_providers.json: {e}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ingestion_cli_providers(app: tauri::AppHandle) -> Result<Vec<tier_d_cli::CliProvider>, String> {
     load_cli_providers(&app)
 }
 
 /// Is the provider's CLI installed + on PATH? Runs its read-only version probe.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ingestion_cli_probe(
     app: tauri::AppHandle,
     state: tauri::State<'_, OrchestratorState>,
@@ -166,7 +166,7 @@ pub struct CliRunSummary {
 }
 
 /// Run a provider's read-only command and ingest its stdout as an artifact.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ingestion_cli_run(
     app: tauri::AppHandle,
     state: tauri::State<'_, OrchestratorState>,
@@ -226,7 +226,7 @@ pub struct DomainStats {
     pub bytes: u64,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ingestion_domain_stats(domain: String) -> Result<DomainStats, String> {
     let dir = match storage::imports_dir(&domain) {
         Ok(d) => d,
@@ -272,7 +272,7 @@ fn append_audit_log(record: &serde_json::Value) -> Result<(), String> {
 /// Delete artifacts (and their .meta.json sidecars) older than the
 /// cutoff. Skips files modified within the window. Returns the count
 /// removed. Every deletion is appended to the audit log.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ingestion_vacuum_imports(domain: String, older_than_days: u64) -> Result<usize, String> {
     let dir = storage::imports_dir(&domain)?;
     if !dir.exists() {

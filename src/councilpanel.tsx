@@ -15,10 +15,9 @@ import { ContextMeter, estimateTokens, contextWindowFor } from "./contextmeter";
 import { Markdown } from "./Markdown";
 import { domainIcon } from "./icons";
 import { ThinkingDots, useFrameworkLens } from "./hooks";
-import { COUNCIL_CHAIR_KEY, readCouncilChair, readCouncilMembers } from "./council";
+import { USE_COUNCIL_EVENT, takePendingCouncil, useCouncils } from "./council";
 import { extractCliError } from "./textutil";
 import { ProviderMark } from "./marks";
-import { useSuites } from "./bench-presets";
 import { BrandMark } from "./brandmark";
 import { DomainStatusBar } from "./chatviews";
 import { ContextButton, ContextCanvas, DomainContextView } from "./domainpanels";
@@ -77,6 +76,12 @@ export function CouncilPanel({
   // even ones not installed are listed (greyed out) so the user knows
   // what's possible. Same provider can appear multiple times with
   // different models (e.g. Opus 4.7 AND Sonnet 4.6 both on panel).
+  // The council this conversation convenes: one asked for by "Use in chat",
+  // else the Default. Picking another swaps the panel and chair.
+  const { councils, defaultId: defaultCouncilId } = useCouncils();
+  const [councilId, setCouncilId] = useState<string>(() => takePendingCouncil() ?? "");
+  const activeCouncil = councils.find((c) => c.id === councilId) ?? councils.find((c) => c.id === defaultCouncilId) ?? councils[0];
+  const seedCouncil = () => activeCouncil ?? { seats: [] as string[], chair: "" };
   const allSlots = useMemo<PanelistSlot[]>(() => {
     const out: PanelistSlot[] = [];
     for (const c of clis) {
@@ -156,7 +161,7 @@ export function CouncilPanel({
       // several models from the same provider. Only keep slots that still exist
       // and whose provider is available. If nothing's configured, default to one
       // slot per available CLI.
-      const configured = readCouncilMembers();
+      const configured = seedCouncil().seats;
       const def = new Set<string>();
       for (const key of configured) {
         const slot = allSlots.find((s) => s.key === key);
@@ -207,11 +212,23 @@ export function CouncilPanel({
   // Chair is a single (cli, model) pair - defaults to first selected
   // panelist's CLI with its first model, or whatever's saved.
   const [chairSlot, setChairSlot] = useState<string>("");
+  const applyCouncil = (id: string) => {
+    const c = councils.find((x) => x.id === id);
+    if (!c) return;
+    setCouncilId(c.id);
+    setSelectedSlots(new Set(c.seats.filter((k) => allSlots.some((s) => s.key === k))));
+    setChairSlot(allSlots.some((s) => s.key === c.chair) ? c.chair : "");
+  };
+  useEffect(() => {
+    const on = (e: Event) => { const id = (e as CustomEvent<{ id: string }>).detail?.id; takePendingCouncil(); if (id) applyCouncil(id); };
+    window.addEventListener(USE_COUNCIL_EVENT, on);
+    return () => window.removeEventListener(USE_COUNCIL_EVENT, on);
+  });
   useEffect(() => {
     if (chairSlot) return;
     // Prefer the configured chair SLOT (a specific model); fall back to the
     // legacy chair-by-CLI, then the first panelist.
-    const savedSlot = readCouncilChair();
+    const savedSlot = seedCouncil().chair;
     if (savedSlot && allSlots.some((s) => s.key === savedSlot)) {
       setChairSlot(savedSlot);
       return;
@@ -228,10 +245,8 @@ export function CouncilPanel({
     else if (allSlots.length > 0) setChairSlot(allSlots[0].key);
   }, [allSlots, panelistSlots, chairSlot]);
 
-  useEffect(() => {
-    const s = allSlots.find((x) => x.key === chairSlot);
-    if (s) { lsSet(COUNCIL_CHAIR_KEY, s.key); lsSet(LS.defaultChairCli, s.cli); }
-  }, [chairSlot, allSlots]);
+  // The chat never writes the council settings: a chair picked here is for
+  // this conversation only. Councils are edited in Settings > Council.
 
   const chairSlotObj = useMemo(
     () => allSlots.find((s) => s.key === chairSlot) ?? null,
@@ -951,15 +966,10 @@ export function CouncilPanel({
   // Per-provider model search over the full catalog (OpenRouter 300+); empty
   // shows the curated defaults. Shared by the add-panelist + chair pickers.
   const [modelSearch, setModelSearch] = useState<Record<string, string>>({});
-  const [councilMenuOpen, setCouncilMenuOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const chairMenuRef = useRef<HTMLDivElement>(null);
-  const councilMenuRef = useRef<HTMLDivElement>(null);
-  // Saved councils (named model groups) - shared with the Arena. Picking one
-  // here replaces the current panel with exactly that council's models.
-  const savedCouncils = useSuites();
   useEffect(() => {
-    if (!addMenuOpen && !chairMenuOpen && !councilMenuOpen) return;
+    if (!addMenuOpen && !chairMenuOpen) return;
     const onClick = (e: MouseEvent) => {
       if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
         setAddMenuOpen(false);
@@ -967,13 +977,10 @@ export function CouncilPanel({
       if (chairMenuRef.current && !chairMenuRef.current.contains(e.target as Node)) {
         setChairMenuOpen(false);
       }
-      if (councilMenuRef.current && !councilMenuRef.current.contains(e.target as Node)) {
-        setCouncilMenuOpen(false);
-      }
     };
     window.addEventListener("mousedown", onClick);
     return () => window.removeEventListener("mousedown", onClick);
-  }, [addMenuOpen, chairMenuOpen, councilMenuOpen]);
+  }, [addMenuOpen, chairMenuOpen]);
 
   const [dragOver, setDragOver] = useState(false);
   return (
@@ -1499,46 +1506,6 @@ export function CouncilPanel({
               );
             })}
 
-            {/* Use a saved council (named model group, shared with the Arena) */}
-            {savedCouncils.length > 0 && (
-              <div className="relative" ref={councilMenuRef}>
-                <button
-                  onClick={() => setCouncilMenuOpen((v) => !v)}
-                  title="Convene a saved council"
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
-                >
-                  <Crown className="h-3 w-3" /> council
-                </button>
-                {councilMenuOpen && (
-                  <div className="absolute bottom-full left-0 z-40 mb-1 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
-                    <div className="flex items-center gap-1.5 border-b border-border-subtle bg-surface-warm/50 px-3 py-2 text-[11px] text-text-muted">
-                      <Scale className="h-3 w-3 text-accent" /> Convene a council
-                    </div>
-                    <div className="max-h-80 overflow-y-auto p-1.5">
-                      {savedCouncils.map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => {
-                            setSelectedSlots(new Set(c.models));
-                            setCouncilMenuOpen(false);
-                          }}
-                          className="group flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent-soft"
-                        >
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent group-hover:bg-accent group-hover:text-background">
-                            <Crown className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{c.name}</span>
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-muted">
-                            <Layers className="h-3 w-3" /> {c.models.length}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* + add panelist */}
             <div className="relative" ref={addMenuRef}>
               <button
@@ -1620,6 +1587,15 @@ export function CouncilPanel({
           <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2">
             <DomainStatusBar domain={domain} fwLens={fwLens} surface="council" />
             <div className="flex-1" />
+
+            {/* Which council: the Default, or any named one (Settings > Council). */}
+            {councils.length > 0 && (
+              <select aria-label="Council" data-testid="council-picker" value={activeCouncil?.id ?? ""}
+                onChange={(e) => applyCouncil(e.target.value)}
+                className="h-7 max-w-[12rem] truncate rounded-full border border-border bg-background px-2 text-[12px] text-text-secondary focus:border-accent-border focus:outline-none">
+                {councils.map((c) => <option key={c.id} value={c.id}>{c.name}{c.id === defaultCouncilId ? " (default)" : ""}</option>)}
+              </select>
+            )}
 
             {/* Chair pill */}
             <div className="relative" ref={chairMenuRef}>

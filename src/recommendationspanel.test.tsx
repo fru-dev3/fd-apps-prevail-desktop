@@ -79,7 +79,7 @@ describe("RecommendationsPanel", () => {
     render(<RecommendationsPanel vaultPath="/v" />);
     const start = await screen.findByTestId("section-start");
     expect(within(start).getAllByTestId("rec-item")).toHaveLength(5);
-    expect(screen.getByTestId("page-header").className).toMatch(/sticky/);
+    expect(document.querySelector("[data-settings-header]")).not.toBeNull();
     expect(screen.getByTestId("recs-spine")).toBeTruthy();
     expect(within(screen.getByTestId("spine-projects")).getByText("2")).toBeTruthy();
     expect(within(screen.getByTestId("spine-start")).getByText("5")).toBeTruthy();

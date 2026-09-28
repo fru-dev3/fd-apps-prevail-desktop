@@ -18,6 +18,9 @@ export interface EntitySummary {
   saved: boolean;
   has_page: boolean;
   domain?: string;
+  // Entity folders: an absolute path to picture.<ext>, and an org's website.
+  picture?: string;
+  website?: string;
 }
 
 export interface EntityList { generated_ts: number; total: number; entities: EntitySummary[] }

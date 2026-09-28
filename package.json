@@ -1,6 +1,6 @@
 {
   "name": "prevail-desktop",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Prevail desktop: native macOS cockpit for AI council deliberation",
   "license": "GPL-3.0-only",
   "type": "module",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@sentry/browser": "^10.57.0",
+    "@tanstack/react-virtual": "^3.14.13",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-autostart": "^2.5.1",
     "@tauri-apps/plugin-dialog": "^2",

@@ -3,111 +3,28 @@
 // run registry + executor live in ./bench; this is the presentation layer.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm, open, save as saveFileDialog } from "@tauri-apps/plugin-dialog";
-import { Activity, AlertTriangle, Archive, Award, Bookmark, BrainCircuit, CalendarClock, Check, ChevronRight, Circle, Coins, Crown, DollarSign, Download, ExternalLink, FileText, Gauge, Layers, LineChart, Loader2, MessagesSquare, Pencil, Play, Plus, RotateCw, Scale, ShieldCheck, Sparkles, Swords, Target, Trash2, TrendingUp, Upload, X, Zap } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { AlertTriangle, Archive, Award, Bookmark, BrainCircuit, Check, ChevronRight, Circle, Coins, Copy, Crown, DollarSign, Download, FileText, Gauge, Layers, Loader2, MessagesSquare, Play, Plus, RotateCw, Scale, Sparkles, Swords, Trash2, TrendingUp, Upload, X, Zap } from "lucide-react";
 import { invoke, listen } from "./bridge";
-import { MODELS, MODEL_SEP, VENDOR_BRAND } from "./constants";
-import { relTime, scoreColor, titleCase } from "./format";
+import { MODELS, MODEL_SEP } from "./constants";
+import { scoreColor, titleCase } from "./format";
 import { isLocalCli, isUserDomain } from "./helpers";
-import { curatedFor, modelLabel, modelsFor, parseRunLabel } from "./helpers2";
-import { PREF, cheapModel, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
+import { modelLabel, parseRunLabel } from "./helpers2";
+import { isBunkerOn, lsGet, lsSet } from "./storage";
 import { BenchCrumbs, Field, ScoreBar } from "./panels";
-import { RowMenu, Sparkline, Toggle } from "./ui";
-import type { RowMenuItem } from "./ui";
-import { SpineColumn, useSpineCollapsed } from "./sidespine";
-import { PageHeaderBar, SettingsHeader } from "./sectionutil";
+import { Sparkline } from "./ui";
+import { SideSpine, SpineTabs, STICKY_GROUP_HEAD } from "./sidespine";
+import { SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
+import { RowAction } from "./rowaction";
 import { ArenaBars, ArenaInsight, ArenaMetric, ArenaRightRail, ArenaStatCard, heatBg } from "./arena/arenaui";
+import { ModelPicker, estimateRun, fmtEstimateUsd, keyLabel, runtimeLabel, useArenaModels } from "./arena/runsetup";
 import { domainIcon } from "./icons";
-import { BENCH_CLI_OPTIONS, benchBatches, benchFreqLabel, benchFreqMs, benchNotify, cancelBenchBatch, executeBenchBatch, runBenchModels, startQuestionSuggest, useBenchBatches, useQuestionSuggest } from "./bench";
-import { canonicalPresets, deleteSuite, saveSuite, suiteOrigin, useSuites, useSchedules, upsertSchedule, updateSchedule, removeSchedule, presetScheduleId } from "./bench-presets";
-import type { AvailablePresetModel, BenchSchedule, BenchSuite, CanonicalPreset } from "./bench-presets";
+import { benchBatches, benchNotify, cancelBenchBatch, executeBenchBatch, startQuestionSuggest, useBenchBatches, useQuestionSuggest } from "./bench";
+import { canonicalPresets, createSuite, deleteSuite, updateSuite, useSuites } from "./bench-presets";
 import { ProviderMark } from "./marks";
-import { autoVerifyClis, useCliVerifyLive } from "./verify";
-import type { BenchBatch, BenchJob, BenchJobStatus, BenchQuestion, BenchmarkRun, CliInfo, Domain, EngineApp, MatrixRow, RunDetail } from "./types";
+import type { BenchBatch, BenchJob, BenchJobStatus, BenchQuestion, BenchmarkRun, Domain, EngineApp, MatrixRow, RunDetail } from "./types";
 import type { UnlistenFn } from "./bridge";
-
-// --- Model Scout suggestions ---------------------------------------------------
-// The General domain's daily Model Scout loop web-searches for AI models worth
-// adding to the benchmark (open-weight + frontier) and writes them to
-// build/_meta/model_suggestions.json. This panel surfaces that list in the Arena
-// and lets the user force a fresh scan. Models in the benchmark are defined in
-// the MODELS catalog, so this RECOMMENDS - the user folds the ones they want in.
-interface ScoutItem { name: string; provider: string; kind: "open" | "frontier"; reason: string; url?: string; source?: string }
-interface ScoutFile { generated?: number; model?: string; items?: ScoutItem[] }
-
-function ModelScoutSuggestions({ vaultPath }: { vaultPath: string }) {
-  const [doc, setDoc] = useState<ScoutFile | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const load = useCallback(() => {
-    invoke<ScoutFile>("model_suggestions_read", { vault: vaultPath })
-      .then((d) => setDoc(d && typeof d === "object" ? d : null)).catch(() => {});
-  }, [vaultPath]);
-  useEffect(() => { load(); }, [load]);
-  const known = useMemo(() => Object.values(MODELS).flat().map((m) => m.label).join(","), []);
-  const rescan = async () => {
-    setScanning(true);
-    try { await invoke("model_scout_run", { vault: vaultPath, known }); load(); }
-    catch { /* surfaced as no change */ }
-    finally { setScanning(false); }
-  };
-  const items = doc?.items ?? [];
-  // Without a source URL from the scan, give every suggestion a useful link:
-  // a web search for the exact model so you can read about it and decide.
-  const linkFor = (it: ScoutItem) => it.url || `https://www.google.com/search?q=${encodeURIComponent(`${it.provider} ${it.name} AI model`)}`;
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <BrainCircuit className="h-4 w-4 text-accent" />
-        <span className="text-sm font-semibold text-text-primary">Model Scout</span>
-        <span className="ml-auto text-[11px] text-text-muted">{items.length ? `${items.length} suggested${doc?.generated ? ` · scanned ${new Date(doc.generated).toLocaleDateString()}` : ""}` : "daily web scan"}</span>
-      </div>
-      {/* Why this page matters — new models ship constantly; Scout keeps the
-          Arena's roster current so you don't have to track releases yourself. */}
-      <div className="rounded-lg border border-accent-border/40 bg-accent-soft/30 px-3 py-2.5">
-        <p className="text-[12px] leading-relaxed text-text-secondary">
-          <span className="font-semibold text-text-primary">New models ship every week.</span> Scout's daily web scan flags freshly-released models (open-weight and frontier) worth adding to your Arena, so your benchmarks stay current without you tracking announcements. Each suggestion links to its source; pick the ones you care about and add them as Arena models to run.
-        </p>
-      </div>
-      <div className="space-y-2 px-1">
-        <div className="flex items-center justify-end gap-2 text-[11px] text-text-muted">
-          <button
-            onClick={rescan}
-            disabled={scanning}
-            title="Scan the web for models now"
-            className="inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 text-[11px] text-text-secondary hover:bg-surface-warm hover:text-accent disabled:opacity-40"
-          >
-            <RotateCw className={`h-3 w-3 ${scanning ? "animate-spin" : ""}`} /> {scanning ? "Scanning…" : "Scan now"}
-          </button>
-        </div>
-        {items.length === 0 ? (
-          <p className="text-[11px] text-text-muted">No suggestions yet. Run a scan, or open General → Loops to activate the daily Model Scout.</p>
-        ) : (
-          <ul className="space-y-1">
-            {items.map((it, i) => (
-              <li key={`${it.name}-${i}`} className="flex items-start gap-2 rounded-md border border-border-subtle bg-surface-warm/40 px-2 py-1.5">
-                <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${it.kind === "open" ? "bg-accent/15 text-accent" : "bg-warn/15 text-warn"}`}>{it.kind}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="text-xs font-medium text-text-primary">{it.name}</span>
-                  <span className="ml-1 text-[11px] text-text-muted">({it.provider})</span>
-                  {it.reason && <span className="block text-[11px] leading-snug text-text-muted">{it.reason}</span>}
-                </span>
-                <button
-                  onClick={() => void openUrl(linkFor(it))}
-                  title={it.url ? `Open source: ${it.url}` : `Search the web for ${it.name}`}
-                  className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md border border-border-subtle px-1.5 py-0.5 font-mono text-[10px] text-text-muted hover:border-accent-border hover:text-accent"
-                >
-                  {it.url ? "source" : "look up"} <ExternalLink className="h-2.5 w-2.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
+import { invokeCached, peekInvoke } from "./query";
 
 // --- 3D Arena formatting (intelligence · speed · cost) --------------------
 // Latency: show ms under a second, else seconds.
@@ -132,7 +49,7 @@ export function fmtCost(usd: number | null | undefined, basis?: string | null): 
 export function RunDims({ run, judge }: { run: BenchmarkRun; judge?: number | null }) {
   const j = judge !== undefined ? judge : run.judge_avg;
   return (
-    <span className="flex shrink-0 items-center gap-2.5 font-mono text-[11px]">
+    <span className="flex shrink-0 items-center gap-2.5 text-[11px]">
       <span className="inline-flex items-center gap-1 text-accent" title="Intelligence: judge score /10">
         <BrainCircuit className="h-3 w-3" />
         <span className="font-semibold">{j !== null && j !== undefined ? j.toFixed(1) : "-"}</span>
@@ -254,7 +171,7 @@ export function BenchMatrix({
     <div>
       {/* Filter bar: top models + top dimensions shown; multi-select to refine. */}
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-[11px] text-text-muted">
+        <span className="text-[11px] text-text-muted">
           {visibleRows.length}/{rows.length} models · {visibleDomains.length}/{orderedDomains.length} dimensions
         </span>
         <div className="flex flex-wrap items-center gap-2">
@@ -270,7 +187,7 @@ export function BenchMatrix({
             {dimPickerOpen && (
               <div className="absolute right-0 z-20 mt-1 max-h-72 w-60 overflow-auto rounded-xl border border-border bg-surface p-1.5 shadow-xl">
                 <div className="flex items-center justify-between px-1.5 py-1">
-                  <span className="font-mono text-[11px] text-text-muted">Show dimensions</span>
+                  <span className="text-[11px] text-text-muted">Show dimensions</span>
                   <button onClick={() => setDimSelPersist(null)} className="text-[10px] text-text-muted hover:text-accent">Top {TOP_DIMS}</button>
                 </div>
                 {orderedDomains.map((d) => {
@@ -278,8 +195,8 @@ export function BenchMatrix({
                   return (
                     <button key={d} onClick={() => toggleDim(d)} className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-xs hover:bg-surface-warm">
                       <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${on ? "border-accent bg-accent text-background" : "border-border"}`}>{on && <Check className="h-2.5 w-2.5" />}</span>
-                      <span className="min-w-0 flex-1 truncate font-mono text-text-primary">{titleCase(d)}</span>
-                      <span className="shrink-0 font-mono text-[10px] text-text-muted">{(bestPerDomain[d] ?? -1) >= 0 ? (bestPerDomain[d]).toFixed(1) : "·"}</span>
+                      <span className="min-w-0 flex-1 truncate text-text-primary">{titleCase(d)}</span>
+                      <span className="shrink-0 text-[10px] text-text-muted">{(bestPerDomain[d] ?? -1) >= 0 ? (bestPerDomain[d]).toFixed(1) : "·"}</span>
                     </button>
                   );
                 })}
@@ -299,7 +216,7 @@ export function BenchMatrix({
             {pickerOpen && (
               <div className="absolute right-0 z-20 mt-1 max-h-72 w-72 overflow-auto rounded-xl border border-border bg-surface p-1.5 shadow-xl">
                 <div className="flex items-center justify-between px-1.5 py-1">
-                  <span className="font-mono text-[11px] text-text-muted">Add more models</span>
+                  <span className="text-[11px] text-text-muted">Add more models</span>
                   {extra.size > 0 && <button onClick={() => setExtraPersist(new Set())} className="text-[10px] text-text-muted hover:text-accent">Clear</button>}
                 </div>
                 {extraModels.map((m) => {
@@ -357,7 +274,7 @@ export function BenchMatrix({
                   return (
                     <td
                       key={d}
-                      className={`px-3 py-2 text-center font-mono text-xs ${isBest ? "font-bold" : ""}`}
+                      className={`px-3 py-2 text-center text-xs ${isBest ? "font-bold" : ""}`}
                       style={{ background: v == null ? undefined : heatBg(v), boxShadow: isBest ? "inset 0 0 0 1.5px var(--color-accent)" : undefined }}
                     >
                       {v == null ? <span className="text-text-muted/40">-</span> : <span className="text-text-primary">{v.toFixed(1)}</span>}
@@ -403,11 +320,11 @@ function MatrixInsights({ matrix, allDomains }: { matrix: MatrixRow[]; allDomain
   return (
     <ArenaRightRail>
       <div className="rounded-2xl border border-border bg-surface p-4">
-        <div className="font-mono text-[11px] text-text-muted">Strongest overall</div>
+        <div className="text-[11px] text-text-muted">Strongest overall</div>
         <div className="mt-1.5 flex items-center gap-2">
           <Award className="h-4 w-4 shrink-0 text-accent" />
           <span className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">{parseRunLabel(insights.overall.label).model || insights.overall.label}</span>
-          <span className="font-mono text-lg font-bold text-accent">{insights.overall.judge_avg?.toFixed(1)}</span>
+          <span className="text-lg font-bold text-accent">{insights.overall.judge_avg?.toFixed(1)}</span>
         </div>
         <div className="mt-0.5 text-[11px] text-text-muted">avg judge score across {insights.perDomain.length} domain{insights.perDomain.length === 1 ? "" : "s"}</div>
       </div>
@@ -439,7 +356,7 @@ function MatrixInsights({ matrix, allDomains }: { matrix: MatrixRow[]; allDomain
                 <div key={g.domain} className="flex items-center gap-2">
                   <Icon className="h-3 w-3 shrink-0 text-text-muted" />
                   <span className="w-20 shrink-0 truncate text-[12px] text-text-secondary">{titleCase(g.domain)}</span>
-                  <span className="font-mono text-[11px] tabular-nums text-text-primary">{g.gap.toFixed(2)}</span>
+                  <span className="text-[11px] tabular-nums text-text-primary">{g.gap.toFixed(2)}</span>
                   <div className="min-w-0 flex-1"><div className="h-1.5 rounded-full bg-accent" style={{ width: `${(g.gap / maxGap) * 100}%` }} /></div>
                 </div>
               );
@@ -620,7 +537,7 @@ export function BenchQuestions({
 
   if (editing) {
     return (
-      <div className="w-full px-8 py-5">
+      <div className="w-full px-8 py-5 max-md:px-4">
         <BenchCrumbs
           items={[
             { label: "Arena" },
@@ -675,20 +592,20 @@ export function BenchQuestions({
 
   // The Questions title + breadcrumb now live in the Arena page header.
   return (
-    <div className="w-full px-8 pb-6">
+    <div className="w-full px-8 pb-6 max-md:px-4">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-text-secondary">
+        <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-text-secondary">
           <option value="all">All domains</option>
           {allDomains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
         </select>
         <div className="flex-1" />
-        <button onClick={importQuestions} title="Import a prevail.bench/v1 JSON file (existing ids are skipped)" className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 font-mono text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
+        <button onClick={importQuestions} title="Import a prevail.bench/v1 JSON file (existing ids are skipped)" className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
           <Download className="h-3 w-3" /> Import
         </button>
-        <button onClick={exportQuestions} disabled={questions.length === 0} title="Export every question as one portable JSON file" className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 font-mono text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-40">
+        <button onClick={exportQuestions} disabled={questions.length === 0} title="Export every question as one portable JSON file" className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-40">
           <Upload className="h-3 w-3" /> Export
         </button>
-        <button onClick={() => { setSuggestOpen((v) => !v); if (!suggestDomain && filter !== "all") setSuggestDomain(filter); }} title="AI-draft questions from a domain's recorded context" className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] ${suggestOpen ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}>
+        <button onClick={() => { setSuggestOpen((v) => !v); if (!suggestDomain && filter !== "all") setSuggestDomain(filter); }} title="AI-draft questions from a domain's recorded context" className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] ${suggestOpen ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}>
           <Sparkles className="h-3 w-3" /> Suggest with AI
         </button>
         <button onClick={() => openEditor("new")} className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-[11px] text-background hover:bg-accent-hover">
@@ -704,7 +621,7 @@ export function BenchQuestions({
           {/* Labeled controls, not a cramped row of bare selects. */}
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1">
-              <span className="font-mono text-[11px] text-text-muted">Domain</span>
+              <span className="text-[11px] text-text-muted">Domain</span>
               <select value={suggestDomain} onChange={(e) => setSuggestDomain(e.target.value)} className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-text-secondary focus:border-accent-border focus:outline-none">
                 <option value="">pick a domain…</option>
                 <option value="all">All domains</option>
@@ -712,13 +629,13 @@ export function BenchQuestions({
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="font-mono text-[11px] text-text-muted">How many{suggestDomain === "all" ? " per domain" : ""}</span>
+              <span className="text-[11px] text-text-muted">How many{suggestDomain === "all" ? " per domain" : ""}</span>
               <select value={suggestCount} onChange={(e) => setSuggestCount(Number(e.target.value))} className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-text-secondary focus:border-accent-border focus:outline-none">
                 {[1, 2, 3, 5, 8].map((n) => <option key={n} value={n}>{n} question{n === 1 ? "" : "s"}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="font-mono text-[11px] text-text-muted">Drafting model</span>
+              <span className="text-[11px] text-text-muted">Drafting model</span>
               <select value={suggestModel} onChange={(e) => setSuggestModel(e.target.value)} className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-text-secondary focus:border-accent-border focus:outline-none">
                 {Object.entries(MODELS)
                   .filter(([cli]) => !isBunkerOn() || isLocalCli(cli))
@@ -844,49 +761,6 @@ export function BenchQuestions({
 }
 
 
-// ── AI preset suggestion: a module-scope job so a curation run survives leaving
-// the Presets tab (or the Arena) and coming back. The invoke keeps running even
-// if the component unmounts; the result lands here and any mounted view syncs
-// via the event. Never blocks the UI thread.
-type PresetSuggestState = { busy: boolean; presets: CanonicalPreset[] | null; error: string | null };
-let presetSuggest: PresetSuggestState = { busy: false, presets: null, error: null };
-const PRESET_SUGGEST_EVENT = "prevail:preset-suggest";
-function setPresetSuggest(next: Partial<PresetSuggestState>) {
-  presetSuggest = { ...presetSuggest, ...next };
-  window.dispatchEvent(new Event(PRESET_SUGGEST_EVENT));
-}
-function usePresetSuggest(): PresetSuggestState {
-  const [s, setS] = useState(presetSuggest);
-  useEffect(() => {
-    const sync = () => setS(presetSuggest);
-    window.addEventListener(PRESET_SUGGEST_EVENT, sync);
-    return () => window.removeEventListener(PRESET_SUGGEST_EVENT, sync);
-  }, []);
-  return s;
-}
-// Fire-and-forget curation. Guarded so a second click while busy is a no-op.
-// `known` grounds the returned keys against the live model universe.
-async function startPresetSuggest(modelsJson: string, known: Set<string>, provider: string, model: string) {
-  if (presetSuggest.busy) return;
-  setPresetSuggest({ busy: true, error: null });
-  try {
-    const res = await invoke<{ ok: boolean; presets?: CanonicalPreset[]; error?: string }>(
-      "engine_bench_preset_suggest",
-      { modelsJson, provider, model },
-    );
-    if (res?.ok) {
-      const cleaned = (res.presets ?? [])
-        .map((p) => ({ ...p, models: (p.models ?? []).filter((k) => known.has(k)) }))
-        .filter((p) => p.models.length >= 2);
-      setPresetSuggest({ busy: false, presets: cleaned, error: cleaned.length ? null : "The model did not return any usable presets. Try again." });
-    } else {
-      setPresetSuggest({ busy: false, error: res?.error || "Could not suggest presets right now." });
-    }
-  } catch (e) {
-    setPresetSuggest({ busy: false, error: String(e) });
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // RUNNING BATCH MONITOR CARD
 //
@@ -951,10 +825,10 @@ function RunningBatchCard({
               : errCount > 0 ? "Finished with errors"
               : "Benchmark complete"}
           </h2>
-          <div className="mt-0.5 truncate font-mono text-[11px] text-text-muted">
+          <div className="mt-0.5 truncate text-[11px] text-text-muted">
             {batch.label}
           </div>
-          <div className="mt-0.5 font-mono text-[11px] text-text-muted">
+          <div className="mt-0.5 text-[11px] text-text-muted">
             {scopeLine}{" · "}{jobs.length} model{jobs.length === 1 ? "" : "s"}{" · "}{jobs[0]?.total ?? 0} q each{" · auto-scored"}
           </div>
         </div>
@@ -962,7 +836,7 @@ function RunningBatchCard({
           <button
             onClick={(e) => { e.stopPropagation(); onDismiss(); }}
             title="Dismiss this run from the monitor"
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 font-mono text-[10px] text-text-secondary transition-colors hover:bg-surface-warm"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[10px] text-text-secondary transition-colors hover:bg-surface-warm"
           >
             <Trash2 className="h-3 w-3" /> Dismiss
           </button>
@@ -974,7 +848,7 @@ function RunningBatchCard({
         const pct = overallTotal > 0 ? Math.round((overallDone / overallTotal) * 100) : 0;
         return (
           <div>
-            <div className="mb-1.5 flex items-baseline justify-between font-mono text-[11px]">
+            <div className="mb-1.5 flex items-baseline justify-between text-[11px]">
               <span className="text-text-muted">{scoringPhase || allDone ? "answers" : "answering"}</span>
               <span className="tabular-nums text-text-secondary">{overallDone}/{overallTotal} · <span className="font-semibold text-text-primary">{pct}%</span></span>
             </div>
@@ -982,7 +856,7 @@ function RunningBatchCard({
               <div className={`h-full rounded-full transition-all duration-500 ${scoringPhase ? "bg-text-primary/70" : "bg-accent"}`} style={{ width: `${pct}%` }} />
             </div>
             {scoringPhase && (
-              <div className="mt-3 flex items-center justify-center gap-1.5 font-mono text-[11px] text-accent">
+              <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-accent">
                 <Loader2 className="h-3 w-3 animate-spin" /> answers in · scoring with the judge, almost done
               </div>
             )}
@@ -993,7 +867,7 @@ function RunningBatchCard({
         <div className="flex justify-center">
           <button
             onClick={onCancel}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-1.5 font-mono text-[11px] text-text-secondary transition-colors hover:border-err hover:text-err"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-1.5 text-[11px] text-text-secondary transition-colors hover:border-err hover:text-err"
           >
             <X className="h-3.5 w-3.5" /> Cancel run
           </button>
@@ -1016,9 +890,9 @@ function RunningBatchCard({
                   {j.cli ? <ProviderMark vendor={j.cli} size={20} /> : <Scale className="h-5 w-5 text-accent" />}
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{j.label}</span>
                   {j.status === "running" && j.qcur && (
-                    <span className="hidden min-w-0 max-w-[220px] truncate font-mono text-[10px] text-text-muted md:inline">{j.qcur}…</span>
+                    <span className="hidden min-w-0 max-w-[220px] truncate text-[10px] text-text-muted md:inline">{j.qcur}…</span>
                   )}
-                  <span className="font-mono text-[11px] tabular-nums text-text-muted">
+                  <span className="text-[11px] tabular-nums text-text-muted">
                     {j.status === "queued" ? "queued" : `${j.done}/${j.total}`}
                   </span>
                   <span className={`w-16 text-right text-[11px] ${
@@ -1035,7 +909,7 @@ function RunningBatchCard({
                     style={{ width: `${j.status === "done" || j.status === "scoring" ? 100 : pct}%` }}
                   />
                 </div>
-                {j.note && <div className="mt-1.5 font-mono text-[10px] text-err">{j.note}</div>}
+                {j.note && <div className="mt-1.5 text-[10px] text-err">{j.note}</div>}
               </button>
               {expanded && j.qids.length > 0 && (
                 <div className="max-h-64 overflow-y-auto border-t border-border-subtle bg-background/40 px-4 py-2">
@@ -1056,7 +930,7 @@ function RunningBatchCard({
                             <Circle className="h-2.5 w-2.5 text-text-muted/40" />
                           )}
                         </span>
-                        <span className={`min-w-0 flex-1 truncate font-mono text-[11px] ${info ? "text-text-primary" : isCur ? "text-accent" : "text-text-muted/60"}`}>
+                        <span className={`min-w-0 flex-1 truncate text-[11px] ${info ? "text-text-primary" : isCur ? "text-accent" : "text-text-muted/60"}`}>
                           {q}
                         </span>
                         {info && !failed && <span className="max-w-[200px] truncate text-[11px] text-text-muted">{info}</span>}
@@ -1094,1046 +968,46 @@ function RunningBatchCard({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// SETTINGS PANEL - vault, theme, defaults, about
 
-// Model chips for a preset row: the provider's real mark plus the human model
-// name. A model whose runtime cannot run right now is dimmed with the reason on
-// hover; no per-chip check icons, since a ready model is the normal case.
-function PresetChips({ models, providerStatus }: { models: string[]; providerStatus: (id: string) => { status: string; runnable: boolean } }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {models.map((k) => {
-        const [cli, modelId] = k.split(MODEL_SEP);
-        const ps = providerStatus(cli!);
-        const label = modelLabel(cli!, modelId!) || modelId;
-        const provider = BENCH_CLI_OPTIONS.find((c) => c.id === cli)?.label ?? VENDOR_BRAND[cli!]?.name ?? titleCase(cli!);
-        return (
-          <span
-            key={k}
-            title={ps.runnable ? `${provider} · ${label}` : `${provider} · ${label}: runtime is ${ps.status === "failed" ? "not working" : "not ready"}`}
-            className={`inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface-warm py-0.5 pl-1 pr-2 text-xs text-text-secondary ${ps.runnable ? "" : "opacity-50"}`}
-          >
-            <ProviderMark vendor={cli!} size={16} />
-            {label}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-// One preset per row: name + badge + rationale + chips on the left, ONE primary
-// action (Run) on the right, everything else in the row menu. Module-level (not
-// defined inside the panel's render) so it keeps its menu open across parent
-// re-renders.
-function PresetRowView({ name, rationale, badge, schedLabel, countLabel, models, onRun, menu, providerStatus }: {
-  name: string;
-  rationale?: string;
-  badge: { label: string; cls: string; sparkle: boolean };
-  schedLabel?: string;
-  countLabel: string;
-  models: string[];
-  onRun: () => void;
-  menu: RowMenuItem[];
-  providerStatus: (id: string) => { status: string; runnable: boolean };
-}) {
-  return (
-    <div className="group flex items-start gap-4 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-semibold text-text-primary">{name}</span>
-          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-px text-[10px] font-medium ${badge.cls}`}>
-            {badge.sparkle && <Sparkles className="h-2.5 w-2.5" aria-hidden />}
-            {badge.label}
-          </span>
-          {schedLabel && (
-            <span title={`Runs ${schedLabel.toLowerCase()}`} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-px text-[10px] font-medium text-accent">
-              <CalendarClock className="h-2.5 w-2.5" /> {schedLabel}
-            </span>
-          )}
-          <span className="text-xs text-text-muted">{countLabel}</span>
-        </div>
-        {rationale && <div className="mt-0.5 text-xs leading-snug text-text-muted">{rationale}</div>}
-        <div className="mt-2"><PresetChips models={models} providerStatus={providerStatus} /></div>
-      </div>
-      <div className="flex shrink-0 items-center gap-1 pt-0.5">
-        <button onClick={onRun} title="Run this preset now" className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-background transition-colors hover:bg-accent-hover">
-          <Play className="h-3 w-3" /> Run
-        </button>
-        <RowMenu items={menu} label={`More actions for ${name}`} />
-      </div>
-    </div>
-  );
-}
-
-export function BenchRunConfig({
-  mode, setMode, selModels, toggleModel, allDomains, scope, toggleScope, scoped,
-  applyModels, applyScope, onRunSuite,
-  questionCounts, questionCount, onRun,
-  presetsView = false, onOpenPresets,
-}: {
-  mode: "single" | "council";
-  setMode: (m: "single" | "council") => void;
-  selModels: Set<string>;
-  toggleModel: (cli: string, model: string) => void;
-  allDomains: string[];
-  scope: Set<string>;
-  toggleScope: (d: string) => void;
-  // True when the Arena is opened from inside a domain: the run is already
-  // scoped to that domain, so the Domains picker is hidden (it only shows in
-  // the global/Settings Arena where you choose which domains to benchmark).
-  scoped: boolean;
-  // Saved-preset plumbing: apply a bundle's models / a suite's domains to the
-  // live selection, and run a suite as a unit.
-  applyModels: (keys: string[]) => void;
-  applyScope: (domains: string[]) => void;
-  onRunSuite: (s: { mode: "single" | "council"; models: string[]; domains: string[] }) => void;
-  questionCounts: Record<string, number>;
-  questionCount: number;
-  onRun: () => void;
-  // Presets now live on their OWN Arena nav item, not a side-tab of this wizard.
-  // presetsView renders JUST the presets panel (no stepper); onOpenPresets lets
-  // in-wizard shortcuts jump to that nav view.
-  presetsView?: boolean;
-  onOpenPresets?: () => void;
-}) {
-  // Council is retired from this page: the run is always the multi-model
-  // head-to-head, so the selection count is simply the chosen models. The
-  // `mode`/`setMode` props are still wired (saved-suite loading + executeRun keep
-  // the mode type), we just never surface the Council branch in this UI.
-  const selCount = selModels.size;
-  // Collapsible provider groups - ALL collapsed by default so the page never
-  // opens as a wall of models. Each provider row still shows its selected
-  // count, so what's on the panel stays visible while collapsed.
-  const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(() =>
-    new Set(BENCH_CLI_OPTIONS.map((c) => c.id)),
-  );
-  // Per-provider search over the full catalog (OpenRouter is 300+ models), so any
-  // model is runnable without pinning. Empty = show the curated defaults.
-  const [providerSearch, setProviderSearch] = useState<Record<string, string>>({});
-
-  // Up-front runtime validity: which providers will actually run BEFORE the
-  // user starts a test. detect_clis is the binary probe (installed?); the live
-  // verify map is the end-to-end check (auth + model reachable). autoVerifyClis
-  // kicks off a real verification for every detected runtime once loaded.
-  const [clis, setClis] = useState<CliInfo[]>([]);
-  const verify = useCliVerifyLive();
-  useEffect(() => {
-    let alive = true;
-    void invoke<CliInfo[]>("detect_clis")
-      .then((list) => { const safe = Array.isArray(list) ? list : []; if (alive) { setClis(safe); autoVerifyClis(safe); } })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
-  // Per-provider runnability. The established rule (settings5.tsx): a runtime is
-  // runnable when detected AND its verify did not fail. Not detected OR verify
-  // failed => not runnable. We surface four visible states so the header can
-  // show ok / checking / failed / not-installed honestly.
-  type ProviderStatus = "ok" | "verifying" | "failed" | "unavailable";
-  const providerStatus = (id: string): { status: ProviderStatus; runnable: boolean; reason?: string } => {
-    const ci = clis.find((c) => c.id === id);
-    const v = verify.get(id);
-    if (!ci || !ci.available) {
-      return { status: "unavailable", runnable: false, reason: ci?.error || undefined };
-    }
-    if (v?.status === "failed") {
-      return { status: "failed", runnable: false, reason: v.error || undefined };
-    }
-    // Detected and not failed => runnable. Still "verifying" until the live
-    // end-to-end check reports ok (no verify yet is treated as in-progress).
-    if (v?.status === "ok") return { status: "ok", runnable: true };
-    return { status: "verifying", runnable: true };
+// Past runs grouped by BATCH: the models launched together are one run of
+// the benchmark. Runs from before batch-stamping are clustered by launch time
+// (a gap over ten minutes starts a new group). Newest first.
+export type RunGroup = { key: string; label: string; date: string; runs: BenchmarkRun[]; isBatch: boolean; latestMs: number; best: number | null };
+export function groupRunsByBatch(runs: BenchmarkRun[]): RunGroup[] {
+  type Group = { key: string; label: string; date: string; runs: BenchmarkRun[]; isBatch: boolean };
+  const groups = new Map<string, Group>();
+  const legacy: BenchmarkRun[] = [];
+  for (const r of runs) {
+    if (!r.batch_id) { legacy.push(r); continue; }
+    const g = groups.get(r.batch_id) ?? { key: r.batch_id, label: r.batch_label || r.batch_id, date: r.date || "", runs: [], isBatch: true };
+    g.runs.push(r);
+    groups.set(r.batch_id, g);
+  }
+  const GAP = 10 * 60 * 1000;
+  const sortedLegacy = [...legacy].sort((a, b) => a.created_ms - b.created_ms);
+  let cluster: BenchmarkRun[] = [];
+  const flush = () => {
+    if (cluster.length === 0) return;
+    const first = cluster[0];
+    const t = first.created_ms ? new Date(first.created_ms) : null;
+    const hhmm = t ? `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}` : "";
+    const key = `legacy-${first.run_dir}`;
+    groups.set(key, { key, label: `${first.date || ""}${hhmm ? " " + hhmm : ""}`.trim() || key, date: first.date || "", runs: cluster, isBatch: false });
+    cluster = [];
   };
-
-  const toggleProvider = (id: string) =>
-    setCollapsedProviders((cur) => {
-      const next = new Set(cur);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-
-  // Domain scope list expanded by default (still collapsible), so the domains are
-  // visible without a click.
-  const [domScopeOpen, setDomScopeOpen] = useState(true);
-  // Review&Run: show every contender tile instead of capping the lineup, so a
-  // big selection can be fully inspected (the old "+N more" tile was a dead end).
-  const [showAllContenders, setShowAllContenders] = useState(false);
-
-  // ── Saved Benchmark Suites (models + domains + mode), the one reusable unit ──
-  const suites = useSuites();
-  const [suiteName, setSuiteName] = useState("");
-  const [savingSuite, setSavingSuite] = useState(false);
-  // Live list of schedule entries (many, each its own cadence). The card and the
-  // Schedule page both read from this one source of truth.
-  const schedules = useSchedules();
-  // Filter for the unified preset list. "ai" is the LIVE Suggest-presets output
-  // (ephemeral suggestions); "mine" = saved presets the user owns (manual or
-  // canonical origin); "fromAi" = saved presets that originated from an AI
-  // suggestion the user chose to keep. This lets the user isolate their own
-  // hand-built/curated presets from AI-generated ones they saved.
-  const [presetFilter, setPresetFilter] = useState<"all" | "canonical" | "ai" | "mine" | "fromAi">("all");
-  const selModelArr = Array.from(selModels);
-
-  // ── The AVAILABLE MODEL UNIVERSE (shared by canonical + AI presets) ──────────
-  // Enumerate every runnable model the Arena knows about right now, shaped for
-  // the preset engines: cli::model key, human label, provider, local-vs-cloud,
-  // and whether the runtime verified. We list each provider's CURATED set (the
-  // flagship-first defaults), not the full 300+ catalog, so a preset draws from
-  // sensible, nameable models. Under Bunker Mode only local providers appear, so
-  // both canonical and AI presets stay offline-valid. This resolves live off
-  // `clis` + `verify`, so the library re-derives as runtimes come and go.
-  const availableModels = useMemo<AvailablePresetModel[]>(() => {
-    const rows: AvailablePresetModel[] = [];
-    for (const c of BENCH_CLI_OPTIONS) {
-      if (isBunkerOn() && !isLocalCli(c.id)) continue;
-      const ps = providerStatus(c.id);
-      // Skip providers that are not installed at all: a preset over a model that
-      // cannot possibly run is noise. Verifying / ok both count as present.
-      if (ps.status === "unavailable") continue;
-      const curated = curatedFor(c.id);
-      // "auto" is the per-runtime router, not a model: a preset that lists it
-      // reads as "Auto · Auto · Auto" and benchmarks nothing nameable. Skip it
-      // so every preset (and the AI's flagship pick) is a real model.
-      const models = (curated.length ? curated : modelsFor(c.id)).filter((m) => m.id !== "auto").slice(0, 8);
-      for (const m of models) {
-        rows.push({
-          key: `${c.id}${MODEL_SEP}${m.id}`,
-          provider: c.id,
-          local: isLocalCli(c.id),
-          validated: ps.status === "ok",
-        });
-      }
-    }
-    return rows;
-    // providerStatus closes over clis + verify; re-run when either changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clis, verify]);
-
-  // A richer per-model view the AI prompt uses (adds the human label + a coarse
-  // tier hint drawn from curated ordering: the first curated model per provider
-  // is treated as that provider's flagship). Kept separate from the canonical
-  // shape so canonicalPresets stays lean.
-  const availableModelsForAi = useMemo(() => {
-    const flagshipByProvider = new Set<string>();
-    return availableModels.map((m) => {
-      const [cli, modelId] = m.key.split(MODEL_SEP);
-      const isFirstOfProvider = !flagshipByProvider.has(cli!);
-      if (isFirstOfProvider) flagshipByProvider.add(cli!);
-      return {
-        key: m.key,
-        label: modelLabel(cli!, modelId!) || modelId,
-        provider: m.provider,
-        validated: m.validated,
-        local: m.local,
-        tier: isFirstOfProvider ? "flagship" : undefined,
-      };
-    });
-  }, [availableModels]);
-
-  // Canonical local presets - resolve live, always work offline, AI-free.
-  const canonPresets = useMemo(() => canonicalPresets(availableModels), [availableModels]);
-
-  // ── AI presets - an AI-maintained library over the live model list. The run
-  // itself lives in a module-scope job (above) so it keeps going and its result
-  // survives if you leave the Presets tab / Arena while it thinks. ─────────────
-  const { busy: aiBusy, presets: aiPresetsRaw, error: aiErr } = usePresetSuggest();
-  const suggestAiPresets = useCallback(() => {
-    if (availableModelsForAi.length === 0) { setPresetSuggest({ error: "No runnable models to build presets from. Install or authorize a runtime first." }); return; }
-    const provider = getPref(PREF.memoryProvider, "claude");
-    const model = cheapModel();
-    void startPresetSuggest(JSON.stringify(availableModelsForAi), new Set(availableModels.map((m) => m.key)), provider, model);
-  }, [availableModels, availableModelsForAi]);
-  // Dedupe the AI suggestions so nothing repeats: drop any AI preset that matches
-  // a canonical one (by name or exact model set) or an earlier AI one. Keeps the
-  // library thorough without showing the same combination twice.
-  const aiPresets = useMemo(() => {
-    if (!aiPresetsRaw) return null;
-    const sig = (models: string[]) => [...models].map((m) => m.toLowerCase()).sort().join("|");
-    const takenSigs = new Set(canonPresets.map((c) => sig(c.models)));
-    const takenNames = new Set(canonPresets.map((c) => c.name.trim().toLowerCase()));
-    const out: CanonicalPreset[] = [];
-    for (const p of aiPresetsRaw) {
-      const s = sig(p.models);
-      const n = p.name.trim().toLowerCase();
-      if (takenSigs.has(s) || takenNames.has(n)) continue;
-      takenSigs.add(s); takenNames.add(n);
-      out.push(p);
-    }
-    return out;
-  }, [aiPresetsRaw, canonPresets]);
-
-  // Load a suite into the editor (apply its selection) WITHOUT running - so the
-  // user can tweak then run or re-save. Distinct from the Run button.
-  const loadSuite = (s: BenchSuite) => { setMode(s.mode); applyModels(s.models); applyScope(s.domains); };
-  const commitSuite = () => {
-    // A Preset is a named group of MODELS (reusable across Arena runs),
-    // so we save models only - the domain scope is chosen per-run.
-    // Hand-built by the user -> origin "manual". Re-saving an existing preset
-    // preserves its original origin (saveSuite keeps the first-set origin).
-    if (saveSuite({ name: suiteName, mode, models: selModelArr, domains: [], origin: "manual" })) {
-      setSuiteName(""); setSavingSuite(false);
-    }
-  };
-  // ── Actions shared by canonical + AI preset cards ────────────────────────────
-  // A preset here is any { name, rationale, models } (canonical or AI): Apply
-  // drops its models onto the live Run selection; Run fires it as a single-mode
-  // benchmark over all domains; Save persists it into the saved-suites library so
-  // it becomes a durable user snapshot alongside the manual ones.
-  const applyPreset = (p: CanonicalPreset) => { setMode("single"); applyModels(p.models); };
-  const runPreset = (p: CanonicalPreset) => onRunSuite({ mode: "single", models: p.models, domains: [] });
-  // Saving a card records the ORIGIN of the card it came from: a canonical
-  // template -> "canonical", an AI suggestion -> "ai". Re-saving preserves the
-  // original origin (saveSuite keeps the first-set one).
-  const savePreset = (p: CanonicalPreset, origin: "manual" | "ai" | "canonical") =>
-    saveSuite({ name: p.name, mode: "single", models: p.models, domains: [], origin });
-
-  // ── Scheduling (multiple entries, each its own cadence) ──────────────────────
-  // Schedule a preset by name+models onto its OWN list entry with the chosen
-  // cadence. Keyed by presetScheduleId(name) so scheduling the same preset again
-  // updates that entry instead of piling up duplicates.
-  const schedulePreset = (name: string, models: string[], domains: string[], freq: BenchSchedule["freq"]) => {
-    upsertSchedule({ id: presetScheduleId(name), name, models, domains, freq, enabled: true });
-    window.dispatchEvent(new Event("prevail:bench-sched"));
-  };
-  const unschedulePreset = (name: string) => {
-    removeSchedule(presetScheduleId(name));
-    window.dispatchEvent(new Event("prevail:bench-sched"));
-  };
-  // The existing schedule entry for a preset (by name), if any.
-  const scheduleFor = (name: string): BenchSchedule | undefined =>
-    schedules.find((s) => s.id === presetScheduleId(name));
-  const suiteScopeLabel = (s: BenchSuite) =>
-    s.domains.length === 0 ? "all domains"
-    : s.domains.length <= 2 ? s.domains.map(titleCase).join(", ")
-    : `${s.domains.length} domains`;
-
-  // The Run title + breadcrumb now live in the Arena page header. The primary
-  // "Run" action moved into the final "Review & Run" step of the wizard below.
-  // Council is retired from this page, so the selection is always the multi-model
-  // head-to-head list (rendered as an arena matchup in the review step).
-
-  // ── The Run page as a left-to-right STEP WIZARD ────────────────────────────
-  // Instead of a wall of stacked collapsibles, the run is a 3-step flow you move
-  // through: Models -> Domains -> Review & Run. A Presets tab sits alongside as a
-  // place to set up / apply reusable model groups (also reachable inline from the
-  // Models step). Each step reports "done" once its selection is valid, and the
-  // stepper draws a progress bar across the completed steps so the user always
-  // knows how far along they are. When the Arena is opened scoped to one domain
-  // the Domains step is dropped exactly as the old picker was hidden.
-  type StepId = "models" | "domains" | "review" | "presets";
-  const domainsStepShown = !scoped;
-  const modelsDone = selModels.size > 0;
-  // The Domains step is optional (empty scope = run across all domains), but it is
-  // only marked DONE once the user actually engages it - picks specific domains OR
-  // explicitly chooses All - so it never shows a pre-completed check or "all
-  // domains" before they have touched it. Reset by Clear.
-  const [domainsTouched, setDomainsTouched] = useState(scope.size > 0);
-  const domainsDone = scope.size > 0 || domainsTouched;
-  const reviewReady = modelsDone && questionCount > 0;
-  // The ordered flow steps (Presets is a side tab, not part of the linear flow).
-  const flowSteps: { id: StepId; label: string; icon: LucideIcon; done: boolean; n: number }[] = [
-    { id: "models", label: "Models", icon: Layers, done: modelsDone, n: 1 },
-    ...(domainsStepShown ? [{ id: "domains" as StepId, label: "Domains", icon: Target, done: domainsDone, n: 2 }] : []),
-    { id: "review", label: "Review & Run", icon: Play, done: reviewReady, n: domainsStepShown ? 3 : 2 },
-  ];
-  const [activeStep, setActiveStep] = useState<StepId>("models");
-  // Start over: clear the whole selection and return to step 1, so the user can
-  // rebuild a run from scratch without hunting for what to un-pick.
-  const startOver = () => {
-    applyModels([]);
-    applyScope([]);
-    setDomainsTouched(false);
-    setActiveStep("models");
-  };
-  // Keep a live step even if scoped drops the Domains tab out from under us.
-  const activeIsValid = activeStep === "presets" || flowSteps.some((s) => s.id === activeStep);
-  // In the dedicated Presets nav view, always show the presets panel.
-  const effectiveStep: StepId = presetsView ? "presets" : (activeIsValid ? activeStep : "models");
-  const flowIndex = flowSteps.findIndex((s) => s.id === effectiveStep);
-  const nextStep = flowIndex >= 0 && flowIndex < flowSteps.length - 1 ? flowSteps[flowIndex + 1] : null;
-  // Progress bar: fraction of the linear flow steps that are "done".
-  const doneCount = flowSteps.filter((s) => s.done).length;
-  const progressPct = Math.round((doneCount / flowSteps.length) * 100);
-  const progressNote = !modelsDone
-    ? "Start by picking the models to compare."
-    : domainsStepShown && effectiveStep === "models"
-      ? "Models selected. Next: choose the domains."
-      : !reviewReady
-        ? (questionCount === 0 ? "No questions in scope yet. Add some in the Questions tab." : "Almost there. Review and run.")
-        : "Ready to run.";
-
-  // A compact preset-apply strip reused inside the Models step so a canonical /
-  // AI / saved preset can fill the selection without leaving the step.
-  return (
-    <div className="w-full px-8 pb-6">
-      {/* STEPPER: clickable tabs left-to-right with a progress bar. Steps read as
-          "done" once valid; the active step's detail renders below. Hidden in the
-          dedicated Presets view, which shows only the presets panel. */}
-      {!presetsView && (
-      <div className="mb-6 rounded-2xl border border-border bg-surface px-4 py-3.5">
-        <div className="flex items-center gap-1.5">
-          {flowSteps.map((s, i) => {
-            const active = s.id === effectiveStep;
-            const Icon = s.done ? Check : s.icon;
-            return (
-              <div key={s.id} className="flex min-w-0 flex-1 items-center gap-1.5">
-                <button
-                  onClick={() => setActiveStep(s.id)}
-                  className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
-                    active
-                      ? "border-accent bg-accent-soft"
-                      : "border-border-subtle bg-surface hover:border-accent-border hover:bg-surface-warm"
-                  }`}
-                >
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                    s.done ? "bg-ok text-background" : active ? "bg-accent text-background" : "border border-border text-text-muted"
-                  }`}>
-                    {s.done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : s.n}
-                  </span>
-                  <span className="flex min-w-0 flex-col">
-                    <span className={`truncate text-[13px] font-semibold ${active ? "text-accent" : "text-text-primary"}`}>{s.label}</span>
-                    <span className="truncate text-[11px] text-text-muted">
-                      {s.id === "models" ? `${selModels.size} selected` : s.id === "domains" ? (scope.size > 0 ? `${scope.size} chosen` : domainsTouched ? "all domains" : "any domain") : `${questionCount} question${questionCount === 1 ? "" : "s"}`}
-                    </span>
-                  </span>
-                  <Icon className={`ml-auto hidden h-3.5 w-3.5 shrink-0 sm:block ${active ? "text-accent" : "text-text-muted"}`} />
-                </button>
-                {i < flowSteps.length - 1 && (
-                  <ChevronRight className={`h-4 w-4 shrink-0 ${flowSteps[i].done ? "text-ok" : "text-text-muted/50"}`} />
-                )}
-              </div>
-            );
-          })}
-          {/* New + Presets removed from the stepper: Presets has its own Arena
-              nav item, and Start-over lives on the Review step, so duplicating
-              them here was redundant. */}
-        </div>
-        {/* Progress bar + plain-language status. */}
-        <div className="mt-3">
-          <div className="mb-1 flex items-baseline justify-between font-mono text-[10px]">
-            <span className="text-text-secondary">{progressNote}</span>
-            <span className="tabular-nums text-text-muted">{doneCount}/{flowSteps.length} steps</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-surface-warm">
-            <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${progressPct}%` }} />
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* ── STEP DETAIL renders below the stepper ── */}
-
-      {/* STEP 1 · MODELS - the provider groups + per-provider validity + search,
-          with an inline shortcut into the Presets tab. */}
-      {effectiveStep === "models" && (
-        <div className="space-y-5">
-          {/* Inline preset access: apply a preset here, or jump to the Presets tab. */}
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface-warm/50 px-4 py-2.5">
-            <Bookmark className="h-3.5 w-3.5 shrink-0 text-accent" />
-            <span className="text-[12px] text-text-secondary">Select models directly below, or apply a preset to fill the selection.</span>
-            <button onClick={() => onOpenPresets?.()} className="ml-auto inline-flex items-center gap-1 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 font-mono text-[11px] text-accent hover:bg-accent-soft/70">
-              Browse presets <ChevronRight className="h-3 w-3" />
-            </button>
-          </div>
-          {isBunkerOn() && (
-            <div className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-surface-warm/60 px-3 py-2">
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-accent" />
-              <span className="font-mono text-[11px] text-text-secondary">Bunker Mode is on: only local models (Ollama, LM Studio, oMLX) can run.</span>
-            </div>
-          )}
-          <div className="space-y-3">
-            {BENCH_CLI_OPTIONS.map((c) => {
-              const models = modelsFor(c.id);
-              const selectedHere = models.filter((m) => selModels.has(`${c.id}${MODEL_SEP}${m.id}`)).length;
-              const collapsed = collapsedProviders.has(c.id);
-              const bunkerBlocked = isBunkerOn() && !isLocalCli(c.id);
-              const ps = providerStatus(c.id);
-              const psTitle =
-                ps.status === "ok" ? `${c.label} is ready to run`
-                : ps.status === "verifying" ? `Checking ${c.label} runtime…`
-                : ps.status === "failed" ? `${c.label} failed verification${ps.reason ? `: ${ps.reason}` : ""}`
-                : `${c.label} is not installed${ps.reason ? `: ${ps.reason}` : ""}`;
-              return (
-                <div key={c.id}>
-                  <button
-                    onClick={() => toggleProvider(c.id)}
-                    className="mb-1.5 flex w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-left transition-colors hover:border-accent-border hover:bg-surface-warm"
-                  >
-                    <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${collapsed ? "" : "rotate-90"}`} strokeWidth={2.5} />
-                    <ProviderMark vendor={c.id} size={16} />
-                    <span className="text-[13px] font-medium text-text-primary">{c.label}</span>
-                    <span className="shrink-0" title={psTitle} aria-label={psTitle}>
-                      {ps.status === "ok" ? <Check className="h-3.5 w-3.5 text-ok" strokeWidth={2.5} />
-                        : ps.status === "verifying" ? <Loader2 className="h-3 w-3 animate-spin text-text-muted" />
-                        : ps.status === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-err" />
-                        : <AlertTriangle className="h-3.5 w-3.5 text-warn" />}
-                    </span>
-                    {selectedHere > 0 && (
-                      <span className="rounded-full bg-accent px-1.5 py-px font-mono text-[10px] font-semibold text-background">{selectedHere}</span>
-                    )}
-                    <span className="ml-auto font-mono text-[10px] text-text-muted">{models.length}</span>
-                  </button>
-                  {!collapsed && (() => {
-                    const q = (providerSearch[c.id] ?? "").trim().toLowerCase();
-                    const curated = curatedFor(c.id);
-                    const searchable = models.length > curated.length; // a live catalog beyond the defaults
-                    const shown = q
-                      ? models.filter((m) => `${m.id} ${m.label ?? ""}`.toLowerCase().includes(q)).slice(0, 60)
-                      : (searchable ? curated : models);
-                    return (
-                    <div className="ml-[7px] grid grid-cols-1 gap-1.5 border-l border-border-subtle/70 pl-4">
-                      {searchable && (
-                        <input
-                          value={providerSearch[c.id] ?? ""}
-                          onChange={(e) => setProviderSearch((s) => ({ ...s, [c.id]: e.target.value }))}
-                          placeholder={`Search all ${models.length} ${c.label} models…`}
-                          className="mb-0.5 w-full rounded-md border border-border bg-background px-2.5 py-1 font-mono text-[11px] focus:border-accent-border focus:outline-none"
-                        />
-                      )}
-                      {shown.length === 0 && <div className="px-1 py-1 font-mono text-[11px] text-text-muted">No models match "{q}".</div>}
-                      {shown.map((m) => {
-                        const on = selModels.has(`${c.id}${MODEL_SEP}${m.id}`);
-                        // Validity here reflects the PROVIDER runtime (installed +
-                        // authorized + verified), which is what's checkable up front.
-                        // Not-runnable rows are de-emphasized but still selectable, so
-                        // the user can queue them - they just won't run as-is.
-                        const notRunnable = !ps.runnable;
-                        const runTitle = ps.status === "unavailable"
-                          ? "Runtime not available - install/authorize it in Settings > Runtimes"
-                          : ps.status === "failed"
-                            ? `Runtime failed verification${ps.reason ? `: ${ps.reason}` : ""} - re-check in Settings > Runtimes`
-                            : undefined;
-                        return (
-                          <button
-                            key={m.id}
-                            onClick={() => toggleModel(c.id, m.id)}
-                            disabled={bunkerBlocked}
-                            title={bunkerBlocked ? "Blocked by Bunker Mode" : (runTitle ?? m.blurb)}
-                            className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${on ? "border-accent bg-accent-soft" : "border-border-subtle bg-surface hover:border-accent-border"} ${notRunnable && !on ? "opacity-55" : ""}`}
-                          >
-                            <span className={`min-w-0 flex-1 truncate font-mono text-xs ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{m.label}</span>
-                            {/* Runtime validity dot - distinct from the selection circle. */}
-                            {ps.runnable
-                              ? <Check className="h-2.5 w-2.5 shrink-0 text-ok" strokeWidth={3} aria-hidden />
-                              : <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ps.status === "failed" ? "bg-err" : "bg-warn"}`} title={runTitle} aria-label={runTitle} />}
-                            <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${on ? "bg-accent text-background" : "border border-border"}`}>
-                              {on && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
-                            </span>
-                          </button>
-                        );
-                      })}
-                      {!q && searchable && (
-                        <div className="px-1 pt-0.5 text-[11px] text-text-muted">+{models.length - shown.length} more · search to run any model</div>
-                      )}
-                    </div>
-                    );
-                  })()}
-                </div>
-              );
-            })}
-          </div>
-          {/* Advance affordance: once a model is selected, move right. */}
-          {nextStep && (
-            <div className="flex items-center justify-between border-t border-border-subtle pt-4">
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-[11px] text-text-muted">{selModels.size} model{selModels.size === 1 ? "" : "s"} selected</span>
-                {(selModels.size > 0 || scope.size > 0 || domainsTouched) && (
-                  <button
-                    onClick={() => { applyModels([]); applyScope([]); setDomainsTouched(false); setActiveStep("models"); }}
-                    title="Clear the selected models and domains to start a fresh run"
-                    className="inline-flex items-center gap-1 rounded-md border border-warn/50 bg-warn/10 px-2.5 py-1 text-[11px] font-semibold text-warn transition-colors hover:bg-warn hover:text-background"
-                  >
-                    <RotateCw className="h-3 w-3" /> Clear
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => setActiveStep(nextStep.id)}
-                disabled={!modelsDone}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-40"
-              >
-                Next: {nextStep.label} <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* STEP 2 · DOMAINS - which domains' questions this run covers. Hidden when
-          the Arena is opened scoped to a single domain. Sorted by question count;
-          empty ones sit behind a disclosure so 20+ domains don't become noise. */}
-      {effectiveStep === "domains" && domainsStepShown && (
-        <div className="space-y-5">
-        {allDomains.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-3 text-xs leading-relaxed text-text-muted">
-            No domains to scope yet. The Arena runs your saved questions across domains, so a domain shows up here once it has questions. Add questions in the <span className="text-accent">Questions</span> tab (write them, or AI-draft from your data). By default a run uses <span className="text-text-secondary">All domains</span>, so once you have questions you can run without choosing anything here.
-          </div>
-        ) : (() => {
-          const withQ = allDomains.filter((d) => (questionCounts[d] ?? 0) > 0).sort((a, b) => (questionCounts[b] ?? 0) - (questionCounts[a] ?? 0));
-          const withoutQ = allDomains.filter((d) => (questionCounts[d] ?? 0) === 0);
-          // scope.size === 0 means "all domains" - every domain is included.
-          // Reflect that on the chips (a soft accent "included" look) so All mode
-          // is visibly distinct from "nothing selected", and distinct from an
-          // explicit single pick (hard accent fill).
-          const allMode = scope.size === 0;
-          const pill = (d: string) => {
-            const on = scope.has(d);
-            const included = on || allMode; // covered by this run
-            const Icon = domainIcon(d);
-            const count = questionCounts[d] ?? 0;
-            return (
-              <button
-                key={d}
-                onClick={() => { setDomainsTouched(true); toggleScope(d); }}
-                title={count === 0 ? "No questions yet: add or AI-suggest some in Questions" : `${count} question${count === 1 ? "" : "s"}`}
-                className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-all ${
-                  on
-                    ? "border-accent bg-accent font-semibold text-background shadow-sm"
-                    : allMode
-                      ? "border-accent-border bg-accent-soft text-accent hover:-translate-y-0.5 hover:border-accent hover:shadow-sm"
-                      : count === 0
-                        ? "border-border-subtle bg-background text-text-muted/60 hover:border-accent-border/60 hover:bg-accent-soft/50 hover:text-accent"
-                        : "border-border bg-background text-text-secondary hover:-translate-y-0.5 hover:border-accent-border hover:bg-accent-soft hover:text-accent hover:shadow-sm"
-                }`}
-              >
-                {included && <Check className="h-3 w-3" />}
-                {Icon && !included && <Icon className="h-3 w-3" />}
-                {titleCase(d)}
-                {count > 0 && (
-                  <span className={`ml-0.5 rounded-full px-1 text-[10px] ${on ? "bg-background/25 text-background" : allMode ? "bg-accent/15 text-accent" : "bg-surface-warm text-text-muted"}`}>{count}</span>
-                )}
-              </button>
-            );
-          };
-          const selectedLabel = scope.size === 0
-            ? "All domains"
-            : (withQ.filter((d) => scope.has(d)).map(titleCase).join(", ") || `${scope.size} selected`);
-          return (
-            // Collapsible list, expanded by default so the domains are visible up
-            // front; the user can still collapse it to a single quiet line.
-            <details className="group" open={domScopeOpen} onToggle={(e) => setDomScopeOpen((e.currentTarget as HTMLDetailsElement).open)}>
-              <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md py-0.5 font-mono text-[11px] text-text-secondary transition-colors hover:text-accent">
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-muted transition-transform group-open:rotate-90" />
-                <span className="truncate">{selectedLabel}</span>
-              </summary>
-              <div className="ml-[7px] mt-2 space-y-2 border-l border-border-subtle/70 pl-4">
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    onClick={() => { setDomainsTouched(true); applyScope([]); }}
-                    title="Run across all domains"
-                    className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-all ${
-                      allMode
-                        ? "border-accent bg-accent font-semibold text-background shadow-sm"
-                        : "border-border bg-background text-text-muted hover:-translate-y-0.5 hover:border-accent-border hover:bg-accent-soft hover:text-accent hover:shadow-sm"
-                    }`}
-                  >
-                    {allMode && <Check className="h-3 w-3" />}
-                    All
-                  </button>
-                  {withQ.map(pill)}
-                </div>
-                {withoutQ.length > 0 && (
-                  <details className="group/sub">
-                    <summary className="cursor-pointer list-none text-[11px] text-text-muted hover:text-text-secondary">
-                      <ChevronRight className="mr-1 inline h-3 w-3 transition-transform group-open/sub:rotate-90" />
-                      {withoutQ.length} domain{withoutQ.length === 1 ? "" : "s"} without questions
-                    </summary>
-                    <div className="mt-2 flex flex-wrap gap-1.5">{withoutQ.map(pill)}</div>
-                  </details>
-                )}
-              </div>
-            </details>
-          );
-        })()}
-        {nextStep && (
-          <div className="flex items-center justify-between border-t border-border-subtle pt-4">
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-[11px] text-text-muted">{scope.size > 0 ? `${scope.size} domain${scope.size === 1 ? "" : "s"}` : domainsTouched ? "All domains" : "Any domain (runs all)"} · {questionCount} question{questionCount === 1 ? "" : "s"}</span>
-              {(scope.size > 0 || domainsTouched) && (
-                <button
-                  onClick={() => { applyScope([]); setDomainsTouched(false); }}
-                  title="Clear the domain choice"
-                  className="inline-flex items-center gap-1 rounded-md border border-warn/50 bg-warn/10 px-2.5 py-1 text-[11px] font-semibold text-warn transition-colors hover:bg-warn hover:text-background"
-                >
-                  <RotateCw className="h-3 w-3" /> Clear
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setActiveStep(nextStep.id)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover"
-            >
-              Next: {nextStep.label} <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-        </div>
-      )}
-
-      {/* PRESETS TAB - set up and apply reusable model presets. In the Models step
-          you can either select models directly OR apply a preset from here.
-          A preset is a first-class Arena object: a named model group you test in
-            one tap. Three tiers, top to bottom: always-on CANONICAL presets that
-            resolve live over the model universe; an AI-maintained LIBRARY the model
-            re-derives on demand; and your own SAVED snapshots. Apply drops a preset
-            onto the Run panel, Run fires it now, Save persists it. */}
-      {effectiveStep === "presets" && (
-        <div className="space-y-1">
-        {(() => {
-          // ── Unified preset model. Canonical, AI, and Saved presets all become
-          // one shape so a SINGLE row renders every source identically. `suite`
-          // is set only for saved presets (the ones you can Edit / Delete). ──────
-          type Source = "canonical" | "ai" | "saved";
-          type Origin = "manual" | "ai" | "canonical";
-          // For saved presets, `origin` carries who it belongs to (manual / ai /
-          // canonical). For live canonical & AI cards it is left undefined.
-          type UnifiedPreset = { source: Source; origin?: Origin; name: string; rationale?: string; models: string[]; domains: string[]; suite?: BenchSuite };
-          // A stable key for cross-source de-duplication: same name + same model
-          // set. Used to collapse a canonical/AI template that also has a saved
-          // copy so the combined list never shows it twice.
-          const dedupeKey = (name: string, models: string[]) =>
-            `${name.trim().toLowerCase()}::${[...models].map((m) => m.toLowerCase()).sort().join("|")}`;
-          const savedKeys = new Set(suites.map((s) => dedupeKey(s.name, s.models)));
-          const canonUnified: UnifiedPreset[] = canonPresets.map((p) => ({ source: "canonical", name: p.name, rationale: p.rationale, models: p.models, domains: [] }));
-          const aiUnified: UnifiedPreset[] = (aiPresets ?? []).map((p) => ({ source: "ai", name: p.name, rationale: p.rationale, models: p.models, domains: [] }));
-          const savedUnified: UnifiedPreset[] = suites.map((s) => ({ source: "saved", origin: suiteOrigin(s), name: s.name, models: s.models, domains: s.domains, suite: s }));
-          // The combined list (used by "All"): drop any canonical/AI template that
-          // already has a saved copy (same name + model set). The saved copy wins
-          // because it carries origin + Edit/Schedule/Delete. This is what fixes
-          // "All validated appears twice" (once canonical, once as its saved snapshot).
-          const combined: UnifiedPreset[] = [
-            ...canonUnified.filter((u) => !savedKeys.has(dedupeKey(u.name, u.models))),
-            ...aiUnified.filter((u) => !savedKeys.has(dedupeKey(u.name, u.models))),
-            ...savedUnified,
-          ];
-          // The dedicated filters still show the FULL source list (no dedupe):
-          // Canonical shows every template, AI shows every live suggestion.
-          const filtered =
-            presetFilter === "all" ? combined
-            : presetFilter === "canonical" ? canonUnified
-            : presetFilter === "ai" ? aiUnified
-            : presetFilter === "mine" ? savedUnified.filter((u) => u.origin !== "ai")
-            : /* fromAi */ savedUnified.filter((u) => u.origin === "ai");
-          // Counts mirror each filter's list.
-          const mineCount = savedUnified.filter((u) => u.origin !== "ai").length;
-          const fromAiCount = savedUnified.filter((u) => u.origin === "ai").length;
-          // Source badge: sentence case, one tone per source. A saved row says
-          // where it came from ("Saved from AI") so manual vs AI vs built-in
-          // origin is obvious at a glance.
-          const badgeFor = (p: UnifiedPreset): { label: string; cls: string; sparkle: boolean } => {
-            if (p.source === "ai") return { label: "Suggested", cls: "bg-accent-soft text-accent", sparkle: true };
-            if (p.source === "canonical") return { label: "Built-in", cls: "bg-surface-strong text-text-secondary", sparkle: false };
-            const origin = p.origin ?? "manual";
-            return {
-              label: origin === "ai" ? "Saved from AI" : origin === "canonical" ? "Saved from built-in" : "Yours",
-              cls: "bg-ok/10 text-ok",
-              sparkle: origin === "ai",
-            };
-          };
-          const CADENCES: BenchSchedule["freq"][] = ["daily", "weekly", "monthly"];
-
-          // Per-row props for the hoisted PresetRowView (a stable component type,
-          // so its menu state survives this panel re-rendering while verify
-          // results stream in).
-          const rowFor = (p: UnifiedPreset) => {
-            // Whether this preset already lives in the saved library, so Save vs
-            // Update reflects state honestly across every source.
-            const saved = p.source === "saved" || suites.some((s) => s.name.trim().toLowerCase() === p.name.trim().toLowerCase());
-            const sched = scheduleFor(p.name);
-            const doRun = () => p.suite ? onRunSuite(p.suite) : runPreset({ name: p.name, rationale: p.rationale ?? "", models: p.models });
-            const doApply = () => p.suite ? loadSuite(p.suite) : applyPreset({ name: p.name, rationale: p.rationale ?? "", models: p.models });
-            const doEdit = () => { if (p.suite) { loadSuite(p.suite); setSuiteName(p.suite.name); setSavingSuite(true); } };
-            const doSave = () => {
-              if (p.source === "saved" && p.suite) doEdit();
-              else savePreset({ name: p.name, rationale: p.rationale ?? "", models: p.models }, p.source === "ai" ? "ai" : "canonical");
-            };
-            const menu: RowMenuItem[] = [
-              { icon: Layers, label: "Apply to the Run panel", hint: "Adjust the models before running", onClick: doApply },
-              p.source === "saved" && p.suite
-                ? { icon: Pencil, label: "Edit", hint: "Load into the editor, then Save", onClick: doEdit }
-                : { icon: Bookmark, label: saved ? "Update saved copy" : "Save to my presets", hint: saved ? "Already in your library" : undefined, onClick: doSave },
-              { kind: "separator" },
-              { kind: "heading", label: sched ? `Runs ${benchFreqLabel(sched.freq)}` : "Run on a schedule" },
-              ...CADENCES.map((f): RowMenuItem => ({
-                icon: CalendarClock,
-                label: `Run ${f}`,
-                checked: sched?.freq === f,
-                onClick: () => schedulePreset(p.name, p.models, p.domains, f),
-              })),
-            ];
-            if (sched) menu.push({ icon: X, label: "Unschedule", onClick: () => unschedulePreset(p.name) });
-            if (p.source === "saved" && p.suite) {
-              menu.push({ kind: "separator" });
-              menu.push({ icon: Trash2, label: "Delete preset", danger: true, onClick: () => { if (sched) removeSchedule(sched.id); deleteSuite(p.suite!.id); } });
-            }
-            return {
-              name: p.name,
-              rationale: p.rationale,
-              badge: badgeFor(p),
-              schedLabel: sched ? titleCase(benchFreqLabel(sched.freq)) : undefined,
-              countLabel: `${p.models.length} model${p.models.length === 1 ? "" : "s"}${p.domains.length ? ` · ${suiteScopeLabel(p.suite!)}` : ""}`,
-              models: p.models,
-              onRun: doRun,
-              menu,
-            };
-          };
-
-          const FILTERS: Array<{ id: typeof presetFilter; label: string; count: number; title: string }> = [
-            { id: "all", label: "All", count: combined.length, title: "Every preset from all sources, with duplicates merged" },
-            { id: "canonical", label: "Built-in", count: canonPresets.length, title: "Ready-made presets that ship with Prevail" },
-            { id: "ai", label: "Suggested", count: aiPresets?.length ?? 0, title: "Live AI suggestions from Suggest presets. Not saved yet." },
-            { id: "mine", label: "Mine", count: mineCount, title: "Presets you built and saved yourself" },
-            { id: "fromAi", label: "Saved AI", count: fromAiCount, title: "AI suggestions you saved to reuse" },
-          ];
-          return (
-            <div className="space-y-4">
-              {/* Filter + AI-suggest control. One list, filtered by source. Both
-                  controls share one height (h-9) so they line up on one axis. */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex h-9 max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border bg-background p-1 [scrollbar-width:none]">
-                  {FILTERS.map((f) => (
-                    <button key={f.id} onClick={() => setPresetFilter(f.id)} title={f.title}
-                      className={`inline-flex h-full shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[13px] transition-colors ${presetFilter === f.id ? "bg-accent font-medium text-background shadow-sm" : "text-text-secondary hover:bg-surface-warm hover:text-text-primary"}`}>
-                      {f.label}<span className={`tabular-nums ${presetFilter === f.id ? "opacity-80" : "text-text-muted"}`}>{f.count}</span>
-                    </button>
-                  ))}
-                </div>
-                <button onClick={suggestAiPresets} disabled={aiBusy || availableModelsForAi.length === 0} title="Ask AI to curate a library of presets over your current models" className="ml-auto inline-flex h-9 items-center gap-2 rounded-lg border border-accent-border bg-accent-soft px-3.5 text-[13px] font-medium text-accent transition-colors hover:bg-accent-soft/70 disabled:opacity-40">
-                  {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {aiPresets ? "Refresh suggestions" : "Suggest presets"}
-                </button>
-              </div>
-
-              {aiBusy && <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface px-3 py-2 text-xs text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> Curating presets over {availableModelsForAi.length} model{availableModelsForAi.length === 1 ? "" : "s"}…</div>}
-              {aiErr && !aiBusy && <div className="flex items-center gap-2 rounded-lg border border-err/40 bg-surface px-3 py-2 text-xs text-err"><AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {aiErr}</div>}
-
-              {/* The unified, filtered list: uniform rows, one frame. */}
-              {filtered.length > 0 ? (
-                <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
-                  {filtered.map((p) => <PresetRowView key={`${p.source}-${p.name}`} {...rowFor(p)} providerStatus={providerStatus} />)}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-border px-4 py-3 text-xs text-text-muted">
-                  {presetFilter === "ai" && !aiPresets
-                    ? `AI can suggest presets like Top Frontier, Second-in-class, or Open source over your ${availableModelsForAi.length} runnable model${availableModelsForAi.length === 1 ? "" : "s"}.`
-                    : presetFilter === "mine"
-                    ? "No presets of your own yet. Build one from the models below, or save a built-in preset to make it yours."
-                    : presetFilter === "fromAi"
-                    ? "No AI-saved presets yet. Suggest presets, then Save the ones you want to keep and reuse."
-                    : "No presets to show for this filter."}
-                </div>
-              )}
-
-              {/* Save the current selection as a new preset. */}
-              {savingSuite ? (
-                <div className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-soft/30 px-3 py-2">
-                  <input
-                    autoFocus value={suiteName} onChange={(e) => setSuiteName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") commitSuite(); if (e.key === "Escape") { setSavingSuite(false); setSuiteName(""); } }}
-                    placeholder="Preset name, for example Frontier x Finance" className="flex-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs outline-none focus:border-accent-border"
-                  />
-                  <span className="text-xs text-text-muted">{selModels.size} model{selModels.size === 1 ? "" : "s"}</span>
-                  <button onClick={commitSuite} disabled={!suiteName.trim() || selModels.size === 0} className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-background disabled:opacity-40">{suites.some((x) => x.name.toLowerCase() === suiteName.trim().toLowerCase()) ? "Update" : "Save"}</button>
-                  <button onClick={() => { setSavingSuite(false); setSuiteName(""); }} className="text-text-muted hover:text-text-primary"><X className="h-3.5 w-3.5" /></button>
-                </div>
-              ) : (
-                <button onClick={() => setSavingSuite(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-text-muted hover:border-accent-border hover:text-accent">
-                  <Plus className="h-3.5 w-3.5" /> Save selected models as a preset
-                </button>
-              )}
-            </div>
-          );
-        })()}
-        </div>
-      )}
-
-      {/* STEP 3 · REVIEW & RUN - the run summary (selected models, domains, total
-          questions) folded in, with the primary Run action. Everything reflects
-          the live selection. When a run is in progress the whole config is
-          replaced by the running-jobs view above, so this step is the launch pad. */}
-      {effectiveStep === "review" && (() => {
-        // ── ARENA MATCHUP · Review & Run ──────────────────────────────────
-        // The selected models become "contenders" in a head-to-head arena:
-        // logo forward, model label + provider + a short descriptor, and a live
-        // validity dot from providerStatus. The layout adapts to the count
-        // (solo challenger / literal 1-v-1 with a VS divider / a lineup grid),
-        // with the run params rendered as a scoreboard strip and the same Run
-        // CTA + disabled logic as before.
-        type Contender = {
-          key: string; cli: string; modelId: string; vendor: string;
-          label: string; provider: string; blurb?: string; status: ProviderStatus;
-        };
-        const contenders: Contender[] = selModelArr.map((k) => {
-          const [cli, modelId] = k.split(MODEL_SEP);
-          return {
-            key: k, cli, modelId, vendor: cli,
-            label: modelLabel(cli, modelId),
-            provider: BENCH_CLI_OPTIONS.find((c) => c.id === cli)?.label ?? VENDOR_BRAND[cli]?.name ?? titleCase(cli),
-            blurb: MODELS[cli]?.find((m) => m.id === modelId)?.blurb,
-            status: providerStatus(cli).status,
-          };
-        });
-        const n = contenders.length;
-        const domainScopeLabel = scope.size === 0
-          ? "All domains"
-          : scope.size === 1
-          ? `Arena: ${titleCase(Array.from(scope)[0])}`
-          : `${scope.size} domains`;
-        const domainCount = scope.size === 0 ? allDomains.length : scope.size;
-
-        // Live validity dot for a contender: ok / verifying / failed / unavailable.
-        const StatusDot = ({ status }: { status: ProviderStatus }) => {
-          if (status === "ok") return <span className="inline-flex items-center gap-1 font-mono text-[10px] text-ok"><Check className="h-3 w-3" strokeWidth={3} /> ready</span>;
-          if (status === "verifying") return <span className="inline-flex items-center gap-1 font-mono text-[10px] text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> verifying</span>;
-          if (status === "failed") return <span className="inline-flex items-center gap-1 font-mono text-[10px] text-err"><AlertTriangle className="h-3 w-3" /> failed</span>;
-          return <span className="inline-flex items-center gap-1 font-mono text-[10px] text-warn"><Circle className="h-2.5 w-2.5 fill-current" /> offline</span>;
-        };
-
-        // One contender card. `hero` enlarges the logo/type for the 1 and 2
-        // layouts. The compact (lineup) card is deliberately small - smaller
-        // icon, no blurb - so many contenders fit without needing "+N more".
-        const ContenderCard = ({ c, hero = false }: { c: Contender; hero?: boolean }) => (
-          <div className={`flex min-w-0 flex-col items-center rounded-2xl border border-border bg-surface-warm/50 text-center ${hero ? "gap-2.5 p-5" : "gap-1.5 p-2.5"}`}>
-            <ProviderMark vendor={c.vendor} size={hero ? 52 : 28} />
-            <div className="min-w-0 w-full">
-              <div className={`truncate font-semibold text-text-primary ${hero ? "text-[15px]" : "text-[12px]"}`}>{c.label}</div>
-              <div className="truncate text-[11px] text-text-muted">{c.provider}</div>
-            </div>
-            {hero && c.blurb && <div className="line-clamp-2 text-[11px] leading-relaxed text-text-secondary">{c.blurb}</div>}
-            <StatusDot status={c.status} />
-          </div>
-        );
-
-        return (
-        <div className="space-y-4">
-          <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-            {/* Scoreboard strip: the match header. Reads like a chart, not a line. */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-strong/40 px-5 py-3">
-              <div className="inline-flex items-center gap-2">
-                <Swords className="h-4 w-4 text-accent" />
-                <span className="font-mono text-[11px] text-text-muted">Arena matchup</span>
-              </div>
-              <div className="flex items-center gap-5">
-                <button onClick={() => setActiveStep("models")} className="flex flex-col items-end leading-none hover:opacity-80" title="Edit models">
-                  <span className="font-mono text-lg font-semibold text-text-primary">{n}</span>
-                  <span className="font-mono text-[11px] text-text-muted">{n === 1 ? "contender" : "contenders"}</span>
-                </button>
-                <div className="h-7 w-px bg-border-subtle" />
-                {domainsStepShown ? (
-                  <button onClick={() => setActiveStep("domains")} className="flex flex-col items-end leading-none hover:opacity-80" title="Edit domains">
-                    <span className="truncate text-sm font-semibold text-accent">{domainScopeLabel}</span>
-                    <span className="font-mono text-[11px] text-text-muted">{domainCount} domain{domainCount === 1 ? "" : "s"}</span>
-                  </button>
-                ) : (
-                  <div className="flex flex-col items-end leading-none">
-                    <span className="truncate text-sm font-semibold text-accent">{domainScopeLabel}</span>
-                    <span className="font-mono text-[11px] text-text-muted">{domainCount} domain{domainCount === 1 ? "" : "s"}</span>
-                  </div>
-                )}
-                <div className="h-7 w-px bg-border-subtle" />
-                <div className="flex flex-col items-end leading-none">
-                  <span className="font-mono text-lg font-semibold text-text-primary">{questionCount}</span>
-                  <span className="font-mono text-[11px] text-text-muted">round{questionCount === 1 ? "" : "s"}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* The arena floor: contenders laid out by count. */}
-            <div className="p-5">
-              {n === 0 ? (
-                <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12px] text-text-muted">
-                  No contenders yet. <button onClick={() => setActiveStep("models")} className="text-accent hover:underline">Go back to Models</button> to enter the arena.
-                </div>
-              ) : n === 1 ? (
-                // Solo challenger facing the field.
-                <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-[1fr_auto_1fr]">
-                  <ContenderCard c={contenders[0]} hero />
-                  <div className="flex flex-col items-center gap-1 text-text-muted">
-                    <Swords className="h-6 w-6 text-accent" />
-                    <span className="font-mono text-[11px] tracking-wider">vs</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-surface-warm/30 p-5 text-center">
-                    <Target className="h-9 w-9 text-text-secondary" />
-                    <div className="text-[13px] font-semibold text-text-primary">The question set</div>
-                    <div className="font-mono text-[11px] text-text-muted">{domainScopeLabel}</div>
-                    <div className="font-mono text-[11px] text-text-secondary">{questionCount} question{questionCount === 1 ? "" : "s"}</div>
-                  </div>
-                </div>
-              ) : n === 2 ? (
-                // Literal head-to-head: A · VS · B.
-                <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-[1fr_auto_1fr]">
-                  <ContenderCard c={contenders[0]} hero />
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-full border border-accent-border bg-accent-soft font-display text-sm font-bold text-accent">VS</span>
-                    <Swords className="h-4 w-4 text-text-muted" />
-                  </div>
-                  <ContenderCard c={contenders[1]} hero />
-                </div>
-              ) : (
-                // Lineup / bracket row. Tighter grid (up to 6 across) so more
-                // fit, and the "+N more" tile now EXPANDS the full lineup instead
-                // of being a dead end. Collapsed cap is a round grid (10).
-                (() => {
-                  const CAP = 10;
-                  const visible = showAllContenders ? contenders : contenders.slice(0, CAP);
-                  return (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
-                        {visible.map((c) => <ContenderCard key={c.key} c={c} />)}
-                        {!showAllContenders && n > CAP && (
-                          <button
-                            onClick={() => setShowAllContenders(true)}
-                            title={`Show all ${n} contenders`}
-                            className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border bg-surface-warm/30 p-4 text-center transition-colors hover:border-accent-border hover:bg-accent-soft hover:text-accent"
-                          >
-                            <span className="font-display text-xl font-bold text-accent">+{n - CAP}</span>
-                            <span className="font-mono text-[11px] text-text-muted">Show all</span>
-                          </button>
-                        )}
-                      </div>
-                      {showAllContenders && n > CAP && (
-                        <button
-                          onClick={() => setShowAllContenders(false)}
-                          className="font-mono text-[11px] text-text-muted transition-colors hover:text-accent"
-                        >
-                          Show fewer
-                        </button>
-                      )}
-                    </div>
-                  );
-                })()
-              )}
-            </div>
-
-            {/* Start CTA: launching is always available now (concurrent runs are
-                supported), so the button is gated only on having a valid selection
-                and questions in scope, never on another run being in flight. */}
-            <div className="border-t border-border-subtle px-5 pb-5 pt-4">
-              <div className="flex items-stretch gap-2">
-                <button
-                  onClick={startOver}
-                  title="Clear the selection and start a new run from step 1"
-                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-3 text-sm font-semibold text-text-secondary hover:border-accent-border hover:text-accent"
-                >
-                  <RotateCw className="h-4 w-4" /> Start over
-                </button>
-                <button
-                  onClick={onRun}
-                  disabled={questionCount === 0 || selCount === 0}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-background hover:bg-accent-hover disabled:opacity-40"
-                >
-                  <Play className="h-4 w-4" />
-                  {`Run ${selCount} model${selCount === 1 ? "" : "s"}`}
-                </button>
-              </div>
-              <p className="mt-2 text-center font-mono text-[10px] leading-relaxed text-text-muted">Every runtime runs at once, scored as each finishes.</p>
-            </div>
-          </div>
-        </div>
-        );
-      })()}
-    </div>
-  );
+  for (const r of sortedLegacy) {
+    if (cluster.length > 0 && r.created_ms - cluster[cluster.length - 1].created_ms > GAP) flush();
+    cluster.push(r);
+  }
+  flush();
+  return Array.from(groups.values())
+    .map((g) => ({
+      ...g,
+      runs: [...g.runs].sort((a, b) => (b.created_ms ?? 0) - (a.created_ms ?? 0)),
+      latestMs: g.runs.reduce((mx, r) => Math.max(mx, r.created_ms ?? 0), 0),
+      best: g.runs.reduce<number | null>((acc, r) => (r.judge_avg == null ? acc : acc == null ? r.judge_avg : Math.max(acc, r.judge_avg)), null),
+    }))
+    .sort((a, b) => b.latestMs - a.latestMs);
 }
 
 // Right rail for the Leaderboard: the aggregate stats the mockup pins to the
@@ -2190,10 +1064,9 @@ function LeaderboardRail({ rows }: { rows: BoardRow[] }) {
 }
 
 export function BenchResults({
-  view, domainFilter, runs, matrix, allDomains, vaultPath, initialModel, currentDomain, onChanged, onRerun, onRerunBatch, onContinueBatch,
-  finishedBatch, onViewBatch, onDismissBanner, onCrumbHome, onClearDomain,
+  view, domainFilter, runs, matrix, allDomains, vaultPath, initialModel, currentDomain, onChanged, onRerun,
 }: {
-  view: "board" | "history" | "matrix" | "frontier";
+  view: "board" | "matrix";
   domainFilter: string;
   runs: BenchmarkRun[];
   matrix: MatrixRow[];
@@ -2203,13 +1076,6 @@ export function BenchResults({
   initialModel?: string | null;
   onChanged: () => void;
   onRerun: (run: BenchmarkRun) => void;
-  onRerunBatch: (runs: BenchmarkRun[]) => void;
-  onContinueBatch: (runs: BenchmarkRun[]) => void;
-  finishedBatch?: { label: string; id: string } | null;
-  onViewBatch?: () => void;
-  onDismissBanner?: () => void;
-  onCrumbHome?: () => void;
-  onClearDomain?: () => void;
 }) {
   const resultsView = view;
   const [selected, setSelected] = useState<RunDetail | null>(null);
@@ -2227,7 +1093,7 @@ export function BenchResults({
     setLoadingDetail(true);
     setExpandedQ(null);
     setSelectedRun(runs.find((r) => r.run_dir === runDir) ?? null);
-    setSelectedFrom(from ?? { view: resultsView === "history" ? "History" : resultsView === "matrix" ? "Model × domain" : resultsView === "frontier" ? "Chart" : "Leaderboard" });
+    setSelectedFrom(from ?? { view: resultsView === "matrix" ? "By domain" : "Summary" });
     try {
       setSelected(await invoke<RunDetail>("benchmark_run_detail", { runDir }));
     } catch { /* ignore */ } finally {
@@ -2258,88 +1124,12 @@ export function BenchResults({
     }
   }
 
-  // Score every UNSCORED run in a set, judge-only (no regeneration). Sequential
-  // so the judge isn't hammered; only unscored runs are touched, so no already-
-  // scored run re-burns judge tokens.
-  const [scoringAll, setScoringAll] = useState(false);
-  async function scoreAllUnscored(candidateRuns: BenchmarkRun[]) {
-    const todo = candidateRuns.filter((r) => !r.scored && !scoringRuns.has(r.run_dir));
-    if (todo.length === 0 || scoringAll) return;
-    setScoringAll(true);
-    try { for (const r of todo) await scoreNow(r); } finally { setScoringAll(false); }
-  }
-
   // Runs visible under the current domain filter (a run is "in" a domain
   // when any of its questions came from it).
   const visibleRuns = useMemo(() => {
     if (domainFilter === "all") return runs;
     return runs.filter((r) => r.domains.includes(domainFilter));
   }, [runs, domainFilter]);
-
-  // Run history grouped by BATCH - the models you launched together are one
-  // unit, named by time + scope + panel size so several batches a day stay
-  // distinct. Runs from before batch-stamping are clustered into
-  // pseudo-batches by launch time (folders created within minutes of each
-  // other were one launch), so old history reads as real sessions too.
-  const [historySort, setHistorySort] = useState<"recent" | "oldest" | "score" | "size">("recent");
-  const runsByBatch = useMemo(() => {
-    type Group = { key: string; label: string; date: string; runs: BenchmarkRun[]; isBatch: boolean };
-    const groups = new Map<string, Group>();
-    const legacy: BenchmarkRun[] = [];
-    for (const r of visibleRuns) {
-      if (!r.batch_id) { legacy.push(r); continue; }
-      const g = groups.get(r.batch_id) ?? {
-        key: r.batch_id,
-        label: r.batch_label || r.batch_id,
-        date: r.date || "",
-        runs: [],
-        isBatch: true,
-      };
-      g.runs.push(r);
-      groups.set(r.batch_id, g);
-    }
-    // Cluster legacy runs: sorted by creation time, a gap over 10 minutes
-    // starts a new pseudo-batch.
-    const GAP = 10 * 60 * 1000;
-    const sortedLegacy = [...legacy].sort((a, b) => a.created_ms - b.created_ms);
-    let cluster: BenchmarkRun[] = [];
-    const flush = () => {
-      if (cluster.length === 0) return;
-      const first = cluster[0];
-      const t = first.created_ms ? new Date(first.created_ms) : null;
-      const hhmm = t ? `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}` : "";
-      const key = `legacy-${first.run_dir}`;
-      groups.set(key, {
-        key,
-        label: `${hhmm ? hhmm + " · " : ""}${cluster.length} model${cluster.length === 1 ? "" : "s"}`,
-        date: first.date || "",
-        runs: cluster,
-        isBatch: false,
-      });
-      cluster = [];
-    };
-    for (const r of sortedLegacy) {
-      if (cluster.length > 0 && r.created_ms - cluster[cluster.length - 1].created_ms > GAP) flush();
-      cluster.push(r);
-    }
-    flush();
-    // Enrich each group with sort keys: the most recent run's timestamp (so
-    // "latest on top" is reliable, not dependent on insertion order), the best
-    // score, and the model count. Runs within a group are ordered newest-first.
-    const enriched = Array.from(groups.values()).map((g) => ({
-      ...g,
-      runs: [...g.runs].sort((a, b) => (b.created_ms ?? 0) - (a.created_ms ?? 0)),
-      latestMs: g.runs.reduce((mx, r) => Math.max(mx, r.created_ms ?? 0), 0),
-      best: g.runs.reduce<number | null>((acc, r) => (r.judge_avg == null ? acc : acc == null ? r.judge_avg : Math.max(acc, r.judge_avg)), null),
-    }));
-    enriched.sort((a, b) => {
-      if (historySort === "oldest") return a.latestMs - b.latestMs;
-      if (historySort === "score") return (b.best ?? -1) - (a.best ?? -1);
-      if (historySort === "size") return b.runs.length - a.runs.length;
-      return b.latestMs - a.latestMs; // "recent" (default): latest on top
-    });
-    return enriched;
-  }, [visibleRuns, historySort]);
 
   // By-model aggregation: every run of the same model folded into one row -
   // best/latest scores, run count, and the domains it has been tested on.
@@ -2568,7 +1358,7 @@ export function BenchResults({
       </h4>
     );
     return (
-      <div className="w-full px-8 py-5">
+      <div className="w-full px-8 py-5 max-md:px-4">
         <BenchCrumbs
           items={[
             { label: "Arena" },
@@ -2654,12 +1444,8 @@ export function BenchResults({
     );
   }
 
-  // The view title + breadcrumb now live in the Arena page header (rendered by
-  // BenchmarkPanel); this body opens straight into the content. onCrumbHome /
-  // onClearDomain are still used by the drill-down detail view above.
-  void onCrumbHome; void onClearDomain;
   return (
-    <div className="w-full px-8 pb-6">
+    <div className="w-full px-8 pb-6 max-md:px-4">
       {visibleRuns.length === 0 && (
         <div className="rounded-lg border border-dashed border-border bg-surface p-6 text-sm text-text-muted">
           {domainFilter === "all"
@@ -2677,50 +1463,6 @@ export function BenchResults({
       {resultsView === "board" && visibleRuns.length > 0 && (
         <div className="flex flex-col gap-5">
           <div className="min-w-0 flex-1">
-          {finishedBatch && (() => {
-            const batchRuns = runs.filter((r) => r.batch_id === finishedBatch.id);
-            const unscored = batchRuns.filter((r) => !r.scored).length;
-            const scoring = scoringAll || batchRuns.some((r) => scoringRuns.has(r.run_dir));
-            // Gap fix: don't claim "finished and on the board" when the judge pass
-            // didn't score the answers. Say what actually happened + offer the
-            // cheap paths (Score = judge-only on existing answers, no regen;
-            // Continue = resume missing questions then score).
-            const allDone = unscored === 0;
-            return (
-            <div className={`mb-4 flex flex-wrap items-center gap-2 rounded-xl border px-4 py-2.5 ${allDone ? "border-accent-border bg-accent-soft/50" : "border-warn/40 bg-warn/10"}`}>
-              {allDone
-                ? <Check className="h-4 w-4 shrink-0 text-accent" strokeWidth={3} />
-                : <AlertTriangle className="h-4 w-4 shrink-0 text-warn" />}
-              <span className="min-w-0 flex-1 text-sm text-text-primary">
-                {allDone ? (
-                  <>Batch <span className="font-semibold">{finishedBatch.label}</span> finished and is on the board.</>
-                ) : (
-                  <>Batch <span className="font-semibold">{finishedBatch.label}</span>: answers are done, but <span className="font-semibold text-warn">{unscored} run{unscored === 1 ? "" : "s"}</span> {unscored === 1 ? "isn't" : "aren't"} scored yet (the judge pass didn't finish). Score them without re-running the answers.</>
-                )}
-              </span>
-              {!allDone && (
-                <button onClick={() => void scoreAllUnscored(batchRuns)} disabled={scoring}
-                  title="Run only the judge on the existing answers. No answers are regenerated, no generation tokens are spent."
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[11px] text-background hover:bg-accent-hover disabled:opacity-50">
-                  {scoring ? <><Loader2 className="h-3 w-3 animate-spin" /> Scoring…</> : <>Score {unscored} unscored</>}
-                </button>
-              )}
-              {!allDone && (
-                <button onClick={() => onContinueBatch(batchRuns)}
-                  title="Resume the batch: run only the questions still missing/errored, then score. No completed answers re-run."
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
-                  Continue
-                </button>
-              )}
-              <button onClick={onViewBatch} className="shrink-0 rounded-md border border-accent-border px-2.5 py-1 text-[11px] text-accent hover:bg-accent hover:text-background">
-                View batch
-              </button>
-              <button onClick={onDismissBanner} title="Dismiss" className="shrink-0 rounded-md p-1 text-text-muted hover:text-text-primary">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            );
-          })()}
           {/* Hero: the current top performer reads first, with its trend and the
               dimensions that matter (speed, cost, value), all from real runs. */}
           {rankedRows.length > 0 && (() => {
@@ -2808,491 +1550,94 @@ export function BenchResults({
         </div>
       )}
 
-      {/* HISTORY - one card per BATCH (the models launched together),
-          collapsed by default. The summary alone says when, what scope, how
-          many models, and the session's best score. */}
-      {resultsView === "history" && visibleRuns.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 px-1">
-            <span className="text-[12px] text-text-muted">Sort by</span>
-            <div className="inline-flex items-center rounded-lg border border-border-subtle bg-surface p-0.5">
-              {([["recent", "Latest"], ["oldest", "Oldest"], ["score", "Best score"], ["size", "Most models"]] as const).map(([k, label]) => (
-                <button key={k} onClick={() => setHistorySort(k)} className={`rounded-md px-2.5 py-1 text-[11px] transition-colors ${historySort === k ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-text-primary"}`}>{label}</button>
-              ))}
-            </div>
-          </div>
-          {runsByBatch.map((group) => {
-            const best = group.best;
-            const unscored = group.runs.filter((r) => !r.scored).length;
-            // Avg + a per-run score trend for the batch, mirroring the mockup's
-            // best / avg / sparkline columns. All from this batch's real scores.
-            const scores = group.runs.map((r) => r.judge_avg).filter((v): v is number => v != null);
-            const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
-            return (
-            <details key={group.key} className="group/date overflow-hidden rounded-2xl border border-border bg-surface">
-              <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-2.5 hover:bg-surface-warm">
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-muted transition-transform group-open/date:rotate-90" />
-                {group.isBatch && <span className="font-mono text-[12px] font-semibold text-text-primary">{group.date}</span>}
-                <span className={`min-w-0 truncate font-mono text-[12px] ${group.isBatch ? "text-text-secondary" : "font-semibold text-text-primary"}`}>{group.label}</span>
-                <span className="font-mono text-[11px] text-text-muted">{group.runs.length} model{group.runs.length === 1 ? "" : "s"}</span>
-                {unscored > 0 && <span className="rounded bg-warn/10 px-1.5 py-0 text-[11px] text-warn">{unscored} unscored</span>}
-                {group.isBatch && unscored > 0 && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => { e.preventDefault(); onContinueBatch(group.runs); }}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onContinueBatch(group.runs); } }}
-                    title="Continue this batch: resume where it left off. Skips questions already answered, runs only what's missing, then scores. No tokens re-burned on finished work."
-                    className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-accent-border bg-accent/10 px-2 py-0.5 text-[11px] text-accent hover:bg-accent/20"
-                  >
-                    <RotateCw className="h-3 w-3" /> continue
-                  </span>
-                )}
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => { e.preventDefault(); onRerunBatch(group.runs); }}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onRerunBatch(group.runs); } }}
-                  title="Rerun this whole batch: every model in it, same domains, fresh runs"
-                  className={`${group.isBatch && unscored > 0 ? "" : "ml-auto "}inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent`}
-                >
-                  <RotateCw className="h-3 w-3" /> rerun batch
-                </span>
-                {scores.length >= 2 && <span className="hidden md:inline"><Sparkline values={scores} width={64} height={20} /></span>}
-                <span className="hidden font-mono text-[10px] text-text-muted sm:inline">Avg</span>
-                <span className="hidden font-mono text-sm text-text-secondary sm:inline">{avg != null ? avg.toFixed(1) : "-"}</span>
-                <span className="font-mono text-[10px] text-text-muted">Best</span>
-                <span className="font-mono text-sm font-semibold text-accent">{best?.toFixed(1) ?? "-"}</span>
-              </summary>
-              <div className="space-y-1.5 border-t border-border-subtle px-3 py-2.5">
-                {group.runs.map((r) => {
-                  const parsed = parseRunLabel(r.label);
-                  return (
-                    <div
-                      key={r.run_dir}
-                      className="flex w-full items-center gap-3 rounded-lg border border-border-subtle bg-surface px-3 py-2 hover:bg-surface-warm"
-                    >
-                      <button
-                        onClick={() => r.scored && loadRun(r.run_dir, { view: "History", batch: group.label })}
-                        disabled={!r.scored}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
-                      >
-                        <ProviderMark vendor={parsed.vendor} size={22} />
-                        <span className="min-w-0 truncate font-mono text-xs text-text-primary">{parsed.model || r.label}</span>
-                        <span className="hidden items-center gap-1 md:flex">
-                          {r.domains.slice(0, 5).map((d) => (
-                            <span key={d} className="rounded bg-surface-warm px-1.5 py-0 font-mono text-[10px] text-text-muted">{d}</span>
-                          ))}
-                          {r.domains.length > 5 && <span className="font-mono text-[10px] text-text-muted">+{r.domains.length - 5}</span>}
-                        </span>
-                      </button>
-                      <span className="font-mono text-[10px] text-text-muted">{r.questions} q</span>
-                      {r.scored ? (
-                        <RunDims run={r} />
-                      ) : (
-                        <button
-                          onClick={() => scoreNow(r)}
-                          disabled={scoringRuns.has(r.run_dir)}
-                          className="inline-flex items-center gap-1 rounded-md border border-warn/50 bg-warn/10 px-2 py-0.5 font-mono text-[10px] text-warn hover:bg-warn/20 disabled:opacity-50"
-                        >
-                          {scoringRuns.has(r.run_dir) ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                          {scoringRuns.has(r.run_dir) ? "scoring…" : "unscored · score now"}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => onRerun(r)}
-                        title="Rerun: same model, same domains, as a fresh run"
-                        className="shrink-0 rounded-md border border-border p-1 text-text-muted hover:border-accent-border hover:text-accent"
-                      >
-                        <RotateCw className="h-3 w-3" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </details>
-            );
-          })}
-        </div>
-      )}
-
       {resultsView === "matrix" && visibleRuns.length > 0 && (
         <div className="flex flex-col gap-5">
           <div className="min-w-0 flex-1"><BenchMatrix matrix={matrix} allDomains={allDomains} onPick={loadRun} currentDomain={currentDomain} runs={runs} /></div>
           <MatrixInsights matrix={matrix} allDomains={allDomains} />
         </div>
       )}
-      {resultsView === "frontier" && visibleRuns.length > 0 && (
-        <div className="flex flex-col gap-5">
-          <div className="min-w-0 flex-1">
-            <BenchFrontier
-              models={modelAgg}
-              onPick={(key) => { const mm = modelAgg.find((x) => x.key === key); if (mm?.latestRun?.scored) loadRun(mm.latestRun.run_dir); }}
-            />
-          </div>
-          <ChartRail models={modelAgg} onPick={(key) => { const mm = modelAgg.find((x) => x.key === key); if (mm?.latestRun?.scored) loadRun(mm.latestRun.run_dir); }} />
-        </div>
-      )}
     </div>
   );
 }
 
-// The 3D Arena as a quality–cost frontier: Y = intelligence, X = cost (log),
-// bubble size = speed (bigger = faster). The dashed line is the Pareto frontier
-// (the best intelligence available at each cost) - models ON it are the value
-// picks; models below/right of it are dominated by something cheaper or smarter.
-// Hover a bubble for full stats, click to open its run. SVG (percentage viewBox,
-// non-scaling strokes) draws the grid + frontier; the bubbles are positioned
-// HTML so they can carry the real vendor mark and react to hover/click.
-function BenchFrontier({
-  models,
-  onPick,
-}: {
-  models: Array<{ key: string; parsed: { vendor: string; model: string }; best: number | null; latestRun: BenchmarkRun | null }>;
-  onPick: (key: string) => void;
-}) {
-  const [hover, setHover] = useState<string | null>(null);
-  const pts = models.filter((m) => m.best != null).map((m) => {
-    const r = m.latestRun;
-    const local = r?.cost_basis === "local";
-    const cost = local ? 0 : (r?.cost_usd_est ?? null);
-    return { key: m.key, vendor: m.parsed.vendor, label: m.parsed.model, intel: m.best as number, cost, local, ms: r?.ms_avg ?? null };
-  });
-  const plotted = pts.filter((p): p is typeof p & { cost: number } => p.cost != null);
-  const unpriced = pts.filter((p) => p.cost == null);
 
-  const positives = plotted.filter((p) => p.cost > 0).map((p) => p.cost);
-  const xmin = positives.length ? Math.min(...positives) : 0.01;
-  const xmax = positives.length ? Math.max(...positives) : 0.1;
-  const logRange = Math.log10(xmax) - Math.log10(xmin) || 1;
-  const PL = 11, PR = 96, PT = 8, PB = 85; // plot box, in %
-  const xPct = (cost: number) => {
-    if (cost <= 0 || positives.length === 0) return PL;             // free lane (left edge)
-    const f = (Math.log10(cost) - Math.log10(xmin)) / logRange;
-    return PL + 5 + f * (PR - PL - 5);                              // leave room for the free lane
-  };
-  const yPct = (intel: number) => PT + (1 - intel / 10) * (PB - PT);
+// ─────────────────────────────────────────────────────────────────────
+// THE ARENA PAGE
+//
+// Three things, in plain terms: run a benchmark, keep presets (saved sets of
+// models), and read the results. The column lists exactly that: "Run a
+// benchmark" first, then the presets, then the results (the Leaderboard across
+// every run, and each past run newest first). The detail is the picked item.
+type ArenaSel =
+  | { kind: "run" }
+  | { kind: "preset"; id: string }
+  | { kind: "board" }
+  | { kind: "result"; key: string };
 
-  const msVals = plotted.map((p) => p.ms).filter((v): v is number => v != null && v > 0);
-  const msMin = msVals.length ? Math.min(...msVals) : 0;
-  const msMax = msVals.length ? Math.max(...msVals) : 1;
-  const radius = (ms: number | null) => {
-    if (ms == null || msMax === msMin) return 15;
-    return 11 + (1 - (ms - msMin) / (msMax - msMin)) * 13;          // faster => bigger (11..24)
-  };
+// Which preset a run was launched from, by batch id, so the Results column can
+// name it. Written when a run starts; old runs simply show their model count.
+const BATCH_PRESETS_KEY = "prevail.bench.batchPresets";
+function readBatchPresets(): Record<string, string> {
+  try { const v = JSON.parse(lsGet(BATCH_PRESETS_KEY, "{}") || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; }
+}
 
-  // The frontier only considers models with a REAL score (intel > 0). Otherwise
-  // an errored / 0-intelligence model, just because it's the cheapest, anchors
-  // the line at the bottom and makes "best value" look nonsensical.
-  const scored = plotted.filter((p) => p.intel > 0);
-  const dominated = (p: { cost: number; intel: number }) =>
-    scored.some((q) => q.cost <= p.cost && q.intel >= p.intel && (q.cost < p.cost || q.intel > p.intel));
-  const frontier = scored.filter((p) => !dominated(p)).sort((a, b) => a.cost - b.cost);
-  const frontierPath = frontier.map((p, i) => `${i === 0 ? "M" : "L"} ${xPct(p.cost)} ${yPct(p.intel)}`).join(" ");
-  const frontierKeys = new Set(frontier.map((p) => p.key));
+type PresetView = { id: string; name: string; models: string[]; builtIn: boolean; rationale?: string };
 
-  if (plotted.length === 0) {
-    return <div className="rounded-xl border border-border-subtle bg-surface px-4 py-10 text-center text-sm text-text-muted">No scored runs with both a score and a cost yet. Run a benchmark to populate the frontier.</div>;
+// Old deep links name Arena sections that no longer exist; each lands on the
+// nearest thing that does.
+export function arenaSelFor(initial: string | null | undefined): ArenaSel | null {
+  switch (initial) {
+    case "run": case "benchmark": case "arena": case "presets": case "schedule": case "scout": return { kind: "run" };
+    case "leaderboard": case "board": case "history": case "matrix": case "frontier": case "chart": case "questions": return { kind: "board" };
+    default: return null;
   }
-
-  return (
-    <div className="space-y-3">
-      {/* Legend — what the visual encodings mean. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border-subtle bg-surface-warm/40 px-3 py-2 font-mono text-[10px] text-text-muted">
-        <span className="inline-flex items-center gap-1"><span className="text-accent">↑</span> smarter (judge /10)</span>
-        <span className="inline-flex items-center gap-1"><span className="text-accent">→</span> pricier (log cost)</span>
-        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full border border-border bg-surface-warm" /> bigger = faster</span>
-        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full border border-accent bg-accent-soft" /> ★ best-value frontier</span>
-        <span className="ml-auto inline-flex items-center gap-1.5"><span className="inline-block h-0 w-5 border-t border-dashed border-accent" /> most intelligence per dollar</span>
-      </div>
-      <div className="relative w-full rounded-xl border border-border-subtle bg-surface" style={{ height: 440 }}>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
-          {/* "Sweet spot" tint — top-left corner is smart + cheap. */}
-          <rect x={PL} y={PT} width={(PR - PL) * 0.42} height={(PB - PT) * 0.4} className="text-accent" fill="currentColor" opacity={0.04} />
-          {[0, 2, 4, 6, 8, 10].map((g) => (
-            <line key={g} x1={PL} y1={yPct(g)} x2={PR} y2={yPct(g)} stroke="currentColor" className="text-border-subtle" strokeWidth={1} strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
-          ))}
-          <line x1={PL} y1={PT} x2={PL} y2={PB} stroke="currentColor" className="text-border" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          <line x1={PL} y1={PB} x2={PR} y2={PB} stroke="currentColor" className="text-border" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          {frontier.length >= 2 && <path d={frontierPath} fill="none" stroke="currentColor" className="text-accent" strokeWidth={1.5} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />}
-        </svg>
-        {/* Y-axis tick numbers — right-aligned in the gutter, sitting on each gridline. */}
-        {[0, 2, 4, 6, 8, 10].map((g) => (
-          <span key={g} className="absolute -translate-y-1/2 pr-1.5 text-right font-mono text-[10px] tabular-nums text-text-muted" style={{ left: 0, width: `${PL}%`, top: `${yPct(g)}%` }}>{g}</span>
-        ))}
-        {/* Y-axis title — rotated along the axis. */}
-        <span className="pointer-events-none absolute left-0 text-[11px] text-text-muted" style={{ top: `${(PT + PB) / 2}%`, transform: "translateY(-50%) rotate(-90deg)", transformOrigin: "center", marginLeft: -14 }}>Intelligence</span>
-        {/* X-axis tick numbers — centered under each gridpoint. */}
-        <span className="absolute -translate-x-1/2 font-mono text-[10px] text-text-muted" style={{ left: `${PL}%`, top: `${PB + 3}%` }}>Free</span>
-        {positives.length > 0 && [xmin, Math.sqrt(xmin * xmax), xmax].map((c, i) => (
-          <span key={i} className="absolute -translate-x-1/2 font-mono text-[10px] tabular-nums text-text-muted" style={{ left: `${xPct(c)}%`, top: `${PB + 3}%` }}>{fmtCost(c)}</span>
-        ))}
-        {/* X-axis title — centered under the plot. */}
-        <span className="absolute -translate-x-1/2 text-[11px] text-text-muted" style={{ left: `${(PL + PR) / 2}%`, top: `${PB + 9}%` }}>cost per run →</span>
-        {plotted.map((p) => {
-          const rad = radius(p.ms);
-          const on = frontierKeys.has(p.key);
-          const isHover = hover === p.key;
-          return (
-            <button
-              key={p.key}
-              onClick={() => onPick(p.key)}
-              onMouseEnter={() => setHover(p.key)}
-              onMouseLeave={() => setHover((h) => (h === p.key ? null : h))}
-              title={`${p.label}: ${p.intel.toFixed(1)}/10 · ${fmtLatency(p.ms)} · ${fmtCost(p.cost, p.local ? "local" : undefined)}${on ? " · best-value frontier" : ""}`}
-              className={`absolute flex items-center justify-center rounded-full border transition-transform ${on ? "border-accent bg-accent-soft" : "border-border bg-surface-warm"} ${isHover ? "ring-2 ring-accent/40" : ""}`}
-              style={{ left: `${xPct(p.cost)}%`, top: `${yPct(p.intel)}%`, width: rad * 2, height: rad * 2, transform: `translate(-50%,-50%) scale(${isHover ? 1.15 : 1})`, zIndex: isHover ? 30 : on ? 10 : 2 }}
-            >
-              <ProviderMark vendor={p.vendor} size={Math.min(Math.round(rad), 18)} />
-            </button>
-          );
-        })}
-        {/* Always-on labels: name + intel · speed · cost under each bubble (above
-            for low ones so they don't fall off the axis), so every model reads at
-            a glance with no hover. A ★ marks the best-value frontier members. A
-            faint backdrop keeps text legible where bubbles crowd together. */}
-        {plotted.map((p) => {
-          const rad = radius(p.ms);
-          const low = yPct(p.intel) > 62;
-          const isHover = hover === p.key;
-          return (
-            <div
-              key={`lbl-${p.key}`}
-              className="pointer-events-none absolute flex w-24 flex-col items-center rounded px-1 text-center"
-              style={{ left: `${xPct(p.cost)}%`, top: `calc(${yPct(p.intel)}% ${low ? `- ${rad + 5}px` : `+ ${rad + 5}px`})`, transform: `translate(-50%, ${low ? "-100%" : "0"})`, zIndex: isHover ? 31 : 15, background: "color-mix(in srgb, var(--color-surface) 70%, transparent)" }}
-            >
-              <span className={`max-w-full truncate font-mono text-[10px] font-semibold ${frontierKeys.has(p.key) ? "text-accent" : "text-text-primary"}`}>
-                {frontierKeys.has(p.key) ? "★ " : ""}{p.label}
-              </span>
-              <span className="font-mono text-[11px] text-text-muted">{p.intel.toFixed(1)} · {fmtLatency(p.ms)} · {fmtCost(p.cost, p.local ? "local" : undefined)}</span>
-            </div>
-          );
-        })}
-      </div>
-      {/* Plain-language explanation of how to read the chart. */}
-      <p className="px-1 text-[11px] leading-relaxed text-text-muted">
-        Each bubble is a model. <span className="text-text-secondary">Higher is smarter</span> (judge score out of 10),{" "}
-        <span className="text-text-secondary">further left is cheaper</span> (cost per run, log scale), and a{" "}
-        <span className="text-text-secondary">bigger bubble is faster</span>. The dashed line connects the{" "}
-        <span className="text-accent">best-value picks</span> (★): the most intelligence you can buy at each price. The tinted top-left corner is the sweet spot: smart and cheap.
-      </p>
-      {unpriced.length > 0 && (
-        <div className="px-1 text-[11px] text-text-muted">unpriced (no cost axis): {unpriced.map((p) => p.label).join(", ")}</div>
-      )}
-    </div>
-  );
 }
-
-// Right rail for the Chart view: a compact "Compare" table of the scored models
-// (intelligence / cost / speed) plus quick stats (best intelligence, lowest
-// cost, fastest). Everything is read straight off the real model aggregates.
-type ChartModel = { key: string; parsed: { vendor: string; model: string }; best: number | null; latestRun: BenchmarkRun | null };
-function ChartRail({ models, onPick }: { models: ChartModel[]; onPick: (key: string) => void }) {
-  const scored = models.filter((m) => m.best != null && (m.best ?? 0) > 0);
-  if (scored.length === 0) {
-    return (
-      <ArenaRightRail>
-        <div className="rounded-2xl border border-border bg-surface p-4 text-[12px] text-text-muted">No scored models yet. Run a benchmark to compare intelligence, cost, and speed here.</div>
-      </ArenaRightRail>
-    );
-  }
-  const costOf = (m: ChartModel) => (m.latestRun?.cost_basis === "local" ? 0 : m.latestRun?.cost_usd_est ?? null);
-  const top = [...scored].sort((a, b) => (b.best ?? 0) - (a.best ?? 0)).slice(0, 8);
-  const bestIntel = top[0];
-  const withCost = scored.filter((m) => costOf(m) != null);
-  const cheapest = withCost.length ? withCost.reduce((a, b) => ((costOf(a) as number) <= (costOf(b) as number) ? a : b)) : null;
-  const withMs = scored.filter((m) => m.latestRun?.ms_avg != null && (m.latestRun?.ms_avg ?? 0) > 0);
-  const fastest = withMs.length ? withMs.reduce((a, b) => ((a.latestRun!.ms_avg as number) <= (b.latestRun!.ms_avg as number) ? a : b)) : null;
-  return (
-    <ArenaRightRail>
-      <div className="rounded-2xl border border-border bg-surface p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="font-mono text-[11px] text-text-muted">Compare</span>
-          <span className="font-mono text-[11px] text-text-muted">{scored.length} model{scored.length === 1 ? "" : "s"}</span>
-        </div>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 px-1 text-[11px] text-text-muted/60">
-            <span className="min-w-0 flex-1">Model</span>
-            <span className="w-8 text-right">/10</span>
-            <span className="w-12 text-right">Cost</span>
-            <span className="w-10 text-right">Speed</span>
-          </div>
-          {top.map((m) => (
-            <button key={m.key} onClick={() => onPick(m.key)} className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-surface-warm">
-              <ProviderMark vendor={m.parsed.vendor} size={14} />
-              <span className="min-w-0 flex-1 truncate text-[11px] text-text-primary">{m.parsed.model}</span>
-              <span className="w-8 text-right text-[11px] font-semibold text-accent">{m.best?.toFixed(1)}</span>
-              <span className="w-12 text-right text-[11px] text-text-muted">{fmtCost(costOf(m), m.latestRun?.cost_basis)}</span>
-              <span className="w-10 text-right text-[11px] text-text-muted">{fmtLatency(m.latestRun?.ms_avg)}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="rounded-2xl border border-border bg-surface p-4">
-        <div className="mb-2 text-[11px] text-text-muted">Quick stats</div>
-        <div className="grid grid-cols-2 gap-2">
-          <ArenaMetric icon={BrainCircuit} tone="accent" label="Best intelligence" value={bestIntel.best!.toFixed(1)} hint={bestIntel.parsed.model} />
-          {cheapest && <ArenaMetric icon={Coins} tone="ok" label="Lowest cost" value={fmtCost(costOf(cheapest), cheapest.latestRun?.cost_basis)} hint={cheapest.parsed.model} />}
-          {fastest && <ArenaMetric icon={Gauge} tone="ok" label="Fastest" value={fmtLatency(fastest.latestRun?.ms_avg)} hint={fastest.parsed.model} />}
-        </div>
-      </div>
-    </ArenaRightRail>
-  );
-}
-
-// Compact future-time label for a NEXT RUN timestamp ("in 3h", "in 2d", or a
-// short date when it's further out). Mirrors relTime's brevity for the past.
-function nextRunRel(ts: number): string {
-  const s = Math.floor((ts - Date.now()) / 1000);
-  if (s <= 0) return "due now";
-  if (s < 3600) return `in ${Math.max(1, Math.floor(s / 60))}m`;
-  if (s < 86400) return `in ${Math.floor(s / 3600)}h`;
-  if (s < 7 * 86400) return `in ${Math.floor(s / 86400)}d`;
-  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-// ── The SCHEDULE PAGE ─────────────────────────────────────────────────────────
-// Every scheduled entry as a row: name, model count (+ domain scope), cadence,
-// last run, NEXT run, an enable/disable toggle, Run now, and Remove. The schedule
-// list (prevail.bench.schedules) is the source of truth. NOTE: the scheduler is a
-// client tick that only fires while the app is open, so "next run" is the earliest
-// time a run becomes due, not a guaranteed wall-clock fire.
-function BenchSchedulePage({ vault }: { vault: string }) {
-  const schedules = useSchedules();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const runNow = async (s: BenchSchedule) => {
-    setBusy(s.id); setMsg(null);
-    try {
-      const ok = await runBenchModels(vault, s.models, s.domains);
-      if (ok) {
-        updateSchedule(s.id, { lastRun: Date.now() });
-        window.dispatchEvent(new Event("prevail:bench-sched"));
-        setMsg(`Started "${s.name}" now: watch progress in the sidebar and on the leaderboard.`);
-      } else {
-        setMsg(`Nothing runnable in "${s.name}" right now (its models may not be installed, or Bunker Mode filtered them out).`);
-      }
-    } catch (e) {
-      setMsg(`Couldn't start "${s.name}": ${e}`);
-    } finally {
-      setBusy(null);
-    }
-  };
-  const scopeLabel = (s: BenchSchedule) =>
-    s.domains.length === 0 ? "all domains"
-    : s.domains.length <= 2 ? s.domains.map(titleCase).join(", ")
-    : `${s.domains.length} domains`;
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <CalendarClock className="h-4 w-4 text-accent" />
-        <span className="text-sm font-semibold text-text-primary">Scheduled runs</span>
-        <span className="font-mono text-[11px] text-text-muted">{schedules.length} scheduled</span>
-      </div>
-      <div className="text-xs text-text-secondary">
-        Each preset runs on its own cadence so drift shows up on the leaderboard and in History without manual runs. Runs fire while the app is open, so next run is the earliest a run becomes due.
-      </div>
-      {msg && <div className="rounded-lg border border-border-subtle bg-surface px-3 py-2 text-[11px] text-text-secondary">{msg}</div>}
-      {schedules.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-          <CalendarClock className="mx-auto h-6 w-6 text-text-muted/50" />
-          <div className="mt-2 text-sm font-medium text-text-primary">Nothing scheduled yet</div>
-          <div className="mt-1 text-[11px] text-text-muted">Open Presets and click Schedule on any preset to run it daily, weekly, or monthly.</div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {schedules.map((s) => {
-            const next = s.lastRun ? s.lastRun + benchFreqMs(s.freq) : Date.now();
-            return (
-              <div key={s.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border-subtle bg-surface px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-[13px] font-medium text-text-primary">{s.name}</span>
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent"><CalendarClock className="h-2.5 w-2.5" /> {benchFreqLabel(s.freq)}</span>
-                    {!s.enabled && <span className="shrink-0 rounded-full border border-border-subtle bg-surface-warm px-1.5 py-px text-[11px] text-text-muted">Paused</span>}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
-                    <span>{s.models.length} model{s.models.length === 1 ? "" : "s"} · {scopeLabel(s)}</span>
-                    <span>last run {relTime(s.lastRun || null)}</span>
-                    <span className={s.enabled ? "text-accent" : ""}>next run {s.enabled ? nextRunRel(next) : "paused"}</span>
-                  </div>
-                </div>
-                <Toggle on={s.enabled} onChange={(v) => { updateSchedule(s.id, { enabled: v }); window.dispatchEvent(new Event("prevail:bench-sched")); }} label={`Enable ${s.name}`} />
-                <button onClick={() => void runNow(s)} disabled={busy === s.id} title="Run this schedule now" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 font-mono text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-40">
-                  {busy === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />} Run now
-                </button>
-                <button onClick={() => { removeSchedule(s.id); window.dispatchEvent(new Event("prevail:bench-sched")); }} title="Remove this schedule" className="text-text-muted/50 hover:text-err"><Trash2 className="h-3.5 w-3.5" /></button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Model × domain pivot - rows are runs (models), columns are domains, cells
-// are judge averages. Best cell per column is highlighted so "which model
-// wins which domain" reads at a glance.
 
 export function BenchmarkPanel({
   vaultPath,
   initialDomain,
+  initial,
 }: {
   vaultPath: string;
   initialDomain?: string | null;
+  // A deep-linked section ("leaderboard", "history", "scout", ...).
+  initial?: string | null;
 }) {
-  // A "runs" deep link from the Models page lands here with a model key to
-  // expand on the leaderboard. Consumed once.
+  // A "runs" deep link from the Models page lands on the Leaderboard with a
+  // model key expanded. Consumed once.
   const [initialModel] = useState<string | null>(() => {
     const v = lsGet("prevail.bench.expandModel");
     if (v) lsSet("prevail.bench.expandModel", "");
     return v || null;
   });
-  // ONE flat navigation level: every destination is a top-level tab. No
-  // "Results" grouping with a second pill bar underneath - that double
-  // hierarchy was genuinely confusing.
-  const [view, setView] = useState<"run" | "presets" | "board" | "history" | "matrix" | "frontier" | "questions" | "scout" | "schedule">(
-    initialModel ? "board" : initialDomain ? "run" : "board",
-  );
-  // Live schedule list (for the footer's scheduled-runs indicator).
-  const schedules = useSchedules();
-  // Domain filter shared by Leaderboard + History, shown in the same bar.
-  const [domainFilter, setDomainFilter] = useState<string>(initialDomain ? initialDomain.toLowerCase() : "all");
-  // Whether the left section-nav rail is collapsed to an icon-only strip. Choice
-  // persists so the Arena reopens the way the user left it.
-  const [navCollapsed, toggleNav] = useSpineCollapsed("prevail.arena.spine");
-  // On a phone the sections are a picker above the page, as in Intent.
+  const [sel, setSel] = useState<ArenaSel>(() => arenaSelFor(initial) ?? (initialModel ? { kind: "board" } : { kind: "run" }));
+  const [picked, setPicked] = useState(false);
   const phone = useIsPhone();
-  // Set when a batch just finished: the Leaderboard shows a "batch finished"
-  // banner linking to it in History (answer first, filing one click away).
-  const [finishedBatch, setFinishedBatch] = useState<{ label: string; id: string } | null>(null);
+  const go = (s: ArenaSel) => { setSel(s); setPicked(true); setErr(null); };
 
   // Data
-  const [runs, setRuns] = useState<BenchmarkRun[]>([]);
-  const [matrix, setMatrix] = useState<MatrixRow[]>([]);
-  const [questions, setQuestions] = useState<BenchQuestion[]>([]);
+  // Seeded from the shared cache so a revisit paints the last answers while
+  // refresh() re-reads them.
+  const seed = <T,>(cmd: string, args?: Record<string, unknown>): T[] => { const c = peekInvoke<T[]>(cmd, args); return Array.isArray(c) ? c : []; };
+  const [runs, setRuns] = useState<BenchmarkRun[]>(() => seed("benchmark_runs", { vault: vaultPath }));
+  const [matrix, setMatrix] = useState<MatrixRow[]>(() => seed("benchmark_matrix", { vault: vaultPath }));
+  const [questions, setQuestions] = useState<BenchQuestion[]>(() => seed("benchmark_questions", { vault: vaultPath }));
   const [err, setErr] = useState<string | null>(null);
-
-  const [vaultDomains, setVaultDomains] = useState<string[]>([]);
-  // Connected apps (Google, Meta, ...). Loaded only so we can EXCLUDE them from
-  // the Arena domain list - apps are not benchmarkable domains and were leaking
-  // in via question/matrix keys (e.g. "App Google", "Meta").
-  const [apps, setApps] = useState<EngineApp[]>([]);
+  const [vaultDomains, setVaultDomains] = useState<string[]>(() => seed<Domain>("scan_vault", { path: vaultPath }).map((d) => d.name).filter(isUserDomain));
+  const [apps, setApps] = useState<EngineApp[]>(() => seed("engine_apps_list"));
   const refresh = useCallback(() => {
-    invoke<BenchmarkRun[]>("benchmark_runs", { vault: vaultPath }).then((v) => setRuns(Array.isArray(v) ? v : [])).catch((e) => setErr(String(e)));
-    invoke<MatrixRow[]>("benchmark_matrix", { vault: vaultPath }).then((v) => setMatrix(Array.isArray(v) ? v : [])).catch(() => {});
-    invoke<BenchQuestion[]>("benchmark_questions", { vault: vaultPath }).then((v) => setQuestions(Array.isArray(v) ? v : [])).catch(() => {});
-    invoke<Domain[]>("scan_vault", { path: vaultPath })
-      .then((ds) => setVaultDomains(ds.map((d) => d.name).filter(isUserDomain)))
+    const fresh = { force: true };
+    invokeCached<BenchmarkRun[]>("benchmark_runs", { vault: vaultPath }, fresh).then((v) => setRuns(Array.isArray(v) ? v : [])).catch((e) => setErr(String(e)));
+    invokeCached<MatrixRow[]>("benchmark_matrix", { vault: vaultPath }, fresh).then((v) => setMatrix(Array.isArray(v) ? v : [])).catch(() => {});
+    invokeCached<BenchQuestion[]>("benchmark_questions", { vault: vaultPath }, fresh).then((v) => setQuestions(Array.isArray(v) ? v : [])).catch(() => {});
+    invokeCached<Domain[]>("scan_vault", { path: vaultPath })
+      .then((ds) => setVaultDomains(Array.isArray(ds) ? ds.map((d) => d.name).filter(isUserDomain) : []))
       .catch(() => {});
-    invoke<EngineApp[]>("engine_apps_list").then((v) => setApps(Array.isArray(v) ? v : [])).catch(() => {});
+    invokeCached<EngineApp[]>("engine_apps_list", undefined, fresh).then((v) => setApps(Array.isArray(v) ? v : [])).catch(() => {});
   }, [vaultPath]);
   useEffect(() => { refresh(); }, [refresh]);
-  // Auto-refresh: re-read runs whenever the window regains focus or the tab
-  // becomes visible again. Benchmark runs/scores can change on disk from outside
-  // this view (a CLI run, an engine rescore), and the panel otherwise only read
-  // once on mount - so a freshly-scored model wouldn't appear until a remount.
+  // Runs change on disk from outside this view (a CLI run, a rescore): re-read
+  // when the window comes back.
   useEffect(() => {
     const onWake = () => { if (document.visibilityState !== "hidden") refresh(); };
     window.addEventListener("focus", onWake);
@@ -3300,32 +1645,13 @@ export function BenchmarkPanel({
     return () => { window.removeEventListener("focus", onWake); document.removeEventListener("visibilitychange", onWake); };
   }, [refresh]);
 
-  // Domains available to scope/filter by: the vault's REAL domains first,
-  // then any extra domains that exist only in question files or old runs
-  // (so nothing is hidden, but the list always matches the actual vault).
-  const questionCounts = useMemo(() => {
-    const m: Record<string, number> = {};
-    // Only NON-archived questions are runnable - the CLI runner skips archived
-    // ones, so counting them here made a run look like it had work to do when it
-    // had none (e.g. "13 career questions" that all errored to nothing).
-    for (const q of questions) { if (q.archived) continue; m[q.domain] = (m[q.domain] ?? 0) + 1; }
-    return m;
-  }, [questions]);
+  // Benchmarkable domains: the vault's real domains first, then any that exist
+  // only in question files or old runs. Connected apps are not domains.
   const allDomains = useMemo(() => {
-    // Normalized app keys: strip everything but a-z0-9. A leading "app" is also
-    // stripped so a domain like "App Google" ("appgoogle") matches an app whose
-    // id/title normalizes to "google".
     const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const stripApp = (n: string) => n.replace(/^app/, "");
     const appKeys = new Set<string>();
-    for (const a of apps) {
-      appKeys.add(norm(a.id));
-      appKeys.add(norm(a.title));
-    }
-    const isApp = (d: string) => {
-      const n = norm(d);
-      return appKeys.has(n) || appKeys.has(stripApp(n));
-    };
+    for (const a of apps) { appKeys.add(norm(a.id)); appKeys.add(norm(a.title)); }
+    const isApp = (d: string) => { const n = norm(d); return appKeys.has(n) || appKeys.has(n.replace(/^app/, "")); };
     const vault = [...vaultDomains].sort().filter((d) => !isApp(d));
     const extra = new Set<string>();
     for (const q of questions) extra.add(q.domain);
@@ -3333,460 +1659,462 @@ export function BenchmarkPanel({
     for (const v of vault) extra.delete(v);
     return [...vault, ...Array.from(extra).sort().filter((d) => isUserDomain(d) && !isApp(d))];
   }, [vaultDomains, questions, matrix, apps]);
+  const activeQuestions = useMemo(() => questions.filter((q) => !q.archived), [questions]);
+  const questionCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const q of activeQuestions) m[q.domain.toLowerCase()] = (m[q.domain.toLowerCase()] ?? 0) + 1;
+    return m;
+  }, [activeQuestions]);
 
-  // ── Run config ──────────────────────────────────────────────────
-  const [mode, setMode] = useState<"single" | "council">("single");
-  const [selModels, setSelModels] = useState<Set<string>>(() => new Set([`claude${MODEL_SEP}opus`]));
-  const [scope, setScope] = useState<Set<string>>(
-    () => new Set(initialDomain ? [initialDomain.toLowerCase()] : []),
-  );
-  // Live run state comes from the module-scope registry, so it survives any
-  // navigation and remount, and the engine runs every batch concurrently. This
-  // panel MONITORS all of them at once instead of surfacing a single "current"
-  // batch, so the New Run wizard stays usable while runs are in flight.
+  // Models and presets.
+  const { runtimes, presetInput, loaded: modelsLoaded } = useArenaModels();
+  const suites = useSuites();
+  const presets: PresetView[] = useMemo(() => [
+    ...suites.map((s) => ({ id: s.id, name: s.name, models: s.models, builtIn: false })),
+    ...canonicalPresets(presetInput).map((p) => ({ id: `builtin:${p.name}`, name: p.name, models: p.models, builtIn: true, rationale: p.rationale })),
+  ], [suites, presetInput]);
+
+  // ── Run setup ──────────────────────────────────────────────────
+  const [modelMode, setModelMode] = useState<"preset" | "custom">("preset");
+  const [runPreset, setRunPreset] = useState<string | null>(null);
+  const [customModels, setCustomModels] = useState<Set<string>>(() => new Set());
+  const [scope, setScope] = useState<Set<string>>(() => new Set(initialDomain ? [initialDomain.toLowerCase()] : []));
+  // With no presets at all, choosing models by hand is the only path.
+  useEffect(() => { if (modelsLoaded && presets.length === 0) setModelMode("custom"); }, [modelsLoaded, presets.length]);
+  const presetForRun = presets.find((p) => p.id === runPreset) ?? null;
+  const runModels = modelMode === "preset" ? (presetForRun?.models ?? []) : Array.from(customModels);
+  const scopedQuestions = scope.size === 0 ? activeQuestions : activeQuestions.filter((q) => scope.has(q.domain.toLowerCase()));
+  const est = estimateRun(runModels, scopedQuestions.length, runs);
+  const toggleCustom = (k: string) => setCustomModels((cur) => { const n = new Set(cur); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const toggleScope = (d: string) => setScope((cur) => { const n = new Set(cur); if (n.has(d)) n.delete(d); else n.add(d); return n; });
+
+  // Live runs from the module registry (they survive navigation). The Run page
+  // shows the ones in flight; a run started here opens its result when done.
   const allBatches = useBenchBatches().filter((b) => b.vault === vaultPath);
-  const homeDomain = initialDomain ? initialDomain.toLowerCase() : null;
-  const matchesHome = (b: BenchBatch) =>
-    !homeDomain || b.scopeKey === "" || b.scopeKey.split(",").includes(homeDomain);
-  const visibleBatches = allBatches.filter(matchesHome);
-  // The monitor shows EVERY running batch (regardless of this panel's scope, so a
-  // run launched for another domain still shows progress) plus finished batches
-  // that match this panel's home domain and have not been dismissed. Running
-  // cards first, then finished, newest of each first. Each renders its own live
-  // progress from its BenchBatch.
-  const monitorBatches = useMemo(() => {
-    const shown = allBatches.filter((b) => b.running || matchesHome(b));
-    const rev = [...shown].reverse();
-    return [...rev.filter((b) => b.running), ...rev.filter((b) => !b.running)];
-    // matchesHome closes over homeDomain; allBatches is a fresh array each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allBatches, homeDomain]);
-
-  // When a batch this panel surfaces finishes, refresh the leaderboard ONCE (so
-  // results are ready when the user clicks View results) and, for a batch that
-  // produced no runs, surface the reason. Unlike before, we do NOT navigate away
-  // or delete the batch: it stays in the monitor as a finished card with View
-  // results + Dismiss, so a run completing never yanks the user out of the wizard
-  // or another run's monitor. Guarded by a ref so each batch fires only once.
-  const finishedSeen = useRef<Set<string>>(new Set());
+  const running = allBatches.filter((b) => b.running);
+  const launched = useRef<Set<string>>(new Set());
   useEffect(() => {
-    let changed = false;
-    for (const fin of visibleBatches) {
-      if (fin.running || finishedSeen.current.has(fin.id)) continue;
-      finishedSeen.current.add(fin.id);
-      changed = true;
-      if (!fin.cancelled) {
-        const ran = fin.jobs.filter((j) => j.status === "done").length;
-        const errored = fin.jobs.filter((j) => j.status === "error").length;
-        if (ran === 0 && errored > 0) {
-          setErr(`Batch "${fin.label}" produced no runs: all ${errored} model${errored === 1 ? "" : "s"} errored. See its card in the Running benchmarks monitor for the per-model reason.`);
-        } else {
-          setFinishedBatch({ id: fin.id, label: errored > 0 ? `${fin.label} - ${ran} ran, ${errored} failed` : fin.label });
-        }
-      }
+    for (const b of allBatches) {
+      if (b.running || !launched.current.has(b.id)) continue;
+      launched.current.delete(b.id);
+      refresh();
+      if (b.cancelled) continue;
+      const ran = b.jobs.filter((j) => j.status === "done").length;
+      const errored = b.jobs.filter((j) => j.status === "error").length;
+      if (ran === 0 && errored > 0) { setErr(`The run produced no results: all ${errored} model${errored === 1 ? "" : "s"} errored.`); continue; }
+      setSel({ kind: "result", key: b.id });
     }
-    if (changed) refresh();
-  }, [visibleBatches, refresh]);
-  // Dismiss a finished card: drop it from the registry and forget its "seen"
-  // marker so a re-run under a fresh id is tracked cleanly.
-  const dismissBatch = (b: BenchBatch) => {
-    finishedSeen.current.delete(b.id);
-    benchBatches.delete(b.id);
-    benchNotify();
-  };
+  }, [allBatches, refresh]);
+  const dismissBatch = (b: BenchBatch) => { benchBatches.delete(b.id); benchNotify(); };
 
-  const toggleModel = (cli: string, model: string) => {
-    const k = `${cli}${MODEL_SEP}${model}`;
-    setSelModels((cur) => {
-      const next = new Set(cur);
-      next.has(k) ? next.delete(k) : next.add(k);
-      return next;
-    });
-  };
-  const toggleScope = (d: string) =>
-    setScope((cur) => {
-      const next = new Set(cur);
-      next.has(d) ? next.delete(d) : next.add(d);
-      return next;
-    });
-
-  // Execute from EXPLICIT inputs so a saved suite can run its own models+domains
-  // directly, without waiting on a setState round-trip. runBenchmark() just feeds
-  // it the current UI selection.
-  function executeRun(modelKeys: string[], domains: Set<string>, runMode: "single" | "council") {
-    const scopeStr = Array.from(domains).join(",");
-    // Archived questions are excluded - the CLI runner skips them, so a run must
-    // be planned only over the questions that will actually execute.
-    const active = questions.filter((q) => !q.archived);
-    const scoped = domains.size === 0
-      ? active
-      : active.filter((q) => domains.has(q.domain.toLowerCase()));
+  // Start a batch from explicit models + domains. Returns false (with the
+  // reason shown) when nothing can run.
+  function executeRun(modelKeys: string[], domains: Set<string>, presetName: string | null, resumeId?: string): boolean {
+    const scoped = domains.size === 0 ? activeQuestions : activeQuestions.filter((q) => domains.has(q.domain.toLowerCase()));
     const qids = scoped.map((q) => q.id).sort();
     if (qids.length === 0) {
       setErr(domains.size === 0
-        ? "No active questions to run. Add some in the Questions tab (archived questions don't run)."
-        : `No active questions in ${Array.from(domains).map(titleCase).join(", ")}. They may all be archived - add or unarchive some in the Questions tab.`);
-      return;
+        ? "No active questions to run. Add some under Leaderboard, Questions."
+        : `No active questions in ${Array.from(domains).map(titleCase).join(", ")}. Add or restore some under Leaderboard, Questions.`);
+      return false;
     }
-    const blankJob = { status: "queued" as BenchJobStatus, done: 0, total: qids.length, qids, qdone: {} };
-    const plannedJobs: BenchJob[] =
-      runMode === "council"
-        ? [{ key: "council", cli: "", model: "", label: "Council", ...blankJob }]
-        : modelKeys.map((k) => {
-            const [cli, model] = k.split(MODEL_SEP);
-            const ml = MODELS[cli]?.find((m) => m.id === model)?.label ?? model;
-            return { key: k, cli, model, label: `${titleCase(cli)} · ${ml}`, ...blankJob, qdone: {} };
-          });
-    const runnable = isBunkerOn() ? plannedJobs.filter((j) => j.cli && isLocalCli(j.cli)) : plannedJobs;
-    if (isBunkerOn() && runMode === "council") { setErr("Blocked by Bunker Mode: the Council convenes cloud models."); return; }
-    if (isBunkerOn() && runnable.length < plannedJobs.length) {
-      setErr(runnable.length === 0
-        ? "Blocked by Bunker Mode: pick a local model (Ollama, LM Studio, oMLX)."
-        : "Cloud models were skipped (Blocked by Bunker Mode).");
-      if (runnable.length === 0) return;
-    }
-    if (runnable.length === 0) { setErr("Pick at least one model to run."); return; }
-    void executeBenchBatch(vaultPath, runnable, runMode === "council", scopeStr);
-  }
-  async function runBenchmark() {
-    executeRun(Array.from(selModels), scope, mode);
-  }
-  // Run a saved suite: reflect its selection in the UI (so the panel shows what
-  // ran) AND execute it immediately from the suite's own values.
-  function runSuite(s: { mode: "single" | "council"; models: string[]; domains: string[] }) {
-    setMode(s.mode);
-    setSelModels(new Set(s.models));
-    // A council is models-only; benchmark it against the CURRENT domain scope
-    // (fall back to the council's own saved domains for legacy suites).
-    const doms = s.domains.length ? new Set(s.domains) : scope;
-    setScope(doms);
-    executeRun(s.models, doms, s.mode);
-  }
-  const applyModels = (keys: string[]) => setSelModels(new Set(keys));
-  const applyScope = (domains: string[]) => setScope(new Set(domains));
-
-  // Rebuild a runnable job from a stored run. Runs since the rerun fix carry
-  // meta.json (exact cli/model/council); older runs fall back to parsing the
-  // label.
-  function jobFromRun(r: BenchmarkRun, key: string): { job: BenchJob; council: boolean } | null {
-    const stripped = r.label.replace(/^\d{4}-\d{2}-\d{2}[_ ]/, "").trim();
-    let council = /^council\b/i.test(stripped);
-    let cli = "";
-    let modelId = "";
-    if (r.council) {
-      council = true;
-    } else if (r.cli) {
-      cli = r.cli;
-      modelId = r.model ?? "";
-    } else if (!council) {
-      const known = ["claude", "codex", "antigravity", "ollama", "openrouter", "lmstudio"];
-      for (const k of known) {
-        if (stripped === k) { cli = k; break; }
-        if (stripped.toLowerCase().startsWith(k + "-")) { cli = k; modelId = stripped.slice(k.length + 1); break; }
-      }
-      if (!cli) return null;
-    }
-    const label = council ? "Council" : `${titleCase(cli)} · ${modelLabel(cli, modelId) || modelId || "default"}`;
-    const domSet = new Set(r.domains.map((d) => d.toLowerCase()));
-    const qids = questions.filter((q) => domSet.size === 0 || domSet.has(q.domain.toLowerCase())).map((q) => q.id).sort();
-    return {
-      job: { key, cli, model: modelId, label, status: "queued", done: 0, total: qids.length || r.questions, qids, qdone: {} },
-      council,
-    };
-  }
-
-  // Rerun a past run as-is: the same model (or council) against the same
-  // domain scope, as a fresh dated run.
-  async function rerunRun(r: BenchmarkRun) {
-    const built = jobFromRun(r, `rerun-${Date.now()}`);
-    if (!built) { setErr(`Can't rerun: unrecognized run label "${r.label}"`); return; }
-    setView("run");
-    void executeBenchBatch(vaultPath, [built.job], built.council, r.domains.join(","));
-  }
-
-  // CONTINUE a whole BATCH: pick up where an interrupted batch left off.
-  // Re-launches every model in the batch under the ORIGINAL batch id, so the
-  // engine resumes into the existing run directories - it skips the questions
-  // each model already answered and runs only the missing/errored ones, then
-  // re-scores. No questions are regenerated, no completed answers re-run, no
-  // tokens re-burned on finished work. This is the "come back and finish it"
-  // path for a big batch.
-  async function continueBatch(batchRuns: BenchmarkRun[]) {
-    const batchId = batchRuns.find((r) => r.batch_id)?.batch_id;
-    if (!batchId) { setErr("Can't continue: this group predates batch tracking. Use rerun instead."); return; }
-    const builds = batchRuns
-      .map((r, i) => ({ r, built: jobFromRun(r, `continue-${Date.now()}-${i}`) }))
-      .filter((x): x is { r: BenchmarkRun; built: NonNullable<ReturnType<typeof jobFromRun>> } => x.built !== null);
-    if (builds.length === 0) { setErr("Can't continue this batch: no recognizable runs."); return; }
-    const seen = new Set<string>();
-    const jobs = builds.filter(({ built }) => {
-      const k = `${built.job.cli}::${built.job.model}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
+    const jobs: BenchJob[] = modelKeys.map((k) => {
+      const [cli, model] = k.split(MODEL_SEP);
+      return { key: k, cli, model, label: `${titleCase(cli)} · ${modelLabel(cli, model) || model}`, status: "queued" as BenchJobStatus, done: 0, total: qids.length, qids, qdone: {} };
     });
-    const council = jobs.some(({ built }) => built.council);
-    setView("run");
-    const scope = Array.from(new Set(batchRuns.flatMap((r) => r.domains))).join(",");
-    // Pass the original batch id: executeBenchBatch reuses it, so the engine
-    // resumes the existing run dirs rather than minting fresh ones.
-    void executeBenchBatch(vaultPath, jobs.map(({ built }) => built.job), council, scope, batchId);
+    const runnable = isBunkerOn() ? jobs.filter((j) => isLocalCli(j.cli)) : jobs;
+    if (runnable.length === 0) { setErr(isBunkerOn() ? "Blocked by Bunker Mode: pick a local model." : "Pick at least one model to run."); return false; }
+    setErr(isBunkerOn() && runnable.length < jobs.length ? "Cloud models were skipped (Blocked by Bunker Mode)." : null);
+    void executeBenchBatch(vaultPath, runnable, false, Array.from(domains).join(","), resumeId);
+    // executeBenchBatch registers the batch before its first await, so the
+    // newest registry entry is this run.
+    const id = resumeId ?? Array.from(benchBatches.keys()).pop();
+    if (id) {
+      launched.current.add(id);
+      if (presetName) lsSet(BATCH_PRESETS_KEY, JSON.stringify({ ...readBatchPresets(), [id]: presetName }));
+    }
+    return true;
   }
+  const startRunAllDomains = () => { setScope(new Set()); if (executeRun(runModels, new Set(), presetForRun?.name ?? null)) setSel({ kind: "run" }); };
+  const startRun = () => { if (executeRun(runModels, scope, modelMode === "preset" ? presetForRun?.name ?? null : null)) setSel({ kind: "run" }); };
 
-  // Rerun a whole BATCH: every model that ran together, together again.
-  async function rerunBatch(batchRuns: BenchmarkRun[]) {
-    const builds = batchRuns
-      .map((r, i) => ({ r, built: jobFromRun(r, `rerun-${Date.now()}-${i}`) }))
-      .filter((x): x is { r: BenchmarkRun; built: NonNullable<ReturnType<typeof jobFromRun>> } => x.built !== null);
-    if (builds.length === 0) { setErr("Can't rerun this batch: no recognizable runs."); return; }
-    // Dedup models (a batch should not double-run the same model).
-    const seen = new Set<string>();
-    const jobs = builds.filter(({ built }) => {
-      const k = `${built.job.cli}::${built.job.model}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-    const council = jobs.some(({ built }) => built.council);
-    setView("run");
-    // Scope = the UNION of every run's domains, not just the first run's. The
-    // first run can be an errored/empty run with no recorded domains, which
-    // would otherwise scope the whole rerun to "" (all domains) or drop it.
-    const scope = Array.from(new Set(batchRuns.flatMap((r) => r.domains))).join(",");
-    void executeBenchBatch(vaultPath, jobs.map(({ built }) => built.job), council, scope);
-  }
-
-  // Arena navigation, in the mockups' order. A left rail (section nav) sits
-  // inside the panel, distinct from the app's global sidebar, with a DOMAINS
-  // section below it (the domain filter for Leaderboard + History).
-  const NAV: Array<{ id: typeof view; label: string; icon: LucideIcon }> = [
-    { id: "run", label: "Run", icon: Sparkles },
-    { id: "presets", label: "Presets", icon: Bookmark },
-    { id: "board", label: "Leaderboard", icon: Crown },
-    { id: "frontier", label: "Chart", icon: LineChart },
-    { id: "history", label: "History", icon: Activity },
-    { id: "matrix", label: "Model × domain", icon: Layers },
-    { id: "questions", label: "Questions", icon: FileText },
-    { id: "scout", label: "Model Scout", icon: BrainCircuit },
-    { id: "schedule", label: "Schedule", icon: CalendarClock },
-  ];
-  // The page already says what the Arena is. A section subtitle here repeated
-  // it in different words directly underneath ("Your own eval suite. See who
-  // leads where." over "Compare model performance across domains and find your
-  // top performers."), so each section says only what IT is, and the four that
-  // a person can read off the screen say nothing.
-  const HEAD: Record<typeof view, { title: string; subtitle: string }> = {
-    run: { title: "New Run", subtitle: "Pick the models, domains and questions." },
-    presets: { title: "Presets", subtitle: "Reusable model bundles." },
-    board: { title: "Leaderboard", subtitle: "" },
-    frontier: { title: "Chart", subtitle: "Intelligence against cost and speed." },
-    history: { title: "History", subtitle: "" },
-    matrix: { title: "Model × domain", subtitle: "Where each model is strong." },
-    questions: { title: "Questions", subtitle: "" },
-    scout: { title: "Model Scout", subtitle: "Models worth trying for your work." },
-    schedule: { title: "Schedule", subtitle: "" },
+  // Rerun a past run (same models, same domains) or continue an unfinished one
+  // under its original batch id, so the engine resumes instead of starting over.
+  const groupModels = (g: RunGroup) => Array.from(new Set(g.runs.filter((r) => r.cli).map((r) => `${r.cli}${MODEL_SEP}${r.model ?? ""}`)));
+  // When a run happened, as "YYYY-MM-DD HH:MM" (its first run's start).
+  const groupWhen = (g: RunGroup) => {
+    const first = Math.min(...g.runs.map((r) => r.created_ms || Infinity));
+    if (!Number.isFinite(first)) return g.date || g.label;
+    const t = new Date(first);
+    const p2 = (n: number) => String(n).padStart(2, "0");
+    return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())} ${p2(t.getHours())}:${p2(t.getMinutes())}`;
   };
-  const showDomains = !initialDomain && allDomains.length > 0 && (view === "board" || view === "history");
-  return (
-    <div className="flex h-full min-h-0 flex-col" data-testid="arena-page">
-      {/* Laid out like Models: the page header first, full width, then the
-          section column and the detail below it. */}
-      <PageHeaderBar>
-        <SettingsHeader title="Arena" icon={Swords} subtitle="Run your questions past every model and keep score."
-          right={
-            <button onClick={() => setView("run")} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-background hover:bg-accent-hover">
-              <Plus className="h-3.5 w-3.5" /> New Run
+  const groupDomains = (g: RunGroup) => new Set(g.runs.flatMap((r) => r.domains.map((d) => d.toLowerCase())));
+  const rerunGroup = (g: RunGroup, resume: boolean) => {
+    const models = groupModels(g);
+    if (models.length === 0) { setErr("This run predates model tracking, so it can't be repeated. Start a new run instead."); return; }
+    if (executeRun(models, groupDomains(g), readBatchPresets()[g.key] ?? null, resume && g.isBatch ? g.key : undefined)) go({ kind: "run" });
+  };
+  const rerunOne = (r: BenchmarkRun) => {
+    if (!r.cli) { setErr("This run predates model tracking, so it can't be repeated."); return; }
+    if (executeRun([`${r.cli}${MODEL_SEP}${r.model ?? ""}`], new Set(r.domains.map((d) => d.toLowerCase())), null)) go({ kind: "run" });
+  };
+
+  // Results
+  const groups = useMemo(() => groupRunsByBatch(runs), [runs]);
+  const batchPresets = useMemo(readBatchPresets, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [resultTab, setResultTab] = useState<"summary" | "domains" | "questions">("summary");
+  useEffect(() => { setResultTab("summary"); }, [sel]);
+
+  // ── Column ─────────────────────────────────────────────────────
+  const isSel = (s: ArenaSel) => JSON.stringify(s) === JSON.stringify(sel) && (!phone || picked);
+  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft shadow-sm ring-1 ring-accent-border" : "border-l-transparent ring-1 ring-transparent hover:bg-surface-warm"}`;
+  const groupHead = (label: string, count: number, action?: React.ReactNode) => (
+    <div data-sticky-head className={`flex items-center gap-2 px-2.5 pb-1 pt-4 ${STICKY_GROUP_HEAD} ${phone ? "bg-background" : "spine-sticky-head"}`}>
+      <span className="text-[15px] font-semibold text-text-primary">{label}</span>
+      <span className="text-[13px] text-text-muted">{count}</span>
+      {action && <span className="ml-auto">{action}</span>}
+    </div>
+  );
+  const newPreset = () => { const s = createSuite("New preset"); go({ kind: "preset", id: s.id }); };
+  const listEl = (
+    <div className="p-2">
+      <button data-testid="arena-row-run" aria-current={isSel({ kind: "run" }) ? "true" : undefined} onClick={() => go({ kind: "run" })} className={rowCls(isSel({ kind: "run" }))}>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent text-background"><Play className="h-3.5 w-3.5" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-text-primary">Run a benchmark</span>
+          <span className="block truncate text-[12px] text-text-muted">{running.length > 0 ? `${running.length} running now` : "Pick models and domains"}</span>
+        </span>
+        {running.length > 0 && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent" />}
+      </button>
+
+      <div>
+      {groupHead("Presets", presets.length,
+        <button onClick={newPreset} data-testid="arena-new-preset" title="New preset" aria-label="New preset" className="rounded-md p-1 text-text-muted hover:bg-surface-warm hover:text-accent"><Plus className="h-4 w-4" /></button>)}
+      <div className="space-y-0.5">
+        {presets.map((p) => (
+          <button key={p.id} data-testid={`arena-row-preset-${p.name}`} onClick={() => go({ kind: "preset", id: p.id })} className={rowCls(isSel({ kind: "preset", id: p.id }))}>
+            <Bookmark className="h-4 w-4 shrink-0 text-text-muted" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-text-primary">{p.name}</span>
+              <span className="block truncate text-[12px] text-text-muted">{p.models.length} model{p.models.length === 1 ? "" : "s"}{p.builtIn ? " · built in" : ""}</span>
+            </span>
+          </button>
+        ))}
+        <button onClick={newPreset} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] text-text-muted hover:bg-surface-warm hover:text-accent">
+          <Plus className="h-4 w-4 shrink-0" /> New preset
+        </button>
+      </div>
+      </div>
+
+      <div>
+      {groupHead("Results", groups.length)}
+      <div className="space-y-0.5">
+        <button data-testid="arena-row-leaderboard" onClick={() => go({ kind: "board" })} className={rowCls(isSel({ kind: "board" }))}>
+          <Crown className="h-4 w-4 shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium text-text-primary">Leaderboard</span>
+            <span className="block truncate text-[12px] text-text-muted">All runs combined</span>
+          </span>
+        </button>
+        {groups.map((g) => {
+          const models = new Set(g.runs.map((r) => `${r.cli ?? ""}${r.model ?? ""}${r.cli ? "" : r.label}`)).size;
+          const doms = groupDomains(g).size;
+          const who = batchPresets[g.key] ?? `${models} model${models === 1 ? "" : "s"}`;
+          const date = groupWhen(g);
+          return (
+            <button key={g.key} data-testid={`arena-row-result-${g.key}`} onClick={() => go({ kind: "result", key: g.key })} className={rowCls(isSel({ kind: "result", key: g.key }))}>
+              <TrendingUp className="h-4 w-4 shrink-0 text-text-muted" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-text-primary">{date}</span>
+                <span className="block truncate text-[12px] text-text-muted">{who} · {doms === 0 ? "all domains" : `${doms} domain${doms === 1 ? "" : "s"}`}</span>
+              </span>
+              {g.best != null && <span className="shrink-0 text-[13px] font-semibold tabular-nums text-accent">{g.best.toFixed(1)}</span>}
             </button>
-          } />
-      </PageHeaderBar>
-      <div className="flex min-h-0 flex-1">
-      {/* The canonical SideSpine column: the Arena's sections, then the
-          Domains filter. Collapses to a thin strip like every other screen. */}
-      {!phone && <SpineColumn collapsed={navCollapsed} onToggle={toggleNav} title="Arena" label="Arena sections" testId="arena-nav"
-        actions={initialDomain ? <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[12px] text-accent" title={`Scoped to ${titleCase(initialDomain)}`}>{titleCase(initialDomain)}</span> : undefined}>
-        <nav aria-label="Arena sections" className="px-2 pb-3 pt-2">
-          <div className="space-y-0.5">
-            {NAV.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setView(id)}
-                aria-current={view === id ? "page" : undefined}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors ${
-                  view === id
-                    ? "bg-surface-warm font-semibold text-text-primary"
-                    : "text-text-secondary hover:bg-surface-warm/50 hover:text-text-primary"
-                }`}
-              >
-                <Icon className={`h-4 w-4 shrink-0 ${view === id ? "text-accent" : ""}`} />
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
-          </div>
-          {showDomains && (
-            <div className="mt-5">
-              <div className="px-2.5 pb-1 text-[13px] font-semibold text-text-secondary">Domains</div>
-              <div className="space-y-0.5">
-                <button
-                  onClick={() => setDomainFilter("all")}
-                  aria-pressed={domainFilter === "all"}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors hover:bg-surface-warm/50 ${domainFilter === "all" ? "font-semibold text-accent" : "text-text-secondary"}`}
-                >
-                  <Layers className="h-4 w-4 shrink-0" /> <span className="flex-1">All</span>
-                  {domainFilter === "all" && <Check className="h-3.5 w-3.5 shrink-0" />}
+          );
+        })}
+      </div>
+      </div>
+    </div>
+  );
+
+  // ── Details ────────────────────────────────────────────────────
+  const pad = phone ? "px-4 py-4" : "px-8 py-6";
+  const stepHead = (n: number, title: string, right?: React.ReactNode) => (
+    <div className="mb-3 flex items-center gap-2.5">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent">{n}</span>
+      <h3 className="text-[19px] font-semibold text-text-primary">{title}</h3>
+      {right && <span className="ml-auto">{right}</span>}
+    </div>
+  );
+  const chip = (on: boolean) => `inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[14px] transition-colors ${on ? "border-accent bg-accent-soft font-medium text-accent" : "border-border bg-surface text-text-secondary hover:border-accent-border hover:text-text-primary"}`;
+
+  const runDetail = (
+    <div data-testid="arena-run" className={`${pad} space-y-8`}>
+      <div>
+        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Run a benchmark</h2>
+        <p className="mt-1 text-[15px] text-text-muted">Your questions go to each model; a judge scores every answer.</p>
+      </div>
+
+      <section>
+        {stepHead(1, "Models")}
+        <div role="tablist" aria-label="How to pick models" className="mb-4 inline-flex rounded-lg bg-surface-warm p-1">
+          {([["preset", "Use a preset"], ["custom", "Choose models"]] as const).map(([id, label]) => (
+            <button key={id} role="tab" aria-selected={modelMode === id} data-testid={`arena-mode-${id}`} onClick={() => setModelMode(id)}
+              className={`inline-flex h-9 items-center rounded-md px-4 text-[14px] ${modelMode === id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {modelMode === "preset" ? (
+          presets.length === 0 ? (
+            <p className="text-[14px] text-text-muted">No presets yet. Choose models instead, or add a preset from the column.</p>
+          ) : (
+            <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-surface">
+              {presets.map((p) => {
+                const on = runPreset === p.id;
+                return (
+                  <button key={p.id} type="button" role="radio" aria-checked={on} data-testid={`arena-pick-preset-${p.name}`} onClick={() => setRunPreset(p.id)}
+                    className={`flex w-full items-start gap-3 px-4 py-3 text-left ${on ? "bg-accent-soft/60" : "hover:bg-surface-warm"}`}>
+                    <span className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border ${on ? "border-accent" : "border-border"}`}>
+                      {on && <span className="h-2.5 w-2.5 rounded-full bg-accent" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-medium text-text-primary">{p.name}</span>
+                      <span className="mt-0.5 block truncate text-[13px] text-text-muted">{p.models.length === 0 ? "No models yet" : p.models.map(keyLabel).join(", ")}</span>
+                    </span>
+                    <span className="flex shrink-0 -space-x-1.5 pt-0.5">
+                      {Array.from(new Set(p.models.map((k) => k.split(MODEL_SEP)[0]))).slice(0, 4).map((cli) => <ProviderMark key={cli} vendor={cli} size={20} />)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <ModelPicker runtimes={runtimes} selected={customModels} onToggle={toggleCustom} />
+        )}
+      </section>
+
+      <section>
+        {stepHead(2, "Domains")}
+        {initialDomain ? (
+          <p className="text-[14px] text-text-secondary">This run covers {titleCase(initialDomain)}.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" aria-pressed={scope.size === 0} data-testid="arena-domain-all" onClick={() => setScope(new Set())} className={chip(scope.size === 0)}>
+              All <span className="text-[13px] opacity-70">{activeQuestions.length}</span>
+            </button>
+            {allDomains.map((d) => {
+              const on = scope.has(d.toLowerCase());
+              const Icon = domainIcon(d) ?? Circle;
+              return (
+                <button key={d} type="button" aria-pressed={on} data-testid={`arena-domain-${d}`} onClick={() => toggleScope(d.toLowerCase())} className={chip(on)}>
+                  <Icon className="h-3.5 w-3.5" /> {titleCase(d)} <span className="text-[13px] opacity-70">{questionCounts[d.toLowerCase()] ?? 0}</span>
                 </button>
-                {allDomains.map((d) => {
-                  const Icon = domainIcon(d) ?? Circle;
-                  const on = domainFilter === d;
-                  return (
-                    <button
-                      key={d}
-                      data-testid={`arena-domain-${d}`}
-                      onClick={() => setDomainFilter(d)}
-                      aria-pressed={on}
-                      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors hover:bg-surface-warm/50 ${on ? "font-semibold text-accent" : "text-text-secondary"}`}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" /> <span className="min-w-0 flex-1 truncate">{titleCase(d)}</span>
-                      {on && <Check className="h-3.5 w-3.5 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section>
+        {stepHead(3, "Run")}
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-4 py-4">
+          <p data-testid="arena-estimate" className="min-w-0 flex-1 basis-60 text-[15px] text-text-secondary">
+            {runModels.length === 0
+              ? "Pick at least one model."
+              : scopedQuestions.length === 0
+                ? "No questions in these domains yet."
+                : `${scopedQuestions.length} question${scopedQuestions.length === 1 ? "" : "s"} × ${runModels.length} model${runModels.length === 1 ? "" : "s"} = ${est.answers} answers. Roughly ${fmtEstimateUsd(est.usd)} and ${est.minutes} min.`}
+          </p>
+          {modelMode === "preset" && presetForRun && !initialDomain && (
+            // One click from a preset: every domain, without picking any.
+            <button data-testid="arena-run-all-domains" onClick={startRunAllDomains} disabled={runModels.length === 0 || activeQuestions.length === 0}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-border px-4 text-[14px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:cursor-not-allowed disabled:opacity-40">
+              <Play className="h-4 w-4" /> Run with all domains
+            </button>
+          )}
+          <button data-testid="arena-run-button" onClick={startRun} disabled={runModels.length === 0 || scopedQuestions.length === 0}
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-accent px-5 text-[14px] font-semibold text-background hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40">
+            <Play className="h-4 w-4" /> Run
+          </button>
+        </div>
+      </section>
+
+      {allBatches.length > 0 && (
+        <section data-testid="arena-progress" className="space-y-3">
+          <h3 className="text-[19px] font-semibold text-text-primary">{running.length > 0 ? "Running now" : "Recent runs"}</h3>
+          {[...allBatches].reverse().map((b) => (
+            <RunningBatchCard key={b.id} batch={b}
+              onViewResults={() => go(groups.some((g) => g.key === b.id) ? { kind: "result", key: b.id } : { kind: "board" })}
+              onCancel={() => void cancelBenchBatch(b.id)}
+              onDismiss={() => dismissBatch(b)} />
+          ))}
+        </section>
+      )}
+    </div>
+  );
+
+  const presetDetail = (p: PresetView) => {
+    const set = new Set(p.models);
+    const toggle = (k: string) => { const n = new Set(set); if (n.has(k)) n.delete(k); else n.add(k); updateSuite(p.id, { models: Array.from(n) }); };
+    const duplicate = () => { const s = createSuite(`${p.name} copy`, p.models); go({ kind: "preset", id: s.id }); };
+    const remove = () => { deleteSuite(p.id); go({ kind: "run" }); };
+    return (
+      <div data-testid="arena-preset" className={`${pad} space-y-6`}>
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1 basis-64">
+            {p.builtIn ? (
+              <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{p.name}</h2>
+            ) : (
+              <input key={p.id} defaultValue={p.name} aria-label="Preset name" data-testid="arena-preset-name"
+                onBlur={(e) => updateSuite(p.id, { name: e.target.value })}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                className="w-full rounded-md border border-transparent bg-transparent px-1 -mx-1 font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary hover:border-border focus:border-accent-border focus:outline-none" />
+            )}
+            <p className="mt-1 text-[15px] text-text-muted">{p.builtIn ? `${p.rationale ?? ""} Built in: it follows the models set up on this Mac.`.trim() : `${p.models.length} model${p.models.length === 1 ? "" : "s"}. Rename it by editing the title.`}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button data-testid="arena-preset-run" onClick={() => { setModelMode("preset"); setRunPreset(p.id); go({ kind: "run" }); }} disabled={p.models.length === 0}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-background hover:bg-accent-hover disabled:opacity-40">
+              <Play className="h-3.5 w-3.5" /> Run this preset
+            </button>
+            <RowAction icon={Copy} label="Duplicate" onClick={duplicate} testId="arena-preset-duplicate" />
+            {!p.builtIn && <RowAction icon={Trash2} label="Delete preset" onClick={remove} testId="arena-preset-delete" />}
+          </div>
+        </div>
+
+        <section>
+          <h3 className="mb-3 text-[19px] font-semibold text-text-primary">Models</h3>
+          {p.models.length === 0 ? (
+            <p className="text-[14px] text-text-muted">No models yet. Add some below.</p>
+          ) : (
+            <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-surface">
+              {p.models.map((k) => {
+                const cli = k.split(MODEL_SEP)[0];
+                return (
+                  <div key={k} className="flex items-center gap-3 px-4 py-2.5">
+                    <ProviderMark vendor={cli} size={22} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] text-text-primary">{keyLabel(k)}</span>
+                      <span className="block truncate text-[13px] text-text-muted">{runtimeLabel(cli)}</span>
+                    </span>
+                    {!p.builtIn && <RowAction icon={X} label={`Remove ${keyLabel(k)}`} onClick={() => toggle(k)} />}
+                  </div>
+                );
+              })}
             </div>
           )}
-        </nav>
-      </SpineColumn>}
+        </section>
 
-      {/* Content column: the per-view header + the routed view + footer. */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {err && <div className="mx-8 mt-3 rounded border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{err}</div>}
-        {/* Header lives OUTSIDE the scroll area (a fixed flex row above it) so it
-            stays visible on long pages regardless of scroll-container height,
-            instead of relying on position:sticky which the nested layout broke. */}
-        {/* The section heading, sized like the Models detail headings. */}
-        <div data-testid="arena-section-head" className={`shrink-0 ${phone ? "px-4 pt-4" : "px-8 pt-6"}`}>
-          {phone && (
-            <select aria-label="Arena section" data-testid="arena-picker" value={view} onChange={(e) => setView(e.target.value as typeof view)}
-              className="mb-3 h-12 w-full rounded-lg border border-border bg-surface px-3 text-[16px] font-semibold text-text-primary focus:border-accent-border focus:outline-none">
-              {NAV.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-            </select>
-          )}
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{HEAD[view].title}</h2>
-          {HEAD[view].subtitle && <p className="mt-1 text-[14px] text-text-muted">{HEAD[view].subtitle}</p>}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pt-5">
-        {view === "run" && (
-          <>
-            {/* Wizard leads the New Run page; the runs monitor sits BELOW it so
-                the config you came here for is the first thing you see. */}
-            <BenchRunConfig
-              mode={mode} setMode={setMode}
-              selModels={selModels} toggleModel={toggleModel}
-              allDomains={allDomains} scope={scope} toggleScope={toggleScope} scoped={!!initialDomain}
-              applyModels={applyModels} applyScope={applyScope} onRunSuite={runSuite}
-              questionCounts={questionCounts}
-              questionCount={
-                scope.size === 0
-                  ? questions.filter((q) => !q.archived).length
-                  : questions.filter((q) => !q.archived && scope.has(q.domain.toLowerCase())).length
-              }
-              onRun={runBenchmark}
-              onOpenPresets={() => setView("presets")}
-            />
-            {monitorBatches.length > 0 && (
-              <div className="w-full space-y-3 border-t border-border-subtle px-8 pb-6 pt-5">
-                <div className="flex items-baseline justify-between">
-                  <h2 className="text-sm font-semibold text-text-primary">
-                    Runs ({monitorBatches.length})
-                  </h2>
-                  <span className="font-mono text-[10px] text-text-muted">
-                    {monitorBatches.filter((b) => b.running).length} in flight · {monitorBatches.filter((b) => !b.running).length} finished
-                  </span>
-                </div>
-                {monitorBatches.map((b) => (
-                  <RunningBatchCard
-                    key={b.id}
-                    batch={b}
-                    onViewResults={() => setView("board")}
-                    onCancel={() => void cancelBenchBatch(b.id)}
-                    onDismiss={() => dismissBatch(b)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-        {view === "presets" && (
-          <BenchRunConfig
-            presetsView
-            mode={mode} setMode={setMode}
-            selModels={selModels} toggleModel={toggleModel}
-            allDomains={allDomains} scope={scope} toggleScope={toggleScope} scoped={!!initialDomain}
-            applyModels={applyModels} applyScope={applyScope} onRunSuite={runSuite}
-            questionCounts={questionCounts}
-            questionCount={
-              scope.size === 0
-                ? questions.filter((q) => !q.archived).length
-                : questions.filter((q) => !q.archived && scope.has(q.domain.toLowerCase())).length
-            }
-            onRun={runBenchmark}
-            onOpenPresets={() => setView("presets")}
-          />
-        )}
-        {view === "scout" && (
-          <div className="px-8 pb-6">
-            <ModelScoutSuggestions vaultPath={vaultPath} />
-          </div>
-        )}
-        {view === "schedule" && (
-          <div className="px-8 pb-6">
-            <BenchSchedulePage vault={vaultPath} />
-          </div>
-        )}
-        {(view === "board" || view === "history" || view === "matrix" || view === "frontier") && (
-          <BenchResults
-            view={view}
-            domainFilter={view === "matrix" ? "all" : domainFilter}
-            runs={runs} matrix={matrix} allDomains={allDomains} vaultPath={vaultPath}
-            initialModel={initialModel} currentDomain={initialDomain} onChanged={refresh}
-            onRerun={(r) => void rerunRun(r)}
-            onRerunBatch={(rs) => void rerunBatch(rs)}
-            onContinueBatch={(rs) => void continueBatch(rs)}
-            finishedBatch={finishedBatch}
-            onViewBatch={() => { setView("history"); setFinishedBatch(null); }}
-            onDismissBanner={() => setFinishedBatch(null)}
-            onCrumbHome={() => setView("run")}
-            onClearDomain={() => setDomainFilter("all")}
-          />
-        )}
-        {view === "questions" && (
-          <BenchQuestions
-            vaultPath={vaultPath} questions={questions} allDomains={allDomains}
-            initialDomain={initialDomain}
-            onChanged={refresh}
-          />
+        {p.builtIn ? (
+          <p className="text-[14px] text-text-muted">Built-in presets can't be edited. Duplicate this one to make your own.</p>
+        ) : (
+          <section>
+            <h3 className="mb-3 text-[19px] font-semibold text-text-primary">Add models</h3>
+            <ModelPicker runtimes={runtimes} selected={set} onToggle={toggle} testId="arena-preset-picker" />
+          </section>
         )}
       </div>
-      {/* Consistent footer across every Arena tab: a one-line read of the eval's
-          state - models tested, runs, the leaderboard leader, and the auto-run
-          schedule (which links to the Schedule tab). */}
-      {(() => {
-        const modelCount = new Set(runs.map((r) => { const p = parseRunLabel(r.label); return `${p.vendor}::${p.model || r.label}`; })).size;
-        const lastDate = runs.reduce((a, r) => (r.date > a ? r.date : a), "");
-        const leader = [...runs].filter((r) => r.judge_avg != null).sort((a, b) => (b.judge_avg ?? -1) - (a.judge_avg ?? -1))[0];
-        const leaderModel = leader ? parseRunLabel(leader.label).model : null;
-        const activeScheds = schedules.filter((s) => s.enabled);
-        return (
-          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-subtle bg-surface-warm/40 px-4 py-2 text-[12px] text-text-muted">
-            <span>{modelCount} model{modelCount === 1 ? "" : "s"} · {runs.length} run{runs.length === 1 ? "" : "s"}{lastDate ? ` · last ${lastDate}` : ""}</span>
-            {leaderModel && <span className="inline-flex items-center gap-1"><Crown className="h-3 w-3 text-accent" /> {leaderModel} {leader?.judge_avg?.toFixed(1)}</span>}
-            <button onClick={() => setView("schedule")} className="ml-auto inline-flex items-center gap-1.5 hover:text-accent" title="Scheduled runs (Schedule tab)">
-              <span className={`h-1.5 w-1.5 rounded-full ${activeScheds.length > 0 ? "bg-ok" : "bg-text-muted/40"}`} />
-              {activeScheds.length > 0 ? `${activeScheds.length} scheduled` : "none scheduled"}
+    );
+  };
+
+  const tabsEl = (tabs: { id: "summary" | "domains" | "questions"; label: string }[]) => (
+    <div className={phone ? "px-4" : "flex px-8"}>
+      <SpineTabs tabs={tabs} value={resultTab} onChange={setResultTab} label="Result views" />
+    </div>
+  );
+  const results = (rs: BenchmarkRun[], mx: MatrixRow[], filter: string) => (
+    <BenchResults
+      view={resultTab === "domains" ? "matrix" : "board"}
+      domainFilter={filter}
+      runs={rs} matrix={mx} allDomains={allDomains} vaultPath={vaultPath}
+      initialModel={initialModel} currentDomain={initialDomain} onChanged={refresh}
+      onRerun={rerunOne}
+    />
+  );
+
+  const boardDetail = (
+    <div data-testid="arena-board" className="space-y-5 pb-6">
+      <div className={phone ? "px-4 pt-4" : "px-8 pt-6"}>
+        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Leaderboard</h2>
+        <p className="mt-1 text-[15px] text-text-muted">Every run combined{initialDomain ? `, in ${titleCase(initialDomain)}` : ""}: each model at its best score.</p>
+      </div>
+      {tabsEl([{ id: "summary", label: "Summary" }, { id: "domains", label: "By domain" }, { id: "questions", label: "Questions" }])}
+      {resultTab === "questions"
+        ? <BenchQuestions vaultPath={vaultPath} questions={questions} allDomains={allDomains} initialDomain={initialDomain} onChanged={refresh} />
+        : results(runs, matrix, initialDomain ? initialDomain.toLowerCase() : "all")}
+    </div>
+  );
+
+  const resultDetail = (key: string) => {
+    const g = groups.find((x) => x.key === key);
+    if (!g) {
+      const live = allBatches.find((b) => b.id === key);
+      return (
+        <div data-testid="arena-result" className={pad}>
+          <p className="text-[15px] text-text-muted">{live?.running ? "This run is still going." : "Loading this run's results."}</p>
+        </div>
+      );
+    }
+    const dirs = new Set(g.runs.map((r) => r.run_dir));
+    const doms = groupDomains(g);
+    const unscored = g.runs.filter((r) => !r.scored).length;
+    const qs = Math.max(0, ...g.runs.map((r) => r.questions));
+    return (
+      <div data-testid="arena-result" className="space-y-5 pb-6">
+        <div className={`flex flex-wrap items-start gap-3 ${phone ? "px-4 pt-4" : "px-8 pt-6"}`}>
+          <div className="min-w-0 flex-1 basis-64">
+            <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{groupWhen(g)}</h2>
+            <p className="mt-1 text-[15px] text-text-muted">
+              {batchPresets[g.key] ? `${batchPresets[g.key]} · ` : ""}{g.runs.length} model{g.runs.length === 1 ? "" : "s"} · {doms.size === 0 ? "all domains" : Array.from(doms).map(titleCase).join(", ")} · {qs} question{qs === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {unscored > 0 && g.isBatch && (
+              <button onClick={() => rerunGroup(g, true)} title="Finish the questions still missing, then score. Answers already in are kept."
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent-border px-3 text-[13px] font-medium text-accent hover:bg-accent-soft">
+                <RotateCw className="h-3.5 w-3.5" /> Continue
+              </button>
+            )}
+            <button data-testid="arena-result-rerun" onClick={() => rerunGroup(g, false)} title="Run the same models on the same domains again"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent">
+              <RotateCw className="h-3.5 w-3.5" /> Run again
             </button>
           </div>
-        );
-      })()}
+        </div>
+        {tabsEl([{ id: "summary", label: "Summary" }, { id: "domains", label: "By domain" }])}
+        {results(g.runs, matrix.filter((m) => dirs.has(m.run_dir)), "all")}
       </div>
+    );
+  };
+
+  const presetSel = sel.kind === "preset" ? presets.find((p) => p.id === sel.id) : undefined;
+  const detail = (
+    <>
+      {err && <div className={`${phone ? "mx-4" : "mx-8"} mt-4 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn`}>{err}</div>}
+      {sel.kind === "run" && runDetail}
+      {sel.kind === "preset" && (presetSel ? presetDetail(presetSel) : runDetail)}
+      {sel.kind === "board" && boardDetail}
+      {sel.kind === "result" && resultDetail(sel.key)}
+    </>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col" data-testid="arena-page">
+      <SettingsHeader title="Arena" icon={Swords} subtitle="Run your questions past several models and keep score."
+          right={
+            <button onClick={() => go({ kind: "run" })} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-background hover:bg-accent-hover">
+              <Play className="h-3.5 w-3.5" /> Run a benchmark
+            </button>
+          } />
+      <div className="flex min-h-0 flex-1">
+        <SideSpine storageKey="prevail.arena.spine" title={initialDomain ? `Arena · ${titleCase(initialDomain)}` : "Arena"} label="Arena" testId="arena-nav"
+          phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Arena"
+          detail={detail}>
+          {listEl}
+        </SideSpine>
       </div>
     </div>
   );

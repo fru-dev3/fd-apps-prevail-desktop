@@ -110,7 +110,7 @@ fn resolve_gws_bin() -> Option<String> {
 }
 
 /// Is the Google Workspace CLI installed? Returns { installed, version, bin }.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn google_cli_status() -> Result<serde_json::Value, String> {
     let bin = match resolve_gws_bin() {
         Some(b) => b,
@@ -350,7 +350,7 @@ fn probe_profile(bin: &str, dir: &Path) -> (String, Option<String>) {
 /// Every Google profile (one per gws config dir) with its live status. Status is
 /// one of: connected | expired | needs_scope | unknown. `email` is set only when
 /// connected. Powers the Google connector's per-profile health rows.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn google_profiles() -> Result<Vec<serde_json::Value>, String> {
     let Some(bin) = resolve_gws_bin() else { return Ok(vec![]) };
     let mut out = Vec::new();
@@ -376,7 +376,7 @@ pub fn google_profiles() -> Result<Vec<serde_json::Value>, String> {
 /// Remove a Google profile by deleting its gws config dir, so the user can clear
 /// a stuck or half-set-up account and start fresh. Guarded: the directory must
 /// live under ~/.config AND be a gws / gws-* profile dir, never anything else.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn google_profile_remove(config_dir: String) -> Result<serde_json::Value, String> {
     let home = std::env::var("HOME").unwrap_or_default();
     let base = PathBuf::from(&home).join(".config");
@@ -504,7 +504,7 @@ pub(crate) fn ensure_google_refresh_skill(dir: &Path, managed_bin: &Path) -> Res
 /// live profiles (config dir + account) and the `gws` calling pattern, so chat
 /// and the Inbox-Zero loop can pull / summarize / respond across all profiles.
 /// Idempotent: rewrites the SKILL from the current profiles each call.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn google_scaffold(vault: String) -> Result<serde_json::Value, String> {
     let dir = crate::paths::data_root(&vault).join("apps").join("google");
     std::fs::create_dir_all(dir.join("data")).map_err(|e| format!("mkdir: {e}"))?;

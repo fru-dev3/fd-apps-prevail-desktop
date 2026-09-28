@@ -2,7 +2,7 @@
 // OpenRouter catalog) and Models (the per-provider model catalog), plus the
 // refreshDiscoveredModels helper they share (imported from helpers2).
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, Globe, Layers, Loader2, Sparkles, Zap } from "lucide-react";
+import { AlertTriangle, Check, Layers, Loader2, Zap } from "lucide-react";
 import { invoke } from "./bridge";
 import { CollapsibleSection } from "./collapsible";
 import { DISCOVERED_MODELS } from "./constants";
@@ -18,11 +18,11 @@ const telemetryProvider = (id: string): string => (TELEMETRY_PROVIDERS.has(id) ?
 // Active category tab on the Models page, persisted so it reopens in place.
 const LS_MODELS_TAB = "prevail.settings.models.tab.v1";
 import { SettingsHeader } from "./sectionutil";
+import { SpineTabs } from "./sidespine";
 import { toast } from "./toast";
 import { autoVerifyClis, setCliVerify } from "./verify";
 import { AgentsSection } from "./settings6";
 import { OrVendorMark, orVendorOf } from "./providermarks";
-import { ProviderMark } from "./marks";
 import type { CliInfo } from "./types";
 
 export function ProvidersSection({ onActivated, embedded }: { onActivated?: () => Promise<CliInfo[]>; embedded?: boolean }) {
@@ -312,12 +312,12 @@ export function ModelsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Category tabs replace the old stacked collapsibles: one tab per runtime
-  // category, active tab persisted so the page reopens where you left it.
+  // The three ways to run a model, as tabs under the header, each with one
+  // line saying what it is. The active tab is remembered.
   const TABS = [
-    { id: "clis", label: "CLI runtimes", icon: Sparkles },
-    { id: "api", label: "Aggregators", icon: Layers },
-    { id: "direct", label: "Direct keys", icon: Globe },
+    { id: "clis", label: "On this Mac", blurb: "Claude Code, Codex, Ollama and other apps you already have. They run on your own subscription or on this Mac." },
+    { id: "api", label: "Aggregators", blurb: "One key, many models: OpenRouter, or your own AWS account through Bedrock." },
+    { id: "direct", label: "Direct keys", blurb: "A key from one vendor, used straight from this Mac. Stored in the Keychain." },
   ] as const;
   type TabId = (typeof TABS)[number]["id"];
   const [tab, setTab] = useState<TabId>(() => {
@@ -325,64 +325,17 @@ export function ModelsSection({
     return (TABS.some((t) => t.id === saved) ? saved : "clis") as TabId;
   });
   useEffect(() => { lsSet(LS_MODELS_TAB, tab); }, [tab]);
-
-  // Top-right logo cluster: one brand mark per distinct runtime/provider, ready
-  // ones first, deduped by vendor, capped with a "+N" overflow. Reuses the same
-  // ProviderMark the left rail draws, so the marks match everywhere.
-  const logoVendors = useMemo(() => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const c of [...clis].sort((a, b) => Number(b.available) - Number(a.available))) {
-      if (seen.has(c.id)) continue;
-      seen.add(c.id);
-      out.push(c.id);
-    }
-    return out;
-  }, [clis]);
-  const LOGO_CAP = 8;
-  const shownLogos = logoVendors.slice(0, LOGO_CAP);
-  const overflowLogos = logoVendors.length - shownLogos.length;
-  const logoCluster = shownLogos.length > 0 ? (
-    <div className="flex items-center -space-x-1.5" title="Models and runtimes available on this page">
-      {shownLogos.map((id) => (
-        <span key={id} className="rounded-md ring-1 ring-border-subtle">
-          <ProviderMark vendor={id} size={26} />
-        </span>
-      ))}
-      {overflowLogos > 0 && (
-        <span className="flex h-[26px] items-center justify-center rounded-md bg-surface-warm px-1.5 text-[11px] font-semibold text-text-muted ring-1 ring-border-subtle">
-          +{overflowLogos}
-        </span>
-      )}
-    </div>
-  ) : undefined;
-
-  // Laid out like Intent: the view tabs sit in the page header, CLI runtimes
-  // is a SideSpine screen (Cloud / Local / Harnesses in the column, the
-  // runtime on the right), the key pages scroll in one full-width column.
+  const ready = clis.filter((c) => c.id !== "openrouter" && c.id !== "bedrock" && c.available).length;
   const tabs = (
-    <div className="flex flex-wrap items-center gap-3">
-      <div role="tablist" aria-label="Models view" className="flex items-center rounded-lg bg-surface-warm p-1 max-sm:w-full">
-        {TABS.map(({ id, label }) => {
-          const active = tab === id;
-          const count = id === "clis"
-            ? clis.filter((c) => c.id !== "openrouter" && c.id !== "bedrock" && c.available).length
-            : undefined;
-          return (
-            <button key={id} role="tab" aria-selected={active} onClick={() => setTab(id)}
-              className={`inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-1.5 max-sm:text-[13px] ${active ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
-              {label}
-              {count !== undefined && <span className="text-[12px] font-normal tabular-nums text-text-muted">{count}</span>}
-            </button>
-          );
-        })}
-      </div>
-      <div className="max-xl:hidden">{logoCluster}</div>
+    <div className="space-y-2">
+      <SpineTabs label="Models view" value={tab} onChange={setTab}
+        tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: t.id === "clis" ? ready : undefined }))} />
+      <p data-testid="models-tab-blurb" className="text-[13px] text-text-muted">{TABS.find((t) => t.id === tab)?.blurb}</p>
     </div>
   );
   return (
     <>
-      <SettingsHeader title="Models" icon={Layers} subtitle="A model plus a way to run it." right={tabs} />
+      <SettingsHeader title="Models" icon={Layers} subtitle="A model plus a way to run it." tabs={tabs} />
       {tab === "clis" ? (
         <AgentsSection
           clis={clis}
@@ -395,12 +348,7 @@ export function ModelsSection({
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto" data-testid="models-scroll">
           <div className="w-full px-8 py-6">
-            {tab === "api" && (
-              <>
-                <p className="mb-4 text-[14px] text-text-muted">One key, many models. OpenRouter or your own AWS account.</p>
-                <ProvidersSection onActivated={onActivated} embedded />
-              </>
-            )}
+            {tab === "api" && <ProvidersSection onActivated={onActivated} embedded />}
             {tab === "direct" && <DirectProvidersSection onActivated={onActivated} />}
           </div>
         </div>

@@ -66,7 +66,7 @@ pub(crate) fn append(vault: &str, line: &str) {
 }
 
 /// Read recent gateway log lines, newest first, capped at `limit`.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn gateway_log_read(vault: String, limit: Option<usize>) -> Result<Vec<String>, String> {
     migrate_legacy(&vault);
     let path = log_path(&vault);
@@ -81,8 +81,9 @@ pub(crate) fn gateway_log_read(vault: String, limit: Option<usize>) -> Result<Ve
 }
 
 /// Clear the gateway log.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn gateway_log_clear(vault: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     // Remove both the canonical log and any stray legacy root-level file.
     let path = log_path(&vault);
     if path.exists() {

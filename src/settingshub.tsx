@@ -32,7 +32,7 @@ export function SettingsHub({ id, title, icon, subtitle, right, groups, sel, onS
   const list = (
     <nav className="space-y-3 p-2" aria-label={title}>
       {groups.map((g, gi) => (
-        <div key={g.heading ?? gi} className="space-y-0.5">
+        <div key={g.heading ?? gi} data-hub-group={g.heading} className="space-y-0.5">
           {g.heading && <div className="px-2.5 pb-1 pt-2 text-[15px] font-semibold text-text-primary">{g.heading}</div>}
           {g.items.map((it) => {
             const on = it.id === current?.id && (!phone || picked);

@@ -1,4 +1,6 @@
-// The Apps screen's fallback lanes, for data that no runtime connector covers:
+// The Apps screen's fallback lanes, for data that no runtime connector covers.
+// Each is its own group in the Apps column, with its own detail (never under a
+// connector's detail):
 //   Sites without a connector  a real browser the agent learns once, then
 //                              replays (engine connectors browser-learn/replay)
 //   Command-line tools         read-only pulls from CLIs you already signed into
@@ -6,6 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FolderInput, Globe, Loader2, LogIn, Play, Plus, RotateCcw, Terminal, X } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
+import { hasInvoke, invokeCached, peekInvoke } from "./query";
 import { relTime, titleCase } from "./format";
 import { toast } from "./toast";
 import { RowMenu } from "./ui";
@@ -39,7 +42,11 @@ function SectionTitle({ icon: Icon, title, hint }: { icon: typeof Globe; title: 
 }
 
 function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; domains: string[] }) {
-  const [apps, setApps] = useState<EngineApp[] | null>(null);
+  const [apps, setApps] = useState<EngineApp[] | null>(() => {
+    if (!hasInvoke("engine_apps_list", { vault: vaultPath })) return null;
+    const c = peekInvoke<EngineApp[]>("engine_apps_list", { vault: vaultPath });
+    return (Array.isArray(c) ? c : []).filter(isBrowserApp);
+  });
   const [run, setRun] = useState<{ id: string; mode: ConnectorRunMode; goal?: string; url?: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", url: "", goal: "", domain: "" });
@@ -48,7 +55,7 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
 
   const load = useCallback(async () => {
     try {
-      const list = await invoke<EngineApp[]>("engine_apps_list", { vault: vaultPath });
+      const list = await invokeCached<EngineApp[]>("engine_apps_list", { vault: vaultPath }, { force: true });
       setApps((Array.isArray(list) ? list : []).filter(isBrowserApp));
     } catch { setApps([]); }
   }, [vaultPath]);
@@ -162,8 +169,17 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
 }
 
 function CommandLineTools() {
-  const [providers, setProviders] = useState<CliProvider[] | null>(null);
-  const [found, setFound] = useState<Record<string, boolean>>({});
+  // Seeded from the shared cache: a revisit shows the last answers at once.
+  const [providers, setProviders] = useState<CliProvider[] | null>(() => {
+    if (!hasInvoke("ingestion_cli_providers")) return null;
+    const c = peekInvoke<CliProvider[]>("ingestion_cli_providers");
+    return Array.isArray(c) ? c : [];
+  });
+  const [found, setFound] = useState<Record<string, boolean>>(() => {
+    const out: Record<string, boolean> = {};
+    for (const p of providers ?? []) { const v = peekInvoke<boolean>("ingestion_cli_probe", { providerId: p.id }); if (v !== undefined) out[p.id] = v; }
+    return out;
+  });
   const [msg, setMsg] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const desktop = !isBrowser();
@@ -172,15 +188,13 @@ function CommandLineTools() {
     let live = true;
     (async () => {
       try {
-        const ps = await invoke<CliProvider[]>("ingestion_cli_providers");
+        const ps = await invokeCached<CliProvider[]>("ingestion_cli_providers", undefined, { force: true });
         const list = Array.isArray(ps) ? ps : [];
         if (live) setProviders(list);
-        for (const p of list) {
-          try {
-            const ok = await invoke<boolean>("ingestion_cli_probe", { providerId: p.id });
-            if (live) setFound((c) => ({ ...c, [p.id]: ok }));
-          } catch { /* best effort */ }
-        }
+        // The probes are independent: run them together.
+        await Promise.all(list.map((p) => invokeCached<boolean>("ingestion_cli_probe", { providerId: p.id }, { force: true })
+          .then((ok) => { if (live) setFound((c) => ({ ...c, [p.id]: ok })); })
+          .catch(() => { /* best effort */ })));
       } catch { if (live) setProviders([]); }
     })();
     return () => { live = false; };
@@ -196,13 +210,14 @@ function CommandLineTools() {
     setBusy(null);
   }
 
-  if (providers && providers.length === 0) return null;
   return (
     <section>
       <SectionTitle icon={Terminal} title="Command-line tools" hint="Read-only pulls from CLIs you already installed and signed into." />
       <div className={`${card} divide-y divide-border-subtle`}>
         {providers === null ? (
           <div className={`${rowCls} text-[13px] text-text-muted`}><Loader2 className="h-4 w-4 animate-spin" /> Loading</div>
+        ) : providers.length === 0 ? (
+          <div className={`${rowCls} text-[13px] text-text-muted`}>No command-line tools this Mac can pull from.</div>
         ) : providers.map((p) => (
           <div key={p.id} className={rowCls}>
             <AppLogo name={p.label} size={28} />
@@ -224,25 +239,29 @@ function CommandLineTools() {
   );
 }
 
-export function AppsFallback({ vaultPath, domains }: { vaultPath: string; domains: string[] }) {
+export type AppsLaneId = "sites" | "clis" | "obsidian";
+
+export function AppsLane({ lane, vaultPath, domains }: { lane: AppsLaneId; vaultPath: string; domains: string[] }) {
   const [obsidian, setObsidian] = useState(false);
   const desktop = !isBrowser();
   return (
-    <div className="mt-10 space-y-8">
-      <SitesWithoutConnector vaultPath={vaultPath} domains={domains} />
-      <CommandLineTools />
-      <section>
-        <SectionTitle icon={FolderInput} title="Obsidian import" hint="Copy an Obsidian vault into a domain as readable notes. Links, tags and front matter are kept." />
-        <div className={card}>
-          <div className={rowCls}>
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-strong ring-1 ring-border-subtle"><ObsidianLogo className="h-4 w-4" /></span>
-            <div className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-primary">Obsidian</div>
-            {desktop ? (
-              <button type="button" className={btn} onClick={() => setObsidian(true)}><FolderInput className="h-3.5 w-3.5" /> Import</button>
-            ) : <span className="text-[12px] text-text-muted">On your Mac</span>}
+    <div data-testid={`apps-lane-${lane}`} className="p-4 sm:p-6">
+      {lane === "sites" && <SitesWithoutConnector vaultPath={vaultPath} domains={domains} />}
+      {lane === "clis" && <CommandLineTools />}
+      {lane === "obsidian" && (
+        <section>
+          <SectionTitle icon={FolderInput} title="Obsidian import" hint="Copy an Obsidian vault into a domain as readable notes. Links, tags and front matter are kept." />
+          <div className={card}>
+            <div className={rowCls}>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-strong ring-1 ring-border-subtle"><ObsidianLogo className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-primary">Obsidian</div>
+              {desktop ? (
+                <button type="button" className={btn} onClick={() => setObsidian(true)}><FolderInput className="h-3.5 w-3.5" /> Import</button>
+              ) : <span className="text-[12px] text-text-muted">On your Mac</span>}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
       {obsidian && (
         <ObsidianImportModal
           vaultPath={vaultPath}

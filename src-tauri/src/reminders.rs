@@ -206,7 +206,7 @@ fn notify_due_tasks(app: &tauri::AppHandle, vault: &str) -> Result<Vec<DueTask>,
 /// Check for due tasks and fire native notifications for any not already
 /// notified today. Returns the full list of due/overdue tasks so the
 /// frontend can update its badges in the same call.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn reminders_check(app: tauri::AppHandle, vault: String) -> Result<Vec<DueTask>, String> {
     notify_due_tasks(&app, &vault)
 }
@@ -214,7 +214,7 @@ pub fn reminders_check(app: tauri::AppHandle, vault: String) -> Result<Vec<DueTa
 /// Returns all due/overdue tasks without firing notifications.
 /// Called on startup to populate sidebar badges before the first
 /// focus event triggers reminders_check.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn reminders_due_today(vault: String) -> Result<Vec<DueTask>, String> {
     Ok(scan_due(&vault, &today_str()))
 }

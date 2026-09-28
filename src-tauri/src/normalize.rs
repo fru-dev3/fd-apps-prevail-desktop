@@ -61,7 +61,7 @@ fn plan_for_dir(name: &str, dir: &Path, ops: &mut Vec<NormalizeOp>) {
 }
 
 /// Dry run: every copy the normalizer WOULD make, without touching the disk.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_normalize_plan(vault: String) -> Result<Vec<NormalizeOp>, String> {
     let mut ops: Vec<NormalizeOp> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -81,7 +81,7 @@ pub fn vault_normalize_plan(vault: String) -> Result<Vec<NormalizeOp>, String> {
 
 /// Apply the plan: copy each variant file to its canonical name. Originals are
 /// kept; nothing is deleted or overwritten. Returns the ops actually applied.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_normalize_apply(vault: String) -> Result<Vec<NormalizeOp>, String> {
     let mut ops = vault_normalize_plan(vault)?;
     for op in ops.iter_mut() {

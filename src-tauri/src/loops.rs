@@ -45,8 +45,9 @@ pub(crate) async fn loops_run_once(
 /// Mint a single-use approval token bound to (domain, action). The UI calls this
 /// at the moment the user approves, then passes the token to loop_execute_action.
 /// (C1/O16 — backend-verified approval, not UI trust.)
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn loop_request_approval(domain: String, action: String) -> String {
+    let _serial = crate::vaultio::serial();
     crate::approval::mint(&crate::approval::action_payload(&domain, &action))
 }
 
@@ -165,13 +166,14 @@ pub(crate) async fn loop_run_now_stream(
 /// dismiss/clear an item after it's been approved or declined — the per-domain
 /// loopspanel does the same write locally. Re-reads fresh before writing so a
 /// concurrent daemon pass isn't clobbered. No-op (Ok) if nothing matches.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn loop_pending_drop(
     vault: String,
     domain: String,
     loop_id: String,
     text: String,
 ) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let path = crate::paths::domain_dir_pub(&vault, &domain).join("_loops_runtime.json");
     let raw = match crate::read_to_string_retry(&path) {
         Ok(s) => s,

@@ -186,7 +186,7 @@ pub fn resolve_cli_forced(requested: &str, force_local: bool) -> Result<String, 
 /// Runtime enforcement state for the Status Verification Card. These flags
 /// reflect what the policy layer ACTUALLY does, not a UI assumption: when
 /// `enabled` is true the guards above are live, so network/web/cloud are blocked.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn bunker_status() -> serde_json::Value {
     let enabled = bunker_enabled();
     serde_json::json!({
@@ -201,8 +201,9 @@ pub fn bunker_status() -> serde_json::Value {
 
 /// Flip Bunker Mode. Persists immediately. Returns the fresh status. (The
 /// confirmation gate lives in the UI; this is the durable write.)
-#[tauri::command]
+#[tauri::command(async)]
 pub fn bunker_set(enabled: bool) -> serde_json::Value {
+    let _serial = crate::vaultio::serial();
     set_bunker(enabled);
     bunker_status()
 }

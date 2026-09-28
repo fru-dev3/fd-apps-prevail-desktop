@@ -9,7 +9,8 @@ vi.mock("./bridge", () => ({
   invoke: async (cmd: string, args?: Record<string, unknown>) => {
     calls.push({ cmd, args });
     if (cmd === "projects_index") return index;
-    if (cmd === "projects_restart") return { slug: args?.slug, title: "t", goal: "Ship it", requirements: [], rules: [], decisions: [], dead_ends: [], open_questions: [], brief_model: "claude-fable-5-1" };
+    if (cmd === "mirror_history") return { total: 2, tools: ["claude"], weeks: [{ week: "2026-09-21", label: "Sep 21 to 27", intent_line: null, sittings: [{ id: "s1", tool: "claude", project: args?.project, project_title: "x", start_ts: 1, end_ts: 2, prompts: [{ ts: 1, text: "make the header   green\n  keep *this* raw" }] }] }] };
+    if (cmd === "projects_restart") return { slug: args?.slug, title: "t", goal: "Ship it", requirements: [{ text: "Office green", source: "you" }, { text: "Loads fast", source: "inferred" }], rules: [], decisions: [], dead_ends: [], open_questions: [], brief_model: "claude-fable-5-1" };
     if (cmd === "projects_restart_text") return `TEXT:${args?.format}`;
     if (cmd === "projects_build") return index;
     if (cmd === "intent_instruction") return `INSTRUCTION:${args?.index}`;
@@ -21,7 +22,7 @@ vi.mock("./bridge", () => ({
 let phone = false;
 vi.mock("./useisphone", () => ({ useIsPhone: () => phone, PHONE_MAX_PX: 767 }));
 
-import { ProjectsView, modelName, monthSpan, nPrompts, statusKind, weekSpan } from "./projectsview";
+import { ProjectsView, displayTitle, modelName, monthSpan, nPrompts, statusKind, weekSpan } from "./projectsview";
 
 const day = (s: string) => Date.parse(`${s}T12:00:00`);
 const INDEX = {
@@ -77,7 +78,7 @@ describe("ProjectsView", () => {
     window.addEventListener("prevail:open-settings", on);
     render(<ProjectsView vaultPath="/v" />);
     expect(await screen.findByText("Your projects")).toBeTruthy();
-    expect(screen.getByText(/4,313 of your prompts, 2 projects/)).toBeTruthy();
+    expect(screen.getByTestId("spine-meta").textContent).toBe("4,313 prompts · 2 projects");
     // No duplicate list here: one link to the one home for next steps.
     expect(screen.queryByTestId("rec-row")).toBeNull();
     expect(screen.queryByText("What would move you forward")).toBeNull();
@@ -90,7 +91,7 @@ describe("ProjectsView", () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });
     render(<ProjectsView vaultPath="/v" />);
-    fireEvent.click((await screen.findAllByText("fru.dev site"))[0]); // the list entry
+    fireEvent.click((await screen.findAllByText("fru.dev Site"))[0]); // the list entry, in Title Case
     expect(screen.getByText(/697 prompts · Jun 3 to Sep 24, 2026 · Claude, Codex/)).toBeTruthy();
     expect(screen.getByText("Office green, never gold")).toBeTruthy();
     expect(await screen.findByText(/Distilled by Fable 5.1/)).toBeTruthy();
@@ -139,5 +140,31 @@ describe("collapsible projects list", () => {
     render(<ProjectsView vaultPath="/v" />);
     await screen.findByText("Overview");
     expect(screen.queryByLabelText("Collapse projects")).toBeNull();
+  });
+
+  it("titles read in Title Case, keeping acronyms and small words", () => {
+    expect(displayTitle("roof damage claim")).toBe("Roof Damage Claim");
+    expect(displayTitle("a tool for the API")).toBe("A Tool for the API");
+    expect(displayTitle("fru.dev site")).toBe("fru.dev Site");
+  });
+
+  it("tabs switch in place: requirements filter by who said them, prompts are verbatim, technical details start folded", async () => {
+    render(<ProjectsView vaultPath="/v" initialSlug="fru-dev-site" />);
+    const tech = (await screen.findByTestId("project-technical")) as HTMLDetailsElement;
+    expect(tech.open).toBe(false);
+    fireEvent.click(screen.getByTestId("project-tab-requirements"));
+    await screen.findByTestId("project-requirements");
+    expect(screen.getByLabelText("Include: Office green")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("req-filter-you"));
+    expect(screen.queryByLabelText("Include: Loads fast")).toBeNull();
+    fireEvent.click(screen.getByTestId("req-filter-inferred"));
+    expect(screen.queryByLabelText("Include: Office green")).toBeNull();
+    expect(screen.getByLabelText("Include: Loads fast")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("project-tab-prompts"));
+    const p = await screen.findByTestId("project-prompt");
+    expect(p.textContent).toBe("make the header   green\n  keep *this* raw");
+    expect(calls.find((c) => c.cmd === "mirror_history")?.args).toMatchObject({ vault: "/v", project: "fru-dev-site", week: null, day: null });
+    // The overview is still mounted (hidden), not rebuilt.
+    expect(screen.getByTestId("project-overview").className).toMatch(/\bhidden\b/);
   });
 });

@@ -10,7 +10,8 @@ import React, { useEffect, useState } from "react";
 import { Boxes, Building2, Calendar, CheckSquare, ExternalLink, FileText, MapPin } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "./bridge";
-import { lookupEntity, requestEntity, slugifyName, useEntityStore } from "./entitystore";
+import { lookupEntity, requestEntity, slugifyName, useEntityStore, type EntitySummary } from "./entitystore";
+import { AvatarImg, useEntityPicture } from "./entityavatar";
 import { domainColor, isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
@@ -148,6 +149,12 @@ export function OrgMark({ name, host, size = 16 }: { name: string; host?: string
   return <Building2 size={size - 3} aria-hidden className="shrink-0 self-center" />;
 }
 
+// A chip's small picture: the entity's own, or an org's logo (entityavatar).
+function ChipPicture({ e, size, fallback = null }: { e: EntitySummary; size: number; fallback?: React.ReactNode }) {
+  const src = useEntityPicture(e);
+  return src ? <AvatarImg src={src} size={size} round={e.kind === "person"} /> : <>{fallback}</>;
+}
+
 function VaultDot() {
   return <span aria-label="Saved to your vault" title="Saved to your vault" data-vault-dot className="ml-0.5 inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full bg-ok" />;
 }
@@ -197,13 +204,18 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
       const { bg, fg } = pickSkillColor(who);
       return (
         <button type="button" onClick={onClick} data-entity="person" title={`About ${entity.value}`} className="inline-flex items-baseline gap-1 text-left">
-          <span
-            aria-hidden
-            className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center self-center rounded-full text-[8.5px] font-bold leading-none tracking-tight"
-            style={{ backgroundColor: bg, color: fg }}
-          >
-            {initialsOf(who)}
-          </span>
+          {(() => {
+            const ini = (
+              <span
+                aria-hidden
+                className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center self-center rounded-full text-[8.5px] font-bold leading-none tracking-tight"
+                style={{ backgroundColor: bg, color: fg }}
+              >
+                {initialsOf(who)}
+              </span>
+            );
+            return known?.picture ? <span className="self-center"><ChipPicture e={known} size={18} fallback={ini} /></span> : ini;
+          })()}
           <span className="underline decoration-dotted decoration-text-muted underline-offset-[3px] hover:decoration-accent">{label}</span>
           {known?.saved && <VaultDot />}
         </button>
@@ -220,7 +232,7 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
     case "org":
       return (
         <a href="#" onClick={onClick} data-entity="org" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-1 ${linkish}`}>
-          <OrgMark name={entity.value} host={known?.domain} size={15} />
+          {known && (known.picture || known.website) ? <span className="self-center"><ChipPicture e={known} size={15} fallback={<OrgMark name={entity.value} host={known.domain} size={15} />} /></span> : <OrgMark name={entity.value} host={known?.domain} size={15} />}
           {label}
           {known?.saved && <VaultDot />}
         </a>

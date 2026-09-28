@@ -1,6 +1,7 @@
 // Chat-display leaf components extracted from App.tsx: ChatBubble (one rendered
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
 import { Fragment, useEffect, useRef, useState } from "react";
+import { ReplyApps } from "./chatrefs";
 import { ArrowRight, BookmarkPlus, Check, ChevronDown, ChevronRight, ListPlus, NotebookPen, Pin, Repeat, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { FRAMEWORKS, LENSES, MODELS } from "./constants";
@@ -429,6 +430,7 @@ export function ChatBubble({
           }`}
           style={bubbleStyle}
         >
+          {msg.role === "assistant" && <ReplyApps msg={msg} />}
           <StepChecklist msg={msg} accent={accent} />
           {/* Back-compat: legacy persisted turns that only carried a flat toolLog. */}
           {(!msg.steps || msg.steps.length === 0) && msg.toolLog && msg.toolLog.length > 0 && (

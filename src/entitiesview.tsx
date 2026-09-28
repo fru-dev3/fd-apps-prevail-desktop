@@ -5,14 +5,18 @@
 // selected (entitystore.requestEntity). Reached from the sidebar (Entities)
 // and from Intent.
 import { useEffect, useMemo, useState } from "react";
-import { BookUser, Loader2, RefreshCw, Search } from "lucide-react";
+import { VIRTUAL_MIN, VirtualRows } from "./virtualrows";
+import { BookUser, CopyCheck, Loader2, RefreshCw, Search } from "lucide-react";
 import { invoke } from "./bridge";
 import { EntityDetailView, KindBadge } from "./entitydetail";
+import { DuplicatesPane, cachedDuplicates, loadDuplicates, type DupPair } from "./entitydups";
+import { toast } from "./toast";
 import {
   loadEntities, lookupEntity, registerEntitiesView, slugifyName, takeRequestedEntity, useEntityStore,
   type EntityKindName, type EntitySummary, type EntityTarget,
 } from "./entitystore";
-import { SideSpine, STICKY_HEAD } from "./sidespine";
+import { SideSpine } from "./sidespine";
+import { SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
 
 const GROUPS: { kind: EntityKindName; label: string }[] = [
@@ -37,7 +41,7 @@ function Row({ e, on, onPick }: { e: EntitySummary; on: boolean; onPick: (e: Ent
     <li>
       <button type="button" onClick={() => onPick(e)} data-testid="entity-row" aria-current={on ? "true" : undefined}
         className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-        <KindBadge kind={e.kind} name={e.name} domain={e.domain} size={30} />
+        <KindBadge kind={e.kind} name={e.name} domain={e.domain} size={30} entity={e} />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className={`truncate text-[14px] ${on ? "font-semibold text-text-primary" : "font-medium text-text-primary"}`}>{e.name}</span>
@@ -58,18 +62,31 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
   const [filter, setFilter] = useState<"all" | EntityKindName>("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
   const [sel, setSel] = useState<(EntityTarget & { n: number }) | null>(() => {
     const t = takeRequestedEntity();
     return t ? { ...t, n: 0 } : null;
   });
-  useEffect(() => { void loadEntities(vaultPath, true); }, [vaultPath]);
+  // Pairs that may be one entity, and whether the review is on screen.
+  const [dups, setDups] = useState<DupPair[]>(() => cachedDuplicates(vaultPath));
+  const [showDups, setShowDups] = useState(false);
+  useEffect(() => {
+    void loadEntities(vaultPath, true);
+    let alive = true;
+    void loadDuplicates(vaultPath).then((l) => { if (alive) setDups(l); });
+    return () => { alive = false; };
+  }, [vaultPath]);
+  const dupDone = (pair: string, merged: boolean) => {
+    setDups((l) => l.filter((p) => p.pair !== pair));
+    if (merged) window.dispatchEvent(new CustomEvent("prevail:entities-changed"));
+    void loadDuplicates(vaultPath).then(setDups);
+  };
 
   // A chip clicked while this view is on screen selects in place.
   useEffect(() => {
     const off = registerEntitiesView();
     const onOpen = () => {
       const t = takeRequestedEntity();
+      if (t && KINDS.has(t.kind)) setShowDups(false);
       if (t && KINDS.has(t.kind)) setSel((p) => ({ ...t, n: (p?.n ?? 0) + 1 }));
     };
     window.addEventListener("prevail:open-entity", onOpen);
@@ -85,20 +102,45 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
     return GROUPS.map((g) => ({ ...g, items: hits.filter((e) => e.kind === g.kind) })).filter((g) => g.items.length);
   }, [list, q, filter]);
 
+  type Group = (typeof groups)[number];
+  const shownOf = (g: Group) => (expanded.has(g.kind) || !!q.trim() ? g.items : g.items.slice(0, PER_GROUP));
+  const groupHead = (g: Group) => (
+    <h2 className="mb-1 flex items-baseline gap-2 px-2.5 text-[17px] font-semibold text-text-primary">
+      {g.label}<span className="text-[13px] font-normal text-text-muted">{g.items.length}</span>
+    </h2>
+  );
+  const moreBtn = (g: Group) => (
+    <button onClick={() => setExpanded((s) => new Set(s).add(g.kind))} className="mt-1 px-2.5 text-[13px] font-medium text-accent hover:underline">
+      Show all {g.items.length}
+    </button>
+  );
+  // The column as flat rows, for the windowed path.
+  type Flat = { k: "h"; g: Group } | { k: "e"; e: EntitySummary } | { k: "more"; g: Group };
+  const flat: Flat[] = [];
+  for (const g of groups) {
+    const shown = shownOf(g);
+    flat.push({ k: "h", g });
+    for (const e of shown) flat.push({ k: "e", e });
+    if (g.items.length > shown.length) flat.push({ k: "more", g });
+  }
+
   // On a wide screen the detail is never empty: it opens on the most
   // discussed entity until one is picked.
   const first = list?.entities[0] ?? null;
   const target: EntityTarget | null = sel ?? (!phone && first ? targetOf(first) : null);
   const selectedId = target ? rowIdOf(target) : null;
-  const pick = (e: EntitySummary) => setSel((p) => ({ ...targetOf(e), n: (p?.n ?? 0) + 1 }));
+  const pick = (e: EntitySummary) => { setShowDups(false); setSel((p) => ({ ...targetOf(e), n: (p?.n ?? 0) + 1 })); };
 
   const refresh = async () => {
-    setBusy(true); setNote(null);
+    setBusy(true);
     try {
-      const r = await invoke<{ entities: number; pages_created: number; digests_written: number }>("entities_refresh", { vault: vaultPath });
-      setNote(`${r.entities} entities, ${r.pages_created} new pages, ${r.digests_written} summaries updated`);
+      const r = await invoke<{ entities: number; pages_created: number; digests_written: number; merged?: number }>("entities_refresh", { vault: vaultPath });
+      toast(r.merged && r.merged > 0
+        ? `Merged ${r.merged} duplicate ${r.merged === 1 ? "entity" : "entities"}.`
+        : `${r.entities} entities, ${r.pages_created} new pages, ${r.digests_written} summaries updated`);
       await loadEntities(vaultPath, true);
-    } catch (e) { setNote(`Refresh failed: ${String(e)}`); } finally { setBusy(false); }
+      setDups(await loadDuplicates(vaultPath));
+    } catch (e) { toast.error(`Refresh failed: ${String(e)}`); } finally { setBusy(false); }
   };
 
   const listPane = (
@@ -108,14 +150,21 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names" aria-label="Search entities"
           className="min-w-0 flex-1 bg-transparent text-[14px] text-text-primary outline-none placeholder:text-text-muted" />
       </label>
-      <div role="tablist" aria-label="Entity kind" className="mx-1 mt-2 flex flex-wrap gap-0.5">
+      <div role="tablist" aria-label="Entity kind" data-testid="entity-kind-filter" className="mx-1 mt-2 flex flex-nowrap rounded-lg bg-surface-warm p-0.5">
         {FILTERS.map((f) => (
           <button key={f.id} role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)}
-            className={`inline-flex h-7 items-center rounded-md px-1.5 text-[12px] ${filter === f.id ? "bg-surface font-semibold text-text-primary shadow-sm ring-1 ring-black/5" : "text-text-muted hover:text-text-secondary"}`}>
+            className={`inline-flex h-7 min-w-0 flex-auto items-center justify-center whitespace-nowrap rounded-md px-1 text-[12px] ${filter === f.id ? "bg-surface font-semibold text-text-primary shadow-sm ring-1 ring-black/5" : "text-text-muted hover:text-text-secondary"}`}>
             {f.label}
           </button>
         ))}
       </div>
+      {dups.length > 0 && (
+        <button type="button" onClick={() => setShowDups(true)} data-testid="entity-dups-row" aria-current={showDups ? "true" : undefined}
+          className={`mx-0 mt-3 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] font-medium text-text-primary transition-colors ${showDups ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
+          <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><CopyCheck className="h-4 w-4" /></span>
+          <span className="min-w-0 flex-1 truncate">Possible duplicates ({dups.length})</span>
+        </button>
+      )}
       {!list && <div className="flex items-center gap-2 px-2 py-6 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your vault</div>}
       {list && groups.length === 0 && (
         <div className="px-2 py-8 text-center">
@@ -123,60 +172,46 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
           <p className="mt-1 text-[13px] text-text-muted">{q || filter !== "all" ? "Try another name or kind." : "They appear as you chat, and as Intent reads your prompts."}</p>
         </div>
       )}
-      {groups.map((g) => {
-        const all = expanded.has(g.kind) || !!q.trim();
-        const shown = all ? g.items : g.items.slice(0, PER_GROUP);
+      {flat.length > VIRTUAL_MIN
+        // A large vault: one windowed list of kind headings, rows and "Show all".
+        ? <VirtualRows items={flat} estimate={44} getKey={(r) => (r.k === "e" ? r.e.id : `${r.k}:${r.g.kind}`)}
+            render={(r) => r.k === "h" ? <div className="pt-4">{groupHead(r.g)}</div>
+              : r.k === "more" ? moreBtn(r.g)
+              : <ul><Row key={r.e.id} e={r.e} on={r.e.id === selectedId} onPick={pick} /></ul>} />
+        : groups.map((g) => {
+        const shown = shownOf(g);
         return (
           <section key={g.kind} aria-label={g.label} className="mt-4">
-            <h2 className="mb-1 flex items-baseline gap-2 px-2.5 text-[17px] font-semibold text-text-primary">
-              {g.label}<span className="text-[13px] font-normal text-text-muted">{g.items.length}</span>
-            </h2>
+            {groupHead(g)}
             <ul>{shown.map((e) => <Row key={e.id} e={e} on={e.id === selectedId} onPick={pick} />)}</ul>
-            {g.items.length > shown.length && (
-              <button onClick={() => setExpanded((s) => new Set(s).add(g.kind))} className="mt-1 px-2.5 text-[13px] font-medium text-accent hover:underline">
-                Show all {g.items.length}
-              </button>
-            )}
+            {g.items.length > shown.length && moreBtn(g)}
           </section>
         );
       })}
     </div>
   );
 
-  const toolbar = (
-    <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle ${phone ? "px-4" : "px-6"} py-3 text-[13px] text-text-muted`}>
-      <span>{list ? `${list.entities.length} entities, ${list.entities.filter((e) => e.saved).length} saved` : "Entities"}</span>
-      {note && <span>{note}</span>}
-      {!phone && (
-        <button onClick={refresh} disabled={busy} title="Rebuild the index, pages and summaries"
-          className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}{busy ? "Refreshing" : "Refresh"}
-        </button>
-      )}
-    </div>
+  const refreshBtn = (
+    <button onClick={refresh} disabled={busy} data-testid="entities-refresh"
+      title={busy ? "Refreshing" : "Refresh: rebuild the index, pages and summaries"} aria-label="Refresh entities"
+      className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-60">
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+    </button>
   );
+  const meta = list ? `${list.entities.length} · ${list.entities.filter((e) => e.saved).length} saved` : undefined;
 
-  const detail = target
+  const detail = showDups
+    ? <DuplicatesPane vault={vaultPath} pairs={dups} onDone={dupDone} />
+    : target
     ? <EntityDetailView key={`${target.kind}/${target.value}:${sel?.n ?? 0}`} vaultPath={vaultPath} target={target} />
     : list && !phone ? <p className="text-[15px] text-text-muted">Pick someone or something on the left.</p> : null;
 
   return (
-    <div className={`flex ${embedded ? "min-h-0 flex-1" : "h-full min-h-0"} flex-col bg-background`} data-testid="entities-view">
-      <div data-testid="page-header" className={`shrink-0 ${embedded ? "" : STICKY_HEAD}`}>
-      {!embedded && !phone && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border px-8 py-5">
-          <h1 className="flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><BookUser className="h-5 w-5" /></span>
-            Entities
-          </h1>
-          <p className="text-[14px] text-text-muted">People, places, companies and things from your conversations.</p>
-        </div>
-      )}
-      {toolbar}
-      </div>
-      <SideSpine storageKey="prevail.entities.spine" title="Entities" label="entities" testId="entities-list"
-        phone={phone} phoneDetail={sel !== null} onBack={() => setSel(null)} backLabel="All entities"
-        detail={<div className={phone ? "p-4" : "p-6"}>{detail}</div>}>
+    <div className={`flex ${embedded ? "min-h-0 flex-1" : "h-full min-h-0"} flex-col`} data-testid="entities-view">
+      {!embedded && <SettingsHeader icon={BookUser} title="Entities" subtitle="People, places, companies and things from your conversations." />}
+      <SideSpine storageKey="prevail.entities.spine" title="Entities" label="entities" testId="entities-list" meta={meta} actions={refreshBtn}
+        phone={phone} phoneDetail={sel !== null || showDups} onBack={() => { setSel(null); setShowDups(false); }} backLabel="All entities"
+        detail={<div className={phone ? "p-4" : "flex h-full min-h-0 flex-col px-6 pb-4 pt-6"}>{detail}</div>}>
         {listPane}
       </SideSpine>
     </div>

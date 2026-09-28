@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { Check, Circle, CircleDot, Compass, Pencil, Sigma, X, type LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
+import { invokeCached, setQueryData, useEngineQuery } from "./query";
 import { titleCase } from "./format";
 import { isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
@@ -67,20 +68,20 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
   const [sel, setSel] = useState(initial || "mission");
   const [picked, setPicked] = useState(false);
   // Each domain's ideal body ("" when it has none).
-  const [ideals, setIdeals] = useState<Record<string, string>>({});
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      const ds = await invoke<{ name: string }[]>("scan_vault", { path: vaultPath }).catch(() => []);
-      const names = (Array.isArray(ds) ? ds : []).map((d) => d.name).filter(isUserDomain).sort();
-      const out: Record<string, string> = {};
-      await Promise.all(names.map(async (n) => {
-        out[n] = await invoke<string>("read_domain_ideal", { vault: vaultPath, domain: n }).then((b) => b || "").catch(() => "");
-      }));
-      if (alive) setIdeals(out);
-    })();
-    return () => { alive = false; };
-  }, [vaultPath]);
+  // One cached entry for the whole set (the domain list, then every ideal in
+  // parallel), so a revisit paints them at once while they reload.
+  const idealsKey = `ideals:${vaultPath}`;
+  const idealsQ = useEngineQuery<Record<string, string>>(idealsKey, async () => {
+    const ds = await invokeCached<{ name: string }[]>("scan_vault", { path: vaultPath }).catch(() => []);
+    const names = (Array.isArray(ds) ? ds : []).map((d) => d.name).filter(isUserDomain).sort();
+    const out: Record<string, string> = {};
+    await Promise.all(names.map(async (n) => {
+      out[n] = await invoke<string>("read_domain_ideal", { vault: vaultPath, domain: n }).then((b) => b || "").catch(() => "");
+    }));
+    return out;
+  });
+  const ideals = idealsQ.data ?? {};
+  const setIdeals = (f: (m: Record<string, string>) => Record<string, string>) => setQueryData<Record<string, string>>(idealsKey, (m) => f(m ?? {}));
   const domains = Object.keys(ideals).sort();
   const choose = (id: string) => { setSel(id); setPicked(true); };
 

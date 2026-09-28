@@ -95,6 +95,12 @@ export const EDITOR_SUBS: Record<string, [page: string, row: string]> = {
   memory: ["settings", "daemon:memory"],
   usage: ["activity", "usage:overview"],
   omega: ["ideal-state", "omega"],
+  // Arena sections before 0.4.1. Scout and Schedule are gone; they land on Run.
+  arena: ["benchmark", "run"],
+  leaderboard: ["benchmark", "leaderboard"],
+  history: ["benchmark", "leaderboard"],
+  scout: ["benchmark", "run"],
+  schedule: ["benchmark", "run"],
 };
 /** The side row an old id asks for on its new page, if any. */
 export function editorRow(id: string): string | null {

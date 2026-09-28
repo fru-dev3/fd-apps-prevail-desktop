@@ -60,7 +60,7 @@ fn set_lock(enabled: bool) {
     *c = Some(enabled);
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_lock_status() -> serde_json::Value {
     let enabled = vault_lock_enabled();
     serde_json::json!({
@@ -70,8 +70,9 @@ pub fn vault_lock_status() -> serde_json::Value {
 }
 
 /// Flip Vault Lock. Persists immediately. Returns the fresh status.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_lock_set(enabled: bool) -> serde_json::Value {
+    let _serial = crate::vaultio::serial();
     set_lock(enabled);
     vault_lock_status()
 }

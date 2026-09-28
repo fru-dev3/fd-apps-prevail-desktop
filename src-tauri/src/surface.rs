@@ -121,22 +121,40 @@ fn gather_context(dir: &Path) -> String {
     out
 }
 
-// Parse the model's JSON (tolerant — extract the first {...} block).
+// Parse the model's JSON, tolerantly. The old parser took the text from the
+// FIRST "{" to the LAST "}", so any brace in prose around the JSON (a second
+// object, a "{placeholder}", a trailing note) made the slice invalid and the
+// card failed with "could not parse a surface". Now every "{" is tried as the
+// start of one JSON value (trailing text ignored), keys match in any case,
+// and items may be strings or objects carrying the text.
 fn parse_surface(output: &str) -> SurfaceResult {
-    let start = output.find('{');
-    let end = output.rfind('}');
     let mut res = SurfaceResult::default();
-    if let (Some(s), Some(e)) = (start, end) {
-        if e > s {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&output[s..=e]) {
-                let arr = |k: &str| -> Vec<String> {
-                    v.get(k)
-                        .and_then(|a| a.as_array())
-                        .map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.trim().to_string())).filter(|s| !s.is_empty()).collect())
-                        .unwrap_or_default()
-                };
-                res.questions = arr("questions");
-                res.actions = arr("actions");
+    for (i, _) in output.match_indices('{') {
+        let mut it = serde_json::Deserializer::from_str(&output[i..]).into_iter::<serde_json::Value>();
+        let Some(Ok(v)) = it.next() else { continue };
+        let Some(obj) = v.as_object() else { continue };
+        let arr = |k: &str| -> Option<Vec<String>> {
+            let a = obj.iter().find(|(key, _)| key.eq_ignore_ascii_case(k))?.1.as_array()?;
+            Some(
+                a.iter()
+                    .filter_map(|x| match x {
+                        serde_json::Value::String(s) => Some(s.clone()),
+                        serde_json::Value::Object(o) => ["text", "question", "action", "title", "step"]
+                            .iter()
+                            .find_map(|f| o.get(*f).and_then(|t| t.as_str()).map(str::to_string)),
+                        _ => None,
+                    })
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect(),
+            )
+        };
+        let (q, a) = (arr("questions"), arr("actions"));
+        if q.is_some() || a.is_some() {
+            res.questions = q.unwrap_or_default();
+            res.actions = a.unwrap_or_default();
+            if !res.questions.is_empty() || !res.actions.is_empty() {
+                break;
             }
         }
     }
@@ -191,7 +209,7 @@ pub async fn domain_surface(
     let out = crate::telegram_bridge::run_cli(&effective, model_opt, &prompt).await?;
     let mut res = parse_surface(&out);
     if res.questions.is_empty() && res.actions.is_empty() {
-        return Err("could not parse a surface from the model output".into());
+        return Err("The model's answer had no questions or next steps in it. Try Refresh.".into());
     }
     res.generated_at = now_ms();
     res.stale = false;
@@ -255,6 +273,15 @@ mod tests {
         let r = parse_surface(out);
         assert_eq!(r.questions, vec!["Q1", "Q2"]);
         assert_eq!(r.actions, vec!["A1"]);
+    }
+
+    #[test]
+    fn parse_surface_survives_braces_in_prose_and_object_items() {
+        // Braces around the JSON broke the first-to-last slice.
+        let out = "Using {domain} context:\n```json\n{\"Questions\":[{\"text\":\"Is the foo policy renewed?\"}],\"actions\":[\"Add the foo policy PDF\"]}\n```\nNote: {none}";
+        let r = parse_surface(out);
+        assert_eq!(r.questions, vec!["Is the foo policy renewed?"]);
+        assert_eq!(r.actions, vec!["Add the foo policy PDF"]);
     }
 
     #[test]

@@ -1,5 +1,6 @@
 // Components extracted from App.tsx.
 import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { VirtualRows } from "./virtualrows";
 import { confirm as tauriConfirm, open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { SpineColumn, useSpineCollapsed } from "./sidespine";
 import { RowAction } from "./rowaction";
@@ -25,6 +26,7 @@ const TELEMETRY_DAEMONS: Record<string, string> = {
 import { bytesHuman, compactNum, fmtCost, formatAuditedAt } from "./helpers";
 import { LS, PREF, cheapModel, getPref, lsGet, lsSet, setPref } from "./storage";
 import { Markdown } from "./Markdown";
+import { ErrorLine } from "./errorline";
 import { InsightsDisclosure } from "./widgets";
 import { AppRowLogo } from "./panels3";
 import type { AlignmentReport, BackupResult, ContextScore, DaemonStatus, Domain, DomainTask, EngineApp, PreambleOption, SkillEntry, SurfaceResult, TabId, ThreadMeta, UsageBucket } from "./types";
@@ -613,7 +615,7 @@ export function ThreadsRail({
           </div>
         )}
         <ul className="space-y-0.5">
-          {filteredThreads.map((t) => {
+          <VirtualRows items={filteredThreads} estimate={52} gap={2} getKey={(t) => t.path} render={(t) => {
             const active = t.path === activePath;
             const isRenaming = renaming === t.path;
             return (
@@ -701,7 +703,7 @@ export function ThreadsRail({
                 </div>
               </li>
             );
-          })}
+          }} />
         </ul>
       </div>
     </SpineColumn>
@@ -797,7 +799,7 @@ export function TasksPanel({ vaultPath, domain, nonce }: { vaultPath: string; do
   if (tasks.length === 0 && !adding) {
     return (
       <div className="mb-4">
-        <button onClick={() => setAdding(" ")} className="font-mono text-[11px] text-text-muted hover:text-accent">+ add a goal / task for {titleCase(domain)}</button>
+        <button onClick={() => setAdding(" ")} data-testid="add-goal-task" className="inline-flex items-center gap-1 text-[13px] text-text-muted hover:text-accent"><Plus className="h-3.5 w-3.5" aria-hidden />Add a goal or task</button>
       </div>
     );
   }
@@ -922,9 +924,12 @@ export function SurfacePanel({ vaultPath, domain, onPick, onAddTask }: { vaultPa
           {loading ? "Thinking…" : "Refresh"}
         </button>
       </div>
-      {err && <div className="text-xs text-text-muted">{/Bunker/i.test(err)
-        ? "Bunker Mode is on. Start a local model (Ollama) and insights will surface on-device."
-        : `Couldn't surface insights (${err.slice(0, 80)}). Needs a working agent.`}</div>}
+      {err && (/Bunker/i.test(err)
+        ? <div className="text-[13px] text-text-muted">Bunker Mode is on. Start a local model (Ollama) and insights will surface on-device.</div>
+        : <div data-testid="surface-error" className="flex items-start gap-2">
+            <ErrorLine error={err} className="min-w-0 flex-1" />
+            <button onClick={() => void load(true)} disabled={loading} className="shrink-0 text-[13px] font-medium text-accent hover:underline disabled:opacity-40">Retry</button>
+          </div>)}
       {hasContent && (() => {
         const questions = data!.questions.filter((q) => !dismissed.has(q));
         const actions = data!.actions.filter((a) => !dismissed.has(a));

@@ -119,6 +119,14 @@ const WEBUI_ALLOWED: &[&str] = &[
     // Entity chat: the conversations about one entity (read). Appending a
     // reply to its notes writes the vault, so it stays on the desktop.
     "engine_entity_threads",
+    // Apps as chat scopes: an app's access log and its own conversations
+    // (reads). Adding a trusted source and checking one stay on the Mac.
+    "engine_apps_access_log", "engine_apps_threads",
+    // Entity duplicates: the pending pairs (read). Merge and not-same write the
+    // vault, so they stay on the desktop.
+    "engine_entities_duplicates",
+    // An entity's files list (read). Pictures, websites and files are writes.
+    "engine_entities_files",
     // Goals: every domain's goals file (read). Writing one stays on the Mac.
     "goals_files_read",
     // Settings the phone displays read-only: which machine this is, whether the
@@ -1271,12 +1279,12 @@ fn json_response(code: u16, v: &serde_json::Value) -> tiny_http::Response<std::i
 
 // ── Tauri commands ──
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn webui_start(app: tauri::AppHandle, state: tauri::State<'_, WebuiState>, port: u16, user: String, pass: String, remote: Option<bool>) -> Result<WebuiStatus, String> {
     state.start(app, port, user, pass, remote.unwrap_or(false))?;
     Ok(state.status())
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn webui_stop(state: tauri::State<'_, WebuiState>) -> Result<WebuiStatus, String> {
     state.stop();
     Ok(state.status())
@@ -1300,7 +1308,7 @@ pub async fn webui_tunnel_start(state: tauri::State<'_, WebuiState>) -> Result<W
         .map_err(|e| format!("tunnel task: {e}"))??;
     Ok(state.status())
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn webui_tunnel_stop(state: tauri::State<'_, WebuiState>) -> WebuiStatus {
     state.stop_tunnel();
     state.status()
@@ -1501,7 +1509,8 @@ mod tests {
             "write_text_file", "write_file", "open_in_terminal", "app_uninstall",
             "bunker_set", "vault_lock_set", "engine_acts_approve", "engine_gws_approve",
             "engine_acts_deny", "engine_acts_rule_revoke",
-            "engine_entity_note_append", "entities_note", "entities_save", "goals_file_write",
+            "engine_entity_note_append", "engine_entities_merge", "engine_entities_not_same",
+            "engine_entities_set_picture", "engine_entities_set_website", "engine_entities_add_file", "entities_note", "entities_save", "goals_file_write",
             "engine_schedule_thread_add", "engine_schedule_set_enabled", "engine_schedule_remove",
             "engine_schedule_run",
             "engine_agent_run", "read_file", "read_text_file",

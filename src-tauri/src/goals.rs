@@ -32,7 +32,7 @@ fn goals_path(vault: &str, domain: &str) -> Result<PathBuf, String> {
 }
 
 /// Every domain's goals file (General first). A domain with none is left out.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn goals_files_read(vault: String) -> Result<Vec<GoalsFile>, String> {
     let mut names: Vec<String> = vec!["general".into()];
     if let Ok(ds) = crate::vault::scan_vault_impl(vault.clone()) {
@@ -53,8 +53,9 @@ pub fn goals_files_read(vault: String) -> Result<Vec<GoalsFile>, String> {
 }
 
 /// Write one domain's goals file (creating source/ when needed).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn goals_file_write(vault: String, domain: String, body: String) -> Result<String, String> {
+    let _serial = crate::vaultio::serial();
     let p = goals_path(&vault, &domain)?;
     if let Some(dir) = p.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("mkdir {}: {e}", dir.display()))?;

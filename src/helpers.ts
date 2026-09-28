@@ -61,8 +61,30 @@ export function domainColor(name: string): string {
   return DOMAIN_PALETTE[h % DOMAIN_PALETTE.length];
 }
 
+// THE cleaner for runtime and engine error text shown in the UI. Removes ANSI
+// escape codes, including the form where the escape byte was already turned
+// into a visible glyph (U+2327 or U+241B) or dropped, leaving "[33m".
 export function stripAnsi(s: string): string {
-  return s.replace(ANSI_RE, "");
+  return s
+    .replace(ANSI_RE, "")
+    .replace(/[\u2327\u241b]?\[[0-9;]*m/g, "")
+    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
+}
+
+// One plain sentence for an error: ANSI stripped, the "exit 1:" / "Error:"
+// prefixes dropped, cut at the first sentence end (or semicolon), capped.
+// The full cleaned text is what a "Details" disclosure shows.
+export function errorSentence(raw: string): { sentence: string; full: string } {
+  const full = stripAnsi(String(raw ?? "")).trim();
+  let t = full.replace(/^(error:\s*)?(exit -?\d+:\s*)?(error:\s*)?/i, "").trim();
+  const cut = t.search(/[.!?](\s|$)|;\s|\n/);
+  if (cut > 0) t = t.slice(0, cut);
+  t = t.trim();
+  if (t.length > 160) t = `${t.slice(0, 157).trimEnd()}...`;
+  if (!t) t = "Something went wrong";
+  t = t.charAt(0).toUpperCase() + t.slice(1);
+  if (!/[.!?]$/.test(t)) t += ".";
+  return { sentence: t, full };
 }
 
 export function isLocalCli(id: string): boolean {

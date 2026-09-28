@@ -452,10 +452,14 @@ test("16 · the chat header schedules the conversation in the flow", async ({ pa
   expect(toggled).toMatchObject({ id: "s_foo", enabled: false });
 });
 
-test("17 · Privacy lists Always allowed rules with a revoke per row", async ({ page }) => {
+test("17 · Autonomy lists what runs without asking, with a revoke per row", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" })));
-  await page.getByTestId("hub-row-always").click();
+  const row = page.getByTestId("hub-row-always");
+  await expect(row).toHaveText(/Runs without asking/, { timeout: 10_000 });
+  // It sits under Autonomy, not Privacy.
+  expect(await row.evaluate((el) => el.closest("[data-hub-group]")?.getAttribute("data-hub-group") ?? null)).toBe("Autonomy");
+  await row.click();
   const list = page.getByTestId("always-allowed");
   await expect(list).toBeVisible({ timeout: 10_000 });
   await expect(list).toContainText("Foo: list items");
@@ -463,6 +467,14 @@ test("17 · Privacy lists Always allowed rules with a revoke per row", async ({ 
   await list.getByTestId("rule-revoke").click();
   expect(await invokedCommands(page)).toContain("engine_acts_rule_revoke");
   await expect(list).toContainText("Nothing yet");
+});
+
+test("17b · Settings > Vault has no Rebuild structure or hygiene tools", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "vault" })));
+  await expect(page.getByTestId("hub-row-vault")).toHaveAttribute("aria-current", "true", { timeout: 10_000 });
+  await expect(page.getByText("Rebuild structure")).toHaveCount(0);
+  await expect(page.getByText(/hygiene|Normalize|Consolidate/i)).toHaveCount(0);
 });
 
 test("18 · the Inbox approves a queued Google write with the token spine", async ({ page }) => {
@@ -602,45 +614,77 @@ test("23 · Context: one click shows Memory, a Source file previews inline, the 
   expect(args).toEqual({ path: "/tmp/smoke-vault" });
 });
 
-test("24 · Council: pick a runtime, seat a model, make it chair; the saved config and the Panel follow", async ({ page }) => {
+// Council: named councils. The old single-panel page (runtime groups in the
+// column, a seat diagram) is gone; these replace its test.
+const councilPrefs = (page: import("@playwright/test").Page) => page.evaluate(() => {
+  const log = (window as unknown as { __invokeLog: Array<{ cmd: string; args: { json?: string } }> }).__invokeLog ?? [];
+  const last = [...log].reverse().find((e) => e.cmd === "ui_prefs_set");
+  return last?.args.json ? JSON.parse(last.args.json) as Record<string, string> : {};
+});
+
+test("24 · Council: build a named council, and the legacy panel keys follow the Default", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "council" })));
-  // Models-page layout: header, then the column and the detail below it.
-  await expect(page.getByTestId("page-header")).toContainText("Council", { timeout: 10_000 });
   const col = page.getByTestId("council-list");
-  await expect(col).toHaveAttribute("data-spine-column");
-  await expect(col.getByTestId("council-row-panel")).toHaveAttribute("aria-current", "true");
-  const summary = page.getByTestId("council-summary");
-  await expect(summary).toContainText(/^\d+ seats? · \d+ providers? · \d+ local · about /);
-  const seatsBefore = Number((await summary.innerText()).split(" ")[0]);
-  await expect(page.getByText("Changes save automatically")).toHaveCount(0);
+  await expect(col.getByTestId("council-row-default")).toBeVisible({ timeout: 10_000 });
+  // An upgrade keeps the old panel as "Default council"; no runtime groups, no seat diagram.
+  await expect(col.getByTestId("council-row-default")).toContainText("Default council");
+  await expect(col.getByTestId("council-default-mark")).toHaveCount(1);
+  await expect(col.locator("[data-testid^=council-row-claude]")).toHaveCount(0);
+  await expect(page.getByTestId("council-seats")).toHaveCount(0);
 
-  await col.getByTestId("council-row-claude").click();
-  const detail = page.getByTestId("council-runtime");
-  await expect(detail).toContainText("Claude Code");
-  const off = detail.locator("[data-council-model][data-on='0']").first();
-  const modelId = await off.getAttribute("data-council-model");
-  await off.getByRole("button", { name: /^Add .* to the panel$/ }).click();
-  const row = detail.locator(`[data-council-model="${modelId}"]`);
-  await expect(row).toHaveAttribute("data-on", "1");
-  await row.getByRole("button", { name: /^Make .* the chair$/ }).click();
-  await expect(row.getByTestId("council-chair-mark")).toBeVisible();
-  await expect(col.getByTestId("council-row-claude")).toContainText("on panel");
+  // The builder: pick models, see the cost, name it, pick a chair, create.
+  await page.getByTestId("council-new").click();
+  const b = page.getByTestId("council-builder");
+  await expect(b.getByTestId("council-cost-seats")).toHaveText("0");
+  const picks = b.locator("[data-council-model]");
+  const k1 = await picks.nth(0).getAttribute("data-council-model");
+  const k2 = await picks.nth(1).getAttribute("data-council-model");
+  await picks.nth(0).click();
+  await picks.nth(1).click();
+  await expect(b.getByTestId("council-cost-seats")).toHaveText("2");
+  await expect(b.getByTestId("council-cost-per")).toContainText(/about \$|Free/);
+  await b.getByTestId("council-name-input").fill("Foo council");
+  await b.getByTestId("council-chair-select").selectOption(k2!);
+  await b.getByTestId("council-create").click();
+  const row = col.locator("[data-council-name='Foo council']");
+  await expect(row).toHaveAttribute("aria-current", "true");
+  const detail = page.getByTestId("council-detail");
+  await expect(detail.getByTestId("council-members")).toContainText("Chair");
 
-  // The same saved config as before, pushed through the prefs write.
-  const slot = `claude::${modelId}`;
-  await expect.poll(() => page.evaluate((k) => {
-    const log = (window as unknown as { __invokeLog: Array<{ cmd: string; args: { json?: string } }> }).__invokeLog ?? [];
-    const last = [...log].reverse().find((e) => e.cmd === "ui_prefs_set");
-    if (!last?.args.json) return false;
-    const prefs = JSON.parse(last.args.json) as Record<string, string>;
-    return prefs["prevail.council.defaultChair"] === k && (prefs["prevail.council.defaultMembers"] ?? "").includes(k);
-  }, slot), { timeout: 10_000 }).toBe(true);
+  // Make it the Default: the list, the default id and the legacy keys all follow.
+  await detail.getByTestId("council-make-default").click();
+  await expect(row.getByTestId("council-default-mark")).toBeVisible();
+  await expect.poll(async () => {
+    const p = await councilPrefs(page);
+    const list = JSON.parse(p["prevail.council.list"] ?? "[]") as Array<{ id: string; name: string; seats: string[]; chair: string }>;
+    const foo = list.find((c) => c.name === "Foo council");
+    return !!foo && p["prevail.council.defaultId"] === foo.id && p["prevail.council.defaultChair"] === k2
+      && JSON.parse(p["prevail.council.defaultMembers"] ?? "[]").sort().join() === [k1, k2].sort().join();
+  }, { timeout: 10_000 }).toBe(true);
+});
 
-  // The Panel overview reflects it.
-  await col.getByTestId("council-row-panel").click();
-  await expect(summary).toContainText(`${seatsBefore + 1} seats`);
-  await expect(page.getByTestId("council-chair")).toContainText("Claude Code");
+test("24b · Council: Use in chat opens the chat Council tab on that council, and the chat never rewrites the saved chair", async ({ page }) => {
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => {
+    localStorage.setItem("prevail.council.list", JSON.stringify([
+      { id: "default", name: "Default council", seats: ["claude::sonnet"], chair: "claude::sonnet" },
+      { id: "foo", name: "Foo council", seats: ["claude::opus", "claude::sonnet"], chair: "claude::opus" },
+    ]));
+    localStorage.setItem("prevail.council.defaultId", "default");
+    window.dispatchEvent(new Event("prevail:council-changed"));
+    window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "council" }));
+  });
+  await page.getByTestId("council-row-foo").click();
+  await page.getByTestId("council-use-in-chat").click();
+  const picker = page.getByTestId("council-picker");
+  await expect(picker).toBeVisible({ timeout: 10_000 });
+  await expect(picker).toHaveValue("foo");
+  await picker.selectOption("default");
+  await expect(picker).toHaveValue("default");
+  // The saved Default chair is untouched by the chat.
+  expect(await page.evaluate(() => localStorage.getItem("prevail.council.defaultChair"))).not.toBe("claude::opus");
+  expect(await page.evaluate(() => localStorage.getItem("prevail.council.defaultId"))).toBe("default");
 });
 
 test("25 · Arena: the page header sits above the side column, and internal folders are not domains", async ({ page }) => {
@@ -655,23 +699,20 @@ test("25 · Arena: the page header sits above the side column, and internal fold
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "benchmark" })));
   const arena = page.getByTestId("arena-page");
-  const header = arena.getByTestId("page-header").first();
+  const header = page.locator("[data-shell=header]");
   await expect(header).toContainText("Arena", { timeout: 10_000 });
-  await expect(header.getByRole("button", { name: /New Run/ })).toBeVisible();
+  await expect(header.getByRole("button", { name: /Run a benchmark/ })).toBeVisible();
   const nav = arena.getByTestId("arena-nav");
   const hb = await header.boundingBox();
   const nb = await nav.boundingBox();
   expect(hb!.y + hb!.height).toBeLessThanOrEqual(nb!.y + 1);
-  // The Leaderboard title is the detail's section heading, not the page title.
-  await expect(arena.getByTestId("arena-section-head")).toContainText("Leaderboard");
-  await expect(nav.getByTestId("arena-domain-career")).toBeVisible();
-  await expect(nav.getByText(/^(Log|Meta)$/)).toHaveCount(0);
-  await expect(nav.locator("[data-testid^='arena-domain-_']")).toHaveCount(0);
-  // Only the active section carries the selected style; a picked domain does not.
-  await nav.getByTestId("arena-domain-career").click();
-  await expect(nav.getByTestId("arena-domain-career")).toHaveAttribute("aria-pressed", "true");
-  await expect(nav.getByTestId("arena-domain-career")).not.toHaveClass(/bg-surface-warm(?!\/)/);
-  await expect(nav.locator("[aria-current=page]")).toHaveCount(1);
+  // Run a benchmark is the first row and the default detail; domains are
+  // picked inside it, and internal folders are not among them.
+  await expect(nav.getByTestId("arena-row-run")).toHaveAttribute("aria-current", "true");
+  const run = arena.getByTestId("arena-run");
+  await expect(run.getByTestId("arena-domain-career")).toBeVisible();
+  await expect(run.getByText(/^(Log|Meta)/)).toHaveCount(0);
+  await expect(run.locator("[data-testid^='arena-domain-_']")).toHaveCount(0);
 });
 
 const TOOLKIT_FX = {
@@ -697,6 +738,9 @@ test("26 · Toolkit: one page with Skills, Tools and Frameworks; a skill turns o
   await expect(col.getByTestId("toolkit-group-skills")).toContainText("1 of 2 on");
   await expect(col.getByTestId("toolkit-group-tools")).toBeVisible();
   await expect(col.getByTestId("toolkit-group-frameworks")).toBeVisible();
+  // Groups start collapsed: open Skills, then the career source.
+  await col.getByTestId("toolkit-group-skills").click();
+  await col.getByTestId("toolkit-src-career").click();
   await col.getByTestId("toolkit-skill-foo-review").click();
   const detail = page.getByTestId("toolkit-detail-skill");
   await expect(detail.getByTestId("toolkit-skill-body")).toContainText("Check the foo twice.");
@@ -706,6 +750,7 @@ test("26 · Toolkit: one page with Skills, Tools and Frameworks; a skill turns o
       .find((e) => e.cmd === "skill_set_enabled")?.args ?? null)).toMatchObject({ domain: "career", name: "foo-review", enabled: false });
   await expect(col.getByTestId("toolkit-group-skills")).toContainText("0 of 2 on");
   // A tool and a framework open in the same pane.
+  await col.getByTestId("toolkit-group-tools").click();
   await col.getByTestId("toolkit-tool-Memory").click();
   await expect(page.getByTestId("toolkit-detail-tool")).toContainText("Remember and recall durable facts");
 });
@@ -716,7 +761,7 @@ test("27 · old Skills, Tools and Frameworks links open Toolkit on that group", 
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "skills" })));
   await expect(page.getByTestId("toolkit-list")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByTestId("toolkit-detail-skill")).toContainText("foo-review");
+  await expect(page.getByTestId("toolkit-detail-skill")).toContainText("Foo Review");
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "frameworks" })));
   await expect(page.getByTestId("toolkit-detail-fw")).toBeVisible({ timeout: 10_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: "tools" })));
@@ -875,14 +920,13 @@ async function openFoo(page: import("@playwright/test").Page) {
   await expect(page.getByTestId("entity-detail")).toContainText("Foo Bar", { timeout: 10_000 });
 }
 
-test("34 · Chat on an entity opens in the detail pane and every turn carries --entity", async ({ page }) => {
+test("34 · Chat on an entity is a tab of the detail pane and every turn carries --entity", async ({ page }) => {
   await mockTauri(page, { ...FOO_ENTITY, read_ideal_state: "", read_omega: "", read_user_md: "", read_memory_md: "", engine_entity_threads: [], save_thread: "/tmp/smoke-vault/data/domains/general/_threads/foo-new.md" });
   await page.goto("/");
   await openFoo(page);
-  await page.getByTestId("entity-chat-open").click();
+  await page.getByTestId("entity-tab-chat").click();
   const chat = page.getByTestId("entity-chat");
   await expect(chat).toBeVisible({ timeout: 10_000 });
-  await expect(chat).toContainText("Back to overview");
   await expect(chat.getByTestId("entity-chat-empty")).toContainText("Foo Bar");
   const box = chat.locator("[data-tour=composer] textarea");
   await box.fill("What do I know about Foo?");
@@ -892,15 +936,15 @@ test("34 · Chat on an entity opens in the detail pane and every turn carries --
   // Saved like a General thread, tagged with the entity.
   await expect.poll(async () => (await invokeArgs(page, "save_thread"))[0] ?? null, { timeout: 10_000 })
     .toMatchObject({ domain: null, entity: "person/foo" });
-  await chat.getByRole("button", { name: "Back to overview" }).click();
-  await expect(page.getByTestId("entity-detail")).toBeVisible();
+  await page.getByTestId("entity-tab-overview").click();
+  await expect(page.getByTestId("entity-overview")).toBeVisible();
 });
 
 test("35 · Add to notes appends a reply to the entity's notes", async ({ page }) => {
   await mockTauri(page, withThread);
   await page.goto("/");
   await openFoo(page);
-  await page.getByTestId("entity-chat-open").click();
+  await page.getByTestId("entity-tab-chat").click();
   const chat = page.getByTestId("entity-chat");
   const reply = chat.getByText("Foo likes the bar by the river.");
   await expect(reply).toBeVisible({ timeout: 10_000 });
@@ -917,12 +961,13 @@ test("36 · Your conversations lists the entity's threads and opens one; the Gen
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await expect(page.getByTestId("threads-list").getByTestId("thread-entity-chip")).toContainText("Foo Bar", { timeout: 10_000 });
   await openFoo(page);
+  await page.getByTestId("entity-tab-conversations").click();
   const convo = page.getByTestId("entity-conversations").getByTestId("entity-conversation");
   await expect(convo).toContainText("Lunch with Foo");
   await convo.click();
   const chat = page.getByTestId("entity-chat");
   await expect(chat.getByText("Foo likes the bar by the river.")).toBeVisible({ timeout: 10_000 });
-  await expect(chat.getByTestId("entity-thread-picker")).toHaveValue("foo-entity");
+  await expect(page.getByTestId("entity-thread-picker")).toHaveValue("foo-entity");
   await page.screenshot({ path: `${process.env.MOBILE_SHOTS_DIR || "/tmp"}/desktop-entity-chat.png` });
   expect(await invokeArgs(page, "engine_entity_threads")).toContainEqual({ vault: "/tmp/smoke-vault", id: "person/foo" });
 });

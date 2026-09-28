@@ -301,7 +301,7 @@ pub(crate) async fn transcribe_audio(path: Option<String>, base64: Option<String
 /// (build/notes.json, the same document Quick Capture writes) tagged
 /// source "voice". Returns the note id. Exposed to the WebUI because the
 /// generic read/write_text_file path Quick Capture uses is desktop-only.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn voice_note_capture(vault: String, domain: Option<String>, text: String) -> Result<String, String> {
     let text = text.trim().to_string();
     if text.is_empty() {

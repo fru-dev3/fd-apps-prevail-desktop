@@ -4,8 +4,10 @@
 // (_meta/activity.jsonl) - loop runs, executed approvals, tasks filed by loops,
 // briefings, app syncs. Full transparency into the autonomous system, at scale.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { VirtualRows } from "./virtualrows";
 import { Activity, ArrowUpRight, ChevronRight, ListPlus, Loader2, Mail, RefreshCw, RotateCw, Zap, Repeat, Bell, Workflow, CornerDownRight } from "lucide-react";
 import { invoke } from "./bridge";
+import { invokeCached, peekInvoke } from "./query";
 import { titleCase, relTime } from "./format";
 import { useProcesses } from "./processes";
 import { SettingsHeader } from "./sectionutil";
@@ -227,8 +229,12 @@ function matchesType(eventType: ActivityType, filter: ActivityType | "all"): boo
 export function SystemActivity({ vaultPath, initial }: { vaultPath: string; initial?: string }) {
   const [usageView, setUsageView] = useState<UsageView | null>(() =>
     initial?.startsWith("usage:") ? ((USAGE_VIEWS.find((v) => v.id === initial.slice(6))?.id ?? "overview") as UsageView) : null);
-  const [events, setEvents] = useState<ActivityEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Seeded from the shared cache so a revisit paints the last feed at once.
+  const [events, setEvents] = useState<ActivityEvent[]>(() => {
+    const c = peekInvoke<ActivityEvent[]>("activity_read", { vault: vaultPath, limit: 400 });
+    return Array.isArray(c) ? c : [];
+  });
+  const [loading, setLoading] = useState(() => peekInvoke("activity_read", { vault: vaultPath, limit: 400 }) === undefined);
   const [typeFilter, setTypeFilter] = useState<ActivityType | "all">("all");
   const [domainFilter, setDomainFilter] = useState<string>("all");
   // Which history row is drilled into (a stable id per row). Null = none open.
@@ -237,7 +243,7 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
 
   const load = useCallback(async () => {
     try {
-      const rows = await invoke<ActivityEvent[]>("activity_read", { vault: vaultPath, limit: 400 });
+      const rows = await invokeCached<ActivityEvent[]>("activity_read", { vault: vaultPath, limit: 400 }, { force: true });
       setEvents(Array.isArray(rows) ? rows : []);
     } catch { setEvents([]); }
     finally { setLoading(false); }
@@ -318,15 +324,15 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
         icon={Activity}
         title="Activity"
         subtitle="What Prevail did on its own, and what your models cost."
-        right={
-          <button onClick={load} disabled={loading} title="Refresh" aria-label="Refresh"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition-colors hover:border-accent-border hover:text-accent disabled:opacity-50">
+      />
+      <SideSpine storageKey="prevail.activity.spine" title="Show" label="activity" testId="activity-list"
+        actions={
+          <button onClick={load} disabled={loading} title="Refresh" aria-label="Refresh activity" data-testid="activity-refresh"
+            className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-50">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         }
-      />
-      <SideSpine storageKey="prevail.activity.spine" title="Kinds" label="activity kinds" testId="activity-list"
-        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All kinds"
+        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Back"
         detail={<div className={`space-y-5 ${phone ? "px-4 py-4" : "w-full px-8 py-6"}`} data-testid="activity-detail">
       <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{kindLabel}{!usageView && <span className="ml-2 text-[14px] font-normal tabular-nums text-text-muted">{shown.length}</span>}</h2>
       {usageView ? <UsageDashboard vaultPath={vaultPath} embedded view={usageView} /> : (<>
@@ -372,13 +378,13 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
           </div>
         ) : (
           <ul className="space-y-0 border-l border-border-subtle pl-4">
-            {shown.map((e, i) => {
+            <VirtualRows items={shown} estimate={56} getKey={(e, i) => `${e.ts}-${i}`} render={(e, i) => {
               const m = TYPE_META[e.type] ?? TYPE_META.other;
               const Icon = m.icon;
               const id = `${e.ts}-${i}`;
               const open = expandedId === id;
               return (
-                <li key={id} className="relative pb-3.5 last:pb-0">
+                <li key={id} className={`relative ${i === shown.length - 1 ? "pb-0" : "pb-3.5"}`}>
                   <span className={`absolute -left-[21px] top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface ring-2 ring-surface ${e.status === "error" ? "text-err" : m.tint}`}>
                     <Icon className="h-3 w-3" />
                   </span>
@@ -424,7 +430,7 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
                   )}
                 </li>
               );
-            })}
+            }} />
           </ul>
         )}
       </section>

@@ -44,19 +44,20 @@ pub fn load_hooks(vault: &str) -> Vec<Hook> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn hooks_read(vault: String) -> Result<Vec<Hook>, String> {
     Ok(load_hooks(&vault))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn hooks_write(vault: String, hooks: Vec<Hook>) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let body = serde_json::to_string_pretty(&hooks).map_err(|e| e.to_string())?;
     std::fs::write(hooks_path(&vault), body).map_err(|e| format!("write hooks: {e}"))
 }
 
 /// Run one hook's command now and return combined stdout/stderr (manual test).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn hooks_run(vault: String, id: String) -> Result<String, String> {
     let hook = load_hooks(&vault)
         .into_iter()

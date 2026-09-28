@@ -32,6 +32,7 @@ vi.mock("./bridge", () => ({
     if (cmd === "entities_note") return { ...SAM, notes: String(args?.text) };
     if (cmd === "entities_list") return LIST;
     if (cmd === "app_favicon") return "";
+    if (cmd === "engine_entities_duplicates") return [];
     if (cmd === "engine_entity_threads") return String(args?.id) === "person/sam-rivera"
       ? [{ slug: "2026-09-20_foo", domain: "general", title: "Roof plan with Sam", updated: Date.parse("2026-09-20T10:00:00Z"), turns: 4 }]
       : [];
@@ -95,13 +96,14 @@ describe("entity detail", () => {
     expect(screen.getAllByTestId("entity-mention")).toHaveLength(2);
     const chip = within(screen.getByTestId("entity-detail")).getByText("Maple St");
     expect(chip.closest("[data-entity]")?.getAttribute("data-entity")).toBe("place");
-    expect(screen.getByText("data/entities/people/sam-rivera.md")).toBeTruthy();
+    // The file path lives in the "..." menu, not on the page.
+    expect(screen.queryByText("data/entities/people/sam-rivera.md")).toBeNull();
   });
 
   it("saves to the vault and writes only the notes", async () => {
     await openOn("person", "Sam Rivera");
     await screen.findByText("You asked Sam about the roof.");
-    fireEvent.click(screen.getByRole("button", { name: /save to vault/i }));
+    fireEvent.click(screen.getByTestId("entity-save"));
     await waitFor(() => expect(screen.getAllByText("Saved").length).toBeGreaterThan(0));
     fireEvent.change(screen.getByLabelText("Your notes"), { target: { value: "Call after 5." } });
     fireEvent.click(screen.getByRole("button", { name: /save notes/i }));
@@ -125,7 +127,7 @@ describe("entity detail", () => {
   it("offers Chat, and lists the conversations about it, newest first", async () => {
     await openOn("person", "Sam Rivera");
     await screen.findByText("You asked Sam about the roof.");
-    expect(screen.getByRole("button", { name: /^chat$/i })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Chat" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /ask about it/i })).toBeNull();
     const list = await screen.findByTestId("entity-conversations");
     expect(within(list).getByText("Roof plan with Sam")).toBeTruthy();
@@ -137,8 +139,7 @@ describe("entity detail", () => {
     await openOn("place", "Maple St");
     await screen.findByText("No conversations mention it yet.");
     expect(screen.getByTestId("entity-map")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /open map/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /save to vault/i })).toBeTruthy();
+    expect(screen.getByTestId("entity-save")).toBeTruthy();
   });
 });
 
@@ -170,7 +171,8 @@ describe("Entities view", () => {
   it("keeps the page header in view and the content in one column", async () => {
     await openOn("person", "Sam Rivera");
     await screen.findByText("You asked Sam about the roof.");
-    expect(screen.getByTestId("page-header").className).toMatch(/\bsticky\b/);
+    // The page header is the shared shell header (SettingsHeader).
+    expect(document.querySelector("[data-settings-header]")).not.toBeNull();
     expect(document.body.innerHTML).not.toMatch(/grid-cols-[2-9]|columns-[2-9]/);
   });
 

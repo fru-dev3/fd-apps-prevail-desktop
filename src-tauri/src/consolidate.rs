@@ -42,7 +42,7 @@ fn plan_copy(from: &Path, to: &Path, rel: &str, ops: &mut Vec<ConsolidateOp>) {
 
 /// Dry run: every copy the consolidation would make to reach the canonical data/
 /// layout. No disk changes.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_consolidate_plan(vault: String) -> Result<Vec<ConsolidateOp>, String> {
     let root = PathBuf::from(&vault);
     let data = root.join("data");
@@ -58,7 +58,7 @@ pub fn vault_consolidate_plan(vault: String) -> Result<Vec<ConsolidateOp>, Strin
 
 /// Apply the plan: copy each file to its canonical home under data/. Creates parent
 /// dirs, never overwrites, leaves originals. Returns the ops actually applied.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn vault_consolidate_apply(vault: String) -> Result<Vec<ConsolidateOp>, String> {
     let mut ops = vault_consolidate_plan(vault)?;
     for op in ops.iter_mut() {

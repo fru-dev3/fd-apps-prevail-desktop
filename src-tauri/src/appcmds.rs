@@ -50,7 +50,7 @@ fn reject_sensitive_read(path: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn read_file(path: String) -> Result<String, String> {
     reject_sensitive_read(&path)?;
     read_to_string_retry(&path).map_err(|e| format!("read {}: {}", path, e))
@@ -62,7 +62,7 @@ pub(crate) fn read_file(path: String) -> Result<String, String> {
 // where a pre-positioned symlink could redirect the write), and opened with
 // O_NOFOLLOW so an existing symlink at the target is refused rather than
 // followed.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn log_fatal(msg: String) {
     let dir = fatal_log_dir();
     let _ = fs::create_dir_all(&dir);
@@ -137,7 +137,7 @@ fn write_bootstrap_vault(path: &str) {
 
 /// Copy the bundled sample vault into the user's Documents and return its
 /// path, so a new user can explore every feature without creating domains.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn import_sample_vault(app: tauri::AppHandle) -> Result<String, String> {
     use tauri::Manager;
     let src = app
@@ -176,19 +176,19 @@ pub(crate) fn import_sample_vault(app: tauri::AppHandle) -> Result<String, Strin
 
 /// True if `path` is an existing directory — used on launch to detect a stale
 /// remembered vault (e.g. a demo vault the user deleted) so we can re-seed.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn vault_exists(path: String) -> bool {
     !path.is_empty() && Path::new(&path).is_dir()
 }
 
 /// Persist the chosen vault path so it survives a cache wipe.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn remember_vault(path: String) {
     write_bootstrap_vault(&path);
 }
 
 /// Boot fallback: the last vault we remembered (when localStorage was wiped).
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn bootstrap_vault() -> Option<String> {
     let bf = bootstrap_vault_path()?;
     let s = read_to_string_retry(&bf).ok()?;
@@ -202,7 +202,7 @@ pub(crate) fn bootstrap_vault() -> Option<String> {
 
 // Create a new domain folder under the vault root. Writes a minimal
 // state.md skeleton so scan_vault picks it up immediately.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn create_domain(app: tauri::AppHandle, vault: String, name: String) -> Result<Domain, String> {
     let slug: String = name
         .trim()
@@ -367,7 +367,7 @@ pub(crate) async fn move_to_applications(app: tauri::AppHandle, source: String) 
 // Read the full content of a single skill (SKILL.md, README.md, or
 // skill.md — whichever is present). Used by the Skills tab to expand
 // a skill inline so the user can read its contents.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn read_skill(path: String) -> Result<String, String> {
     let dir = PathBuf::from(&path);
     for candidate in &["SKILL.md", "README.md", "skill.md"] {
@@ -386,8 +386,9 @@ pub(crate) fn read_skill(path: String) -> Result<String, String> {
 // model that produced it, and the generation config (field, register, batch,
 // seed). Best-effort: any failure is returned and the caller ignores it, because
 // archiving must never block or break spark generation.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn spark_archive_append(vault: String, record: serde_json::Value) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     let root = PathBuf::from(&vault);
     if !root.exists() {
         return Err(format!("vault not found: {vault}"));
@@ -404,7 +405,7 @@ pub(crate) fn spark_archive_append(vault: String, record: serde_json::Value) -> 
 // Read recent sparks back from the archive (newest first), capped so browsing the
 // history never floods memory. Returns the parsed JSONL records; malformed lines
 // are skipped rather than failing the whole read.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn spark_archive_read(vault: String, limit: Option<usize>) -> Result<Vec<serde_json::Value>, String> {
     let path = PathBuf::from(&vault).join("_sparks.jsonl");
     if !path.exists() {
@@ -459,12 +460,13 @@ fn reject_sensitive_write(path: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     reject_sensitive_write(&path)?;
     fs::write(&path, contents).map_err(|e| format!("write {path}: {e}"))
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn read_text_file(path: String) -> Result<String, String> {
     reject_sensitive_read(&path)?;
     read_to_string_retry(&path).map_err(|e| format!("read {path}: {e}"))
@@ -476,11 +478,12 @@ pub(crate) fn read_text_file(path: String) -> Result<String, String> {
 /// known, with vault-RELATIVE file paths so records survive the vault living
 /// at different roots per machine. The engine's captioning pass reads and
 /// enriches the same file.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn attachments_index_append(
     vault: String,
     records: Vec<serde_json::Value>,
 ) -> Result<(), String> {
+    let _serial = crate::vaultio::serial();
     if records.is_empty() {
         return Ok(());
     }
@@ -511,7 +514,7 @@ pub(crate) fn attachments_index_append(
 /// file attachment; the model reads it with its (multimodal) file tools. Only
 /// well-known raster extensions are accepted and the decoded payload is capped
 /// so a runaway clipboard can't fill the disk.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn save_pasted_image(
     vault: String,
     data_base64: String,
@@ -548,7 +551,7 @@ pub(crate) fn save_pasted_image(
 
 // Diagnostics for the About → Run Diagnosis / Debug Dump panel. Gathers the
 // app + engine versions, key paths, and OS so support issues are one copy away.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn app_diagnostics() -> serde_json::Value {
     let home = std::env::var("HOME").unwrap_or_default();
     let engine_bin = engine::resolve_prevail_bin();
@@ -576,7 +579,7 @@ pub(crate) fn app_diagnostics() -> serde_json::Value {
 // app bundle after we quit) and exits. scope "app" removes just the .app;
 // "data" also removes app data, caches, and stored secrets. The user's VAULT
 // is NEVER touched (hard rule: never delete user data).
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn app_uninstall(app: tauri::AppHandle, scope: String) -> Result<(), String> {
     let home = std::env::var("HOME").unwrap_or_default();
     let mut script = String::from("#!/bin/bash\nsleep 2\n");
@@ -619,7 +622,7 @@ pub(crate) fn app_uninstall(app: tauri::AppHandle, scope: String) -> Result<(), 
 
 // read_memory_md lives in idealstate.rs.
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn write_paste_attachment(vault: String, body: String) -> Result<String, String> {
     let dir = PathBuf::from(&vault).join("_paste");
     fs::create_dir_all(&dir).map_err(|e| format!("mkdir _paste: {e}"))?;
@@ -638,7 +641,7 @@ pub(crate) fn write_paste_attachment(vault: String, body: String) -> Result<Stri
 /// the path. Fallback capture for platforms without the Web Speech API (the
 /// desktop WKWebView): we can still record + keep the audio even if we can't
 /// transcribe it live. Type-guarded to common recorder outputs; 50 MB cap.
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn write_voice_note(vault: String, base64: String, ext: String) -> Result<String, String> {
     use ::base64::Engine as _;
     let ext = ext.to_lowercase();
@@ -675,13 +678,14 @@ pub struct SessionTurn {
     pub model: Option<String>,
     pub content: String,
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn save_session(
     vault: String,
     domain: Option<String>,
     title: Option<String>,
     turns: Vec<SessionTurn>,
 ) -> Result<String, String> {
+    let _serial = crate::vaultio::serial();
     if turns.is_empty() {
         return Err("session is empty".into());
     }
