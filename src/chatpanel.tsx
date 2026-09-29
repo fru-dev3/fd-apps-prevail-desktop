@@ -129,7 +129,11 @@ export function ChatPanel({
   phoneMic,
   entity = null,
   scopeApp = null,
+  scopeGoogleAccount = null,
 }: {
+  /// A Google app's Account picker: an account id or "all". Sent as
+  /// --google-account and wins over every other account source.
+  scopeGoogleAccount?: string | null;
   /// App chat: this panel is one app's own conversation (the app's Chat tab).
   /// Threads live in `_app-<id>` tagged `app: <id>`, and every turn goes
   /// through the engine with --scope-app.
@@ -2200,7 +2204,7 @@ export function ChatPanel({
     // The binding comes from the open app itself (app chat) or from whichever
     // attached Google app in this conversation carries one (domain chat) - see
     // boundGoogleAccount above.
-    const googleAccountArg = inheritedGoogleAccount(pickedGoogleAccounts, googleConnectedAccounts, googleInContext, boundGoogleAccount);
+    const googleAccountArg = (scopeApp && scopeGoogleAccount) || inheritedGoogleAccount(pickedGoogleAccounts, googleConnectedAccounts, googleInContext, boundGoogleAccount);
     if (sendCli && ENGINE_ONLY.has(sendCli) && !useEngine) {
       const label = chatCli === "openrouter" ? "OpenRouter" : chatCli === "lmstudio" ? "LM Studio" : "oMLX";
       setMessages((m) => [...m.slice(0, -1), { role: "assistant", content: `${label} runs through the engine, which isn't available right now. Make sure the Prevail engine is installed, then try again.`, ts: Date.now(), cli: chatCli, model: chatModel ?? undefined }]);

@@ -63,6 +63,18 @@ pub async fn engine_apps_threads(vault: String, id: String) -> Result<Value, Str
     engine_json(vec!["apps".into(), "threads".into(), id, "--vault".into(), vault, "--json".into()]).await
 }
 
+// A Google app's accounts: [{ id, label?, default, via: "gws" | "claude" }].
+// The emails stay on this Mac; the engine never logs them.
+pub(crate) fn accounts_args(vault: &str, id: &str) -> Result<Vec<String>, String> {
+    check_app(id)?;
+    Ok(vec!["apps".into(), "accounts".into(), id.into(), "--vault".into(), vault.into(), "--json".into()])
+}
+
+#[tauri::command]
+pub async fn engine_apps_accounts(vault: String, id: String) -> Result<Value, String> {
+    engine_json(accounts_args(&vault, &id)?).await
+}
+
 const SOURCE_KINDS: &[&str] = &["mcp-remote", "web", "links"];
 
 // The engine checks each address (https only, no credentials); this only keeps
@@ -160,6 +172,12 @@ mod tests {
         assert!(access_log_args("/v", Some("--x".into()), None, None, None, None).is_err());
         let d = access_log_args("/v", None, Some("--rm".into()), None, None, None).unwrap();
         assert!(!d.contains(&"--rm".to_string()), "a flag-shaped value is dropped");
+    }
+
+    #[test]
+    fn accounts_args_shape() {
+        assert_eq!(accounts_args("/v", "gmail").unwrap(), ["apps", "accounts", "gmail", "--vault", "/v", "--json"]);
+        assert!(accounts_args("/v", "--x").is_err());
     }
 
     #[test]

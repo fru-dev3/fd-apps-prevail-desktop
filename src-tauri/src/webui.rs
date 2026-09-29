@@ -121,7 +121,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_entity_threads",
     // Apps as chat scopes: an app's access log and its own conversations
     // (reads). Adding a trusted source and checking one stay on the Mac.
-    "engine_apps_access_log", "engine_apps_threads",
+    "engine_apps_access_log", "engine_apps_threads", "engine_apps_accounts",
     // Entity duplicates: the pending pairs (read). Merge and not-same write the
     // vault, so they stay on the desktop.
     "engine_entities_duplicates",
@@ -130,6 +130,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     // Linking: what other conversations noted for a domain or entity (read).
     // Setting a relation and the autosave mode are writes, desktop only.
     "engine_updates",
+    // Structure suggestions (read). Creating or editing a project and
+    // accepting or dismissing a suggestion are writes, desktop only.
+    "engine_suggest_structure",
     // Goals: every domain's goals file (read). Writing one stays on the Mac.
     "goals_files_read",
     // Settings the phone displays read-only: which machine this is, whether the
@@ -1515,6 +1518,7 @@ mod tests {
             "engine_entity_note_append", "engine_entities_merge", "engine_entities_not_same",
             "engine_entities_set_picture", "engine_entities_set_website", "engine_entities_add_file", "entities_note", "entities_save", "goals_file_write",
             "engine_entities_set_relation", "engine_config_autosave_set", "engine_config_autosave_get",
+            "engine_projects_create", "engine_projects_set", "engine_suggest_accept", "engine_suggest_dismiss",
             "engine_schedule_thread_add", "engine_schedule_set_enabled", "engine_schedule_remove",
             "engine_schedule_run",
             "engine_agent_run", "read_file", "read_text_file",

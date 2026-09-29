@@ -1,9 +1,10 @@
 // Goals, the model: a domain's source/goals.md is a plain markdown list, one
 // goal per item, with inline fields in the style memory/tasks.md uses:
 //
-//   - [ ] Run a half marathon ~id:g-3f2a ~status:active ~due:2026-12-31 ~progress:40
+//   - [ ] Run a half marathon ~id:g-3f2a ~status:active ~due:2026-12-31 ~progress:40 ~project:foo-race
 //     why: Feel strong again.
 //
+// `~project:<slug>` links the goal to a tracked project (project/<slug>).
 // `[x]` means done. Anything in the file that is not a goal item (a heading,
 // a paragraph) is kept exactly as it was when the list is written back.
 
@@ -16,12 +17,14 @@ export interface Goal {
   due: string | null;
   progress: number | null;
   why: string;
+  // The tracked project it serves, by slug.
+  project?: string | null;
 }
 type Block = { goal: Goal } | { raw: string };
 export type GoalsDoc = { domain: string; blocks: Block[] };
 
 const ITEM = /^- \[( |x|X)\]\s+(.*)$/;
-const FIELD = /\s+~(id|status|due|progress):(\S+)/g;
+const FIELD = /\s+~(id|status|due|progress|project):(\S+)/g;
 
 export function newGoalId(): string {
   return `g-${Math.random().toString(36).slice(2, 8)}`;
@@ -44,7 +47,7 @@ export function parseGoals(domain: string, body: string): GoalsDoc {
     blocks.push({ goal: {
       id: f.id || `g-${domain}-${i}`, domain, title, status,
       due: f.due && /^\d{4}-\d{2}-\d{2}$/.test(f.due) ? f.due : null,
-      progress, why: whyLine ? whyLine[1].trim() : "",
+      progress, why: whyLine ? whyLine[1].trim() : "", project: f.project || null,
     } });
   }
   return { domain, blocks };
@@ -57,6 +60,7 @@ export function goalLine(g: Goal): string {
   let line = `- [${g.status === "done" ? "x" : " "}] ${clean(g.title) || "Untitled goal"} ~id:${g.id} ~status:${g.status}`;
   if (g.due) line += ` ~due:${g.due}`;
   if (g.progress !== null) line += ` ~progress:${g.progress}`;
+  if (g.project) line += ` ~project:${clean(g.project).replace(/\s/g, "-")}`;
   if (clean(g.why)) line += `\n  why: ${clean(g.why)}`;
   return line;
 }

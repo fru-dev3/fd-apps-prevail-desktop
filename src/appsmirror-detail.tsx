@@ -12,6 +12,7 @@ import {
 } from "./appsmirror-model";
 import { PinButton, SigninHelp, TONE_PILL, TONE_TEXT } from "./appsmirror-parts";
 import { AppScopeView } from "./appchat";
+import { useGoogleAccounts } from "./appscope";
 
 const card = "rounded-xl border border-border-subtle bg-surface p-4 sm:p-5";
 const SCHEDULES: { id: Schedule; label: string }[] = [
@@ -36,6 +37,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
   useEffect(() => { setDraft(emptyDraft(app)); setDirty(false); setLastRun(null); setTools(app.tools); }, [app.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!dirty) setDraft(emptyDraft(app)); setTools(app.tools); }, [app]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const accounts = useGoogleAccounts(vaultPath, app);
   const withTools: MirrorApp = useMemo(() => ({ ...app, tools }), [app, tools]);
   const readable = syncableTools(withTools);
   const blocked = syncBlockedReason(app);
@@ -167,6 +169,21 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
             </div>
           )}
 
+          {accounts.length > 0 && (
+            <section className={card} aria-label="Google accounts" data-testid="app-accounts">
+              <h4 className="text-base font-semibold text-text-primary">Accounts<span className="ml-2 text-[13px] font-normal text-text-muted">{accounts.length}</span></h4>
+              <ul className="mt-2 divide-y divide-border-subtle">
+                {accounts.map((a) => (
+                  <li key={a.id} data-testid="app-account-row" className="flex min-w-0 items-center gap-3 py-2">
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-text-primary" title={a.id}>{a.label && a.label !== a.id ? `${a.label} (${a.id})` : a.id}</span>
+                    {a.default && <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[12px] font-medium text-accent">Default</span>}
+                    <span className="shrink-0 text-[12px] text-text-muted">via {a.via === "gws" ? "Google Workspace" : "Claude"}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[12px] leading-relaxed text-text-muted">Chat can read across every account. Drafts go to one account and wait for you; Prevail never sends.</p>
+            </section>
+          )}
           <div className={`${card} flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between`}>
             <div className="min-w-0">
               <p className="text-[14px] font-semibold text-text-primary">{lastLine ?? "Last sync failed"}</p>

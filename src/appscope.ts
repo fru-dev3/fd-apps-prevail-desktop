@@ -4,7 +4,9 @@
 //   prevail apps access-log [--app] [--domain] [--entity] [--thread] --json
 //   prevail apps threads <id> --json            -> [{ slug, title, updated, turns }]
 //   prevail apps add-source --kind K --url U --name N --json
+//   prevail apps accounts <id> --json            -> [{ id, label?, default, via }]
 import { invoke } from "./bridge";
+import { useInvokeQuery } from "./query";
 import type { ChatStep } from "./types";
 import type { MirrorApp, MirrorTool, RuntimeId } from "./appsmirror-model";
 import { RUNTIME_LABEL } from "./appsmirror-model";
@@ -21,6 +23,8 @@ export interface AccessLine {
   entity?: string;
   summary: string;
   app: string;
+  // The Google account a Google tool call ran as (engine 0.4.4 and later).
+  account?: string;
 }
 export interface AccessFilter { app?: string; domain?: string; entity?: string; thread?: string; limit?: number }
 
@@ -31,6 +35,30 @@ export function accessLogArgs(vault: string, f: AccessFilter): Record<string, un
 export function asAccessLines(r: unknown): AccessLine[] {
   const list = Array.isArray(r) ? r : [];
   return list.filter((l): l is AccessLine => !!l && typeof l.ts === "number" && typeof l.tool === "string").sort((a, b) => b.ts - a.ts);
+}
+
+// Google apps (Gmail, Drive, Calendar) can read across every Google account
+// the user signed into, through the google_workspace connector (--google-account).
+export interface GoogleAccount { id: string; label?: string; default: boolean; via: "gws" | "claude" }
+export const GOOGLE_APP_RE = /gmail|google[ -]?(drive|calendar)|^(drive|calendar)$/i;
+export const isGoogleApp = (app: { id: string; name: string }) => GOOGLE_APP_RE.test(app.id) || GOOGLE_APP_RE.test(app.name);
+export function asGoogleAccounts(r: unknown): GoogleAccount[] {
+  return (Array.isArray(r) ? r : []).filter((a): a is GoogleAccount => !!a && typeof a.id === "string" && !!a.id.trim());
+}
+// The accounts a Google app can use; empty for any other app.
+export function useGoogleAccounts(vault: string, app: { id: string; name: string }): GoogleAccount[] {
+  const q = useInvokeQuery<unknown>("engine_apps_accounts", isGoogleApp(app) ? { vault, id: app.id } : null);
+  return asGoogleAccounts(q.data);
+}
+export const appAccountPref = (id: string) => `prevail.app.${id}.googleAccount`;
+// What the Account picker shows and a turn sends: the remembered choice while it
+// still names a signed-in account (or "all"); else every account when there are
+// several, the one when there is one, nothing when there are none.
+export function effectiveGoogleAccount(saved: string, accounts: GoogleAccount[]): string | null {
+  if (accounts.length === 0) return null;
+  if (saved === "all" && accounts.length > 1) return "all";
+  if (accounts.some((a) => a.id === saved)) return saved;
+  return accounts.length > 1 ? "all" : accounts[0]!.id;
 }
 
 export type AppThread = { slug: string; title: string; updated: number; turns: number };

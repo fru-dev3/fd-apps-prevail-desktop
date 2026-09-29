@@ -19,6 +19,7 @@ import {
   type Goal, type GoalsDoc,
 } from "./goalsmodel";
 import type { BoardTask } from "./types";
+import { openTrackedProject, slugOf, useTrackedProjects } from "./trackedprojects";
 
 type Tab = "all" | "active" | "done";
 type Sel = "overview" | "mission" | "vision" | `goal:${string}`;
@@ -68,6 +69,7 @@ export function GoalsPage({ vaultPath }: { vaultPath: string }) {
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [projects, setProjects] = useState<{ slug: string; title: string; domain: string }[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const tracked = useTrackedProjects(vaultPath).projects;
 
   const load = useCallback(async () => {
     const files = await invoke<{ domain: string; body: string }[]>("goals_files_read", { vault: vaultPath }).catch(() => []);
@@ -192,12 +194,25 @@ export function GoalsPage({ vaultPath }: { vaultPath: string }) {
               </select>
             </label>
             <label className="block">
+              <span className="mb-1 block text-[13px] font-medium text-text-secondary">Project</span>
+              <select aria-label="Project" data-testid="goal-project" value={g.project ?? ""} onChange={(e) => set({ project: e.target.value || null })} className={inputCls}>
+                <option value="">None</option>
+                {g.project && !tracked.some((p) => slugOf(p.id) === g.project) && <option value={g.project}>{g.project}</option>}
+                {tracked.map((p) => <option key={p.id} value={slugOf(p.id)}>{p.name}</option>)}
+              </select>
+            </label>
+            <label className="block">
               <span className="mb-1 block text-[13px] font-medium text-text-secondary">Progress {g.progress ?? 0}%</span>
               <input type="range" min={0} max={100} step={5} aria-label="Progress" value={g.progress ?? 0} onChange={(e) => set({ progress: Number(e.target.value) })} className="w-full accent-[var(--color-accent)]" />
             </label>
           </div>
         </div>
-        <h3 className={`${SECTION_TITLE} mt-8 mb-2`}>Projects</h3>
+        {g.project && (
+          <button onClick={() => openTrackedProject(g.project!)} data-testid="goal-project-open" className={`${BODY} mt-4 text-left text-accent hover:underline`}>
+            Open {tracked.find((p) => slugOf(p.id) === g.project)?.name ?? g.project}
+          </button>
+        )}
+        <h3 className={`${SECTION_TITLE} mt-8 mb-2`}>From your prompts</h3>
         {linkedProjects.length ? (
           <ul className="space-y-1">{linkedProjects.map((p) => (
             <li key={p.slug}><button onClick={() => { try { localStorage.setItem("prevail.intent.project", p.slug); localStorage.setItem("prevail.mirror.view", "projects"); } catch { /* storage off */ } window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "projects" })); }}

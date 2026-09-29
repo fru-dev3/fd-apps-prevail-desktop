@@ -1,4 +1,4 @@
-// Intent > Projects detail: Title Case titles, pinned tabs (Overview,
+// Intent > Projects detail (the inferred view): Title Case titles, pinned tabs (Overview,
 // Requirements, Your prompts, Timeline) that switch in place, the From you /
 // Inferred filter, Technical details folded, and prompts shown verbatim.
 // Names are invented.
@@ -32,7 +32,8 @@ async function open(page: Page) {
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "projects" })));
+  // Intent > Projects (Work > Projects is the projects you track).
+  await page.evaluate(() => { localStorage.setItem("prevail.mirror.view", "projects"); window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "intent" })); });
   await page.getByTestId("projects-list").getByText("Foo Shop for the Web").click({ timeout: 10_000 });
   await expect(page.getByTestId("project-header")).toContainText("Foo Shop for the Web");
 }

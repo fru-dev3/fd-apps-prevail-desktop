@@ -1,7 +1,8 @@
 // The access log, drawn: every call a conversation made to an app, newest
 // first. Used as an app's Activity tab (one app) and as the "Apps used"
 // section of a domain's Context and an entity's detail (every app, filtered).
-import { Boxes, Layers, MessageSquare, X } from "lucide-react";
+import { useState } from "react";
+import { AtSign, Boxes, Layers, MessageSquare, X } from "lucide-react";
 import { useInvokeQuery } from "./query";
 import { titleCase } from "./format";
 import { VirtualRows } from "./virtualrows";
@@ -42,8 +43,9 @@ function Row({ l, showApp, appName, threadTitle, onOpenThread }: {
           <span className="ml-auto shrink-0 text-[12px] tabular-nums text-text-muted">{when(l.ts)}</span>
         </div>
         {l.summary && <p className="mt-0.5 line-clamp-2 break-words text-[13px] text-text-secondary [overflow-wrap:anywhere]">{l.summary}</p>}
-        {(l.thread || l.domain || l.entity) && (
+        {(l.thread || l.domain || l.entity || l.account) && (
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-text-muted">
+            {l.account && <span data-testid="access-account" className="inline-flex min-w-0 items-center gap-1"><AtSign className="h-3 w-3 shrink-0" /><span className="truncate">{l.account}</span></span>}
             {l.domain && <span className="inline-flex items-center gap-1"><Layers className="h-3 w-3" />{l.domain.startsWith("_app-") ? "App chat" : titleCase(l.domain)}</span>}
             {l.entity && <span className="inline-flex min-w-0 items-center gap-1"><Boxes className="h-3 w-3 shrink-0" /><span className="truncate">{l.entity.split("/").pop()}</span></span>}
             {l.thread && (onOpenThread
@@ -56,8 +58,10 @@ function Row({ l, showApp, appName, threadTitle, onOpenThread }: {
   );
 }
 
-export function AppActivity({ vaultPath, filter, showApp = false, empty, onClearThread, threadTitle, onOpenThread }: {
+export function AppActivity({ vaultPath, filter, showApp = false, empty, onClearThread, threadTitle, onOpenThread, accounts = [] }: {
   vaultPath: string;
+  // A Google app's accounts: each line names its account, and a filter picks one.
+  accounts?: string[];
   filter: AccessFilter;
   // Every app's lines (a domain's or an entity's "Apps used"): name each one.
   showApp?: boolean;
@@ -69,7 +73,10 @@ export function AppActivity({ vaultPath, filter, showApp = false, empty, onClear
   onOpenThread?: (slug: string) => void;
 }) {
   const q = useInvokeQuery<unknown>("engine_apps_access_log", accessLogArgs(vaultPath, filter), { invalidateOn: ["prevail:threads-changed"] });
-  const lines = asAccessLines(q.data);
+  const [account, setAccount] = useState("");
+  const all = asAccessLines(q.data);
+  const lines = account ? all.filter((l) => l.account === account) : all;
+  const accountChoices = Array.from(new Set([...accounts, ...all.map((l) => l.account ?? "").filter(Boolean)]));
   const apps = useChatApps(showApp ? vaultPath : null);
   const appName = (id: string) => apps.find((a) => a.id === id)?.name ?? id;
   return (
@@ -81,6 +88,13 @@ export function AppActivity({ vaultPath, filter, showApp = false, empty, onClear
             <button type="button" onClick={onClearThread} aria-label="Show every conversation" title="Show every conversation" className="rounded-full p-0.5 hover:bg-accent/15"><X className="h-3 w-3" /></button>
           </span>
         </div>
+      )}
+      {accountChoices.length > 1 && (
+        <select aria-label="Filter by account" data-testid="activity-account-filter" value={account} onChange={(e) => setAccount(e.target.value)}
+          className="mb-2 h-8 max-w-full truncate rounded-lg border border-border bg-background px-2 text-[13px] text-text-secondary focus:border-accent-border focus:outline-none">
+          <option value="">All accounts</option>
+          {accountChoices.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
       )}
       {q.loading ? (
         <p className="py-3 text-[14px] text-text-muted">Reading the access log</p>

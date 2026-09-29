@@ -6,7 +6,7 @@
 // keeps a readable copy (prompts.md) and an exact one (prompts.jsonl).
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight, Check, Lightbulb, Loader2, RefreshCw, Sparkles, Target, type LucideIcon,
+  ArrowRight, Check, FolderKanban, FolderPlus, Lightbulb, Loader2, RefreshCw, Sparkles, Target, type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
 import { hasInvoke, invokeCached, invokeKey, peekInvoke, setQueryData } from "./query";
@@ -18,6 +18,8 @@ import { SideSpine } from "./sidespine";
 import { DetailTitle, META } from "./typescale";
 import { RequirementsPane, RestartCard, TechnicalDetails, useRestart } from "./mirrorrestart";
 import type { HistoryDoc } from "./mirror";
+import { createProject, openTrackedProject, trackedFor, useTrackedProjects } from "./trackedprojects";
+import { openProject } from "./recmodel";
 
 export interface ProjectIntent { title: string; goal: string; status: string }
 export interface ProjectEntry {
@@ -179,6 +181,46 @@ function useProjectPrompts(vaultPath: string, slug: string, on: boolean) {
 
 const fmtWhen = (ts: number) => new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
+// "Track as a project": makes a tracked project from this inferred one, or
+// opens the one already made from it.
+function TrackButton({ vaultPath, p, phone }: { vaultPath: string; p: ProjectEntry; phone: boolean }) {
+  const { projects } = useTrackedProjects(vaultPath);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const tracked = trackedFor(projects, p.slug);
+  const track = async () => {
+    setBusy(true); setErr(null);
+    try { const made = await createProject(vaultPath, { name: displayTitle(p.title), fromIntent: p.slug }); if (made?.id) openTrackedProject(made.id); }
+    catch (e) { setErr(String(e)); } finally { setBusy(false); }
+  };
+  const label = tracked ? "Open tracked project" : "Track as a project";
+  const Icon = busy ? Loader2 : tracked ? FolderKanban : FolderPlus;
+  return (
+    <button onClick={() => (tracked ? openTrackedProject(tracked.id) : void track())} disabled={busy} data-testid="project-track" title={err ?? label} aria-label={label}
+      className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${err ? "border-err text-err" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}>
+      <Icon className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />{!phone && label}
+    </button>
+  );
+}
+
+// A tracked project's Brief tab: the restart brief of the Intent project it
+// came from, the same cards the Intent detail shows.
+export function IntentBrief({ vaultPath, slug }: { vaultPath: string; slug: string }) {
+  const phone = useIsPhone();
+  const r = useRestart(vaultPath, slug);
+  return (
+    <div data-testid="project-brief" className="pb-6">
+      <RestartCard r={r} phone={phone} />
+      <h3 className="mt-7 text-[19px] font-semibold text-text-primary">Requirements</h3>
+      <RequirementsPane r={r} phone={phone} />
+      <TechnicalDetails r={r} phone={phone} />
+      <button onClick={() => openProject(slug)} className="mt-6 inline-flex items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
+        Open in Intent<ArrowRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 function ProjectDetail({ vaultPath, p, phone, building, onRewrite }: { vaultPath: string; p: ProjectEntry; phone: boolean; building: string | null; onRewrite: () => void }) {
   const [tab, setTab] = useState<ProjectTab>("overview");
   const [seen, setSeen] = useState<Set<ProjectTab>>(new Set(["overview"]));
@@ -202,6 +244,7 @@ function ProjectDetail({ vaultPath, p, phone, building, onRewrite }: { vaultPath
               {titleCase(p.status)} · {titleCase(p.domain)} · {nPrompts(p.prompt_count)} · {fmtSpan(p.first_ts, p.last_ts)} · {tools}
             </p>
           </div>
+          <TrackButton vaultPath={vaultPath} p={p} phone={phone} />
           {!phone && (
             <button onClick={onRewrite} disabled={!!building}
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">

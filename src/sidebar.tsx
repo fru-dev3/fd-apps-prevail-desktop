@@ -12,6 +12,7 @@ import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { Activity, Archive, ArrowLeft, ChevronRight, Folder, Hourglass, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
+import { openStructure, statusOf, useStructureSuggestions, useTrackedProjects } from "./trackedprojects";
 import { prefetchSection, prefetchSettings } from "./prefetch";
 import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
@@ -91,8 +92,10 @@ function Divider() {
 // surface behind them), each pushed up by the next section's.
 const SIDEBAR_STICKY = `${STICKY_GROUP_HEAD} bg-surface-strong`;
 
-function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour, toggleRight = false }: {
+function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour, toggleRight = false, dot }: {
   label: string; count?: number; open: boolean; onToggle: () => void; onAdd?: () => void; addTitle?: string; tour?: string;
+  // A small count dot after the label (a pending suggestion), with its own click.
+  dot?: { count: number; title: string; onClick: () => void };
   // The whole row is the toggle, with the chevron at its right edge.
   toggleRight?: boolean;
 }) {
@@ -118,6 +121,12 @@ function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour, to
         {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70">{count}</span>}
         <ChevronRight className={`h-3 w-3 shrink-0 opacity-0 transition group-hover/h:opacity-100 ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
       </button>
+      {dot && (
+        <button onClick={dot.onClick} title={dot.title} aria-label={dot.title} data-testid={`sidebar-dot-${label.toLowerCase()}`}
+          className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold tabular-nums leading-none text-white hover:bg-accent-hover">
+          {dot.count}
+        </button>
+      )}
       {onAdd && (
         <button
           onClick={onAdd}
@@ -271,16 +280,18 @@ export function Sidebar({
   };
 
   // Counts for the Work rows, read from the same sources their screens use:
-  // open tasks across every domain, and the Projects index.
+  // open tasks across every domain, and the active projects you track.
   // Through the shared cache, so the Tasks and Projects pages open on the
   // same answers instead of fetching them again.
   const today = new Date().toISOString().slice(0, 10);
   const workCount = useInvokeQuery<{ open?: number }>("work_count", vaultPath ? { vault: vaultPath, today, domain: null } : null, { invalidateOn: TASKS_CHANGED });
-  const projectsIdx = useInvokeQuery<{ projects?: unknown[] } | null>("projects_index", vaultPath ? { vault: vaultPath } : null, { invalidateOn: TASKS_CHANGED });
+  const tracked = useTrackedProjects(vaultPath || null);
   const openTasks = workCount.data?.open ?? 0;
-  const projectCount = Array.isArray(projectsIdx.data?.projects) ? projectsIdx.data!.projects!.length : 0;
+  const projectCount = tracked.projects.filter((p) => statusOf(p) === "active").length;
+  // A pending "new domain" suggestion shows as a dot on the Domains header.
+  const domainSuggestions = useStructureSuggestions(vaultPath || null).suggestions.filter((x) => x.kind === "domain").length;
   const refreshCounts = useRef<() => void>(() => {});
-  refreshCounts.current = () => { void workCount.refresh(); void projectsIdx.refresh(); };
+  refreshCounts.current = () => { void workCount.refresh(); void tracked.refresh(); };
   useEffect(() => {
     if (!vaultPath) return;
     const id = window.setInterval(() => refreshCounts.current(), 120000);
@@ -756,6 +767,7 @@ export function Sidebar({
                 onAdd={() => { setDomainsOpen(true); setAdding(true); }}
                 addTitle="New domain"
                 tour="domains"
+                dot={domainSuggestions > 0 ? { count: domainSuggestions, title: `${domainSuggestions} new domain ${domainSuggestions === 1 ? "suggestion" : "suggestions"}`, onClick: openStructure } : undefined}
               />
             )}
             {vaultError && !collapsed && domainsOpen && (

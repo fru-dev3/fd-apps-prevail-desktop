@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addRef, appStepLabel, appUseLabel, appUses, parseUrls, refsToChatArgs, slugifyId } from "./appscope";
+import { addRef, appStepLabel, appUseLabel, appUses, asGoogleAccounts, effectiveGoogleAccount, isGoogleApp, parseUrls, refsToChatArgs, slugifyId } from "./appscope";
 import { atMatchAt } from "./chatrefs";
 import type { MirrorApp } from "./appsmirror-model";
 
@@ -64,5 +64,22 @@ describe("app scope helpers", () => {
   it("slugs a source name the way the engine does and reads addresses", () => {
     expect(slugifyId("Context (fru.dev)")).toBe("context-fru-dev");
     expect(parseUrls("foo.example/a\nhttps://bar.example/b, foo.example/a")).toEqual(["https://foo.example/a", "https://bar.example/b"]);
+  });
+});
+
+describe("Google accounts", () => {
+  const two = asGoogleAccounts([{ id: "foo@example.com", default: true, via: "gws" }, { id: "bar@example.com", default: false, via: "claude" }, null, { id: "" }]);
+  it("keeps only real accounts", () => expect(two.map((a) => a.id)).toEqual(["foo@example.com", "bar@example.com"]));
+  it("knows the Google apps", () => {
+    expect(isGoogleApp({ id: "gmail", name: "Gmail" })).toBe(true);
+    expect(isGoogleApp({ id: "claude-x", name: "Google Calendar" })).toBe(true);
+    expect(isGoogleApp({ id: "foo-drive", name: "Foo Drive" })).toBe(false);
+  });
+  it("defaults to all, remembers a still-valid pick, falls back when it is gone", () => {
+    expect(effectiveGoogleAccount("", two)).toBe("all");
+    expect(effectiveGoogleAccount("bar@example.com", two)).toBe("bar@example.com");
+    expect(effectiveGoogleAccount("gone@example.com", two)).toBe("all");
+    expect(effectiveGoogleAccount("all", two.slice(0, 1))).toBe("foo@example.com");
+    expect(effectiveGoogleAccount("all", [])).toBeNull();
   });
 });

@@ -2,8 +2,8 @@
 // or thing, shown in the Entities view's detail pane (never a side card).
 // Everything comes from `prevail entities show`; the owner's notes are edited
 // here and written back to the page's "Your notes" section only.
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bookmark, BookOpen, Boxes, Building2, Check, Copy, FileText, FolderOpen, Globe, Image as ImageIcon, Loader2, MapPin, MessageSquare, MessagesSquare, Plus, RefreshCw, Terminal, User } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
+import { Bookmark, BookOpen, Boxes, Building2, Check, Copy, FileText, FolderKanban, FolderOpen, Globe, Image as ImageIcon, Loader2, MapPin, MessageSquare, MessagesSquare, Plus, RefreshCw, Terminal, User } from "lucide-react";
 import { invoke } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
 import { CARD_KINDS, EntityChip, OrgMark, entityIdOf, openMap, type EntityKind } from "./entities";
@@ -27,11 +27,13 @@ import { AcrossYourLife, DomainChip, isYours, setRelation, type Relation } from 
 const loadChat = () => import("./entitychat");
 const EntityChat = lazy(() => loadChat().then((m) => ({ default: m.EntityChat })));
 
-type Tab = "overview" | "chat" | "notes" | "conversations" | "files";
+type Tab = "overview" | "chat" | "notes" | "conversations" | "files" | "brief";
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" }, { id: "chat", label: "Chat" }, { id: "notes", label: "Notes" },
   { id: "conversations", label: "Conversations" }, { id: "files", label: "Files" },
 ];
+// A project's detail: its own Overview, and a Brief tab when it came from Intent.
+const PROJECT_TABS: Tab[] = ["overview", "chat", "notes", "files"];
 const PICTURE_TYPES = ["png", "jpg", "jpeg", "webp", "svg"];
 
 // The entity's folder in the vault, from its page path: data/entities/<kind>/
@@ -72,10 +74,13 @@ export interface EntityDetail {
   page?: string; page_path?: string; saved?: boolean; domain?: string; digest: string; notes: string;
   picture?: string; website?: string;
   relation?: Relation; relation_confidence?: number; home_domain?: string;
+  // A project (kind "project"): its frontmatter and the goals that name it.
+  status?: string; outcome?: string; target?: string; domains?: string[]; intent_project?: string;
+  goals?: { title: string; status: string; domain: string }[];
 }
 
-export const KIND_LABEL: Record<string, string> = { person: "Person", place: "Place", org: "Company", thing: "Thing" };
-const KIND_ICON = { person: User, place: MapPin, org: Building2, thing: Boxes } as const;
+export const KIND_LABEL: Record<string, string> = { person: "Person", place: "Place", org: "Company", thing: "Thing", project: "Project" };
+const KIND_ICON = { person: User, place: MapPin, org: Building2, thing: Boxes, project: FolderKanban } as const;
 
 // Aliases worth showing: those that differ from the name (and each other)
 // beyond case, punctuation and spacing.
@@ -167,7 +172,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function EntityDetailView({ vaultPath, target }: { vaultPath: string; target: { kind: EntityKind; value: string } }) {
+// `overview` replaces the Overview body (a project draws its own), `brief`
+// adds a Brief tab, and `meta` replaces the line under the name.
+export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
+  vaultPath: string; target: { kind: EntityKind; value: string };
+  overview?: (d: EntityDetail, reload: () => Promise<void>) => ReactNode; brief?: ReactNode; meta?: string;
+}) {
   const id = entityIdOf({ kind: target.kind, value: target.value });
   const phone = useIsPhone();
   const [d, setD] = useState<EntityDetail | null>(null);
@@ -178,7 +188,8 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
   const [tab, setTab] = useState<Tab>("overview");
   const [dropping, setDropping] = useState(false);
   const [filesSeen, setFilesSeen] = useState(false);
-  useEffect(() => { if (tab === "files") setFilesSeen(true); }, [tab]);
+  const [briefSeen, setBriefSeen] = useState(false);
+  useEffect(() => { if (tab === "files") setFilesSeen(true); if (tab === "brief") setBriefSeen(true); }, [tab]);
   // The website field (orgs), open while not null.
   const [site, setSite] = useState<string | null>(null);
   // null until the Chat tab is first opened; then the panel stays mounted so
@@ -274,6 +285,8 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
   const hasPage = !!(d?.found && d.page_path);
   const notesDirty = notes !== (d?.found ? d.notes : "");
   const KindIcon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? Boxes;
+  const isProject = kind === "project";
+  const tabs = isProject ? [...TABS.filter((t) => PROJECT_TABS.includes(t.id)), ...(brief ? [{ id: "brief" as Tab, label: "Brief" }] : [])] : TABS;
   const aliases = d?.found ? distinctAliases(d.name, d.aliases) : [];
   const root = vaultPath.replace(/\/+$/, "");
   const absPath = hasPage ? `${root}/${d!.page_path}` : null;
@@ -296,9 +309,9 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
       { icon: Copy, label: "Copy path", onClick: () => { void navigator.clipboard?.writeText(absPath).catch(() => {}); } },
     ] : []),
     ...(kind === "place" ? [{ icon: MapPin, label: "Open map", onClick: () => openMap(displayName) }] : []),
-    relation === "reference"
+    ...(isProject ? [] : [relation === "reference"
       ? { icon: Bookmark, label: "This is mine", onClick: () => { void markAs("yours"); } }
-      : { icon: BookOpen, label: "Just a reference", onClick: () => { void markAs("reference"); } },
+      : { icon: BookOpen, label: "Just a reference", onClick: () => { void markAs("reference"); } }]),
     { icon: RefreshCw, label: "Refresh", onClick: () => { void load(); void pullThreads(); } },
   ];
   const loading = !d && !err && <div className="flex items-center gap-2 py-8 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your vault</div>;
@@ -323,21 +336,21 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
           <div className="min-w-0 flex-1">
             <DetailTitle className="truncate">{displayName}</DetailTitle>
             <p className={`${META} truncate`}>
-              {KIND_LABEL[kind] ?? kind}
+              {meta ?? <>{KIND_LABEL[kind] ?? kind}
               {d?.found && d.conversations > 0 && ` · ${d.conversations} ${d.conversations === 1 ? "conversation" : "conversations"}`}
               {d?.found && d.saved && " · Saved"}
-              {relation === "reference" && !phone && " · Reference"}
+              {relation === "reference" && !phone && " · Reference"}</>}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            {homeDomain && !phone && <span data-testid="entity-home-domain"><DomainChip slug={homeDomain} /></span>}
+            {homeDomain && !phone && !isProject && <span data-testid="entity-home-domain"><DomainChip slug={homeDomain} /></span>}
             {!phone && (
               <button onClick={() => openChat()} onMouseEnter={() => { void loadChat(); }} data-testid="entity-chat-open"
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-white hover:bg-accent-hover">
                 <MessageSquare className="h-3.5 w-3.5" />Chat
               </button>
             )}
-            {d?.found && d.saved
+            {isProject ? null : d?.found && d.saved
               ? <span data-testid="entity-saved" className="inline-flex h-8 items-center gap-1 px-2 text-[13px] text-text-muted"><Check className="h-3.5 w-3.5 text-ok" />Saved</span>
               : <button onClick={save} disabled={!d || busy !== null} data-testid="entity-save"
                   className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
@@ -356,7 +369,7 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
         )}
         <div className="mt-4 flex items-center gap-2 border-b border-border-subtle">
           <div role="tablist" aria-label="Entity" className="-mb-px flex min-w-0 flex-1 overflow-x-auto">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <button key={t.id} role="tab" aria-selected={tab === t.id} data-testid={`entity-tab-${t.id}`}
                 onClick={() => (t.id === "chat" ? openChat() : setTab(t.id))}
                 onMouseEnter={t.id === "chat" ? () => { void loadChat(); } : undefined}
@@ -388,7 +401,8 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
 
       <div className={pane("overview")} data-testid="entity-overview">
         {loading}
-        {d && (
+        {d && overview && overview(d, load)}
+        {d && !overview && (
           <>
             {aliases.length > 0 && (
               <p className="mt-4 text-[14px] text-text-muted" data-testid="entity-aliases">
@@ -468,6 +482,8 @@ export function EntityDetailView({ vaultPath, target }: { vaultPath: string; tar
       <div className={pane("files")}>
         {tab === "files" || filesSeen ? <EntityFiles vaultPath={vaultPath} id={writeId} folder={absFolder} readFile={readDropped} writable={encrypted === false} /> : null}
       </div>
+
+      {brief && <div className={pane("brief")} data-testid="entity-brief">{tab === "brief" || briefSeen ? brief : null}</div>}
 
       <div className={pane("conversations")}>
         <div className="pt-3">

@@ -1,7 +1,8 @@
 // Apps as chat scopes: an app opens on its Chat tab, its Activity lists the
 // access log, the fallback lanes live in their own groups, "@" references an
 // app and sends it as --app, a reply shows "Used Gmail", a needs-sign-in card,
-// the sidebar's Apps toggle, and adding a trusted source (the MCP mocked).
+// a Google app's Account picker and per-account Activity, the sidebar's Apps
+// toggle, and adding a trusted source (the MCP mocked).
 // With APP_SHOTS set, each view is captured at 1440 and 390. Invented names.
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
@@ -25,9 +26,13 @@ const FIX = {
   },
   engine_apps_threads: [{ slug: "2026-09-28_foo", title: "Mail from the foo team", updated: now - 3_600_000, turns: 4 }],
   engine_apps_access_log: [
-    { ts: now - 120_000, tool: "search_threads", access: "read", outcome: "ran", thread: "2026-09-28_foo", domain: "work", summary: "query: from:foo newer_than:7d", app: "gmail" },
-    { ts: now - 90_000, tool: "search_threads", access: "read", outcome: "ran", thread: "2026-09-28_foo", domain: "work", summary: "query: label:invoices", app: "gmail" },
+    { ts: now - 120_000, tool: "search_threads", access: "read", outcome: "ran", thread: "2026-09-28_foo", domain: "work", summary: "query: from:foo newer_than:7d", app: "gmail", account: "foo@example.com" },
+    { ts: now - 90_000, tool: "search_threads", access: "read", outcome: "ran", thread: "2026-09-28_foo", domain: "work", summary: "query: label:invoices", app: "gmail", account: "bar@example.com" },
     { ts: now - 60_000, tool: "create_draft", access: "write", outcome: "queued", thread: "2026-09-28_foo", domain: "work", summary: "to: [an email address], subject: Foo invoice", app: "gmail" },
+  ],
+  engine_apps_accounts: [
+    { id: "foo@example.com", default: true, via: "gws" },
+    { id: "bar@example.com", label: "Bar", default: false, via: "gws" },
   ],
   apps_untrusted_sources: [],
   engine_apps_add_source: {
@@ -152,6 +157,43 @@ for (const width of [1440, 390]) {
       await chip.click();
       await expect(page.getByTestId("app-tab-activity")).toHaveAttribute("aria-selected", "true", { timeout: 10_000 });
       expect((await calls(page, "engine_apps_access_log")).some((a) => a.app === "gmail" && a.thread === "t1")).toBe(true);
+    });
+
+    test("a Google app's Account picker sends --google-account and is remembered per app", async ({ page }) => {
+      await openGmail(page);
+      const picker = page.getByTestId("app-account-picker");
+      await expect(picker).toBeVisible();
+      await expect(picker.locator("option")).toHaveText(["All accounts", "foo@example.com", "Bar"]);
+      await expect(picker).toHaveValue("all");
+      const box = page.getByTestId("app-chat").locator("[data-tour=composer] textarea");
+      await box.fill("anything new from foo");
+      await box.press("Enter");
+      await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(1);
+      expect((await calls(page, "engine_chat"))[0]).toMatchObject({ scopeApp: "gmail", googleAccount: "all" });
+      await play(page, [{ type: "assistant", text: "Nothing new." }]);
+      await picker.selectOption("bar@example.com");
+      await box.fill("and from bar");
+      await box.press("Enter");
+      await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(2);
+      expect((await calls(page, "engine_chat"))[1]).toMatchObject({ googleAccount: "bar@example.com" });
+      expect(await page.evaluate(() => localStorage.getItem("prevail.app.gmail.googleAccount"))).toBe("bar@example.com");
+      await openGmail(page); // a fresh load
+
+      await expect(page.getByTestId("app-account-picker")).toHaveValue("bar@example.com");
+      await page.getByTestId("app-tab-connection").click();
+      await expect(page.getByTestId("app-account-row")).toHaveCount(2);
+      await expect(page.getByTestId("app-accounts")).toContainText("via Google Workspace");
+    });
+
+    test("the Activity tab shows each line's account and filters by it", async ({ page }) => {
+      await openGmail(page);
+      await page.getByTestId("app-tab-activity").click();
+      await expect(page.getByTestId("access-account")).toHaveText(["bar@example.com", "foo@example.com"]);
+      await page.getByTestId("activity-account-filter").selectOption("foo@example.com");
+      await expect(page.getByTestId("access-line")).toHaveCount(1);
+      await expect(page.getByTestId("app-activity")).toContainText("from:foo");
+      await page.getByTestId("activity-account-filter").selectOption("");
+      await expect(page.getByTestId("access-line")).toHaveCount(3);
     });
 
     test("an app that needs sign-in renders an in-flow card", async ({ page }) => {

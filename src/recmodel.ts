@@ -8,8 +8,9 @@ import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
 import { requestEntity, type EntityKindName } from "./entitystore";
 import { MIRROR_SELECT_KEY } from "./appsmirror-parts";
+import { openStructure } from "./trackedprojects";
 
-export type RecCategory = "rules" | "projects" | "apps" | "people" | "models" | "context";
+export type RecCategory = "rules" | "projects" | "structure" | "apps" | "people" | "models" | "context";
 export type SpineKey = "all" | "start" | RecCategory;
 
 export interface RecEvidence { kind: "finding" | "project" | "entity" | "app" | "domain" | "benchmark"; ref: string; label: string }
@@ -42,12 +43,13 @@ export const SPINE: { key: SpineKey; label: string }[] = [
   { key: "start", label: "Start here" },
   { key: "rules", label: "Rules" },
   { key: "projects", label: "Projects" },
+  { key: "structure", label: "Structure" },
   { key: "apps", label: "Apps" },
   { key: "people", label: "People and places" },
   { key: "models", label: "Models" },
   { key: "context", label: "Context" },
 ];
-export const CATEGORIES: RecCategory[] = ["rules", "projects", "apps", "people", "models", "context"];
+export const CATEGORIES: RecCategory[] = ["rules", "projects", "structure", "apps", "people", "models", "context"];
 export const START_N = 5;
 
 export const REC_DISMISSED = "prevail.recs.dismissed";
@@ -174,6 +176,7 @@ export function doItLabel(r: Rec): string {
     case "draft_recipe": return "Open the app to draft a recipe";
     case "connect_app": return "Open Apps";
     case "improve_context": return "Open the domain";
+    case "structure_suggestion": return "Review the suggestion";
     default: return "Open";
   }
 }
@@ -205,6 +208,9 @@ export async function applyRec(rec: Rec, vaultPath: string): Promise<string> {
       rows.forEach(setDomainModel);
       return `Set new defaults for ${rows.length} domain${rows.length === 1 ? "" : "s"}.`;
     }
+    case "structure_suggestion":
+      openStructure();
+      return "Opened Structure.";
     case "improve_context":
       if (a.domain) fire("prevail:open-domain", a.domain);
       return "Opened the domain.";

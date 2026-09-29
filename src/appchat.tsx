@@ -13,7 +13,8 @@ import { resolveThreadPath } from "./entitythreads";
 import { DetailTitle, META } from "./typescale";
 import { AppLogo } from "./appsmirror-parts";
 import { AppActivity } from "./appactivity";
-import { activityRecorded, appScopeKey, loadAppThreads, takeAppFocus, type AppFocus, type AppThread } from "./appscope";
+import { activityRecorded, appAccountPref, appScopeKey, effectiveGoogleAccount, loadAppThreads, takeAppFocus, useGoogleAccounts, type AppFocus, type AppThread } from "./appscope";
+import { getPref, setPref } from "./storage";
 
 const ChatPanel = lazy(() => import("./chatpanel").then((m) => ({ default: m.ChatPanel })));
 
@@ -32,9 +33,11 @@ function ChatSkeleton() {
   );
 }
 
-function AppChat({ vaultPath, app, threads, request, onCurrent, onThreadsChanged }: {
+function AppChat({ vaultPath, app, threads, request, onCurrent, onThreadsChanged, googleAccount }: {
   vaultPath: string;
   app: { id: string; name: string };
+  // A Google app's Account picker: an account id or "all" (--google-account).
+  googleAccount: string | null;
   threads: AppThread[] | null;
   request: Request;
   onCurrent: (slug: string | null) => void;
@@ -76,6 +79,7 @@ function AppChat({ vaultPath, app, threads, request, onCurrent, onThreadsChanged
         domainPath={null}
         threadDomain={scope}
         scopeApp={app}
+        scopeGoogleAccount={googleAccount}
         vaultPath={vaultPath}
         clis={clis}
         fwLens={fwLens}
@@ -127,6 +131,11 @@ export function AppScopeView({ vaultPath, app, subtitle, actions, tools, connect
   const [chatSlug, setChatSlug] = useState<string | null>(null);
   const [threads, setThreads] = useState<AppThread[] | null>(null);
 
+  const accounts = useGoogleAccounts(vaultPath, app);
+  const [savedAccount, setSavedAccount] = useState(() => getPref(appAccountPref(app.id), ""));
+  const account = effectiveGoogleAccount(savedAccount, accounts);
+  const pickAccount = (v: string) => { setPref(appAccountPref(app.id), v); setSavedAccount(v); };
+
   const pull = useCallback(() => loadAppThreads(vaultPath, app.id).then(setThreads), [vaultPath, app.id]);
   useEffect(() => {
     void pull();
@@ -157,6 +166,14 @@ export function AppScopeView({ vaultPath, app, subtitle, actions, tools, connect
   ];
   const pickerRow = (
     <div className="flex shrink-0 items-center gap-1 pb-1">
+      {account && accounts.length > 1 && (
+        <select aria-label="Google account" data-testid="app-account-picker" value={account}
+          onChange={(e) => pickAccount(e.target.value)}
+          className="h-8 max-w-[12rem] truncate rounded-lg border border-border bg-background px-2 text-[13px] text-text-secondary focus:border-accent-border focus:outline-none">
+          <option value="all">All accounts</option>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.label || a.id}</option>)}
+        </select>
+      )}
       {threads && threads.length > 0 && (
         <select aria-label="Past conversations" data-testid="app-thread-picker" value={chatSlug ?? ""}
           onChange={(e) => openChat(e.target.value || null)}
@@ -204,7 +221,7 @@ export function AppScopeView({ vaultPath, app, subtitle, actions, tools, connect
       {chatReq && (
         <div className={`${tab === "chat" ? "flex" : "hidden"} min-h-0 flex-col ${phone ? "h-[calc(100dvh-18rem)]" : "flex-1"}`}>
           <Suspense fallback={<ChatSkeleton />}>
-            <AppChat vaultPath={vaultPath} app={app} threads={threads} request={chatReq} onCurrent={setChatSlug} onThreadsChanged={() => { void pull(); }} />
+            <AppChat vaultPath={vaultPath} app={app} threads={threads} request={chatReq} onCurrent={setChatSlug} onThreadsChanged={() => { void pull(); }} googleAccount={account} />
           </Suspense>
         </div>
       )}
@@ -213,7 +230,7 @@ export function AppScopeView({ vaultPath, app, subtitle, actions, tools, connect
         {tab === "activity" && (
           <div className="pb-8 pt-3">
             {activityNote && <p data-testid="activity-note" className="mb-2 text-[13px] text-text-muted">{activityNote}</p>}
-            <AppActivity vaultPath={vaultPath} filter={{ app: app.id, thread: threadFilter }} onClearThread={() => setThreadFilter(undefined)}
+            <AppActivity vaultPath={vaultPath} filter={{ app: app.id, thread: threadFilter }} accounts={accounts.map((a) => a.id)} onClearThread={() => setThreadFilter(undefined)}
               threadTitle={(slug) => threads?.find((t) => t.slug === slug)?.title} onOpenThread={(slug) => openChat(slug)}
               empty={activityRecorded(app.runtime)
                 ? `Nothing yet. Each time a conversation reads from or writes to ${app.name}, it shows here.`

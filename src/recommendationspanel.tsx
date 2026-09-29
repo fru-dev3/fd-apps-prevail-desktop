@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight, ArrowUpRight, BarChart3, Bookmark, Check, ChevronDown, ClipboardCopy, Compass, Flag, FolderKanban,
-  EyeOff, Gauge, LayoutList, Lightbulb, ListTodo, Loader2, Play, Plug, RotateCcw, RotateCw, ScrollText, Sparkles, Users, X,
+  EyeOff, Gauge, LayoutList, Shapes, Lightbulb, ListTodo, Loader2, Play, Plug, RotateCcw, RotateCw, ScrollText, Sparkles, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
@@ -20,6 +20,8 @@ import { SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
 import { PREF, setPref } from "./storage";
 import { toast } from "./toast";
+import { StructureCards } from "./structurecards";
+import { RECS_CATEGORY_EVENT, useStructureSuggestions } from "./trackedprojects";
 import {
   addTask, applyRec, copyInstruction, doItLabel, loadSet, openEvidence, recsFor, REC_DISMISSED, REC_SAVED,
   SPINE, setDomainModel, spineCounts, START_N, storeSet, visibleRecs, normalizeRec,
@@ -32,11 +34,11 @@ export type { Rec } from "./recmodel";
 type DistillStatus = { running: boolean; last_run_ts?: number | null; interval_sec?: number | null };
 
 const SPINE_ICON: Record<SpineKey, LucideIcon> = {
-  all: LayoutList, start: Flag, rules: ScrollText, projects: FolderKanban, apps: Plug,
+  all: LayoutList, start: Flag, rules: ScrollText, projects: FolderKanban, structure: Shapes, apps: Plug,
   people: Users, models: BarChart3, context: Gauge,
 };
 const CAT_LABEL: Record<RecCategory, string> = {
-  rules: "Rules", projects: "Projects", apps: "Apps", people: "People and places", models: "Models", context: "Context",
+  rules: "Rules", projects: "Projects", structure: "Structure", apps: "Apps", people: "People and places", models: "Models", context: "Context",
 };
 // Dismissing a recommendation anywhere (this page or the Home Briefing) writes
 // the one shared set and announces it, so both agree.
@@ -192,6 +194,15 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
     try { const v = localStorage.getItem("prevail.recs.category"); return (SPINE.some((s) => s.key === v) ? v : "all") as SpineKey; } catch { return "all"; }
   });
   const select = (k: SpineKey) => { setSel(k); try { localStorage.setItem("prevail.recs.category", k); } catch { /* storage off */ } };
+  // The Domains dot (and a structure item on the Briefing) opens Structure.
+  useEffect(() => {
+    const f = (e: Event) => { const k = (e as CustomEvent<string>).detail; if (SPINE.some((s) => s.key === k)) setSel(k as SpineKey); };
+    window.addEventListener(RECS_CATEGORY_EVENT, f);
+    return () => window.removeEventListener(RECS_CATEGORY_EVENT, f);
+  }, []);
+  // Structure suggestions come with their evidence from `suggest structure`;
+  // the feed's own structure items would only repeat them.
+  const { suggestions } = useStructureSuggestions(vaultPath);
   const [showDismissed, setShowDismissed] = useState(false);
   const [savedOnly, setSavedOnly] = useState(false);
   const [tick, setTick] = useState(0); // re-read local model defaults after an apply
@@ -225,8 +236,11 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
   const toggle = (set: Set<string>, id: string) => { const s = new Set(set); if (s.has(id)) s.delete(id); else s.add(id); return s; };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const live = useMemo(() => (recs ? visibleRecs(recs, dismissed, { showDismissed, savedOnly, saved }) : []), [recs, dismissed, showDismissed, savedOnly, saved, tick]);
-  const counts = useMemo(() => spineCounts(live.filter((r) => !dismissed.has(r.id))), [live, dismissed]);
+  const live = useMemo(() => (recs ? visibleRecs(recs, dismissed, { showDismissed, savedOnly, saved }).filter((r) => r.category !== "structure") : []), [recs, dismissed, showDismissed, savedOnly, saved, tick]);
+  const counts = useMemo(() => {
+    const c = spineCounts(live.filter((r) => !dismissed.has(r.id)));
+    return { ...c, structure: suggestions.length, all: c.all + suggestions.length };
+  }, [live, dismissed, suggestions.length]);
   const shown = recsFor(live, sel);
   const dismissedCount = (recs ?? []).filter((r) => dismissed.has(r.id)).length;
   const savedCount = (recs ?? []).filter((r) => saved.has(r.id)).length;
@@ -250,8 +264,12 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
   );
 
   let body: React.ReactNode;
-  if (recs === null) body = <div className="text-[14px] text-text-muted">Reading your vault...</div>;
-  else if (!live.length) {
+  const structure = (
+    <section data-testid="section-structure">{sectionHead("Structure", suggestions.length, Shapes)}<StructureCards suggestions={suggestions} vaultPath={vaultPath} /></section>
+  );
+  if (sel === "structure") body = structure;
+  else if (recs === null) body = <div className="text-[14px] text-text-muted">Reading your vault...</div>;
+  else if (!live.length && !suggestions.length) {
     body = (
       <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center">
         <Lightbulb className="mx-auto h-8 w-8 text-accent" />
@@ -264,8 +282,9 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
     const rest = live.slice(START_N);
     body = (
       <div className="space-y-8">
-        <section data-testid="section-start">{sectionHead("Start here", start.length, Flag)}{list(start, true)}</section>
+        {start.length > 0 && <section data-testid="section-start">{sectionHead("Start here", start.length, Flag)}{list(start, true)}</section>}
         {(Object.keys(CAT_LABEL) as RecCategory[]).map((c) => {
+          if (c === "structure") return suggestions.length ? <div key={c}>{structure}</div> : null;
           const rs = rest.filter((r) => r.category === c);
           return rs.length ? <section key={c} data-testid={`section-${c}`}>{sectionHead(CAT_LABEL[c], rs.length, SPINE_ICON[c])}{list(rs)}</section> : null;
         })}
@@ -335,7 +354,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
 // The compact home Briefing: the top three next moves plus recent intents.
 // The full logic lives in RecommendationsPanel; this is only a glance.
 type BriefIntent = { title?: string; goal?: string };
-const BRIEF_ICON: Record<RecCategory, LucideIcon> = { rules: ScrollText, projects: FolderKanban, apps: Plug, people: Users, models: BarChart3, context: Gauge };
+const BRIEF_ICON: Record<RecCategory, LucideIcon> = { rules: ScrollText, projects: FolderKanban, structure: Shapes, apps: Plug, people: Users, models: BarChart3, context: Gauge };
 export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
   const [raw, setRaw] = useState<Rec[] | null>(() => {
     if (!hasInvoke("engine_recommendations", { vault: vaultPath })) return null;

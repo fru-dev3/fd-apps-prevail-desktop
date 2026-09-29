@@ -38,7 +38,8 @@ fn opt(args: &mut Vec<String>, flag: &str, v: Option<&str>) {
     }
 }
 
-const KINDS: &[&str] = &["person", "place", "org", "thing"];
+// Projects are entities too (project/<slug>), with their own folder and chat.
+const KINDS: &[&str] = &["person", "place", "org", "thing", "project"];
 
 // An entity id is <kind>/<name or slug>. Anything else never reaches the
 // engine, so a crafted id cannot smuggle a flag into the argument list.

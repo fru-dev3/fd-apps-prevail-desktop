@@ -5,7 +5,8 @@ vi.mock("./bridge", () => ({
   isBrowser: () => true,
   invoke: async (cmd: string) => {
     if (cmd === "work_count") return { open: 7, overdue: 0, today: 0 };
-    if (cmd === "projects_index") return { projects: [{}, {}, {}] };
+    if (cmd === "entities_list") return { entities: [1, 2, 3, 4].map((i) => ({ id: `project/foo-${i}`, name: `Foo ${i}`, kind: "project", status: i === 4 ? "done" : "active" })) };
+    if (cmd === "engine_suggest_structure") return structure;
     if (cmd === "engine_list_archived") return ["old-stuff"];
     if (cmd === "apps_mirror_list") return appsList;
     if (cmd === "engine_waiting") return { total: 4, items: [] };
@@ -13,6 +14,7 @@ vi.mock("./bridge", () => ({
   },
 }));
 let appsList: unknown = null;
+let structure: unknown = null;
 vi.mock("@tauri-apps/plugin-dialog", () => ({ confirm: async () => false }));
 
 import { Sidebar } from "./sidebar";
@@ -29,7 +31,7 @@ function renderSidebar(tab: TabId = "chat", setTab = vi.fn()) {
   );
 }
 
-afterEach(() => { cleanup(); appsList = null; });
+afterEach(() => { cleanup(); appsList = null; structure = null; });
 
 describe("Sidebar", () => {
   it("lists the home surfaces, work screens and domains with real counts", async () => {
@@ -44,6 +46,22 @@ describe("Sidebar", () => {
     expect(await screen.findByText("3")).toBeTruthy();
     expect(screen.getByTestId("nav-home").getAttribute("aria-current")).toBe("page");
     expect(await screen.findByText("Archived")).toBeTruthy();
+  });
+
+  it("shows a dot on Domains while a new-domain suggestion waits, which opens Structure", async () => {
+    structure = [
+      { id: "domain:foo", kind: "domain", title: "Create a Foo domain?", reason: "4 conversations", evidence: [], confidence: 0.8 },
+      { id: "archive_domain:bar", kind: "archive_domain", title: "Archive Bar?", reason: "Quiet for a year", evidence: [], confidence: 0.6 },
+    ];
+    const opened = vi.fn();
+    window.addEventListener("prevail:open-settings", opened);
+    renderSidebar();
+    const dot = await screen.findByTestId("sidebar-dot-domains");
+    expect(dot.textContent).toBe("1");
+    fireEvent.click(dot);
+    expect((opened.mock.calls[0][0] as CustomEvent).detail).toBe("recommendations");
+    expect(localStorage.getItem("prevail.recs.category")).toBe("structure");
+    window.removeEventListener("prevail:open-settings", opened);
   });
 
   it("has none of the removed screens, and no Apps section without apps", () => {

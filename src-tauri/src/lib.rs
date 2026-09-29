@@ -15,6 +15,7 @@ mod benchmark;
 mod mirror;
 mod entities_bridge;
 mod linking;
+mod structure;
 mod appscope;
 mod goals;
 mod appcmds;
@@ -600,6 +601,7 @@ pub fn run() {
             entities_bridge::engine_entity_threads,
             appscope::engine_apps_access_log,
             appscope::engine_apps_threads,
+            appscope::engine_apps_accounts,
             appscope::engine_apps_add_source,
             appscope::engine_apps_remove_source,
             appscope::apps_untrusted_sources,
@@ -619,6 +621,11 @@ pub fn run() {
             linking::engine_entities_set_relation,
             linking::engine_config_autosave_get,
             linking::engine_config_autosave_set,
+            structure::engine_projects_create,
+            structure::engine_projects_set,
+            structure::engine_suggest_structure,
+            structure::engine_suggest_accept,
+            structure::engine_suggest_dismiss,
             favicon::app_favicon,
             apps_mirror::apps_mirror_list,
             apps_mirror::apps_mirror_refresh,

@@ -16,7 +16,7 @@ import { domainColor, isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
 
-export type EntityKind = "domain" | "person" | "place" | "org" | "thing" | "task" | "file" | "date";
+export type EntityKind = "domain" | "person" | "place" | "org" | "thing" | "project" | "task" | "file" | "date";
 
 export interface EntityRef {
   kind: EntityKind;
