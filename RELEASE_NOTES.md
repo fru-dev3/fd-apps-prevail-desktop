@@ -1,24 +1,22 @@
-# Prevail 0.4.3
+# Prevail 0.4.4
 
-What you talk about now reaches everywhere it belongs. Discuss an insurance
-claim while chatting in one domain and Prevail notes it in Insurance too, and
-on the thing it concerns. Under the reply you see where it landed, for
-example "Also noted in Insurance · Your house", each one a link.
+Projects are their own thing now. Work, Projects lists what you are working
+on, each with a status, what done looks like, a target date, its domains and
+goals. Open one to chat with it, keep notes and files, and see what other
+conversations said about it. Projects Intent noticed in your prompts sit
+underneath, one click to track.
 
-Every domain and every one of your things has an "Across your life" section:
-dated notes from conversations elsewhere, each linking back to where it was
-said. Once a day your hub folds them into the domain's state, and
-Recommendations tells you when a domain has news waiting.
+Prevail suggests structure, and you decide. When a topic with no home keeps
+coming up, it offers a new domain and fills it in from those conversations.
+It offers to track a recurring effort as a project, and to archive a domain
+you have not touched in a year. Accept, Not now, or Never; it remembers.
+Suggestions live in Recommendations under Structure.
 
-Your things, and everything else. People, places and companies you mention
-in your own words, or call "my", or save, are yours, with a home domain.
-Names that only come up in a reply (the people in an essay about Rome) stay
-references and fade after a while. Filter Entities by Yours or Reference,
-and change any of them with "This is mine" or "Just a reference". Each
-domain lists its own things.
+Apps work better. Reading from an app such as your mail is no longer refused
+inside Claude Code; sending still waits for you. If an app needs you to sign
+in again, the reply says so with a link instead of trying other ways in. With
+several Google accounts, pick one or all of them in the app's chat; drafts go
+only to the account you picked, and Activity shows which account each call
+used. "Also noted in" now lists only what you actually mentioned.
 
-Save entities as you chat, under Settings, Behavior: Off, Only mine
-(recommended) or Everything. Incognito conversations are never linked
-anywhere.
-
-Engine 1.10.3.
+Engine 1.10.4.
