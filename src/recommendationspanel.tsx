@@ -5,6 +5,7 @@
 // sticky header, a SideSpine of categories with counts, and one full-width
 // column. "Start here" is the top five.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { FilingCard } from "./filingplan";
 import {
   ArrowRight, ArrowUpRight, BarChart3, Bookmark, Check, ChevronDown, ClipboardCopy, Compass, Flag, FolderKanban,
   EyeOff, Gauge, LayoutList, Shapes, Lightbulb, ListTodo, Loader2, Play, Plug, RotateCcw, RotateCw, ScrollText, Sparkles, Users, X,
@@ -316,7 +317,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
       </span>
     </div>
   );
-  const detail = <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{toolbar}{body}</div>;
+  const detail = <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}><FilingCard vaultPath={vaultPath} />{toolbar}{body}</div>;
   // When it last learned, and Learn now: under the column title, never a
   // lone button in the page header.
   const learned = isLearning ? "Learning now" : daemon?.last_run_ts ? `Learned ${relTime(daemon.last_run_ts * 1000)}` : "Not learned yet";
@@ -328,7 +329,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="recommendations-page">
-      <SettingsHeader icon={Lightbulb} title="Recommendations" subtitle="Next steps learned from your prompts, projects, apps and benchmarks." />
+      <SettingsHeader icon={Lightbulb} title="For You" subtitle="Next steps learned from your prompts, projects, apps and benchmarks." />
       {phone ? (
         <>
           <div className="flex items-center justify-between gap-2 px-4 pt-2 text-[13px] text-text-muted"><span>{learned}</span>{learnBtn}</div>
@@ -454,7 +455,7 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
         )}
         {top.length > 0 && (
           <button onClick={openRecs} className="flex w-full items-center justify-center gap-1 border-t border-border-subtle px-4 py-2 text-xs font-semibold text-accent transition-colors hover:bg-surface-warm">
-            See all recommendations <ArrowRight className="h-3 w-3" />
+            See all in For You <ArrowRight className="h-3 w-3" />
           </button>
         )}
       </div>

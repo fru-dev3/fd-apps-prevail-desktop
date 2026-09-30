@@ -21,10 +21,25 @@ export interface RouteHit {
   confidence: number;
 }
 
+export interface RouteCandidate {
+  slug: string;
+  score: number;
+}
+
 export interface RouteResult {
   domains: RouteHit[];
   reason: string;
   source: string;
+  // Generous filing: the home domain, the other domains it concerns, and when
+  // nothing clears the low bar, `unfiled` with the top candidates.
+  primary?: string | null;
+  secondary?: string[];
+  candidates?: RouteCandidate[];
+  unfiled?: boolean;
+  /** False when the filing did not change (or nothing was asked). */
+  changed?: boolean;
+  /** False when this turn was not a re-check turn: nothing was asked. */
+  checked?: boolean;
 }
 
 export const ROUTE_THRESHOLD_DEFAULT = 0.75;
@@ -50,8 +65,8 @@ export function threadIdOf(path: string | null | undefined): string | null {
 }
 
 /** Ask the engine. Never throws; null means "no answer, stay in General". */
-export async function routeText(vault: string, text: string, thread: string | null, timeoutMs = ROUTE_TIMEOUT_MS): Promise<RouteResult | null> {
-  const call = invoke<RouteResult>("engine_route", { vault, text, thread })
+export async function routeText(vault: string, text: string, thread: string | null, timeoutMs = ROUTE_TIMEOUT_MS, current: string[] = [], turn?: number): Promise<RouteResult | null> {
+  const call = invoke<RouteResult>("engine_route", { vault, text, thread, current, turn: turn ?? null })
     .then((r) => (r && Array.isArray(r.domains) ? r : null))
     .catch(() => null);
   const timeout = new Promise<null>((r) => window.setTimeout(() => r(null), timeoutMs));
@@ -127,4 +142,88 @@ export async function buildRoutedContext(vault: string, domains: string[]): Prom
 export function correctRoute(vault: string, thread: string | null, domains: string[], from: string[], text: string): void {
   if (!thread) return;
   void invoke("engine_route_correct", { vault, thread, domains, from, text }).catch(() => {});
+}
+
+// ---- Filing: every conversation has a home domain, generously ----------
+//
+// A thread's filing rides in its `routed:` frontmatter, home first, then the
+// other domains it is filed in. The file itself never moves.
+
+export interface Filing {
+  home: string | null;
+  also: string[];
+  /** Only while unfiled: the engine's top picks, one click to file. */
+  candidates?: RouteCandidate[];
+}
+
+export function filingOf(routed: string[] | null | undefined): Filing | null {
+  const r = (routed ?? []).filter(Boolean);
+  return r.length ? { home: r[0], also: r.slice(1) } : null;
+}
+
+export function routedOf(f: Filing | null | undefined): string[] {
+  if (!f?.home) return [];
+  return [f.home, ...f.also.filter((d) => d !== f.home)];
+}
+
+/**
+ * Fold a route answer into a thread's filing. A home, once set, never changes
+ * here; new secondary domains are only added (the engine already leaves out
+ * any the user removed). Returns `prev` itself when nothing changed.
+ */
+export function mergeRoute(prev: Filing | null, res: RouteResult | null, known?: Set<string>, threshold = routeThreshold()): Filing | null {
+  // Nothing asked, nothing changed, or routing failed: keep what is there.
+  if (!res || res.checked === false || res.changed === false || res.source === "none") return prev;
+  const ok = (d: string | null | undefined): d is string => !!d && (!known || known.has(d));
+  const tagged = splitRoute(res, threshold, known).tagged;
+  const primary = res.primary !== undefined ? (ok(res.primary) ? res.primary : null) : tagged[0] ?? null;
+  const secondary = (res.secondary ?? tagged.slice(1)).filter(ok);
+  if (!prev?.home) {
+    if (primary) return { home: primary, also: secondary.filter((d) => d !== primary) };
+    if (res.unfiled) return { home: null, also: [], candidates: (res.candidates ?? []).filter((c) => ok(c.slug)).slice(0, 3) };
+    return prev;
+  }
+  const add = secondary.filter((d) => d !== prev.home && !prev.also.includes(d));
+  return add.length ? { home: prev.home, also: [...prev.also, ...add] } : prev;
+}
+
+/**
+ * Save a filing the user chose: the thread's `routed:` line only (the body is
+ * never touched), and the correction goes to the engine so routing learns.
+ */
+export async function saveFiling(vault: string, thread: string, next: Filing | null, prev: Filing | null, text = ""): Promise<void> {
+  await invoke("thread_set_filing", { vault, thread, routed: routedOf(next) });
+  correctRoute(vault, threadIdOf(thread) ?? thread, routedOf(next), routedOf(prev), text);
+}
+
+export interface FilePlanRow {
+  thread: string;
+  title: string;
+  current_home: string | null;
+  primary: string | null;
+  secondary: string[];
+  candidates: RouteCandidate[];
+  unfiled: boolean;
+}
+
+export interface FilePlan {
+  rows: FilePlanRow[];
+  skipped: number;
+}
+
+/** The engine's filing plan for conversations never filed. Never throws. */
+export async function readFilePlan(vault: string, limit = 50): Promise<FilePlan> {
+  const r = await invoke<unknown>("engine_file_plan", { vault, limit }).catch(() => null);
+  const obj = (r && typeof r === "object" ? r : {}) as { rows?: unknown; plan?: unknown; skipped?: unknown };
+  const list = Array.isArray(r) ? r : Array.isArray(obj.rows) ? obj.rows : Array.isArray(obj.plan) ? obj.plan : [];
+  const rows = (list as Partial<FilePlanRow>[]).filter((x) => x && typeof x.thread === "string").map((x) => ({
+    thread: x.thread as string,
+    title: x.title || "Untitled",
+    current_home: x.current_home ?? null,
+    primary: x.primary ?? null,
+    secondary: Array.isArray(x.secondary) ? x.secondary : [],
+    candidates: Array.isArray(x.candidates) ? x.candidates : [],
+    unfiled: !!x.unfiled,
+  }));
+  return { rows, skipped: typeof obj.skipped === "number" ? obj.skipped : 0 };
 }

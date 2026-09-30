@@ -19,8 +19,8 @@ vi.mock("./bridge", () => ({
   isBrowser: () => false,
 }));
 
-import { buildRoutedContext, correctRoute, decodeRouteTurns, encodeRouteTurns, routeText, routeThreshold, splitRoute, threadIdOf, threadRoutes } from "./routing";
-import { RouteChips } from "./routechips";
+import { buildRoutedContext, correctRoute, decodeRouteTurns, encodeRouteTurns, filingOf, mergeRoute, readFilePlan, routeText, routeThreshold, routedOf, splitRoute, threadIdOf, threadRoutes } from "./routing";
+import { FilingChips } from "./routechips";
 
 afterEach(() => { cleanup(); calls.length = 0; localStorage.clear(); });
 
@@ -63,7 +63,7 @@ describe("engine calls", () => {
     routeReply = { domains: [{ slug: "finance", confidence: 0.8 }], reason: "loan", source: "model" };
     const r = await routeText("/v", "Refinance the duplex", "t-1");
     expect(r?.domains[0].slug).toBe("finance");
-    expect(calls[0]).toEqual({ cmd: "engine_route", args: { vault: "/v", text: "Refinance the duplex", thread: "t-1" } });
+    expect(calls[0]).toEqual({ cmd: "engine_route", args: { vault: "/v", text: "Refinance the duplex", thread: "t-1", current: [], turn: null } });
   });
 
   it("a malformed reply means no answer", async () => {
@@ -87,33 +87,63 @@ describe("engine calls", () => {
   });
 });
 
-describe("RouteChips", () => {
+describe("filing", () => {
+  const known = new Set(["finance", "health", "real-estate"]);
+  const res = (o: object) => ({ domains: [], reason: "", source: "decision", ...o });
+
+  it("files generously: the primary becomes home, secondaries are added", () => {
+    const f = mergeRoute(null, res({ primary: "finance", secondary: ["health", "foo-unknown"], changed: true }), known);
+    expect(f).toEqual({ home: "finance", also: ["health"] });
+    expect(routedOf(f)).toEqual(["finance", "health"]);
+    expect(filingOf(["finance", "health"])).toEqual(f);
+    expect(filingOf([])).toBeNull();
+  });
+
+  it("a re-check only adds; the home never changes", () => {
+    const prev = { home: "finance", also: [] };
+    expect(mergeRoute(prev, res({ primary: "health", secondary: ["real-estate"], changed: true }), known)).toEqual({ home: "finance", also: ["real-estate"] });
+    expect(mergeRoute(prev, res({ primary: "health", secondary: ["real-estate"], changed: false }), known)).toBe(prev);
+    expect(mergeRoute(prev, res({ checked: false }), known)).toBe(prev);
+  });
+
+  it("unfiled carries three candidates; a failed route marks nothing", () => {
+    const cands = [{ slug: "health", score: 0.3 }, { slug: "finance", score: 0.2 }, { slug: "real-estate", score: 0.1 }, { slug: "health", score: 0 }];
+    expect(mergeRoute(null, res({ primary: null, unfiled: true, candidates: cands, changed: true }), known)?.candidates).toHaveLength(3);
+    expect(mergeRoute(null, res({ source: "none", unfiled: false }), known)).toBeNull();
+  });
+
+  it("reads the plan object and its skipped count", async () => {
+    routeReply = null;
+    const plan = await readFilePlan("/v");
+    expect(plan).toEqual({ rows: [], skipped: 0 });
+  });
+});
+
+describe("FilingChips", () => {
   const domains = ["finance", "health", "real-estate"];
 
-  it("shows tagged chips and corrects on remove and undo", () => {
+  it("shows home and also; remove, change home and add each report the new filing", () => {
     const onChange = vi.fn();
-    render(<RouteChips route={{ tagged: ["real-estate", "finance"], suggested: [] }} domains={domains} onChange={onChange} />);
-    expect(screen.getByText("Real Estate")).toBeTruthy();
+    render(<FilingChips filing={{ home: "real-estate", also: ["finance"] }} domains={domains} onChange={onChange} />);
+    expect(screen.getByText("Filed in")).toBeTruthy();
+    expect(screen.getByText("Also in")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Remove Finance"));
-    expect(onChange).toHaveBeenLastCalledWith(["real-estate"]);
-    fireEvent.click(screen.getByLabelText("Undo: keep this in General"));
-    expect(onChange).toHaveBeenLastCalledWith([]);
+    expect(onChange).toHaveBeenLastCalledWith({ home: "real-estate", also: [] });
+    fireEvent.click(screen.getByTestId("filing-home"));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Health/ }));
+    expect(onChange).toHaveBeenLastCalledWith({ home: "health", also: ["finance"] });
+    fireEvent.click(screen.getByLabelText("Add a domain"));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Health/ }));
+    expect(onChange).toHaveBeenLastCalledWith({ home: "real-estate", also: ["finance", "health"] });
   });
 
-  it("offers a below-threshold domain as a quiet suggestion", () => {
+  it("unfiled shows candidates and one click files it; nothing shows before routing", () => {
     const onChange = vi.fn();
-    render(<RouteChips route={{ tagged: [], suggested: [{ slug: "health", confidence: 0.6 }] }} domains={domains} onChange={onChange} />);
-    fireEvent.click(screen.getByText("Health?"));
-    expect(onChange).toHaveBeenCalledWith(["health"]);
-  });
-
-  it("change menu toggles domains; pending shows nothing", () => {
-    const onChange = vi.fn();
-    const { container, rerender } = render(<RouteChips route={{ tagged: [], suggested: [], pending: true }} domains={domains} onChange={onChange} />);
+    const { container, rerender } = render(<FilingChips filing={null} domains={domains} onChange={onChange} />);
     expect(container.innerHTML).toBe("");
-    rerender(<RouteChips route={{ tagged: ["finance"], suggested: [] }} domains={domains} onChange={onChange} />);
-    fireEvent.click(screen.getByLabelText("Change domains"));
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Health/ }));
-    expect(onChange).toHaveBeenCalledWith(["finance", "health"]);
+    rerender(<FilingChips filing={{ home: null, also: [], candidates: [{ slug: "health", score: 0.3 }, { slug: "finance", score: 0.2 }] }} domains={domains} onChange={onChange} />);
+    expect(screen.getByText("Unfiled")).toBeTruthy();
+    fireEvent.click(screen.getByText("Health"));
+    expect(onChange).toHaveBeenCalledWith({ home: "health", also: [] });
   });
 });

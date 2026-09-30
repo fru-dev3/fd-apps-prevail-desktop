@@ -7,6 +7,7 @@ import { Toaster } from "./toast";
 import { APP_VERSION } from "./constants";
 import { initCrashReporting, osFamily, reportError, track } from "./telemetry";
 import "./index.css";
+import { installCopyOnSelect } from "./copyonselect";
 
 // Anonymous, consent-gated, allowlisted. Logs locally always (transparency);
 // only transmitted when the user opts in AND build-time keys exist.
@@ -67,6 +68,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
     return this.state.err ? null : this.props.children;
   }
 }
+
+installCopyOnSelect();
 
 try {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

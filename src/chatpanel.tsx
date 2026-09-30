@@ -3,7 +3,7 @@
 // shared chatviews + domainpanels.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, CalendarClock, Check, ClipboardList, Compass, FileText, Folder, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp, X } from "lucide-react";
+import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, CalendarClock, Check, ClipboardList, Compass, FileText, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
 import { PrevailLogo } from "./PrevailLogo";
 import { invoke, listen } from "./bridge";
 import { addNote } from "./notesstore";
@@ -24,8 +24,8 @@ import { domainIcon } from "./icons";
 import { useFrameworkLens } from "./hooks";
 import { ProviderMark } from "./marks";
 import { DomainHome, DomainStatusBar, MessageList } from "./chatviews";
-import { RouteChips } from "./routechips";
-import { ROUTE_WAIT_MS, buildRoutedContext, correctRoute, decodeRouteTurns, encodeRouteTurns, routeText, routeThreshold, routingEnabled, splitRoute, threadIdOf, threadRoutes } from "./routing";
+import { FilingChips } from "./routechips";
+import { ROUTE_WAIT_MS, buildRoutedContext, decodeRouteTurns, encodeRouteTurns, filingOf, mergeRoute, routeText, routeThreshold, routedOf, routingEnabled, saveFiling, splitRoute, threadIdOf, type Filing, type RouteResult } from "./routing";
 import { LoopsPanel } from "./loopspanel";
 import { ActApprovalCard } from "./actcard";
 import { mergeExternalTurns } from "./threadmerge";
@@ -33,7 +33,7 @@ import { SchedulePanel } from "./convschedule";
 import { extractActIds, linkActsToThread, pendingActsForThread, useWaitingState } from "./waiting";
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
-import { RefChips, RefSuggest, atMatchAt, useRefCandidates, type RefCandidate } from "./chatrefs";
+import { AttachRow, RefSuggest, refItem, shortContextLabel, type AttachItem, atMatchAt, useRefCandidates, type RefCandidate } from "./chatrefs";
 import { addRef, appStepLabel, refsToChatArgs, type ChatRef, type RefKind } from "./appscope";
 import { peekInvoke } from "./query";
 import type { MirrorList } from "./appsmirror-model";
@@ -920,6 +920,26 @@ export function ChatPanel({
   const syncCaret = useCallback((el: HTMLTextAreaElement | null) => {
     if (el) setCaretPos(el.selectionStart ?? el.value.length);
   }, []);
+  // One list for the composer's chip row: context files (auto ones quieter),
+  // @refs, then attached files. Removal does what each chip always did.
+  const attachItems: AttachItem[] = [
+    ...primedContext.map((c, i): AttachItem => ({
+      key: `ctx:${c.label}`,
+      label: shortContextLabel(c.label),
+      title: `${isAutoContextLabel(c.label) ? "Added for you" : "Context you added"}: ${c.label}\n${c.body.slice(0, 200)}`,
+      icon: ctxChipIcon(c.label),
+      quiet: isAutoContextLabel(c.label),
+      onRemove: () => setPrimedContext((cur) => cur.filter((_, j) => j !== i)),
+    })),
+    ...refs.map((r) => refItem(r, () => setRefs((cur) => cur.filter((x) => !(x.kind === r.kind && x.id === r.id))))),
+    ...attachments.map((p, i): AttachItem => ({
+      key: `file:${i}:${p}`,
+      label: p.split("/").pop() || p,
+      title: `Attached file: ${p}`,
+      icon: /\.(png|jpe?g|gif|webp)$/i.test(p) ? <ImageIcon className="h-3 w-3 text-ai" /> : <FileText className="h-3 w-3 text-text-muted" />,
+      onRemove: () => setAttachments((cur) => cur.filter((_, j) => j !== i)),
+    })),
+  ];
   const slashMatch = useMemo(() => {
     const caret = Math.min(caretPos, input.length);
     const before = input.slice(0, caret);
@@ -1181,15 +1201,32 @@ export function ChatPanel({
     () => domains.map((d) => d.name.toLowerCase()).filter((n) => isUserDomain(n) && n !== "general"),
     [domains],
   );
-  // The user corrected where message `i` was filed: record it so routing
-  // learns, and let the save carry the new tags to the thread.
-  const correctMessageRoute = useCallback((i: number, next: string[]) => {
-    const m = messagesRef.current[i];
-    if (!m || m.role !== "user") return;
-    const prev = m.domainRoute?.tagged ?? [];
-    setMessages((cur) => cur.map((x, j) => (j === i ? { ...x, domainRoute: { tagged: next, suggested: [] } } : x)));
-    correctRoute(vaultPath, threadIdOf(activeThreadRef.current), next, prev, m.content);
-  }, [vaultPath]);
+  // Where this conversation is filed (home + other domains, or unfiled with
+  // candidates). The ref is what saves read, so it is set synchronously.
+  const [filing, setFilingState] = useState<Filing | null>(null);
+  const filingRef = useRef<Filing | null>(null);
+  const updateFiling = useCallback((fn: (prev: Filing | null) => Filing | null) => {
+    const next = fn(filingRef.current);
+    if (next === filingRef.current) return false;
+    filingRef.current = next;
+    setFilingState(next);
+    return true;
+  }, []);
+  const foldRoute = useCallback((res: RouteResult | null) => {
+    updateFiling((prev) => mergeRoute(prev, res, new Set(routableDomains)));
+  }, [routableDomains, updateFiling]);
+  // The user refiled the conversation from its chips: write the thread's
+  // `routed:` line now (the body is untouched) and teach routing.
+  const changeFiling = useCallback((next: Filing) => {
+    const prev = filingRef.current;
+    updateFiling(() => next);
+    const path = activeThreadRef.current;
+    if (!path) return;
+    const text = messagesRef.current.find((m) => m.role === "user")?.content ?? "";
+    void saveFiling(vaultPath, path, next, prev, text)
+      .then(() => window.dispatchEvent(new Event("prevail:threads-changed")))
+      .catch((e) => console.error("thread_set_filing", e));
+  }, [vaultPath, updateFiling]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   // Any thread pick returns to the chat view - even re-clicking the active
   // thread (which doesn't change activeThreadPath), so you can always escape
@@ -1204,7 +1241,7 @@ export function ChatPanel({
     // Picking a thread (or starting a new one) always returns to the chat view,
     // even if Preferences was open - otherwise the click appears to do nothing.
     setDomainTab("chat");
-    if (!activeThreadPath) { setMessages([]); setThreadTitle(""); setThreadEntity(null); displayedPathRef.current = null; return; }
+    if (!activeThreadPath) { setMessages([]); setThreadTitle(""); setThreadEntity(null); filingRef.current = null; setFilingState(null); displayedPathRef.current = null; return; }
     if (selfSetPathRef.current === activeThreadPath) {
       selfSetPathRef.current = null;
       displayedPathRef.current = activeThreadPath;
@@ -1228,6 +1265,10 @@ export function ChatPanel({
         syncedRef.current = { path: activeThreadPath, count: t.turns.length };
         setThreadTitle(t.meta?.title?.trim() || "Untitled");
         setThreadEntity(t.meta?.entity ?? null);
+        // Filing lives on General threads (a domain's own threads are home there).
+        const f = t.meta?.domain ? null : filingOf(t.meta?.routed);
+        filingRef.current = f;
+        setFilingState(f);
         const routes = decodeRouteTurns(t.meta?.route_turns);
         setMessages(t.turns.map((tn, i) => ({
           role: tn.role,
@@ -1305,7 +1346,7 @@ export function ChatPanel({
             content: m.content,
           })),
           // General owns routing; any other scope leaves what is on disk.
-          ...(tDomain ? {} : { routed: threadRoutes(messages), routeTurns: encodeRouteTurns(messages) }),
+          ...(tDomain ? {} : { routed: routedOf(filingRef.current), routeTurns: encodeRouteTurns(messages) }),
           // Entity chat: tag the thread (null keeps what is on disk).
           entity: entityIdRef.current,
           // App chat: tag the thread as the app's own.
@@ -2029,20 +2070,21 @@ export function ChatPanel({
     // drop the oldest turns to fit, keeping at least the most recent.
     let routedPreamble = "";
     if (routeOn) {
-      const routeP = routeText(vaultPath, visible, threadIdOf(activeThreadRef.current)).then((res) => {
+      const routeP = routeText(vaultPath, visible, threadIdOf(activeThreadRef.current), undefined, routedOf(filingRef.current), messages.filter((x) => x.role === "user").length + 1).then((res) => {
         const known = new Set(routableDomains);
         const r = splitRoute(res, routeThreshold(), known);
         setMessages((m) => m.map((x) => (x === userMsg || (x.role === "user" && x.ts === userMsg.ts) ? { ...x, domainRoute: r } : x)));
+        foldRoute(res);
         return r;
       });
       // A fast answer shapes this turn; a slow one still files the thread and
       // shapes the next.
       const early = await Promise.race([routeP, new Promise<null>((r) => window.setTimeout(() => r(null), ROUTE_WAIT_MS))]);
-      const include = [...threadRoutes(messages)];
+      const include = [...routedOf(filingRef.current)];
       for (const d of early?.tagged ?? []) if (!include.includes(d)) include.push(d);
       routedPreamble = await buildRoutedContext(vaultPath, include).catch(() => "");
     } else if (!domain && !tDomain && !isApp && !incognitoActive("chat")) {
-      routedPreamble = await buildRoutedContext(vaultPath, threadRoutes(messages)).catch(() => "");
+      routedPreamble = await buildRoutedContext(vaultPath, routedOf(filingRef.current)).catch(() => "");
     }
     const history = buildChatContext(messages, 40000);
     const promptText = fwLens.buildPrompt(
@@ -2611,6 +2653,11 @@ export function ChatPanel({
           <span className="truncate text-[11px] text-text-secondary" title={threadTitle}>{threadTitle}</span>
         </div>
       )}
+      {activeThreadPath && filing && !scopeApp && (
+        <div className="flex shrink-0 items-center border-b border-border-subtle px-4 py-1.5">
+          <FilingChips filing={filing} domains={routableDomains} onChange={changeFiling} />
+        </div>
+      )}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 && scopeApp && domainTab === "chat" && (
           <div data-testid="app-chat-empty" className="flex h-full items-center justify-center px-6 py-10 text-center text-[15px] text-text-muted">
@@ -3111,9 +3158,6 @@ export function ChatPanel({
         {!domain && domainTab === "chat" && messages.length > 0 && (
           <div className={`mx-auto w-full max-w-3xl ${phone ? "px-4 py-5" : "px-6 py-8"}`}>
             <MessageList
-              userFooter={tDomain || isApp ? undefined : (m, i) => (
-                <RouteChips route={m.domainRoute} domains={routableDomains} onChange={(next) => correctMessageRoute(i, next)} />
-              )}
               messages={messages}
               resetKey={chatViewNonce}
               onCopy={copyToClipboard}
@@ -3151,24 +3195,9 @@ export function ChatPanel({
               right - so attached context + the gauge share a line instead of
               stacking and eating vertical space. */}
           <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-              {/* Incognito moved into Modes; when on, the composer shows a ghost
-                  badge + glow (below) instead of a pill here. */}
-              {primedContext.map((c, i) => (
-                <span
-                  key={c.label}
-                  className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft py-0.5 pl-2 pr-1 text-[11px] text-accent"
-                  title={c.body.slice(0, 200)}
-                >
-                  {ctxChipIcon(c.label)}
-                  {c.label}
-                  <button
-                    onClick={() => setPrimedContext((cur) => cur.filter((_, j) => j !== i))}
-                    className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-text-muted hover:bg-surface-warm hover:text-err"
-                    title="Remove from context"
-                  >×</button>
-                </span>
-              ))}
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              {/* Everything attached, in one row: context, @refs and files. */}
+              <AttachRow items={attachItems} />
               {/* App-skill auto-attach toggle: only when an app with its own
                   SKILL.md is open. Controls whether its skill is auto-added as
                   context on every turn (per-app default), independent of the
@@ -3285,7 +3314,6 @@ export function ChatPanel({
             <RefSuggest items={refCandidates} index={refIdx} onPick={applyRef}
               empty={refOnly === "app" ? "No apps yet. Connect one in Apps." : refOnly === "entity" ? "No people or things yet." : "Nothing matches. Keep typing, or press Escape."} />
           )}
-          <RefChips refs={refs} onRemove={(r) => setRefs((cur) => cur.filter((x) => !(x.kind === r.kind && x.id === r.id)))} />
           <textarea
             ref={taRef}
             value={input}
@@ -3528,26 +3556,6 @@ export function ChatPanel({
               </div>
             );
           })()}
-          {/* Attachment pills */}
-          {attachments.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 px-2">
-              {attachments.map((p, i) => {
-                const isImage = /\.(png|jpe?g|gif|webp)$/i.test(p);
-                return (
-                <span key={i} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background py-0.5 pl-2 pr-1 text-[11px] text-text-secondary">
-                  {isImage ? <ImageIcon className="h-3 w-3 text-ai" /> : <Folder className="h-3 w-3 text-text-muted" />}
-                  {p.split("/").pop()}
-                  <button
-                    onClick={() => setAttachments((cur) => cur.filter((_, j) => j !== i))}
-                    className="flex h-3.5 w-3.5 items-center justify-center rounded-full text-text-muted hover:bg-surface-warm hover:text-err"
-                    aria-label="Remove attachment"
-                    title="Remove attachment"
-                  ><X className="h-3 w-3" /></button>
-                </span>
-                );
-              })}
-            </div>
-          )}
           {/* Single inline toolbar: + then the per-domain toggles,
               then a spacer, then model picker / council / send. */}
           {/* G2: the council roster lives in the COUNCIL panel, not here - this is

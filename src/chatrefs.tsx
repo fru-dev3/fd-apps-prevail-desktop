@@ -5,12 +5,13 @@
 // opens with a small "Used Gmail · 3 reads" chip that leads to that app's
 // Activity; engine notes about apps (routed, needs sign-in, unavailable) are
 // drawn in the flow of the reply.
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Boxes, Building2, ExternalLink, KeyRound, Layers, MapPin, Route, User, X } from "lucide-react";
 import { useInvokeQuery } from "./query";
 import { titleCase } from "./format";
 import { lsGet, LS } from "./storage";
 import { isUserDomain } from "./helpers";
+import { domainIcon } from "./icons";
 import { loadEntities, useEntityStore } from "./entitystore";
 import { AppLogo, openExternal } from "./appsmirror-parts";
 import type { MirrorApp, MirrorList } from "./appsmirror-model";
@@ -59,7 +60,7 @@ const ENTITY_KIND: Record<string, string> = { person: "Person", place: "Place", 
 
 function RefIcon({ r, size = 16 }: { r: RefCandidate | ChatRef; size?: number }) {
   if (r.kind === "app") return <AppLogo name={r.label} url={(r as RefCandidate).url} size={size} />;
-  if (r.kind === "domain") return <Layers className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />;
+  if (r.kind === "domain") { const D = domainIcon(r.id) ?? Layers; return <D className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />; }
   const k = (r as RefCandidate).entityKind ?? r.id.split("/")[0];
   const I = k === "person" ? User : k === "place" ? MapPin : k === "org" ? Building2 : Boxes;
   return <I className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />;
@@ -89,19 +90,100 @@ export function RefSuggest({ items, index, onPick, empty }: { items: RefCandidat
   );
 }
 
-export function RefChips({ refs, onRemove }: { refs: ChatRef[]; onRemove: (r: ChatRef) => void }) {
-  if (!refs.length) return null;
+// Everything attached to the next send, in ONE chip row above the text:
+// context files, @apps, @people and things, @domains and attached files.
+// The row never wraps; chips that do not fit fold into a "+N" chip that
+// opens the row in place.
+export type AttachItem = {
+  key: string;
+  label: string;
+  /** Hover text: the full path or label, and its kind. */
+  title: string;
+  icon: ReactNode;
+  /** Attached for you (auto context): a quieter chip. */
+  quiet?: boolean;
+  testId?: string;
+  onRemove: () => void;
+};
+
+/** "extra: Business/state.md" -> "Business state"; "app: Foo" -> "Foo". */
+export function shortContextLabel(label: string): string {
+  const m = label.match(/^([a-z-]+)(?:\s*\(([^)]*)\))?:\s*(.*)$/i);
+  if (!m) return label;
+  const qual = m[2] === "entire folder" ? " folder" : m[2] === "full" ? ", full" : "";
+  const rest = m[3].replace(/\/state\.md$/i, " state").replace(/\.md$/i, "").replace(/\//g, " ");
+  return `${rest}${qual}`.trim() || label;
+}
+
+export function refItem(r: ChatRef, onRemove: () => void): AttachItem {
+  const kind = r.kind === "app" ? "App" : r.kind === "domain" ? "Domain" : "Person or thing";
+  return {
+    key: `ref:${r.kind}:${r.id}`, label: `@${r.label}`, testId: `ref-chip-${r.kind}`,
+    title: `${kind}: ${r.label}. ${r.kind === "app" ? "Used" : "Comes along"} on every turn`,
+    icon: <RefIcon r={r} size={14} />, onRemove,
+  };
+}
+
+const GAP = 6;
+const MORE_W = 40;
+
+export function AttachRow({ items }: { items: AttachItem[] }) {
+  const [open, setOpen] = useState(false);
+  const [fit, setFit] = useState(items.length);
+  const wrap = useRef<HTMLDivElement>(null);
+  const probe = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const w = wrap.current?.clientWidth ?? 0;
+      const kids = Array.from(probe.current?.children ?? []) as HTMLElement[];
+      if (!w) { setFit(kids.length); return; }
+      let used = 0;
+      let n = 0;
+      for (let i = 0; i < kids.length; i++) {
+        const cw = kids[i].offsetWidth + (i ? GAP : 0);
+        const reserve = i < kids.length - 1 ? MORE_W + GAP : 0;
+        if (used + cw + reserve > w) break;
+        used += cw;
+        n++;
+      }
+      setFit(n);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined" || !wrap.current) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap.current);
+    return () => ro.disconnect();
+  }, [items]);
+  useEffect(() => { if (items.length <= fit) setOpen(false); }, [items.length, fit]);
+  if (!items.length) return null;
+  const shown = open ? items : items.slice(0, fit);
+  const hidden = items.length - shown.length;
+  // `probe`: the measuring copy, with no test ids and nothing to focus.
+  const chip = (it: AttachItem, probe = false) => (
+    <span key={it.key} data-testid={probe ? undefined : it.testId ?? "attach-chip"} title={probe ? undefined : it.title}
+      className={`inline-flex max-w-[14rem] shrink-0 items-center gap-1 rounded-full border py-0.5 pl-1.5 pr-1 text-[12px] ${it.quiet ? "border-border text-text-muted" : "border-accent-border bg-accent-soft font-medium text-accent"}`}>
+      {it.icon}
+      <span className="truncate">{it.label}</span>
+      {probe ? <span className="h-3.5 w-3.5 shrink-0" /> : (
+        <button type="button" onClick={it.onRemove} aria-label={`Remove ${it.label}`} title={`Remove ${it.label}`}
+          className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full hover:bg-surface-warm hover:text-err"><X className="h-3 w-3" /></button>
+      )}
+    </span>
+  );
   return (
-    <div data-testid="ref-chips" className="mb-1.5 flex flex-wrap items-center gap-1.5 px-2 pt-2">
-      {refs.map((r) => (
-        <span key={`${r.kind}:${r.id}`} data-testid={`ref-chip-${r.kind}`} title={r.kind === "app" ? `${r.label} is used on every turn` : `${r.label} comes along on every turn`}
-          className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-full border border-accent-border bg-accent-soft py-0.5 pl-1.5 pr-1 text-[13px] font-medium text-accent">
-          <RefIcon r={r} size={16} />
-          <span className="truncate">@{r.label}</span>
-          <button type="button" onClick={() => onRemove(r)} aria-label={`Remove ${r.label}`} title={`Remove ${r.label}`}
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-accent/15"><X className="h-3 w-3" /></button>
-        </span>
-      ))}
+    <div ref={wrap} data-testid="attach-row" className="relative min-w-0 flex-1">
+      {/* Off-screen copy of every chip, only to measure what fits. */}
+      <div ref={probe} aria-hidden className="pointer-events-none invisible absolute left-0 top-0 flex gap-1.5 whitespace-nowrap">{items.map((it) => chip(it, true))}</div>
+      <div className={`flex items-center gap-1.5 ${open ? "flex-wrap" : "flex-nowrap overflow-hidden"}`}>
+        {shown.map((it) => chip(it))}
+        {hidden > 0 && (
+          <button type="button" data-testid="attach-more" onClick={() => setOpen(true)} title={`Show ${hidden} more`}
+            className="inline-flex shrink-0 items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent">+{hidden}</button>
+        )}
+        {open && items.length > fit && (
+          <button type="button" onClick={() => setOpen(false)} className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[12px] text-text-muted hover:text-accent">Less</button>
+        )}
+      </div>
     </div>
   );
 }

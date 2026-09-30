@@ -3212,12 +3212,34 @@ mod app_id_tests {
 /// and nothing here logs it. Runs off the main thread: the model fallback can
 /// take seconds and the chat send path must never wait on it.
 #[tauri::command]
-pub async fn engine_route(vault: String, text: String, thread: Option<String>) -> Result<serde_json::Value, String> {
+pub async fn engine_route(
+    vault: String,
+    text: String,
+    thread: Option<String>,
+    // The thread's filing, home first, so a re-check only adds to it.
+    current: Option<Vec<String>>,
+    // Which user turn this is; the engine re-checks on 1, 3, then every 5th.
+    turn: Option<u32>,
+    incognito: Option<bool>,
+) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let mut args: Vec<&str> = vec!["route", "--text", "-", "--vault", &vault];
+        let current = current.unwrap_or_default().join(",");
+        let turn = turn.map(|n| n.to_string());
+        let mut args: Vec<&str> = vec!["route", "--text", "-", "--vault", &vault, "--json"];
         if let Some(t) = thread.as_deref().filter(|t| !t.trim().is_empty()) {
             args.push("--thread");
             args.push(t);
+        }
+        if !current.is_empty() {
+            args.push("--current");
+            args.push(&current);
+        }
+        if let Some(n) = turn.as_deref() {
+            args.push("--turn");
+            args.push(n);
+        }
+        if incognito == Some(true) {
+            args.push("--incognito");
         }
         run_engine_json_stdin(&args, &text)
     })
@@ -3244,6 +3266,18 @@ pub async fn engine_route_correct(
             "--text", "-", "--source", "desktop", "--vault", &vault,
         ];
         run_engine_json_stdin(&args, &body)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+}
+
+/// Where each unfiled conversation would be filed (`prevail file plan`).
+/// Read-only: the engine proposes, the desktop applies what the user keeps.
+#[tauri::command]
+pub async fn engine_file_plan(vault: String, limit: Option<u32>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let n = limit.unwrap_or(50).clamp(1, 200).to_string();
+        run_engine_json(&["file", "plan", "--limit", &n, "--vault", &vault, "--json"])
     })
     .await
     .map_err(|e| format!("join: {e}"))?

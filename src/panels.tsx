@@ -660,8 +660,8 @@ export function ThreadsRail({
                           </span>
                         )}
                         {t.linked_from && (
-                          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[10px] text-text-muted" title="Started in General and filed here. Same conversation, not a copy.">
-                            <Link2 className="h-2.5 w-2.5" />from General
+                          <span data-testid="thread-linked" className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[10px] text-text-muted" title={`Lives in ${titleCase(t.linked_from)} and is filed here. Same conversation, not a copy.`}>
+                            <Link2 className="h-2.5 w-2.5" />{t.filed_as === "also" ? "Also filed here" : `from ${titleCase(t.linked_from)}`}
                           </span>
                         )}
                       </div>

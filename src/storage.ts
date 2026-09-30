@@ -178,6 +178,7 @@ export const PREF = {
   streamStallTimeoutSec: "prevail.pref.streamStallTimeoutSec", // integer seconds — no chunks for this long → kill
   // Home screen — show the proactive Briefing/recommendations panel. Off by
   // default so the landing stays minimal; the user opts in from General.
+  copyOnSelect: "prevail.pref.copyOnSelect",               // "1" | "0" - default "1" (on)
   showHomeBriefing: "prevail.pref.showHomeBriefing",       // "1" | "0" — default "0" (hidden)
   // Quick Capture — the floating mic/note widget pinned to the right edge.
   // Default "0" (hidden); the user opts in from General settings.

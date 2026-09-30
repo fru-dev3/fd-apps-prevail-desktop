@@ -2,6 +2,7 @@
 // Ideal State (life-pillar alignment), and the General section (appearance,
 // start-on-boot, embedded Shortcuts).
 import { useEffect, useMemo, useState } from "react";
+import { FilingSettings } from "./filingplan";
 import { disable as autostartDisable, enable as autostartEnable, isEnabled as autostartIsEnabled } from "@tauri-apps/plugin-autostart";
 import { Activity, Clock, Compass, Eye, EyeOff, FileClock, FolderOpen, Globe, History, Lock, Monitor, Moon, Palette, PenLine, RefreshCw, ShieldAlert, ShieldCheck, SlidersHorizontal, Sun, Terminal } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -431,7 +432,7 @@ export function ObsidianCard() {
 }
 
 // part: one sub-section on its own (the Settings page gives each a row).
-export function GeneralSection({ appearance, part }: { appearance?: ReturnType<typeof useAppearance>; part?: "main" | "appearance" }) {
+export function GeneralSection({ appearance, part, vaultPath = "" }: { appearance?: ReturnType<typeof useAppearance>; part?: "main" | "appearance"; vaultPath?: string }) {
   const [startOnBoot, setStartOnBoot] = useState(false);
   useEffect(() => { autostartIsEnabled().then(setStartOnBoot).catch(() => {}); }, []);
   const [closeToTray, setCloseToTray] = useState(() => getPref(PREF.closeToTray, "0") === "1");
@@ -444,6 +445,7 @@ export function GeneralSection({ appearance, part }: { appearance?: ReturnType<t
   const [stripSyc, setStripSyc] = useState(() => getPref(PREF.stripSycophancy, "0") === "1");
   const [showThinking, setShowThinking] = useState(() => getPref(PREF.showThinking, "1") === "1");
   const [showBriefing, setShowBriefing] = useState(() => getPref(PREF.showHomeBriefing, "0") === "1");
+  const [copyOnSelect, setCopyOnSelect] = useState(() => getPref(PREF.copyOnSelect, "1") === "1");
   const [showQuickCapture, setShowQuickCapture] = useState(() => getPref(PREF.quickCaptureEnabled, "0") === "1");
   // Linking: which entities get their own page as you chat. Engine config.
   const [autosave, setAutosave] = useState<string>("yours");
@@ -528,6 +530,11 @@ export function GeneralSection({ appearance, part }: { appearance?: ReturnType<t
         <Row
           title="Start on boot"
           control={<Switch on={startOnBoot} onChange={async (v) => { try { if (v) await autostartEnable(); else await autostartDisable(); setStartOnBoot(v); } catch (e) { console.error("autostart", e); } }} />}
+        />
+        <Row
+          title="Copy text when you select it"
+          desc="Selected text in replies and pages goes straight to the clipboard. Text boxes are left alone."
+          control={<Switch on={copyOnSelect} onChange={(v) => { setCopyOnSelect(v); setPref(PREF.copyOnSelect, v ? "1" : "0"); }} />}
         />
         <Row
           title="Show Briefing on home"
@@ -656,6 +663,9 @@ export function GeneralSection({ appearance, part }: { appearance?: ReturnType<t
         </div>
       </div>
       </GenSub>
+      {/* Outside GenSub: GenSub is redefined per render, so anything inside
+          it remounts and would lose the plan's edits. */}
+      {part === "main" && vaultPath && <FilingSettings vaultPath={vaultPath} />}
       {appearance && (
         <GenSub id="appearance" title="Appearance" icon={Palette} summary={appearance?.mode ? `${appearance.mode} theme` : "theme & palette"}>
           <div className="mb-6 rounded-xl border border-border bg-surface p-5">

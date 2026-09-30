@@ -29,6 +29,8 @@ export interface ThreadMeta {
   // the space a linked thread really lives in ("general").
   routed?: string[];
   linked_from?: string | null;
+  // On a linked entry: this domain is its "home", or it is "also" filed here.
+  filed_as?: "home" | "also" | null;
   route_turns?: string;
   // Entity chat: the entity (kind/slug) this conversation is about.
   entity?: string | null;

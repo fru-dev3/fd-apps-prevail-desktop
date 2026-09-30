@@ -37,6 +37,8 @@ const WEBUI_ALLOWED: &[&str] = &[
     "bootstrap_vault", "import_sample_vault",
     // chat
     "chat_send", "engine_chat", "abort_sessions", "detect_clis", "engine_route", "engine_route_correct",
+    // filing plan (read). Applying it (thread_set_filing) is a write and stays desktop-only.
+    "engine_file_plan",
     // threads
     "list_threads", "load_thread", "save_thread", "rename_thread", "delete_thread", "save_session",
     // memory / profile (read)

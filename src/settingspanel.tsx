@@ -125,7 +125,7 @@ export function SettingsPanel({
   ];
   const settings: HubGroup[] = [
     { heading: "General", items: [
-      { id: "general", label: "Behavior", icon: SlidersHorizontal, render: () => <GeneralSection appearance={appearance} part="main" /> },
+      { id: "general", label: "Behavior", icon: SlidersHorizontal, render: () => <GeneralSection appearance={appearance} part="main" vaultPath={vaultPath} /> },
       { id: "appearance", label: "Appearance", icon: Palette, render: () => <GeneralSection appearance={appearance} part="appearance" /> },
       { id: "shortcuts", label: "Shortcuts", icon: Keyboard, render: () => <ShortcutsSection /> },
     ]},

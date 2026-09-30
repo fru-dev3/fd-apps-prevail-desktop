@@ -34,6 +34,9 @@ pub struct ThreadMeta {
     // Set on a domain's list for a thread that lives elsewhere and is only
     // linked there ("general"). None for the domain's own threads.
     pub linked_from: Option<String>,
+    // On a linked entry: "home" when this domain is the thread's home (first
+    // `routed:` entry), else "also" (listed as "Also filed here").
+    pub filed_as: Option<String>,
     // Per-turn routing chips (frontmatter `route_turns:`), opaque to Rust.
     pub route_turns: String,
     // Entity chat: the entity this conversation is about (frontmatter
@@ -316,6 +319,7 @@ fn thread_meta_from(
         model,
         routed: parse_routed(meta.get("routed")),
         linked_from: None,
+        filed_as: None,
         route_turns: meta.get("route_turns").cloned().unwrap_or_default(),
         entity: clean_entity(meta.get("entity").map(|s| s.as_str())),
         app: clean_app(meta.get("app").map(|s| s.as_str())),
@@ -411,14 +415,16 @@ pub(crate) fn list_threads(vault: String, domain: Option<String>) -> Result<Vec<
             out.push(meta);
         }
     }
-    // A named domain also lists the General threads routed to it, as linked
-    // entries: the same file, never moved or copied.
+    // A named domain also lists every thread filed in it that lives in another
+    // space (General or another domain), as linked entries: the same file,
+    // never moved or copied. `linked_from` names the space it lives in.
     if let Some(d) = domain.as_deref().filter(|d| !crate::paths::is_general(d)) {
         let want = d.to_lowercase();
         let own: std::collections::HashSet<String> = out.iter().map(|m| m.path.clone()).collect();
-        for m in list_general_threads(&vault) {
+        for (from, m) in routed_threads_elsewhere(&vault, &want) {
             if m.routed.contains(&want) && !own.contains(&m.path) {
-                out.push(ThreadMeta { linked_from: Some("general".into()), ..m });
+                let filed_as = Some(if m.routed.first() == Some(&want) { "home" } else { "also" }.to_string());
+                out.push(ThreadMeta { linked_from: Some(from), filed_as, ..m });
             }
         }
     }
@@ -426,34 +432,103 @@ pub(crate) fn list_threads(vault: String, domain: Option<String>) -> Result<Vec<
     Ok(out)
 }
 
-// Every General thread's meta, read straight from its dirs (no dedup needed:
-// callers only look for routed ones).
-fn list_general_threads(vault: &str) -> Vec<ThreadMeta> {
-    let mut out: Vec<ThreadMeta> = Vec::new();
+// Every space a thread can live in: General first, then each domain.
+fn thread_spaces(vault: &str) -> Vec<(String, Vec<PathBuf>)> {
+    let mut out = vec![("general".to_string(), thread_search_dirs(vault, &None).unwrap_or_default())];
+    for (name, _) in crate::paths::enumerate_domain_dirs(Path::new(vault)) {
+        let n = name.to_lowercase();
+        if crate::paths::is_general(&n) || !crate::paths::is_safe_domain(&n) { continue; }
+        if let Ok(dirs) = thread_search_dirs(vault, &Some(name)) { out.push((n, dirs)); }
+    }
+    out
+}
+
+// Every filed thread (non-empty `routed:`) outside the space `skip`, with the
+// space it lives in. Only files whose frontmatter names a route are parsed.
+// ponytail: reads every thread file per domain list; index `routed` if vaults
+// grow past a few thousand threads.
+fn routed_threads_elsewhere(vault: &str, skip: &str) -> Vec<(String, ThreadMeta)> {
+    let mut out: Vec<(String, ThreadMeta)> = Vec::new();
     let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
-    for dir in thread_search_dirs(vault, &None).unwrap_or_default() {
-        let Ok(entries) = read_dir_retry(&dir) else { continue };
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if entry.file_name().to_str().map(|n| n.starts_with('.')).unwrap_or(true) {
-                continue;
+    for (space, dirs) in thread_spaces(vault) {
+        if space == skip { continue; }
+        for dir in dirs {
+            let Ok(entries) = read_dir_retry(&dir) else { continue };
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if entry.file_name().to_str().map(|n| n.starts_with('.')).unwrap_or(true) {
+                    continue;
+                }
+                if p.extension().and_then(|s| s.to_str()) != Some("md") {
+                    continue;
+                }
+                if !seen.insert(p.canonicalize().unwrap_or_else(|_| p.clone())) {
+                    continue;
+                }
+                let Ok(raw) = read_to_string_retry(&p) else { continue };
+                let (fm, body) = split_frontmatter(&raw);
+                if fm.get("routed").map(|v| v.trim().is_empty()).unwrap_or(true) {
+                    continue;
+                }
+                let turns = parse_thread_body(&body);
+                out.push((space.clone(), thread_meta_from(&p, &fm, &body, &turns)));
             }
-            if p.extension().and_then(|s| s.to_str()) != Some("md") {
-                continue;
-            }
-            if !seen.insert(p.canonicalize().unwrap_or_else(|_| p.clone())) {
-                continue;
-            }
-            let Ok(raw) = read_to_string_retry(&p) else { continue };
-            let (fm, body) = split_frontmatter(&raw);
-            if fm.get("routed").map(|v| v.trim().is_empty()).unwrap_or(true) {
-                continue;
-            }
-            let turns = parse_thread_body(&body);
-            out.push(thread_meta_from(&p, &fm, &body, &turns));
         }
     }
     out
+}
+
+// The space (None = General) a thread stem already lives in, if any.
+fn owner_of(vault: &str, stem: &str) -> Option<Option<String>> {
+    thread_spaces(vault).into_iter().find_map(|(space, dirs)| {
+        dirs.iter().any(|d| d.join(format!("{stem}.md")).exists())
+            .then(|| if space == "general" { None } else { Some(space) })
+    })
+}
+
+/// File a conversation: rewrite ONLY its `routed:` frontmatter line (home
+/// first, then the other domains it is filed in). The body is left byte for
+/// byte, and the file never moves. Desktop only: never on the web allowlist.
+#[tauri::command(async)]
+pub(crate) fn thread_set_filing(vault: String, thread: String, routed: Vec<String>) -> Result<Vec<String>, String> {
+    let _serial = crate::vaultio::serial();
+    // `thread` is a thread file path or its id (the file stem, as `file plan`
+    // and route corrections name it).
+    let p = if Path::new(&thread).is_absolute() {
+        guard_managed_path(&thread, "threads/", ".md")?;
+        PathBuf::from(&thread)
+    } else {
+        let stem = sanitize_existing_slug(&thread);
+        thread_spaces(&vault).into_iter().flat_map(|(_, dirs)| dirs)
+            .map(|d| d.join(format!("{stem}.md")))
+            .find(|p| !stem.is_empty() && p.exists())
+            .ok_or_else(|| format!("thread not found: {thread}"))?
+    };
+    let raw = read_to_string_retry(&p).map_err(|e| format!("read thread: {e}"))?;
+    let routed = parse_routed(Some(&routed.join(",")));
+    let line = if routed.is_empty() { String::new() } else { format!("routed: {}\n", routed.join(", ")) };
+    let next = match raw.strip_prefix("---\n").and_then(|rest| rest.find("\n---").map(|i| (rest, i))) {
+        Some((rest, i)) => {
+            let fm = &rest[..=i];
+            let tail = &rest[i + 1..];
+            let mut kept = String::new();
+            let mut placed = false;
+            for l in fm.split_inclusive('\n') {
+                if l.starts_with("routed:") {
+                    if !placed { kept.push_str(&line); placed = true; }
+                } else {
+                    kept.push_str(l);
+                }
+            }
+            if !placed { kept.push_str(&line); }
+            format!("---\n{kept}{tail}")
+        }
+        None => format!("---\n{line}---\n\n{raw}"),
+    };
+    if next != raw {
+        fs::write(&p, next).map_err(|e| format!("write thread: {e}"))?;
+    }
+    Ok(routed)
 }
 
 #[tauri::command(async)]
@@ -536,6 +611,7 @@ pub(crate) fn save_thread(
     // A thread opened from a domain's list may be a linked General thread. Its
     // slug is not in the domain's dirs, so without this the save would fork a
     // copy into the domain. Write it back where it lives, as General.
+    // The same holds for a thread filed in this domain from another domain.
     let mut domain = domain;
     if let (Some(d), Some(s)) = (domain.clone(), slug.as_ref()) {
         if !crate::paths::is_general(&d) {
@@ -543,11 +619,10 @@ pub(crate) fn save_thread(
             let in_domain = thread_search_dirs(&vault, &domain)
                 .map(|dirs| dirs.iter().any(|dir| dir.join(format!("{stem}.md")).exists()))
                 .unwrap_or(false);
-            let in_general = thread_search_dirs(&vault, &None)
-                .map(|dirs| dirs.iter().any(|dir| dir.join(format!("{stem}.md")).exists()))
-                .unwrap_or(false);
-            if !in_domain && in_general {
-                domain = None;
+            if !in_domain {
+                if let Some(owner) = owner_of(&vault, &stem) {
+                    domain = owner;
+                }
             }
         }
     }
@@ -1100,6 +1175,43 @@ mod tests {
         save_thread(v.clone(), None, Some(Path::new(&p).file_stem().unwrap().to_string_lossy().to_string()), "Lease".into(),
             vec![user("renew the lease"), asst("ok"), user("and the deposit?")], Some(vec![]), Some(String::new()), None, None).unwrap();
         assert!(list_threads(v, Some("real-estate".into())).unwrap().is_empty());
+    }
+
+    // Filing rewrites only the `routed:` line: the body stays byte for byte,
+    // the file stays put, and a thread filed from one domain into another
+    // lists there as linked from where it lives.
+    #[test]
+    fn filing_touches_only_routed_and_links_across_domains() {
+        let v = fresh_vault("filing");
+        for d in ["health", "finance"] { fs::create_dir_all(PathBuf::from(&v).join(d)).unwrap(); }
+        let p = save_thread(v.clone(), Some("health".into()), None, "Foo".into(), vec![user("foo  plan\n\n"), asst("ok")],
+            None, None, None, None).unwrap();
+        let body_of = |raw: &str| raw.splitn(3, "\n---\n").nth(1).unwrap().to_string();
+        let before = fs::read_to_string(&p).unwrap();
+        assert_eq!(thread_set_filing(v.clone(), p.clone(), vec!["Finance".into(), "../x".into()]).unwrap(), vec!["finance".to_string()]);
+        let after = fs::read_to_string(&p).unwrap();
+        assert!(after.contains("routed: finance\n"));
+        assert_eq!(body_of(&before), body_of(&after), "body byte-identical");
+        let list = list_threads(v.clone(), Some("finance".into())).unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].path, p);
+        assert_eq!(list[0].linked_from.as_deref(), Some("health"));
+        assert_eq!(list[0].filed_as.as_deref(), Some("home"));
+        assert!(list_threads(v.clone(), Some("health".into())).unwrap()[0].linked_from.is_none(), "home lists it as its own");
+        // Refiling replaces the line; clearing removes it.
+        thread_set_filing(v.clone(), p.clone(), vec!["health".into(), "finance".into()]).unwrap();
+        assert_eq!(fs::read_to_string(&p).unwrap().matches("routed:").count(), 1);
+        thread_set_filing(v.clone(), p.clone(), vec![]).unwrap();
+        assert!(!fs::read_to_string(&p).unwrap().contains("routed:"));
+        assert_eq!(body_of(&before), body_of(&fs::read_to_string(&p).unwrap()));
+        assert!(list_threads(v.clone(), Some("finance".into())).unwrap().is_empty());
+        // A save from the linked view writes back to where it lives.
+        let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
+        thread_set_filing(v.clone(), slug.clone(), vec!["finance".into()]).unwrap();
+        assert!(thread_set_filing(v.clone(), "no-such".into(), vec![]).is_err());
+        let p2 = save_thread(v, Some("finance".into()), Some(slug), "Foo".into(), vec![user("foo  plan"), asst("ok"), user("more")],
+            None, None, None, None).unwrap();
+        assert_eq!(p2, p, "no fork into finance");
     }
 
     #[test]
