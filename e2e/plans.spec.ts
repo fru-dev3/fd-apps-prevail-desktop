@@ -285,7 +285,16 @@ test("@ lists specialists; picking one hands the message to it", async ({ page }
   await expect(box).toBeVisible({ timeout: 10_000 });
   await box.fill("compare umbrella policies @Res");
   await page.getByTestId("ref-option-specialist-researcher").click();
-  await expect(box).toHaveValue("@Researcher compare umbrella policies ");
+  // The handoff is a chip with the specialist's face, not text in the box.
+  await expect(box).toHaveValue("compare umbrella policies");
+  const chip = page.getByTestId("ref-chip-specialist");
+  await expect(chip).toContainText("@Researcher");
+  await expect(chip.locator("[data-specialist=researcher]")).toBeVisible();
+  // At send the engine still gets "@Name ..." (its contract is unchanged).
+  await box.press("Enter");
+  await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(1);
+  expect(String((await calls(page, "engine_chat"))[0].message)).toMatch(/(^|\n)@Researcher compare umbrella policies$/);
+  await expect(page.getByTestId("ref-chip-specialist")).toHaveCount(0);
 });
 
 for (const width of [390, 768, 1280, 1920]) {

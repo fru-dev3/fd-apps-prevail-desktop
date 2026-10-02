@@ -6,7 +6,7 @@
 // Activity; engine notes about apps (routed, needs sign-in, unavailable) are
 // drawn in the flow of the reply.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Boxes, Building2, ExternalLink, KeyRound, Layers, MapPin, Route, Target, User, X } from "lucide-react";
+import { AlertTriangle, Boxes, Building2, ExternalLink, KeyRound, Layers, MapPin, Route, Target, X } from "lucide-react";
 import { useInvokeQuery } from "./query";
 import { SpecialistAvatar } from "./specialistavatar";
 import { titleCase } from "./format";
@@ -71,12 +71,16 @@ const ENTITY_KIND: Record<string, string> = { person: "Person", place: "Place", 
 
 function RefIcon({ r, size = 16 }: { r: RefCandidate | ChatRef; size?: number }) {
   if (r.kind === "app") return <AppLogo name={r.label} url={(r as RefCandidate).url} size={size} />;
-  if (r.kind === "domain") { const D = domainIcon(r.id) ?? Layers; return <D className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />; }
-  if (r.kind === "mission") return <Target className="shrink-0 text-accent" style={{ width: size - 2, height: size - 2 }} />;
+  if (r.kind === "domain") { const D = domainIcon(r.id) ?? Layers; return <D className="shrink-0 opacity-80" style={{ width: size - 2, height: size - 2 }} />; }
+  if (r.kind === "mission") return <Target className="shrink-0 opacity-80" style={{ width: size - 2, height: size - 2 }} />;
   if (r.kind === "specialist") return <SpecialistAvatar id={r.id} size={size + 2} />;
   const k = (r as RefCandidate).entityKind ?? r.id.split("/")[0];
-  const I = k === "person" ? User : k === "place" ? MapPin : k === "org" ? Building2 : Boxes;
-  return <I className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />;
+  if (k === "person") {
+    const ini = r.label.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+    return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-full bg-accent/15 font-semibold leading-none text-accent" style={{ width: size, height: size, fontSize: Math.max(8, Math.round(size * 0.45)) }}>{ini}</span>;
+  }
+  const I = k === "place" ? MapPin : k === "org" ? Building2 : Boxes;
+  return <I className="shrink-0 opacity-80" style={{ width: size - 2, height: size - 2 }} />;
 }
 
 const GROUP: Record<RefKind, string> = { specialist: "Specialists", mission: "Projects", app: "Apps", entity: "People and things", domain: "Domains" };
@@ -129,10 +133,10 @@ export function shortContextLabel(label: string): string {
 }
 
 export function refItem(r: ChatRef, onRemove: () => void): AttachItem {
-  const kind = r.kind === "app" ? "App" : r.kind === "domain" ? "Domain" : "Person or thing";
+  const kind = r.kind === "app" ? "App" : r.kind === "domain" ? "Domain" : r.kind === "mission" ? "Project" : r.kind === "specialist" ? "Specialist" : "Person or thing";
   return {
     key: `ref:${r.kind}:${r.id}`, label: `@${r.label}`, testId: `ref-chip-${r.kind}`,
-    title: `${kind}: ${r.label}. ${r.kind === "app" ? "Used" : "Comes along"} on every turn`,
+    title: r.kind === "specialist" ? `Hands this message to the ${r.label}` : `${kind}: ${r.label}. ${r.kind === "app" ? "Used" : "Comes along"} on every turn`,
     icon: <RefIcon r={r} size={14} />, onRemove,
   };
 }
@@ -176,7 +180,7 @@ export function AttachRow({ items }: { items: AttachItem[] }) {
   // `probe`: the measuring copy, with no test ids and nothing to focus.
   const chip = (it: AttachItem, probe = false) => (
     <span key={it.key} data-testid={probe ? undefined : it.testId ?? "attach-chip"} title={probe ? undefined : it.title}
-      className={`inline-flex max-w-[14rem] shrink-0 items-center gap-1 rounded-full border py-0.5 pl-1.5 pr-1 text-[12px] ${it.quiet ? "border-border text-text-muted" : "border-accent-border bg-accent-soft font-medium text-accent"}`}>
+      className="inline-flex max-w-[14rem] shrink-0 items-center gap-1 rounded-full border border-accent-border bg-accent-soft py-0.5 pl-1.5 pr-1 text-[12px] font-medium text-accent">
       {it.icon}
       <span className="truncate">{it.label}</span>
       {probe ? <span className="h-3.5 w-3.5 shrink-0" /> : (
