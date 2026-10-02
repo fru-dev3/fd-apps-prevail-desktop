@@ -88,7 +88,7 @@ export function EntityFiles({ vaultPath, id, folder, readFile, writable }: {
   };
   const reveal = (name?: string) => {
     if (!folder) return;
-    void invoke("open_in_finder", { path: name ? `${folder}/files/${name}` : `${folder}/files` }).catch(() => {});
+    void invoke("open_in_finder", { path: name ? `${folder}/files/${name}` : `${folder}/files` }).catch((e) => setErr(`Could not open the folder: ${String(e)}`));
   };
 
   return (

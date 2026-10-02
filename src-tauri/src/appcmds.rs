@@ -288,13 +288,38 @@ fn copy_dir_no_clobber(src: &Path, dest: &Path) -> std::io::Result<()> {
 }
 
 // Open/reveal a path in the OS default file manager (Finder on macOS).
+/// The path itself, or its nearest existing parent (at most three levels up).
+fn nearest_existing(path: &str) -> std::path::PathBuf {
+    let mut p = std::path::PathBuf::from(path);
+    for _ in 0..3 {
+        if p.exists() { break; }
+        match p.parent() { Some(up) => p = up.to_path_buf(), None => break }
+    }
+    p
+}
+
+#[cfg(test)]
+mod reveal_tests {
+    #[test]
+    fn a_missing_files_folder_reveals_its_parent() {
+        let dir = std::env::temp_dir().join(format!("reveal-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let missing = dir.join("files");
+        assert_eq!(super::nearest_existing(missing.to_str().unwrap()), dir);
+        assert_eq!(super::nearest_existing(dir.to_str().unwrap()), dir);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
 #[tauri::command]
 pub(crate) async fn open_in_finder(app: tauri::AppHandle, path: String) -> Result<(), String> {
     // Harden against a frontend bug/injection turning this into "launch an
     // arbitrary app": resolve the real path, refuse executable bundles, and for
     // files use `-R` (reveal in Finder) rather than `open` (which would run an
     // .app/.command). Directories are safe to open directly. (O36)
-    let canon = std::fs::canonicalize(&path).map_err(|e| format!("no such path: {e}"))?;
+    // A folder that does not exist yet (an entity's files/ before its first
+    // file) reveals its nearest existing parent instead of failing silently.
+    let canon = std::fs::canonicalize(nearest_existing(&path)).map_err(|e| format!("no such path: {e}"))?;
     let lower = canon.to_string_lossy().to_lowercase();
     if [".app", ".command", ".workflow", ".scpt", ".applescript", ".term"]
         .iter()
