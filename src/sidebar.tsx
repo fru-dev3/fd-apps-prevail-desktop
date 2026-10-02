@@ -12,7 +12,7 @@ import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { useChiefOfStaff } from "./chiefofstaff";
 import { dropSpecialist, inSidebar, startPillDrag } from "./dragref";
 import { ChiefAvatar, SpecialistAvatar, useWorkingSpecialists } from "./specialistavatar";
-import { Activity, Archive, ArrowLeft, Briefcase, ChevronRight, Folder, Hourglass, House, Inbox, LayoutList, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pause, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, Target, UserCog, X } from "lucide-react";
+import { Activity, Archive, ArrowLeft, Briefcase, ChevronRight, ChevronsLeft, ChevronsRight, Folder, Hourglass, House, Inbox, LayoutList, Loader2, MoreVertical, Pause, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, Target, UserCog, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
 import { daysLeftLabel, openMission, useMissions } from "./missions";
@@ -111,51 +111,39 @@ function Divider() {
 // surface behind them), each pushed up by the next section's.
 const SIDEBAR_STICKY = `${STICKY_GROUP_HEAD} bg-surface-strong`;
 
-function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour, toggleRight = false, dot }: {
+// One header for every section (Work, Projects, Specialists, Apps, Domains):
+// the label and count in the same muted ink, the row is the toggle, and the
+// + and the chevron stay hidden until the row is hovered or focused
+// (progressive reveal); on touch they are always there.
+const REVEAL = "opacity-0 transition-opacity group-hover/h:opacity-100 group-focus-within/h:opacity-100 [@media(pointer:coarse)]:opacity-100";
+function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour, dot }: {
   label: string; count?: number; open: boolean; onToggle: () => void; onAdd?: () => void; addTitle?: string; tour?: string;
   // A small count dot after the label (a pending suggestion), with its own click.
   dot?: { count: number; title: string; onClick: () => void };
-  // The whole row is the toggle, with the chevron at its right edge.
-  toggleRight?: boolean;
 }) {
-  if (toggleRight) {
-    return (
-      <div data-tour={tour} data-sticky-head className={`px-3 pb-1 pt-1 ${SIDEBAR_STICKY}`}>
-        <button onClick={onToggle} aria-expanded={open} data-testid={`sidebar-head-${label.toLowerCase()}`} title={open ? `Hide ${label}` : `Show ${label}`}
-          className={`group/h flex h-7 w-full items-center gap-1.5 rounded-md pl-0 pr-1 text-left transition-colors hover:bg-surface-warm hover:text-text-secondary ${SECTION_LABEL}`}>
-          <span>{label}</span>
-          {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70">{count}</span>}
-          <span className="flex-1" />
-          <span data-testid={`sidebar-toggle-${label.toLowerCase()}`} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted group-hover/h:bg-surface-strong group-hover/h:text-text-primary">
-            <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
-          </span>
-        </button>
-      </div>
-    );
-  }
   return (
-    <div data-tour={tour} data-sticky-head data-testid={`sidebar-head-${label.toLowerCase()}`} className={`group/h flex items-center gap-1 px-3 pb-1 pt-1 ${SIDEBAR_STICKY}`}>
-      <button onClick={onToggle} aria-expanded={open} className={`flex flex-1 items-center gap-1.5 text-left transition-colors hover:text-text-secondary ${SECTION_LABEL}`}>
-        <span>{label}</span>
+    <div data-tour={tour} data-sticky-head data-testid={`sidebar-head-${label.toLowerCase()}`} className={`group/h flex h-8 items-center gap-0.5 pb-0.5 pl-3 pr-1.5 pt-0.5 ${SIDEBAR_STICKY}`}>
+      <button onClick={onToggle} aria-expanded={open} title={open ? `Hide ${label}` : `Show ${label}`}
+        className={`flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md pl-0 text-left transition-colors hover:text-text-secondary focus-visible:text-text-secondary ${SECTION_LABEL}`}>
+        <span className="truncate">{label}</span>
         {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70">{count}</span>}
-        <ChevronRight className={`h-3 w-3 shrink-0 opacity-0 transition group-hover/h:opacity-100 ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
       </button>
       {dot && (
         <button onClick={dot.onClick} title={dot.title} aria-label={dot.title} data-testid={`sidebar-dot-${label.toLowerCase()}`}
-          className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold tabular-nums leading-none text-white hover:bg-accent-hover">
+          className="mr-0.5 flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold tabular-nums leading-none text-white hover:bg-accent-hover">
           {dot.count}
         </button>
       )}
       {onAdd && (
-        <button
-          onClick={onAdd}
-          title={addTitle}
-          aria-label={addTitle}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
-        >
-          <Plus className="h-4 w-4" strokeWidth={2.2} />
+        <button onClick={onAdd} title={addTitle} aria-label={addTitle} data-testid={`sidebar-add-${label.toLowerCase()}`}
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent ${REVEAL}`}>
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
         </button>
       )}
+      <button onClick={onToggle} tabIndex={-1} aria-hidden data-testid={`sidebar-toggle-${label.toLowerCase()}`}
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-text-primary ${REVEAL}`}>
+        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.2} />
+      </button>
     </div>
   );
 }
@@ -244,9 +232,9 @@ export function Sidebar({
     }
   }
 
-  const [domainsOpen, setDomainsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.domainsOpen") !== "0");
+  const [domainsOpen, setDomainsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.domainsOpen") === "1");
   useEffect(() => { lsSet("prevail.sidebar.domainsOpen", domainsOpen ? "1" : "0"); }, [domainsOpen]);
-  const [workOpen, setWorkOpen] = useState<boolean>(() => lsGet("prevail.sidebar.workOpen") !== "0");
+  const [workOpen, setWorkOpen] = useState<boolean>(() => lsGet("prevail.sidebar.workOpen") === "1");
   useEffect(() => { lsSet("prevail.sidebar.workOpen", workOpen ? "1" : "0"); }, [workOpen]);
 
   // Which Editor / Work section is active, kept in sync with the events the
@@ -320,7 +308,7 @@ export function Sidebar({
   // ones folded under one row. Completed and archived live on the page.
   const activeMissions = missionsQ.missions.filter((m) => m.status === "active").sort((a, b) => (a.target || "9").localeCompare(b.target || "9"));
   const pausedMissions = missionsQ.missions.filter((m) => m.status === "paused").length;
-  const [missionsOpen, setMissionsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.missionsOpen") !== "0");
+  const [missionsOpen, setMissionsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.missionsOpen") === "1");
   useEffect(() => { lsSet("prevail.sidebar.missionsOpen", missionsOpen ? "1" : "0"); }, [missionsOpen]);
   const openMissions = (focus: string) => {
     try { localStorage.setItem("prevail.missions.focus", focus); } catch { /* storage off */ }
@@ -341,7 +329,7 @@ export function Sidebar({
   // Apps page shows. A click opens that page with the app picked.
   const appsList = useInvokeQuery<MirrorList>("apps_mirror_list", vaultPath ? { vault: vaultPath } : null, { staleMs: Infinity });
   const apps: MirrorApp[] = Array.isArray(appsList.data?.apps) ? appsList.data!.apps : [];
-  const [appsOpen, setAppsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsOpen") !== "0");
+  const [appsOpen, setAppsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsOpen") === "1");
   useEffect(() => { lsSet("prevail.sidebar.appsOpen", appsOpen ? "1" : "0"); }, [appsOpen]);
   // Specialists: only the ones that are on, like Apps. A click opens the
   // Specialists page on that specialist; the section count is running jobs.
@@ -487,7 +475,7 @@ export function Sidebar({
       data-testid="sidebar-collapse"
       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted/70 transition-colors hover:bg-surface-warm hover:text-text-primary"
     >
-      {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+      {collapsed ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
     </button>
   );
 
@@ -588,7 +576,7 @@ export function Sidebar({
           aria-current={active ? "page" : undefined}
           className={`relative flex h-9 min-w-0 flex-1 cursor-grab items-center gap-3 rounded-lg pl-8 pr-9 text-left text-[14px] transition-colors active:cursor-grabbing ${active ? ACTIVE_ROW : IDLE_ROW}`}
         >
-          {Icon ? <Icon className="h-4 w-4 shrink-0" strokeWidth={1.9} /> : <span className="h-4 w-4 shrink-0 rounded-full bg-surface-warm ring-1 ring-border" />}
+          {Icon ? <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} /> : <span className="h-[18px] w-[18px] shrink-0 rounded-full bg-surface-warm ring-1 ring-border" />}
           <span className="min-w-0 flex-1 truncate">{titleCase(d.name)}</span>
           {runningDomains.has(d.name) ? (
             <span className="pulse-soft inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="A reply is streaming in this domain" />
@@ -654,17 +642,19 @@ export function Sidebar({
       {editorMode ? (
         <>
           {/* Settings mode: one way out. The whole row returns Home. */}
-          <div className={collapsed ? "flex justify-center px-2 py-3" : "px-3 pb-2 pt-3"}>
+          {/* The same quiet arrow toggle as Home mode: collapsed, it is the icon rail. */}
+          <div className={collapsed ? "flex flex-col items-center gap-1 px-2 py-3" : "flex items-center gap-1 px-3 pb-2 pt-3"}>
             <button
               onClick={goHome}
               title="Back to Home (Esc)"
               aria-label="Back to Home"
               data-testid="settings-back"
-              className={`flex w-full items-center rounded-lg text-text-primary transition-colors hover:bg-surface-warm ${collapsed ? "h-10 justify-center" : "h-10 gap-2 px-2"}`}
+              className={`flex items-center rounded-lg text-text-primary transition-colors hover:bg-surface-warm ${collapsed ? "h-10 w-full justify-center" : "h-10 min-w-0 flex-1 gap-2 px-2"}`}
             >
               <ArrowLeft className="h-4 w-4 shrink-0 text-text-muted" />
               {!collapsed && <span className="text-[15px] font-semibold">Settings</span>}
             </button>
+            {collapseButton}
           </div>
           {!collapsed && (
             <div className="px-3 pb-2">
@@ -794,7 +784,7 @@ export function Sidebar({
               <>
                 <Divider />
                 <section>
-                {!collapsed && <SectionHeader label="Specialists" count={specialists.length} open={specsOpen} onToggle={() => setSpecsOpen((v) => !v)} toggleRight />}
+                {!collapsed && <SectionHeader label="Specialists" count={specialists.length} open={specsOpen} onToggle={() => setSpecsOpen((v) => !v)} />}
                 {(collapsed || specsOpen) && (
                   <nav aria-label="Specialists" data-testid="sidebar-specialists" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
                     <NavRow icon={Briefcase} label="Jobs" active={tab === "work" && workActive === "specialists"} collapsed={collapsed} onClick={() => openSpecialist("jobs:running")} testId="sidebar-jobs" />
@@ -812,7 +802,7 @@ export function Sidebar({
               <>
                 <Divider />
                 <section>
-                {!collapsed && <SectionHeader label="Apps" count={apps.length} open={appsOpen} onToggle={() => setAppsOpen((v) => !v)} toggleRight />}
+                {!collapsed && <SectionHeader label="Apps" count={apps.length} open={appsOpen} onToggle={() => setAppsOpen((v) => !v)} />}
                 {(collapsed || appsOpen) && (
                   <ul aria-label="Apps" data-testid="sidebar-apps" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
                     {apps.map(appRow)}

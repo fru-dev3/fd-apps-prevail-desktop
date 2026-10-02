@@ -1,11 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 // THE secondary column. Every screen that lists things on the left and shows
 // the picked one on the right uses this (Intent's Noticed, History and
 // Projects; Entities; Apps; Inbox; Recommendations; Runtimes; Arena; chat Threads). One look,
-// one behaviour: a w-72 column with a title row whose PanelLeftClose button
-// folds it to a thin w-9 strip holding a PanelLeftOpen button, and the detail
+// one behaviour: a w-72 column with a title row whose ChevronsLeft button
+// folds it to a thin w-9 strip holding a ChevronsRight button, and the detail
 // takes the freed width. The choice is remembered per view under `storageKey`.
 // On a phone there is no room for two columns: the list shows first, a pick
 // opens the detail with a back button above it.
@@ -54,7 +54,8 @@ type ColumnProps = {
   children: ReactNode;
 };
 
-const iconBtn = "rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
+// The one panel toggle: a small muted double arrow in a 28px hit area (owner, 2026-10-02).
+const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted/70 transition-colors hover:bg-surface-warm hover:text-text-primary";
 
 // The column on its own, for screens whose detail area is laid out by the
 // caller (the chat Threads column sits beside the whole chat). Most screens
@@ -64,7 +65,7 @@ export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, a
     return (
       <div data-testid="spine-collapsed" className="flex w-9 shrink-0 flex-col items-center border-r border-border bg-surface/40 py-2">
         <button onClick={onToggle} title={`Show ${label}`} aria-label={`Show ${label}`} className={iconBtn}>
-          <PanelLeftOpen className="h-4 w-4" />
+          <ChevronsRight className="h-3.5 w-3.5" />
         </button>
       </div>
     );
@@ -79,7 +80,7 @@ export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, a
         <div className="flex shrink-0 items-center gap-0.5">
           {actions}
           <button onClick={onToggle} title="Collapse" aria-label={`Collapse ${label}`} className={iconBtn}>
-            <PanelLeftClose className="h-4 w-4" />
+            <ChevronsLeft className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
