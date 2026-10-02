@@ -28,10 +28,10 @@ export interface LinkProposal { id: string; kind: string; from: string; to: stri
 /** One noun per level, singular and plural, for meta lines ("2 goals"). */
 export const LEVEL_NOUN: Record<Level, [string, string]> = {
   purpose: ["purpose", "purposes"], value: ["value", "values"], statement: ["mission statement", "mission statements"], vision: ["vision", "visions"],
-  objective: ["objective", "objectives"], goal: ["goal", "goals"], initiative: ["initiative", "initiatives"], mission: ["mission", "missions"], task: ["task", "tasks"],
+  objective: ["objective", "objectives"], goal: ["goal", "goals"], initiative: ["initiative", "initiatives"], mission: ["project", "projects"], task: ["task", "tasks"],
 };
 export const LEVEL_LABEL: Record<Level, string> = {
-  purpose: "Purpose", value: "Value", statement: "Mission statement", vision: "Vision", objective: "Objective", goal: "Goal", initiative: "Initiative", mission: "Mission", task: "Task",
+  purpose: "Purpose", value: "Value", statement: "Mission statement", vision: "Vision", objective: "Objective", goal: "Goal", initiative: "Initiative", mission: "Project", task: "Task",
 };
 export const count = (n: number, l: Level) => `${n} ${LEVEL_NOUN[l][n === 1 ? 0 : 1]}`;
 

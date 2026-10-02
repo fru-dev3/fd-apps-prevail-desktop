@@ -30,7 +30,7 @@ const CELLO = {
   ],
   links: { calendar: [{ app: "foo-calendar", event: "ev-1", title: "Cello lesson", start: "2026-10-04T10:00", source: "matched" }], tasks: [], files: [], threads: [{ domain: "general", thread: "t-old", title: "Cello thoughts" }] },
   artifacts: [{ path: "data/missions/learn-the-cello/memory/briefs/2026-10-02-tutors.md", name: "2026-10-02-tutors.md", kind: "brief", mtime: T }],
-  log: ["2026-10-02 Spent $120.00 on lessons: Term one fee", "2026-09-21 Mission started: Play three pieces for the family by June"],
+  log: ["2026-10-02 Spent $120.00 on lessons: Term one fee", "2026-09-21 Project started: Play three pieces for the family by June"],
   closed: false,
 };
 const SHED = { ...CELLO, slug: "paint-the-shed", id: "mission/paint-the-shed", name: "Paint the shed", outcome: "Shed painted before the frost", status: "paused", target: "2026-11-01", domains: [{ slug: "homestead", role: "owner" }], apps: [], specialists: [], people: [], progress: progress({ done: 0, total: 1, used: 0, planned: 0, left: 30 }), milestones: [], artifacts: [], log: [] };
@@ -39,8 +39,8 @@ const PLAN = {
   filings: [
     { n: 1, kind: "summary", domain: "hobbies", text: "Learn the cello (2026-09-21 to 2026-10-02): partly.", apply: true },
     { n: 2, kind: "lesson", domain: "hobbies", text: "Saturday lessons stuck; weekday practice did not", apply: true },
-    { n: 3, kind: "note", domain: "money", text: "Mission Learn the cello completed (partly).", apply: true },
-    { n: 4, kind: "note", domain: "family", text: "Mission Learn the cello completed (partly).", apply: true },
+    { n: 3, kind: "note", domain: "money", text: "Project Learn the cello completed (partly).", apply: true },
+    { n: 4, kind: "note", domain: "family", text: "Project Learn the cello completed (partly).", apply: true },
     { n: 5, kind: "money", domain: "money", text: "Spent $640.00 of $1500.00. Refs: plaid:txn-foo.", apply: true },
     { n: 6, kind: "task", domain: "hobbies", text: "Book next term ~id:t9", apply: true, action: "move" },
   ],
@@ -62,7 +62,7 @@ const FIX = {
   apps_mirror_list: { apps: [{ id: "foo-calendar", name: "Foo Calendar", status: "connected", runtime: "claude" }, { id: "bar-mail", name: "Bar Mail", status: "connected", runtime: "claude" }] },
   list_threads: [],
   projects_index: { generated_ts: T, model: "x", recommendations: [], projects: [prompt("bar-garden", "bar garden", "homestead")] },
-  engine_suggest_structure: [{ id: "project:bar-garden", kind: "project", title: "Start a mission for Bar Garden?", reason: "You came back to it in 5 sittings.", confidence: 0.7, evidence: [] }],
+  engine_suggest_structure: [{ id: "project:bar-garden", kind: "project", title: "Start a project for Bar Garden?", reason: "You came back to it in 5 sittings.", confidence: 0.7, evidence: [] }],
   engine_suggest_accept: { ok: true, kind: "project", project: { id: "mission/bar-garden" } },
   engine_suggest_dismiss: { ok: true },
   engine_recommendations: { ok: true, recommendations: [] },
@@ -128,7 +128,7 @@ const CHAIN_TREE = {
     { id: "mission/learn-the-cello", level: "mission", title: "Learn the cello", status: "active", parents: ["p-lessons"], children: [], linked: true },
   ],
 };
-test("a mission names the initiative, goal and objective it serves", async ({ page }) => {
+test("a project names the initiative, goal and objective it serves", async ({ page }) => {
   await home(page, 1280, { engine_compass_tree: CHAIN_TREE });
   await openCello(page, false);
   const c = page.getByTestId("mission-header").getByTestId("mission-chain");
@@ -138,14 +138,14 @@ test("a mission names the initiative, goal and objective it serves", async ({ pa
 
 for (const width of [390, 768, 1280, 1920]) {
   const phone = width < 500;
-  test.describe(`missions · ${width}`, () => {
-    test("the sidebar's MISSIONS section, the page, its header and every tab fit the window", async ({ page }) => {
+  test.describe(`projects · ${width}`, () => {
+    test("the sidebar's PROJECTS section, the page, its header and every tab fit the window", async ({ page }) => {
       await home(page, width);
       if (!phone) {
         const side = page.getByTestId("sidebar-missions");
         await expect(side.getByTestId("sidebar-mission-learn-the-cello")).toContainText("261d", { timeout: 10_000 });
         await expect(side.getByTestId("sidebar-missions-paused")).toContainText("Paused (1)");
-        await expect(page.getByTestId("app-sidebar").getByRole("button", { name: /^Projects(\s|$)/ })).toHaveCount(0);
+        await expect(page.getByTestId("app-sidebar").getByText(/^Missions?$/)).toHaveCount(0);
         await side.getByTestId("sidebar-mission-learn-the-cello").click();
         await expect(page.getByTestId("mission-header")).toContainText("Learn the cello", { timeout: 10_000 });
       } else {
@@ -185,8 +185,8 @@ for (const width of [390, 768, 1280, 1920]) {
   });
 }
 
-test.describe("missions · actions", () => {
-  test("the list by status; a new mission from the form", async ({ page }) => {
+test.describe("projects · actions", () => {
+  test("the list by status; a new project from the form", async ({ page }) => {
     await home(page, 1280);
     await openMissions(page);
     const col = page.getByTestId("missions-list");
@@ -198,7 +198,7 @@ test.describe("missions · actions", () => {
     // New mission opens as a chat; the fields are a toggle away.
     await page.getByTestId("mission-mode-fields").click();
     const form = page.getByTestId("mission-new-form");
-    await form.getByLabel("Mission name").fill("Kitchen remodel");
+    await form.getByLabel("Project name").fill("Kitchen remodel");
     await form.getByLabel("Outcome").fill("New counters in by spring");
     await form.getByLabel("Owner domain").selectOption("homestead");
     await form.getByLabel("Budget").fill("4000");
@@ -259,7 +259,7 @@ test.describe("missions · actions", () => {
     await expect.poll(() => calls(page, "engine_missions_undo")).toEqual([{ vault: "/tmp/smoke-vault", slug: "learn-the-cello", n: 2 }]);
   });
 
-  test("the mission's chat goes to the engine as _mission-<slug>, with no desktop preambles; its cards answer", async ({ page }) => {
+  test("the project's chat goes to the engine as _mission-<slug>, with no desktop preambles; its cards answer", async ({ page }) => {
     await home(page, 1280);
     await openCello(page, false);
     const box = page.getByTestId("mission-chat").locator("[data-tour=composer] textarea").first();
@@ -271,8 +271,8 @@ test.describe("missions · actions", () => {
     expect(first).toMatchObject({ domain: "_mission-learn-the-cello", message: "What do my taxes say about the lesson fees?" });
     await page.evaluate((s) => {
       const emit = (window as unknown as { __emit: (e: string, p: unknown) => void }).__emit;
-      const text = "This needs taxes, which is not in the mission. Bring it in for this question, for the mission, or not?";
-      for (const data of [{ type: "start" }, { type: "bring_in", bringIn: { mission: "learn-the-cello", domains: ["taxes"], never: false, why: "taxes is not in the mission" } }, { type: "delta", text }, { type: "assistant", text }]) emit("engine-chat:line", { session: s, data });
+      const text = "This needs taxes, which is not in the project. Bring it in for this question, for the project, or not?";
+      for (const data of [{ type: "start" }, { type: "bring_in", bringIn: { mission: "learn-the-cello", domains: ["taxes"], never: false, why: "taxes is not in the project" } }, { type: "delta", text }, { type: "assistant", text }]) emit("engine-chat:line", { session: s, data });
       emit("engine-chat:done", { session: s, code: 0 });
     }, String(first!.session));
     const card = page.getByTestId("bring-in-card");
@@ -284,18 +284,18 @@ test.describe("missions · actions", () => {
     expect((await calls(page, "engine_chat"))[1]).toMatchObject({ domain: "_mission-learn-the-cello", refDomains: ["taxes"] });
   });
 
-  test("a start card from a domain chat makes a mission only on Start", async ({ page }) => {
+  test("a start card from a domain chat makes a project only on Start", async ({ page }) => {
     await home(page, 1280);
     await fire(page, "prevail:open-domain", "hobbies");
     const box = page.locator("[data-tour=composer] textarea").first();
     await expect(box).toBeVisible({ timeout: 10_000 });
-    await box.fill("Start a mission to learn the cello");
+    await box.fill("Start a project to learn the cello");
     await box.press("Enter");
     await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(1);
     const [first] = await calls(page, "engine_chat");
     await page.evaluate((s) => {
       const emit = (window as unknown as { __emit: (e: string, p: unknown) => void }).__emit;
-      const text = "This sounds like a mission: Learn the cello. Start it?";
+      const text = "This sounds like a project: Learn the cello. Start it?";
       for (const data of [{ type: "start" }, { type: "mission_start", missionDraft: { name: "Learn the cello", outcome: "learn the cello", owner: "hobbies", consulted: [], specialists: ["researcher"] } }, { type: "delta", text }, { type: "assistant", text }]) emit("engine-chat:line", { session: s, data });
       emit("engine-chat:done", { session: s, code: 0 });
     }, String(first!.session));
@@ -307,7 +307,7 @@ test.describe("missions · actions", () => {
     await expect(page.getByTestId("missions-page")).toBeVisible({ timeout: 10_000 });
   });
 
-  test("a domain page lists its active missions; Intent says Prompt projects; the Compass says Purpose", async ({ page }) => {
+  test("a domain page lists its active projects; Intent says Prompt groups; the Compass says Purpose", async ({ page }) => {
     await home(page, 1280);
     await fire(page, "prevail:open-domain", "money");
     await expect(page.getByTestId("domain-missions")).toContainText("Learn the cello", { timeout: 10_000 });
@@ -316,12 +316,12 @@ test.describe("missions · actions", () => {
     await expect(page.getByTestId("missions-page")).toBeVisible({ timeout: 10_000 });
     await page.evaluate(() => localStorage.setItem("prevail.mirror.view", "projects"));
     await fire(page, "prevail:open-settings", "intent");
-    await expect(page.getByRole("tab", { name: /Prompt projects/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("tab", { name: /Prompt groups/ })).toBeVisible({ timeout: 10_000 });
     await fire(page, "prevail:work-section", "compass");
     await expect(page.getByTestId("work-page").getByText("Purpose", { exact: true }).first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("an accepted mission suggestion opens it; the goal's Mission picker writes ~project:", async ({ page }) => {
+  test("an accepted project suggestion opens it; the goal's Project picker writes ~project:", async ({ page }) => {
     await home(page, 1280);
     await page.evaluate(() => localStorage.setItem("prevail.recs.category", "structure"));
     await fire(page, "prevail:work-section", "recommendations");

@@ -23,7 +23,7 @@ export interface TodayCard {
 /** Today T3: one thing the radar holds. */
 export interface RadarItem { key: string; kind: string; domain: string; mission?: string; text: string; evidence: string; due?: string; severity: number; interrupt?: string }
 export interface Radar { computed: number; items: RadarItem[] }
-export const RADAR_KIND_LABEL: Record<string, string> = { commitment: "Promises", waiting: "Waiting for", routine: "Routines", relationship: "People", goal: "Goals", path: "Paths", admin: "Deadlines", domain: "Domains gone cold", decision: "Decisions", mission: "Missions", rule: "Non-negotiables" };
+export const RADAR_KIND_LABEL: Record<string, string> = { commitment: "Promises", waiting: "Waiting for", routine: "Routines", relationship: "People", goal: "Goals", path: "Paths", admin: "Deadlines", domain: "Domains gone cold", decision: "Decisions", mission: "Projects", rule: "Non-negotiables" };
 /** Radar items grouped by kind, most severe group first. */
 export function radarGroups(items: RadarItem[]): { kind: string; label: string; items: RadarItem[] }[] {
   const by = new Map<string, RadarItem[]>();
@@ -173,7 +173,7 @@ export function loosens(s: Pick<Specialist, "ceiling" | "tools" | "apps">, e: { 
 /** Where a job or run lives, in words: "mission/oca" reads "Mission OCA", a domain slug its name. */
 export function scopeLabel(owner: string): string {
   const m = /^mission\/(.+)$/.exec(owner ?? "");
-  if (m) return `Mission ${m[1]!.length <= 4 ? m[1]!.toUpperCase() : label(m[1]!)}`;
+  if (m) return `Project ${m[1]!.length <= 4 ? m[1]!.toUpperCase() : label(m[1]!)}`;
   return label(owner || "general");
 }
 
@@ -289,7 +289,7 @@ export function playbookGroups(rows: PlaybookRow[]): Record<PlaybookGroup, Playb
 export const RADAR_EVENT_LABEL: Record<string, string> = {
   commitment: "a promise slipping", waiting: "a waiting-for overdue", routine: "a routine slipping", relationship: "someone gone quiet",
   goal: "a goal gone quiet", path: "a path missing its expectations", admin: "an admin deadline", domain: "a domain gone cold",
-  decision: "a decision due", mission: "a mission falling behind", rule: "a non-negotiable at risk",
+  decision: "a decision due", mission: "a project falling behind", rule: "a non-negotiable at risk",
 };
 export function eventLabel(on: string): string {
   const [k, ...w] = on.split(":");

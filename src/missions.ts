@@ -2,7 +2,7 @@
 // them (`prevail missions ...`, data/missions/<slug>/); this module holds the
 // shapes, the reads through the shared cache, the writes, the in-app
 // navigation, and the structure suggestions (new domain, a mission from a
-// prompt project, archive a dormant domain). Prompt projects (projectsview.tsx)
+// prompt project, archive a dormant domain). Prompt groups (projectsview.tsx)
 // are a different thing: a mission may come from one (`prompt_projects`).
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";

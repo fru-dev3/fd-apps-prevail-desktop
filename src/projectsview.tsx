@@ -192,7 +192,7 @@ function TrackButton({ vaultPath, p, phone }: { vaultPath: string; p: ProjectEnt
     try { const made = await createMission(vaultPath, { name: displayTitle(p.title), fromPromptProject: p.slug }); if (made?.slug) openMission(made.slug); }
     catch (e) { setErr(String(e)); } finally { setBusy(false); }
   };
-  const label = tracked ? "Open its mission" : "Start a mission";
+  const label = tracked ? "Open its project" : "Start a project";
   const Icon = busy ? Loader2 : Target;
   return (
     <button onClick={() => (tracked ? openMission(tracked.slug) : void track())} disabled={busy} data-testid="project-track" title={err ?? label} aria-label={label}
@@ -436,7 +436,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     <ProjectDetail key={cur.slug} vaultPath={vaultPath} p={cur} phone={phone} building={building} onRewrite={() => void build(cur.slug)} />
   ) : (
     <div data-testid="projects-overview">
-      <h2 className={DETAIL_TITLE}>Your prompt projects</h2>
+      <h2 className={DETAIL_TITLE}>Your prompt groups</h2>
       <p className={`${BODY} mt-1.5 text-text-secondary`}>
         {idx.projects.length} projects read from {idx.stats?.kept.toLocaleString() ?? "your"} prompts. Pick one on the left to see its arc and restart brief.
       </p>
@@ -454,7 +454,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
   return (
     <div className="flex h-full min-h-0 flex-col">
       {err && <div className="border-b border-border-subtle bg-surface px-6 py-2 text-[12px] text-err">{err}</div>}
-      <SideSpine storageKey="prevail.intent.spine.projects" title="Prompt projects" label="prompt projects" testId="projects-list" meta={meta} actions={refreshBtn}
+      <SideSpine storageKey="prevail.intent.spine.projects" title="Prompt groups" label="prompt groups" testId="projects-list" meta={meta} actions={refreshBtn}
         phone={phone} phoneDetail={sel !== null} onBack={() => setSel(null)} backLabel="All projects"
         detail={<div className={phone ? "p-4" : "p-6"}>{detail}</div>}>
         {list}

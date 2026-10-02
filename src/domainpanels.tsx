@@ -379,7 +379,7 @@ export function DomainContextView({
               <Compass className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
               <div className="min-w-0">
                 <div className="text-[12px] font-medium text-accent">
-                  {domain ? `${titleCase(domain)} serves your mission` : "Your mission"}
+                  {domain ? `${titleCase(domain)} serves your purpose` : "Your purpose"}
                 </div>
                 <div className="truncate text-[12px] text-text-muted" title={mission}>{mission}</div>
               </div>

@@ -191,7 +191,7 @@ pub async fn mirror_refresh(vault: String, model: Option<String>) -> Result<serd
 
 #[tauri::command]
 pub async fn projects_restart(vault: String, slug: String) -> Result<serde_json::Value, String> {
-    json(vec!["projects".into(), "restart".into(), slug, "--vault".into(), vault]).await
+    json(vec!["prompt-groups".into(), "restart".into(), slug, "--vault".into(), vault]).await
 }
 
 pub(crate) fn restart_text_args(
@@ -204,7 +204,7 @@ pub(crate) fn restart_text_args(
     if !matches!(format, "handoff" | "intent" | "raw") {
         return Err(format!("unknown format: {format}"));
     }
-    let mut args: Vec<String> = vec!["projects".into(), "restart".into(), slug.into(), "--format".into(), format.into()];
+    let mut args: Vec<String> = vec!["prompt-groups".into(), "restart".into(), slug.into(), "--format".into(), format.into()];
     if let Some(ex) = exclude.filter(|e| !e.is_empty()) {
         args.push("--exclude".into());
         args.push(serde_json::to_string(ex).map_err(|e| e.to_string())?);
@@ -233,7 +233,7 @@ pub async fn projects_diff(vault: String, slug: String, against: String) -> Resu
     if against.trim().is_empty() {
         return Err("pick a folder to check".into());
     }
-    json(vec!["projects".into(), "diff".into(), slug, "--against".into(), against, "--vault".into(), vault]).await
+    json(vec!["prompt-groups".into(), "diff".into(), slug, "--against".into(), against, "--vault".into(), vault]).await
 }
 
 #[cfg(test)]
@@ -282,7 +282,7 @@ mod tests {
         let ex = vec!["a \"b\"".to_string()];
         assert_eq!(
             restart_text_args("/v", "acme", "handoff", Some(&ex), false).unwrap(),
-            vec!["projects", "restart", "acme", "--format", "handoff", "--exclude", "[\"a \\\"b\\\"\"]", "--vault", "/v"]
+            vec!["prompt-groups", "restart", "acme", "--format", "handoff", "--exclude", "[\"a \\\"b\\\"\"]", "--vault", "/v"]
         );
         assert!(restart_text_args("/v", "acme", "pdf", None, false).is_err());
     }

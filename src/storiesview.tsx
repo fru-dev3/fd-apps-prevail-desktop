@@ -143,7 +143,7 @@ export function YourYearView({ vaultPath }: { vaultPath: string }) {
             ))}
           </div>
           <h3 className={`${SECTION_TITLE} mt-8`}>Where your time went</h3>
-          {s.time.length ? <Bars rows={s.time.map((t) => ({ label: t.domain.charAt(0).toUpperCase() + t.domain.slice(1), v: t.share }))} /> : <p className={`${META} mt-1`}>No prompt projects yet.</p>}
+          {s.time.length ? <Bars rows={s.time.map((t) => ({ label: t.domain.charAt(0).toUpperCase() + t.domain.slice(1), v: t.share }))} /> : <p className={`${META} mt-1`}>No prompt groups yet.</p>}
           <h3 className={`${SECTION_TITLE} mt-8`}>Your values, month by month</h3>
           {firstValue && s.race.length && !s.values.every((v) => v.months.every((m) => m.share === 0)) ? (
             <>

@@ -58,7 +58,7 @@ export function useRefCandidates(vaultPath: string | null, token: string | null,
       .map((x) => ({ kind: "specialist", id: x.id, label: x.name, sub: `Specialist, returns ${x.returns}` }));
     // Missions: the active ones; an @ mission brings a short brief of it.
     const m: RefCandidate[] = (Array.isArray(missions.data) ? missions.data : []).filter((x) => x.status === "active" && hit(x.name, x.slug)).slice(0, 4)
-      .map((x) => ({ kind: "mission", id: x.slug, label: x.name, sub: x.outcome ? `Mission: ${x.outcome}` : "Mission" }));
+      .map((x) => ({ kind: "mission", id: x.slug, label: x.name, sub: x.outcome ? `Project: ${x.outcome}` : "Project" }));
     if (only === "app") return a;
     if (only === "entity") return e;
     if (only === "specialist") return s;
@@ -79,7 +79,7 @@ function RefIcon({ r, size = 16 }: { r: RefCandidate | ChatRef; size?: number })
   return <I className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />;
 }
 
-const GROUP: Record<RefKind, string> = { specialist: "Specialists", mission: "Missions", app: "Apps", entity: "People and things", domain: "Domains" };
+const GROUP: Record<RefKind, string> = { specialist: "Specialists", mission: "Projects", app: "Apps", entity: "People and things", domain: "Domains" };
 
 // The suggestion list, anchored above the composer (inside its relative box).
 export function RefSuggest({ items, index, onPick, empty }: { items: RefCandidate[]; index: number; onPick: (r: RefCandidate) => void; empty: string }) {

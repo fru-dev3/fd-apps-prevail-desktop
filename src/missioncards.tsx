@@ -36,10 +36,10 @@ export function BringInCard({ b, lastUser }: { b: NonNullable<ChatMessage["bring
   return (
     <div data-testid="bring-in-card" className={card}>
       <p className="text-[14px] text-text-primary"><span className="font-semibold">Bring in {names}?</span> {b.never ? "It is on your never-read list. " : ""}Nothing from {b.domains.length === 1 ? "it" : "them"} was read.</p>
-      {done === "mission" ? <p className="mt-2 text-[13px] text-accent">Added to the mission. Send the question again below.</p> : (
+      {done === "mission" ? <p className="mt-2 text-[13px] text-accent">Added to the project. Send the question again below.</p> : (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button className={primary} disabled={!!busy} onClick={() => { setDone("turn"); ask(); }} data-testid="bring-in-turn"><Check className="h-3.5 w-3.5" />For this question</button>
-          <button className={quiet} disabled={!!busy} onClick={() => void forMission()} data-testid="bring-in-mission">{busy === "mission" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}For the mission</button>
+          <button className={quiet} disabled={!!busy} onClick={() => void forMission()} data-testid="bring-in-mission">{busy === "mission" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}For the project</button>
           <button className={quiet} disabled={!!busy} onClick={() => setDone("no")} data-testid="bring-in-no"><X className="h-3.5 w-3.5" />No</button>
         </div>
       )}
@@ -70,7 +70,7 @@ export function MissionStartCard({ d }: { d: NonNullable<ChatMessage["missionDra
     window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "missions" }));
     window.dispatchEvent(new CustomEvent("prevail:missions-focus", { detail: "new" }));
   };
-  if (no) return <p data-testid="mission-start-card" className="mt-2 text-[13px] text-text-muted">No mission started.</p>;
+  if (no) return <p data-testid="mission-start-card" className="mt-2 text-[13px] text-text-muted">No project started.</p>;
   return (
     <div data-testid="mission-start-card" className={card}>
       <div className="flex items-center gap-2"><Target className="h-4 w-4 shrink-0 text-accent" /><span className="min-w-0 truncate text-[15px] font-semibold text-text-primary">{d.name}</span></div>
@@ -80,7 +80,7 @@ export function MissionStartCard({ d }: { d: NonNullable<ChatMessage["missionDra
         <dt className="text-text-muted">Target</dt><dd className="text-text-primary">{d.target ?? "proposed: 90 days from today"}</dd>
         {d.specialists.length > 0 && <><dt className="text-text-muted">Agents</dt><dd className="text-text-primary">{d.specialists.map(titleCase).join(", ")}</dd></>}
       </dl>
-      {made ? <p className="mt-2 text-[13px] text-accent">Started. It is in Missions.</p> : (
+      {made ? <p className="mt-2 text-[13px] text-accent">Started. It is in Projects.</p> : (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button className={primary} disabled={busy} onClick={() => void start()} data-testid="mission-start">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Start</button>
           <button className={quiet} disabled={busy} onClick={adjust} data-testid="mission-adjust"><SlidersHorizontal className="h-3.5 w-3.5" />Adjust</button>
@@ -99,7 +99,7 @@ export function DomainMissions({ vaultPath, domain }: { vaultPath: string; domai
   if (!mine.length) return null;
   return (
     <section data-testid="domain-missions" className="mb-4">
-      <h3 className="mb-1 flex items-center gap-2 text-[15px] font-semibold text-text-primary"><Target className="h-4 w-4 text-text-muted" />Missions</h3>
+      <h3 className="mb-1 flex items-center gap-2 text-[15px] font-semibold text-text-primary"><Target className="h-4 w-4 text-text-muted" />Projects</h3>
       <ul className="flex flex-col">
         {mine.map((m) => (
           <li key={m.slug}>

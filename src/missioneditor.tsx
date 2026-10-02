@@ -48,7 +48,7 @@ function versionWhen(v: Version): string {
   return d.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath: string; title?: string }) {
+export function MissionEditor({ vaultPath, title = "Your constitution" }: { vaultPath: string; title?: string }) {
   const [body, setBody] = useState<string | null>(() => {
     const c = peekInvoke<string>("read_ideal_state", { vault: vaultPath });
     return c === undefined ? null : c || "";
@@ -107,7 +107,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
   const editor = (
     <div data-testid="mission-editor" className="rounded-lg border border-accent-border bg-surface p-2">
       <textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={keys}
-        rows={editing === "all" ? 20 : Math.min(18, Math.max(4, draft.split("\n").length + 1))} aria-label="Edit the mission" className={inputCls} />
+        rows={editing === "all" ? 20 : Math.min(18, Math.max(4, draft.split("\n").length + 1))} aria-label="Edit the constitution" className={inputCls} />
       <div className="mt-1 flex items-center justify-end gap-1">
         <span className={`${META} mr-auto`}>Cmd-Enter saves, Esc cancels. The old text is kept as a version.</span>
         <button onClick={commit} title="Save" aria-label="Save" data-testid="mission-save" className={iconBtn}><Check className="h-4 w-4" /></button>
@@ -124,14 +124,14 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
     <section data-testid="mission-editor-page">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>{title}</h2>
-        <SpineTabs label="Mission view" value={tab} onChange={(t) => { setTab(t); setEditing(null); }}
+        <SpineTabs label="Constitution view" value={tab} onChange={(t) => { setTab(t); setEditing(null); }}
           tabs={[{ id: "current", label: "Current" }, { id: "versions", label: "Versions", count: versions.length + 1 }]} />
         {tab === "current" && editing === null && (
           <button onClick={() => startEdit("all")} title="Edit all" aria-label="Edit all" data-testid="mission-edit-all" className={iconBtn}><FilePen className="h-4 w-4" /></button>
         )}
       </div>
       {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
-      {body === null && <p className={META}>Reading your mission</p>}
+      {body === null && <p className={META}>Reading your constitution</p>}
       {body !== null && tab === "current" && (
         editing === "all" ? editor : (
           <div className="max-w-3xl space-y-1">

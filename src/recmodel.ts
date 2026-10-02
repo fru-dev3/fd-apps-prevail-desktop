@@ -42,7 +42,7 @@ export const SPINE: { key: SpineKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "start", label: "Start here" },
   { key: "rules", label: "Rules" },
-  { key: "projects", label: "Prompt projects" },
+  { key: "projects", label: "Prompt groups" },
   { key: "structure", label: "Structure" },
   { key: "apps", label: "Apps" },
   { key: "people", label: "People and places" },

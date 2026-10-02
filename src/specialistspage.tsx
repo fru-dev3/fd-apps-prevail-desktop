@@ -57,7 +57,7 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   const row = (s: Sel, text: string, lead: ReactNode, count?: number, sub?: string, drag?: string) => (
     <button key={s} data-testid={`specialists-row-${s}`} aria-current={isOn(s) ? "true" : undefined} onClick={() => choose(s)}
       onMouseDown={drag ? (e) => startPillDrag(e, `@${drag}`, (ev) => { dropSpecialist(ev, drag); }) : undefined}
-      title={drag ? `${text}: drag into a chat, or onto Home, a domain or a mission in the sidebar, to hand it a message` : undefined}
+      title={drag ? `${text}: drag into a chat, or onto Home, a domain or a project in the sidebar, to hand it a message` : undefined}
       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${isOn(s) ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
       {lead}
       <span className="min-w-0 flex-1">

@@ -34,7 +34,7 @@ const PHONE_TABS: { id: PhoneScreen; label: string; icon: LucideIcon }[] = [
 const PHONE_TOP: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "apps", label: "Apps", icon: Plug },
-  { id: "missions", label: "Missions", icon: Target },
+  { id: "missions", label: "Projects", icon: Target },
   { id: "specialists", label: "Specialists", icon: UserCog },
 ];
 

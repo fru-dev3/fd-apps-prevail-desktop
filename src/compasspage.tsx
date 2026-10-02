@@ -339,7 +339,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     <section data-testid="compass-detail-mission">
       <div className="flex items-start gap-3">
         <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>Purpose</h2>
-        {mission && actions({ id: "mission", title: "the mission", tokens: mission.tokens })}
+        {mission && actions({ id: "mission", title: "the purpose", tokens: mission.tokens })}
       </div>
       {mission?.text ? (
         <>

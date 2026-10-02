@@ -1069,7 +1069,7 @@ const writes = (page: import("@playwright/test").Page) => page.evaluate(() =>
   ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
     .filter((e) => e.cmd === "write_ideal_state").map((e) => String(e.args.body)));
 
-test("39 · Mission: clicking a section edits it in place; saving writes it and refreshes the versions", async ({ page }) => {
+test("39 · Constitution: clicking a section edits it in place; saving writes it and refreshes the versions", async ({ page }) => {
   await mockTauri(page, missionFx);
   await page.goto("/");
   await openMission(page);
@@ -1094,7 +1094,7 @@ test("39 · Mission: clicking a section edits it in place; saving writes it and 
   expect(await writes(page)).toHaveLength(1);
 });
 
-test("40 · Mission versions: newest first with Latest on top; Restore saves a new latest", async ({ page }) => {
+test("40 · Constitution versions: newest first with Latest on top; Restore saves a new latest", async ({ page }) => {
   await mockTauri(page, missionFx);
   await page.goto("/");
   await openMission(page);

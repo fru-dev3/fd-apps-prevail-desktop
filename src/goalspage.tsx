@@ -156,8 +156,8 @@ export function DomainGoals({ vaultPath }: { vaultPath: string }) {
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-[13px] font-medium text-text-secondary">Mission</span>
-              <select aria-label="Mission" data-testid="goal-project" value={g.project ?? ""} onChange={(e) => set({ project: e.target.value || null })} className={inputCls}>
+              <span className="mb-1 block text-[13px] font-medium text-text-secondary">Project</span>
+              <select aria-label="Project" data-testid="goal-project" value={g.project ?? ""} onChange={(e) => set({ project: e.target.value || null })} className={inputCls}>
                 <option value="">None</option>
                 {g.project && !tracked.some((p) => p.slug === g.project) && <option value={g.project}>{g.project}</option>}
                 {tracked.map((p) => <option key={p.id} value={p.slug}>{p.name}</option>)}

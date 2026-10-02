@@ -99,8 +99,8 @@ describe("specialist editing", () => {
     expect(loosens(SPEC, { ceiling: "read", tools: ["web"] })).toBeNull();
   });
   test("a mission scope reads as words, never a slug", () => {
-    expect(scopeLabel("mission/oca")).toBe("Mission OCA");
-    expect(scopeLabel("mission/foo-house")).toBe("Mission Foo House");
+    expect(scopeLabel("mission/oca")).toBe("Project OCA");
+    expect(scopeLabel("mission/foo-house")).toBe("Project Foo House");
     expect(scopeLabel("real-estate")).toBe("Real Estate");
   });
 });

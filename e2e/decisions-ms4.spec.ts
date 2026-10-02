@@ -32,7 +32,7 @@ const PENDING = [
   { id: "pending-bbb", title: "Recital", start: "2027-06-14T18:00", attendees: ["guest@example.com"], status: "draft", ts: T },
 ];
 const METRICS = [
-  { key: "learn-the-cello:sessions", id: "m-learn-the-cello-sessions", title: "Learn the cello: practice sessions", line: "", why: "sessions, from what you say in the mission's chat" },
+  { key: "learn-the-cello:sessions", id: "m-learn-the-cello-sessions", title: "Learn the cello: practice sessions", line: "", why: "sessions, from what you say in the project's chat" },
   { key: "learn-the-cello:events", id: "m-learn-the-cello-events", title: "Learn the cello: calendar sessions", line: "", why: "the lessons or sessions on your calendar" },
 ];
 const COMPASS = "# Compass\n\n## Goals\n- [ ] Play for the family ~id:g-play ~status:active ~domain:hobbies\n  path: Weekly foo lessons ~id:p-lessons ~status:chosen\n  path: Self taught ~id:p-self ~status:proposed\n";
@@ -84,7 +84,7 @@ async function setup(page: Page, width: number) {
 
 for (const width of [390, 768, 1280, 1920]) {
   const phone = width < 500;
-  test.describe(`decisions and missions MS4 · ${width}`, () => {
+  test.describe(`decisions and projects MS4 · ${width}`, () => {
     test("Decisions: what is missing, Get a recommendation, the gut call first, Scan my tasks, a retro owed", async ({ page }) => {
       await setup(page, width);
       await page.evaluate(() => localStorage.setItem("prevail.decisions.focus", "foo/renew-the-foo-lease"));
@@ -108,7 +108,7 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect(page.getByTestId("decisions-list")).toContainText("retro owed");
     });
 
-    test("a mission's Calendar: matched, a hold waiting for a yes, a draft you send; a new hold", async ({ page }) => {
+    test("a project's Calendar: matched, a hold waiting for a yes, a draft you send; a new hold", async ({ page }) => {
       await setup(page, width);
       await fire(page, "prevail:work-section", "missions");
       await expect(page.getByTestId("missions-page")).toBeVisible({ timeout: 10_000 });
@@ -131,7 +131,7 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect.poll(() => calls(page, "engine_missions_event_create")).toEqual([{ vault: "/tmp/smoke-vault", slug: "learn-the-cello", title: "Practice block", start: "2026-10-07T18:00", end: null, attendees: ["guest@example.com"] }]);
     });
 
-    test("a mission's Setup: what counts on its own, metrics to track, the Compass path", async ({ page }) => {
+    test("a project's Setup: what counts on its own, metrics to track, the Compass path", async ({ page }) => {
       await setup(page, width);
       await fire(page, "prevail:work-section", "missions");
       if (width < 1100) await page.getByTestId("mission-row").first().click();

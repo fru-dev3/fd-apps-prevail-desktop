@@ -92,7 +92,7 @@ export function NewMission({ vaultPath, domains, onCancel, onMade }: { vaultPath
   const pad = phone ? "px-4" : "px-8";
   const head = (
     <div className={`flex shrink-0 items-center gap-3 ${pad} pb-2 pt-5`}>
-      <h2 className={`${DETAIL_TITLE} min-w-0 flex-1 truncate`}>New mission</h2>
+      <h2 className={`${DETAIL_TITLE} min-w-0 flex-1 truncate`}>New project</h2>
       {toggle}
     </div>
   );
@@ -142,14 +142,14 @@ export function NewMission({ vaultPath, domains, onCancel, onMade }: { vaultPath
               ))}
               {!required && <span className="text-text-muted/80">{bits.length ? " · " : ""}still to settle: {[!draft.name && "a name", !draft.outcome && "what done looks like", !draft.target && "a date"].filter(Boolean).join(", ")}</span>}
             </p>
-            {(ready || required) && <button type="button" onClick={() => void start()} disabled={!!busy} data-testid="mission-start-draft" className={startBtn}>{busy === "start" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Start mission</button>}
+            {(ready || required) && <button type="button" onClick={() => void start()} disabled={!!busy} data-testid="mission-start-draft" className={startBtn}>{busy === "start" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Start project</button>}
           </div>
         </div>
       )}
       {err && <p className={`${pad} pb-1 text-[13px] text-err`}>{err}</p>}
       <form className={`${pad} pb-4 pt-2`} onSubmit={(e) => { e.preventDefault(); void send(text); }}>
         <div className="flex max-w-3xl items-end gap-2 rounded-2xl border border-border bg-surface px-3 py-2 transition-colors focus-within:border-accent">
-          <textarea ref={box} autoFocus aria-label="Describe the mission" data-testid="mission-chat-input" rows={1} value={text} onChange={(e) => setText(e.target.value)}
+          <textarea ref={box} autoFocus aria-label="Describe the project" data-testid="mission-chat-input" rows={1} value={text} onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(text); } }}
             placeholder={turns.length ? "Answer, or add anything" : "Describe it in a sentence or two"}
             className="ring-in-box max-h-40 min-h-[24px] flex-1 resize-none bg-transparent py-1 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none" style={{ fieldSizing: "content" } as React.CSSProperties} />
@@ -203,7 +203,7 @@ function FieldsForm({ draft, domains, pad, vaultPath, onDraft, onCancel, onMade 
     <form data-testid="mission-new-form" className={`min-h-0 flex-1 overflow-y-auto ${pad} pb-6`} onSubmit={(e) => { e.preventDefault(); if (name.trim()) void make(); }}>
       <p className={`${BODY} max-w-3xl text-text-secondary`}>What do you want done, and by when? Leave the date empty and one is proposed.</p>
       <div className="mt-5 grid max-w-3xl gap-4">
-        <label className="block"><span className={fieldLabel}>Name</span><input aria-label="Mission name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Learn the cello" className={inputCls} /></label>
+        <label className="block"><span className={fieldLabel}>Name</span><input aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Learn the cello" className={inputCls} /></label>
         <label className="block"><span className={fieldLabel}>Outcome</span><input aria-label="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} placeholder="What done looks like, in your words" className={inputCls} /></label>
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block"><span className={fieldLabel}>Target date</span><input type="date" aria-label="Target date" value={target} onChange={(e) => setTarget(e.target.value)} className={inputCls} /></label>
@@ -224,7 +224,7 @@ function FieldsForm({ draft, domains, pad, vaultPath, onDraft, onCancel, onMade 
       </div>
       {err && <p className="mt-3 text-[13px] text-err">{err}</p>}
       <div className="mt-5 flex gap-2">
-        <button type="submit" disabled={!name.trim() || busy} data-testid="mission-create" className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}Start mission</button>
+        <button type="submit" disabled={!name.trim() || busy} data-testid="mission-create" className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}Start project</button>
         <button type="button" onClick={onCancel} className="inline-flex h-10 items-center rounded-lg px-3 text-[14px] text-text-secondary hover:text-text-primary">Cancel</button>
       </div>
     </form>

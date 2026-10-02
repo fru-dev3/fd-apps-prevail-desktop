@@ -47,7 +47,7 @@ describe("Sidebar", () => {
     await waitFor(() => expect(screen.getByTestId("sidebar-missions").textContent).toContain("Foo 1"));
     expect(screen.getByTestId("sidebar-mission-foo-1").textContent).toContain("10d");
     expect(screen.getByTestId("sidebar-missions-paused").textContent).toContain("Paused (1)");
-    expect(screen.queryByRole("button", { name: /^Projects(\s|$)/ })).toBeNull();
+    expect(screen.queryByText(/^Missions?$/)).toBeNull();
     expect(screen.getByTestId("nav-home").getAttribute("aria-current")).toBe("page");
     expect(await screen.findByText("Archived")).toBeTruthy();
   });

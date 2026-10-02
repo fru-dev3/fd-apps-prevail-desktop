@@ -80,8 +80,8 @@ export function Initiatives({ goalId, vaultPath, values, missions }: { goalId: s
             )}
               <RowMenu items={[
                 ...(st === "proposed" ? [{ icon: TestTube, label: "Try it as a small trial", onClick: () => void run(`t:${p.id}`, "engine_initiative_choose", { id: p.id, until: null, trial: true }, () => "Started as a trial.") }] : []),
-                ...(p.mission ? [{ icon: Target, label: "Open its mission", onClick: () => openMission(p.mission!) }]
-                  : st === "chosen" || st === "trial" ? [{ icon: Target, label: "Start a mission for it", onClick: () => void (async () => { setBusy(`m:${p.id}`); try { const r = await invoke<{ slug?: string }>("engine_missions_from_path", { vault: vaultPath, path: p.id }); await q.refresh(); if (r?.slug) openMission(r.slug); } catch (e) { setMsg(`Not started: ${String(e)}`); } finally { setBusy(null); } })() }] : []),
+                ...(p.mission ? [{ icon: Target, label: "Open its project", onClick: () => openMission(p.mission!) }]
+                  : st === "chosen" || st === "trial" ? [{ icon: Target, label: "Start a project for it", onClick: () => void (async () => { setBusy(`m:${p.id}`); try { const r = await invoke<{ slug?: string }>("engine_missions_from_path", { vault: vaultPath, path: p.id }); await q.refresh(); if (r?.slug) openMission(r.slug); } catch (e) { setMsg(`Not started: ${String(e)}`); } finally { setBusy(null); } })() }] : []),
                 ...((p.playbooks ?? "").split(",").map((x) => x.trim()).filter(Boolean).map((id) => ({ icon: ArrowRight, label: `Open playbook ${id}`, onClick: () => openPlaybook(id) }))),
                 ...(st === "proposed" || st === "chosen" || st === "trial" ? [{ icon: CircleOff, label: st === "proposed" ? "Not for me" : "Retire it", onClick: () => void run(`r:${p.id}`, "engine_initiative_retire", { id: p.id, because: st === "proposed" ? "not for me" : "retired from the Compass page" }, () => (st === "proposed" ? "Turned down." : "Retired; its playbooks stopped.")) }] : []),
               ]} />
