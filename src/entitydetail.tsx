@@ -166,7 +166,7 @@ function MentionRow({ m }: { m: EntityMention }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
-      <h3 className="text-[19px] font-semibold text-text-primary mb-3">{title}</h3>
+      <h3 className="text-[15px] font-semibold text-text-primary mb-3">{title}</h3>
       {children}
     </section>
   );
@@ -422,7 +422,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             {kind === "place" && <div className="mt-5"><PlaceMap name={displayName} /></div>}
             <Section title="In your vault">
               {d.found && d.digest
-                ? <div className="text-[15px] leading-relaxed text-text-primary"><Markdown source={d.digest} /></div>
+                ? <div className="text-[14px] leading-normal text-text-primary"><Markdown source={d.digest} /></div>
                 : <p className="text-[14px] text-text-muted">{!hasPage ? "Not in your vault yet. Save it, or add a note, to give it a page."
                     : d.saved || d.conversations >= 3 ? "No summary yet. It is written on the next refresh."
                     : "No summary yet. One is written once it comes up in 3 conversations, or when you save it."}</p>}

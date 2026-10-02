@@ -25,6 +25,7 @@ import { ProviderMark } from "./marks";
 import type { BenchBatch, BenchJob, BenchJobStatus, BenchQuestion, BenchmarkRun, Domain, EngineApp, MatrixRow, RunDetail } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
+import { DETAIL_TITLE } from "./typescale";
 
 // --- 3D Arena formatting (intelligence · speed · cost) --------------------
 // Latency: show ms under a second, else seconds.
@@ -546,7 +547,7 @@ export function BenchQuestions({
           ]}
         />
         <div className="space-y-4">
-        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{editing === "new" ? "New question" : draft.id}</h2>
+        <h2 className={DETAIL_TITLE}>{editing === "new" ? "New question" : draft.id}</h2>
         <Field label={editing === "new" ? "Domain(s): comma-separated to add to several at once" : "Domain"}>
           <input value={draft.domain} onChange={(e) => setDraft({ ...draft, domain: e.target.value })} list="bench-domains" placeholder={editing === "new" ? "wealth, health, career" : "wealth"} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
           <datalist id="bench-domains">{allDomains.map((d) => <option key={d} value={d} />)}</datalist>
@@ -818,7 +819,7 @@ function RunningBatchCard({
           : errCount > 0 ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warn" />
           : <Check className="mt-0.5 h-5 w-5 shrink-0 text-ok" strokeWidth={3} />}
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-semibold text-text-primary">
+          <h2 className="truncate text-[15px] font-semibold text-text-primary">
             {scoringPhase ? "Scoring answers…"
               : running ? "Benchmarking…"
               : cancelled ? "Run cancelled"
@@ -1371,7 +1372,7 @@ export function BenchResults({
         {/* Dense header - model, when, where it ran, and the verdict, one row. */}
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
           <ProviderMark vendor={p.vendor} size={28} />
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{p.model}</h2>
+          <h2 className={DETAIL_TITLE}>{p.model}</h2>
           {selectedRun?.date && <span className="rounded bg-surface-warm px-2 py-0.5 text-[12px] text-text-muted">{selectedRun.date}</span>}
           <span className="flex items-center gap-1">
             {(selectedRun?.domains ?? []).slice(0, 6).map((d) => (
@@ -1474,7 +1475,7 @@ export function BenchResults({
                     <Crown className="h-3 w-3" /> #1 Top performer
                   </span>
                   <ProviderMark vendor={top.parsed.vendor} size={26} />
-                  <span className="text-[17px] font-semibold leading-snug text-text-primary">{top.parsed.model}</span>
+                  <span className="text-[15px] font-semibold leading-snug text-text-primary">{top.parsed.model}</span>
                   <span className="text-[11px] text-text-muted">{top.runs.length} run{top.runs.length === 1 ? "" : "s"} · {top.domains.length} domain{top.domains.length === 1 ? "" : "s"}{top.latestDate ? ` · last ${top.latestDate}` : ""}</span>
                   {top.history.length >= 2 && <span className="ml-auto"><Sparkline values={top.history} width={120} height={32} /></span>}
                 </div>
@@ -1482,7 +1483,7 @@ export function BenchResults({
                   <div>
                     <div className="text-[11px] text-text-muted">Arena score</div>
                     <div className="flex items-baseline gap-2">
-                      <span className="font-display text-[28px] font-bold leading-none text-accent">{top.best?.toFixed(2) ?? "-"}</span>
+                      <span className="font-display text-[24px] font-bold leading-none text-accent">{top.best?.toFixed(2) ?? "-"}</span>
                       <span className="text-sm text-text-muted">/10</span>
                       {top.delta !== null && Math.abs(top.delta) >= 0.05 && (
                         <span className={`text-xs font-semibold ${top.delta > 0 ? "text-ok" : "text-warn"}`}>{top.delta > 0 ? "▲" : "▼"}{Math.abs(top.delta).toFixed(2)}</span>
@@ -1843,7 +1844,7 @@ export function BenchmarkPanel({
   const stepHead = (n: number, title: string, right?: React.ReactNode) => (
     <div className="mb-3 flex items-center gap-2.5">
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent">{n}</span>
-      <h3 className="text-[19px] font-semibold text-text-primary">{title}</h3>
+      <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
       {right && <span className="ml-auto">{right}</span>}
     </div>
   );
@@ -1852,7 +1853,7 @@ export function BenchmarkPanel({
   const runDetail = (
     <div data-testid="arena-run" className={`${pad} space-y-8`}>
       <div>
-        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Run a benchmark</h2>
+        <h2 className={DETAIL_TITLE}>Run a benchmark</h2>
         <p className="mt-1 text-[15px] text-text-muted">Your questions go to each model; a judge scores every answer.</p>
       </div>
 
@@ -1944,7 +1945,7 @@ export function BenchmarkPanel({
 
       {allBatches.length > 0 && (
         <section data-testid="arena-progress" className="space-y-3">
-          <h3 className="text-[19px] font-semibold text-text-primary">{running.length > 0 ? "Running now" : "Recent runs"}</h3>
+          <h3 className="text-[15px] font-semibold text-text-primary">{running.length > 0 ? "Running now" : "Recent runs"}</h3>
           {[...allBatches].reverse().map((b) => (
             <RunningBatchCard key={b.id} batch={b}
               onViewResults={() => go(groups.some((g) => g.key === b.id) ? { kind: "result", key: b.id } : { kind: "board" })}
@@ -1966,12 +1967,12 @@ export function BenchmarkPanel({
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1 basis-64">
             {p.builtIn ? (
-              <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{p.name}</h2>
+              <h2 className={DETAIL_TITLE}>{p.name}</h2>
             ) : (
               <input key={p.id} defaultValue={p.name} aria-label="Preset name" data-testid="arena-preset-name"
                 onBlur={(e) => updateSuite(p.id, { name: e.target.value })}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                className="w-full rounded-md border border-transparent bg-transparent px-1 -mx-1 font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary hover:border-border focus:border-accent-border focus:outline-none" />
+                className={`${DETAIL_TITLE} w-full rounded-md border border-transparent bg-transparent px-1 -mx-1 hover:border-border focus:border-accent-border focus:outline-none`} />
             )}
             <p className="mt-1 text-[15px] text-text-muted">{p.builtIn ? `${p.rationale ?? ""} Built in: it follows the models set up on this Mac.`.trim() : `${p.models.length} model${p.models.length === 1 ? "" : "s"}. Rename it by editing the title.`}</p>
           </div>
@@ -1986,7 +1987,7 @@ export function BenchmarkPanel({
         </div>
 
         <section>
-          <h3 className="mb-3 text-[19px] font-semibold text-text-primary">Models</h3>
+          <h3 className="mb-3 text-[15px] font-semibold text-text-primary">Models</h3>
           {p.models.length === 0 ? (
             <p className="text-[14px] text-text-muted">No models yet. Add some below.</p>
           ) : (
@@ -2012,7 +2013,7 @@ export function BenchmarkPanel({
           <p className="text-[14px] text-text-muted">Built-in presets can't be edited. Duplicate this one to make your own.</p>
         ) : (
           <section>
-            <h3 className="mb-3 text-[19px] font-semibold text-text-primary">Add models</h3>
+            <h3 className="mb-3 text-[15px] font-semibold text-text-primary">Add models</h3>
             <ModelPicker runtimes={runtimes} selected={set} onToggle={toggle} testId="arena-preset-picker" />
           </section>
         )}
@@ -2038,7 +2039,7 @@ export function BenchmarkPanel({
   const boardDetail = (
     <div data-testid="arena-board" className="space-y-5 pb-6">
       <div className={phone ? "px-4 pt-4" : "px-8 pt-6"}>
-        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Leaderboard</h2>
+        <h2 className={DETAIL_TITLE}>Leaderboard</h2>
         <p className="mt-1 text-[15px] text-text-muted">Every run combined{initialDomain ? `, in ${titleCase(initialDomain)}` : ""}: each model at its best score.</p>
       </div>
       {tabsEl([{ id: "summary", label: "Summary" }, { id: "domains", label: "By domain" }, { id: "questions", label: "Questions" }])}
@@ -2066,7 +2067,7 @@ export function BenchmarkPanel({
       <div data-testid="arena-result" className="space-y-5 pb-6">
         <div className={`flex flex-wrap items-start gap-3 ${phone ? "px-4 pt-4" : "px-8 pt-6"}`}>
           <div className="min-w-0 flex-1 basis-64">
-            <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{groupWhen(g)}</h2>
+            <h2 className={DETAIL_TITLE}>{groupWhen(g)}</h2>
             <p className="mt-1 text-[15px] text-text-muted">
               {batchPresets[g.key] ? `${batchPresets[g.key]} · ` : ""}{g.runs.length} model{g.runs.length === 1 ? "" : "s"} · {doms.size === 0 ? "all domains" : Array.from(doms).map(titleCase).join(", ")} · {qs} question{qs === 1 ? "" : "s"}
             </p>

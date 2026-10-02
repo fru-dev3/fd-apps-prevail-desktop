@@ -13,7 +13,7 @@ import { BODY, DETAIL_TITLE, META } from "./typescale";
 
 type Version = { name: string; path: string; ts?: number };
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
-const inputCls = "w-full resize-y rounded-lg border border-accent-border bg-background px-3 py-2 text-[15px] leading-relaxed text-text-primary focus:outline-none";
+const inputCls = "w-full resize-y rounded-lg border border-accent-border bg-background px-3 py-2 text-[14px] leading-normal text-text-primary focus:outline-none";
 
 /** Split the document into an intro and one block per `## ` section. Joining
  *  the blocks with "\n" gives the document back exactly. */

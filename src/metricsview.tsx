@@ -90,7 +90,7 @@ function GlanceRowView({ r }: { r: GlanceRow }) {
     <li data-testid="glance-row" data-id={r.id} className="grid gap-x-6 gap-y-1 border-b border-border-subtle py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-[16px] font-semibold text-text-primary">{r.title}</span>
+          <span className="text-[15px] font-semibold text-text-primary">{r.title}</span>
           {!r.documentary && <span className="font-display text-[24px] font-semibold tabular-nums text-text-primary" data-testid="glance-value">{fmtValue(r.value, r.unit)}</span>}
           <span className={chip} data-testid="glance-tier">{TIER[r.tier] ?? r.tier}</span>
           {r.documentary && <span className={chip}>A record, no target</span>}
@@ -176,7 +176,7 @@ export function ProposalCard({ p, vaultPath, onAnswered }: { p: MetricProposal; 
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="break-words text-[16px] font-semibold text-text-primary">{p.title}</span>
+            <span className="break-words text-[15px] font-semibold text-text-primary">{p.title}</span>
             <span className={chip}>{p.computable ? (TIER[p.tier] ?? p.tier) : "Needs a source"}</span>
             {p.servesTitle && <span className={chip}>Serves {p.servesTitle}</span>}
           </div>
@@ -329,7 +329,7 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         <ul className="mt-3 max-w-4xl">{ss.map((s) => (
           <li key={s.id} data-testid="source-row" className="border-b border-border-subtle py-3 last:border-b-0">
             <div className="flex flex-wrap items-baseline gap-x-3">
-              <h4 className="text-[16px] font-semibold text-text-primary">{s.id === "ai" ? "AI tools" : s.id.charAt(0).toUpperCase() + s.id.slice(1)}</h4>
+              <h4 className="text-[15px] font-semibold text-text-primary">{s.id === "ai" ? "AI tools" : s.id.charAt(0).toUpperCase() + s.id.slice(1)}</h4>
               <span className={META}>{s.events.toLocaleString("en-US")} records{s.first ? `, ${s.first} to ${s.last}` : ""}</span>
             </div>
             <p className={`${BODY} text-text-secondary`}>{s.kind === "machine" ? `On ${s.hosts?.length ? s.hosts.join(", ") : "no Mac yet"}` : "Your vault, read in place"}{s.note ? `. ${s.note}` : ""}</p>

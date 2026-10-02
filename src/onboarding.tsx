@@ -130,7 +130,7 @@ export function OnboardingTour() {
         )}
         <button onClick={done} title="Skip the tour" className="-mr-1 -mt-1 rounded p-1 text-text-muted hover:bg-surface-warm hover:text-text-primary"><X className="h-4 w-4" /></button>
       </div>
-      <h2 className="mt-3 font-display text-xl font-bold tracking-tight text-text-primary">{step.title}</h2>
+      <h2 className="mt-3 font-display text-[22px] font-semibold tracking-tight text-text-primary">{step.title}</h2>
       <p className="mt-2 text-sm leading-relaxed text-text-secondary">{step.body}</p>
       {step.kind === "name" && (
         <div className="mt-3">

@@ -65,7 +65,7 @@ function AppRow({ app, vaultPath, open, onToggle }: { app: StackApp; vaultPath: 
       <button type="button" onClick={onToggle} aria-expanded={open} className="block w-full min-w-0 py-3 text-left hover:bg-surface-warm/40">
         <span className="flex min-w-0 items-center gap-3">
           {open ? <ChevronDown className="h-4 w-4 shrink-0 text-text-muted" /> : <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />}
-          <span className="min-w-0 flex-1 truncate text-[16px] font-semibold text-text-primary">{app.name}</span>
+          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text-primary">{app.name}</span>
           <span className="shrink-0 text-[15px] tabular-nums text-text-primary">{app.monthly !== null ? `${money(app.monthly)}/mo` : ""}</span>
           <span className={`w-16 shrink-0 text-right text-[13px] font-semibold ${app.verdict === "keep" ? "text-text-muted" : app.verdict === "cancel" ? "text-err" : "text-warn"}`}>{VERDICT_LABEL[app.verdict]}</span>
         </span>
@@ -115,7 +115,7 @@ function CardRow({ card, vaultPath, onDone }: { card: StackCard; vaultPath: stri
     <li data-testid="stack-card" data-kind={card.kind} className="flex items-start gap-3 border-b border-border-subtle py-3 last:border-b-0">
       {card.urgent ? <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-err" /> : <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />}
       <div className="min-w-0 flex-1">
-        <p className="break-words text-[16px] font-semibold text-text-primary">{card.title}</p>
+        <p className="break-words text-[15px] font-semibold text-text-primary">{card.title}</p>
         <p className={`${META} mt-0.5 break-words`}>{card.why}</p>
       </div>
       <span className="flex shrink-0 flex-wrap items-center justify-end gap-0.5">

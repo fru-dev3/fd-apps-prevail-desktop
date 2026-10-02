@@ -26,6 +26,7 @@ import { ActApprovalCard } from "./actcard";
 import { extractActIds } from "./waiting";
 import type { CliInfo, Domain, DomainContextBundle, EngineApp, ModelPick, PanelistReply, PanelistSlot, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
+import { DETAIL_TITLE } from "./typescale";
 
 export function CouncilPanel({
   domain,
@@ -1027,7 +1028,7 @@ export function CouncilPanel({
               const I = domainIcon(domain);
               return I ? <I className="h-5 w-5 text-accent" /> : <span className="text-accent">◆</span>;
             })()}
-            <span className="text-lg font-semibold">{titleCase(domain)}</span>
+            <span className="text-[15px] font-semibold">{titleCase(domain)}</span>
             {domainPath && (
               <button
                 onClick={onOpenInFinder}
@@ -1086,7 +1087,7 @@ export function CouncilPanel({
         {councilTurns.length === 0 && phase === "idle" && (
           <div className="flex h-full flex-col items-center justify-start px-6 py-6">
             <img src="/logo.png" alt="" className="h-10 w-10 rounded-2xl opacity-90" />
-            <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary mt-3">
+            <h2 className={`${DETAIL_TITLE} mt-3`}>
               <BrandMark /> Council
             </h2>
             <p className="mt-1.5 max-w-md text-center text-[13px] text-text-muted">

@@ -14,7 +14,7 @@ import { Sparkline } from "../ui";
 export function ArenaRightRail({ children }: { children: ReactNode }) {
   return (
     <section aria-label="Insights" data-testid="arena-insights" className="w-full space-y-3">
-      <h2 className="text-[19px] font-semibold text-text-primary">Insights</h2>
+      <h2 className="text-[15px] font-semibold text-text-primary">Insights</h2>
       {children}
     </section>
   );

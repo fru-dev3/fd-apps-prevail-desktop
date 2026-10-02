@@ -190,7 +190,7 @@ export function OnboardingModal({
         <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-6 py-4">
           <div className="flex items-center gap-2">
             <PrevailLogo size={22} src="/logo-512.png" />
-            <h2 className="text-lg font-semibold">Set up your domains</h2>
+            <h2 className="text-[15px] font-semibold">Set up your domains</h2>
           </div>
           <button
             onClick={onClose}
@@ -693,12 +693,12 @@ export function ContextScorePanel({
           className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-4"
           style={{ borderColor: color }}
         >
-          <span className="font-display text-[28px] font-bold leading-none" style={{ color }}>
+          <span className="font-display text-[24px] font-bold leading-none" style={{ color }}>
             {score.score}
           </span>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-lg font-semibold">Context Score</div>
+          <div className="text-[15px] font-semibold">Context Score</div>
           <div className="mt-0.5 text-xs text-text-muted">
             updated {formatFreshness(score.freshness_secs)}
             {score.audit_source ? ` · ${score.audit_source}` : " · heuristic"}

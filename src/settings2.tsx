@@ -16,6 +16,7 @@ import { useIsPhone } from "./useisphone";
 import { VENDOR_BRAND, isHarnessRuntime } from "./constants";
 import { useDetectedClis } from "./hooks";
 import type { DaemonStatus } from "./types";
+import { DETAIL_TITLE } from "./typescale";
 
 // One collapsible card per routine. Routes through the canonical CollapsibleSection
 // (icon + title left, summary + running dot right, collapsed by default) so the
@@ -51,7 +52,7 @@ function DaemonGroup({ id, control, children }: { id: string; control?: React.Re
       <div className="mb-4 flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon className="h-5 w-5" /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{it.title}</h2>
+          <h2 className={DETAIL_TITLE}>{it.title}</h2>
           {it.does && <p className="mt-1 text-[14px] text-text-secondary">{it.does}</p>}
           {control && it.hubOnly && <p className="mt-0.5 text-[13px] text-text-muted">Hub only</p>}
           {!control && <div className="mt-1.5 flex items-center gap-2 text-[13px] text-text-muted">

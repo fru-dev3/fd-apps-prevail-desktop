@@ -28,7 +28,7 @@ import type { CliInfo, ModelVerifyStatus, UsageSummary } from "./types";
 function PrivacyGroupHead({ title, blurb }: { title: string; blurb: string }) {
   return (
     <div className="mb-3 flex flex-wrap items-baseline gap-x-3">
-      <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+      <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
       <p className="text-sm text-text-muted">{blurb}</p>
     </div>
   );
@@ -322,7 +322,7 @@ export function PrivacyConnectivitySection({ enabled, onChange, vaultPath, part 
                 <ShieldOff className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <h3 className="font-display text-lg font-semibold text-white">Leave Bunker Mode?</h3>
+                <h3 className="font-display text-[15px] font-semibold text-white">Leave Bunker Mode?</h3>
                 <p className="text-xs text-white/60">This opens your machine to the network.</p>
               </div>
             </div>
@@ -682,7 +682,7 @@ export function AgentCard({
             {!forceOpen && cli.available && models.length > 0 && (
               <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} />
             )}
-            <span className="truncate text-lg font-semibold text-text-primary">{cli.label}</span>
+            <span className="truncate text-[15px] font-semibold text-text-primary">{cli.label}</span>
             {isDefault && <span className="shrink-0 rounded-full bg-accent px-2 py-px text-[10px] font-semibold text-background">Default</span>}
             <StatusChip tone={health.tone} label={health.label} spin={health.spin} title={health.title} />
           </span>

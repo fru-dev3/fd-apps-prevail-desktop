@@ -130,7 +130,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
       <div className="rounded-lg border border-border bg-surface p-5">
         <div className="flex items-stretch gap-5">
           <div className="min-w-0 flex-1">
-            <h2 className="mb-1 text-xl font-semibold text-text-primary">Prompt capture</h2>
+            <h2 className="mb-1 text-[15px] font-semibold text-text-primary">Prompt capture</h2>
             <div className="text-sm text-text-secondary">
               Every prompt you submit, saved to <code className="text-accent">_meta/prompts/&lt;tool&gt;.jsonl</code> and distilled into your intents. <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-ai" /> = captured live as you type, <History className="h-3 w-3" /> = read from a tool's saved chats.</span>
             </div>
@@ -164,7 +164,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
           </div>
 
           <div className="flex shrink-0 flex-col items-center justify-center border-l border-border-subtle pl-6 text-center">
-            <span className="font-display text-[28px] font-bold leading-none tabular-nums text-accent">{totalCaptured.toLocaleString()}</span>
+            <span className="font-display text-[24px] font-bold leading-none tabular-nums text-accent">{totalCaptured.toLocaleString()}</span>
             <span className="mt-2 text-[11px] font-semibold text-text-muted">Prompts captured</span>
           </div>
         </div>

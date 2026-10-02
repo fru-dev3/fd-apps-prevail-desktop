@@ -15,6 +15,7 @@ import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { USAGE_VIEWS, UsageDashboard, type UsageView } from "./usagedashboard";
 import type { EngineApp } from "./types";
+import { DETAIL_TITLE } from "./typescale";
 
 // These mirror the engine's activity-ledger producer types (cli activity.ts).
 // Keep them in lockstep: any type the engine writes must be representable here,
@@ -336,7 +337,7 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
         }
         phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Back"
         detail={<div className={`space-y-5 ${phone ? "px-4 py-4" : "w-full px-8 py-6"}`} data-testid="activity-detail">
-      <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{kindLabel}{!usageView && <span className="ml-2 text-[14px] font-normal tabular-nums text-text-muted">{shown.length}</span>}</h2>
+      <h2 className={DETAIL_TITLE}>{kindLabel}{!usageView && <span className="ml-2 text-[14px] font-normal tabular-nums text-text-muted">{shown.length}</span>}</h2>
       {usageView ? <UsageDashboard vaultPath={vaultPath} embedded view={usageView} /> : (<>
       {/* Running now - the live, in-flight processes (not yet in history). */}
       <section>

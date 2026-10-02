@@ -5,6 +5,7 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useIsPhone } from "./useisphone";
 import { Activity, Award, Brain, Briefcase, Coins, Compass, Folder, Github, Globe, GraduationCap, Heart, Home, Layers, Lightbulb, MessagesSquare, Monitor, Plug, Scale, Settings as SettingsIcon, Shield, ShieldCheck, Sparkles, Target, Users, Wrench } from "lucide-react";
+import { DETAIL_TITLE } from "./typescale";
 
 export const CLI_LOGIN_CMD: Record<string, string> = {
   claude: "claude",
@@ -156,7 +157,7 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
   if (slot === "detail") {
     return (
       <div data-pane-heading className="mb-5 flex flex-wrap items-start gap-x-5 gap-y-1.5">
-        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary min-w-0">{title}</h2>
+        <h2 className={`${DETAIL_TITLE} min-w-0`}>{title}</h2>
         {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
         {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
       </div>
@@ -177,7 +178,7 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
     // Same header as Intent: the icon and a big title, controls on the
     // right, one calm line under it.
     <div data-settings-header className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-      <h1 className="flex min-w-0 items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
+      <h1 className="flex min-w-0 items-center gap-2.5 font-display text-[26px] font-semibold tracking-tight text-text-primary">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><Icon className="h-5 w-5" /></span>
         <span className="min-w-0 truncate">{title}</span>
       </h1>

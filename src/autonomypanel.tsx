@@ -434,7 +434,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
             {paused ? <Pause className="h-5 w-5" /> : mode === "auto" ? <Zap className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-semibold text-text-primary">Autonomy</div>
+            <div className="text-[15px] font-semibold text-text-primary">Autonomy</div>
             <div className="text-xs text-text-secondary">
               {paused ? "Agents will not take any action on their own." : mode === "auto" ? "Agents run allowed actions on their own; the policy below still governs money, sends, and deletes." : "Agents propose actions and wait for your approval. Nothing runs on its own."}
             </div>

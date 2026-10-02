@@ -15,7 +15,7 @@ import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { useIsPhone } from "./useisphone";
 import { SideSpine } from "./sidespine";
-import { DetailTitle, META } from "./typescale";
+import { DETAIL_TITLE, DetailTitle, META } from "./typescale";
 import { RequirementsPane, RestartCard, TechnicalDetails, useRestart } from "./mirrorrestart";
 import type { HistoryDoc } from "./mirror";
 import { createMission, missionFor, openMission, useMissions } from "./missions";
@@ -211,7 +211,7 @@ export function IntentBrief({ vaultPath, slug }: { vaultPath: string; slug: stri
   return (
     <div data-testid="project-brief" className="pb-6">
       <RestartCard r={r} phone={phone} />
-      <h3 className="mt-7 text-[19px] font-semibold text-text-primary">Requirements</h3>
+      <h3 className="mt-7 text-[15px] font-semibold text-text-primary">Requirements</h3>
       <RequirementsPane r={r} phone={phone} />
       <TechnicalDetails r={r} phone={phone} />
       <button onClick={() => openProject(slug)} className="mt-6 inline-flex items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
@@ -269,7 +269,7 @@ function ProjectDetail({ vaultPath, p, phone, building, onRewrite }: { vaultPath
         <RestartCard r={r} phone={phone} />
         {p.intents.length > 0 && (
           <section className="mt-7">
-            <h3 className="mb-2.5 flex items-center gap-2 text-lg font-semibold text-text-primary"><Target className="h-4 w-4 text-accent" />Intents</h3>
+            <h3 className="mb-2.5 flex items-center gap-2 text-[15px] font-semibold text-text-primary"><Target className="h-4 w-4 text-accent" />Intents</h3>
             <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
               {p.intents.map((it, i) => (
                 <div key={i} className="flex items-start gap-3 px-4 py-3">
@@ -336,7 +336,7 @@ function ListBlock({ icon: Icon, title, items }: { icon: LucideIcon; title: stri
   if (!items.length) return null;
   return (
     <section className="mt-7">
-      <h3 className="mb-2.5 flex items-center gap-2 text-lg font-semibold text-text-primary"><Icon className="h-4 w-4 text-accent" />{title}</h3>
+      <h3 className="mb-2.5 flex items-center gap-2 text-[15px] font-semibold text-text-primary"><Icon className="h-4 w-4 text-accent" />{title}</h3>
       <ul className="space-y-1.5">
         {items.map((t, i) => <li key={i} className="flex gap-2.5 text-[14px] leading-snug text-text-secondary"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-text-muted" />{t}</li>)}
       </ul>
@@ -385,7 +385,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
   if (!idx || idx.projects.length === 0) {
     return (
       <div className="mx-auto max-w-xl p-8">
-        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Turn your prompts into projects</h2>
+        <h2 className={DETAIL_TITLE}>Turn your prompts into projects</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">
           Prevail reads every prompt you have typed, in every AI tool, groups them by what you were building, and writes each project a replay brief: one prompt that carries every requirement and correction, so a newer model can rebuild it without the back-and-forth. Your original prompts are never changed.
         </p>
@@ -440,7 +440,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     <ProjectDetail key={cur.slug} vaultPath={vaultPath} p={cur} phone={phone} building={building} onRewrite={() => void build(cur.slug)} />
   ) : (
     <div data-testid="projects-overview">
-      <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Your prompt projects</h2>
+      <h2 className={DETAIL_TITLE}>Your prompt projects</h2>
       <p className="mt-1.5 text-[14px] leading-snug text-text-secondary">
         {idx.projects.length} projects read from {idx.stats?.kept.toLocaleString() ?? "your"} prompts. Pick one on the left to see its arc and restart brief.
       </p>

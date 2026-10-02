@@ -15,6 +15,7 @@ import { MissionEditor } from "./missioneditor";
 import { AlignmentCard } from "./panels";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
+import { DETAIL_TITLE } from "./typescale";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
 
@@ -37,7 +38,7 @@ function DomainIdeal({ vaultPath, domain, body, onSaved }: { vaultPath: string; 
     <section data-testid="ideal-detail-domain">
       <div className="mb-4 flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{titleCase(domain)}</h2>
+          <h2 className={DETAIL_TITLE}>{titleCase(domain)}</h2>
           <p className="mt-1 text-[14px] text-text-muted">What a thriving {titleCase(domain)} looks like.</p>
         </div>
         {editing ? (
@@ -117,7 +118,7 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
       )}
       {sel === "omega" && (
         <section data-testid="ideal-detail-omega">
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary mb-4">Omega</h2>
+          <h2 className={`${DETAIL_TITLE} mb-4`}>Omega</h2>
           <OmegaSection vaultPath={vaultPath} headerless />
         </section>
       )}

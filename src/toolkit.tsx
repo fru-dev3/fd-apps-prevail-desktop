@@ -376,7 +376,7 @@ export function ToolkitSection({ vaultPath }: { vaultPath: string }) {
             </div>
           )}
         </div>
-        {desc && <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-primary">{desc}</p>}
+        {desc && <p className="mt-3 max-w-3xl text-[14px] leading-normal text-text-primary">{desc}</p>}
       </div>
     );
   };
@@ -389,7 +389,7 @@ export function ToolkitSection({ vaultPath }: { vaultPath: string }) {
   };
   const props = (rows: [string, string][]) => rows.length === 0 ? null : (
     <div className="mb-5">
-      <h3 className="mb-2 text-[19px] font-semibold text-text-primary">Details</h3>
+      <h3 className="mb-2 text-[15px] font-semibold text-text-primary">Details</h3>
       <dl data-testid="toolkit-details" className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
         {rows.map(([k, v]) => (
           <div key={k} className="flex gap-4 px-4 py-2">

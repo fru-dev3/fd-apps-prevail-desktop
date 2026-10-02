@@ -54,7 +54,7 @@ export function HeatGrid({ cells, year, label }: { cells: { date: string; value:
     const key = d.toISOString().slice(0, 10);
     const v = by.get(key);
     const k = i + off;
-    rects.push(<rect key={key} x={Math.floor(k / 7) * 11} y={(k % 7) * 11} width={9} height={9} rx={2} fill="#008000" fillOpacity={v == null ? 0.08 : 0.2 + 0.8 * (v / max)}><title>{`${key}${v != null ? `: ${Math.round(v * 10) / 10}` : ""}`}</title></rect>);
+    rects.push(<rect key={key} x={Math.floor(k / 7) * 11} y={(k % 7) * 11} width={9} height={9} rx={2} fill="var(--color-accent)" fillOpacity={v == null ? 0.08 : 0.2 + 0.8 * (v / max)}><title>{`${key}${v != null ? `: ${Math.round(v * 10) / 10}` : ""}`}</title></rect>);
   }
   return <svg viewBox={`0 0 ${54 * 11} ${7 * 11}`} role="img" aria-label={label} className="block h-auto w-full max-w-3xl" data-testid="heat-grid">{rects}</svg>;
 }
@@ -71,7 +71,7 @@ export function PlacesMap({ places }: { places: Place[] }) {
       {[-120, -60, 0, 60, 120].map((l) => <line key={`x${l}`} x1={x(l)} y1={0} x2={x(l)} y2={H} className="stroke-border" strokeWidth={1} />)}
       {[-60, -30, 0, 30, 60].map((l) => <line key={`y${l}`} x1={0} y1={y(l)} x2={W} y2={y(l)} className="stroke-border" strokeWidth={1} />)}
       {places.filter((p) => p.lat != null).map((p) => (
-        <circle key={p.region} cx={x(p.lon!)} cy={y(p.lat!)} r={3 + 9 * Math.sqrt(p.trips / max)} fill="#008000" fillOpacity={0.55}><title>{`${p.region}: ${p.trips} trip${p.trips === 1 ? "" : "s"}`}</title></circle>
+        <circle key={p.region} cx={x(p.lon!)} cy={y(p.lat!)} r={3 + 9 * Math.sqrt(p.trips / max)} fill="var(--color-accent)" fillOpacity={0.55}><title>{`${p.region}: ${p.trips} trip${p.trips === 1 ? "" : "s"}`}</title></circle>
       ))}
     </svg>
   );
@@ -137,7 +137,7 @@ export function YourYearView({ vaultPath }: { vaultPath: string }) {
           <div className="mt-4 grid max-w-4xl gap-3 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]" data-testid="year-tiles">
             {tiles.map(([n, l]) => (
               <div key={l} className="rounded-xl border border-border-subtle p-3">
-                <div className="font-display text-[26px] font-semibold tabular-nums text-accent">{n}</div>
+                <div className="font-display text-[22px] font-semibold tabular-nums text-accent">{n}</div>
                 <div className="text-[13px] leading-snug text-text-muted">{l}</div>
               </div>
             ))}

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleOff, Copy, Gavel, Handshake, Hourglass, Loader2, Mail, MessageSquare, RefreshCw, Scale, ThumbsUp, Undo2, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
-import { BODY, META, SECTION_TITLE } from "./typescale";
+import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import { fmtDue, label, openDecision, personName, radarGroups, type Radar, type ReviewCard, type TimeReview, type TodayCard, type TodayItem } from "./plansmodel";
 import { openMission } from "./missions";
 import { WHO5_ITEMS, WHO5_SCALE } from "./qualmodel";
@@ -102,7 +102,7 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
   return (
     <section data-testid="today-card">
       <div className="flex items-start gap-3">
-        <h2 className="min-w-0 flex-1 break-words font-display text-[28px] font-semibold leading-tight tracking-tight text-text-primary">Today, {day}</h2>
+        <h2 className={`min-w-0 flex-1 break-words ${DETAIL_TITLE}`}>Today, {day}</h2>
         {card.calm !== null && <span className={`${chip} mt-2`}>calm {card.calm}</span>}
         <button onClick={() => void refresh()} disabled={!!busy} title="Look again" aria-label="Look again" className={`${iconBtn} mt-1`}>{busy === "refresh" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</button>
       </div>
@@ -225,7 +225,7 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
   return (
     <section data-testid="review-card" className="rounded-xl border border-border p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="min-w-0 flex-1 font-display text-[24px] font-semibold leading-tight text-text-primary">Week of {week}</h2>
+        <h2 className={`min-w-0 flex-1 ${DETAIL_TITLE}`}>Week of {week}</h2>
         {card.checkin && <span className={chip}>calm {card.checkin.calm}{card.calmNormal ? ` (normal ${card.calmNormal})` : ""}</span>}
       </div>
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}

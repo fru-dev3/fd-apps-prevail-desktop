@@ -34,7 +34,7 @@ function SectionTitle({ icon: Icon, title, hint }: { icon: typeof Globe; title: 
     <div className="mb-2 flex items-start gap-2.5">
       <Icon className="mt-1 h-4 w-4 shrink-0 text-text-muted" />
       <div className="min-w-0">
-        <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+        <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
         <p className="text-[13px] text-text-muted">{hint}</p>
       </div>
     </div>

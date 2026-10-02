@@ -23,6 +23,7 @@ import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
 import { ProviderMark } from "./marks";
 import type { CliInfo, DomainContextBundle, DomainManifest, SkillEntry } from "./types";
+import { DETAIL_TITLE } from "./typescale";
 
 export const SECTION_LABEL =
   "text-[11px] font-bold text-text-primary";
@@ -177,7 +178,7 @@ function CtxSection({ keyName, title, count, body, action, file }: { keyName: st
     <section data-testid={`ctx-detail-${keyName}`}>
       <div className="mb-4 flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-2xl font-bold tracking-tight text-text-primary">{title}</h3>
+          <h3 className="font-display text-[22px] font-semibold tracking-tight text-text-primary">{title}</h3>
           {file && <div data-testid="ctx-file" className="mt-1 text-[13px] text-text-muted">{file}</div>}
         </div>
         {action && <div className="flex shrink-0 items-center gap-0.5">{action}</div>}
@@ -646,7 +647,7 @@ export function DomainContextView({
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
       <div className="mb-4 flex items-start gap-3">
-        <h3 className="min-w-0 flex-1 break-words text-2xl font-bold tracking-tight text-text-primary">{preview.title}</h3>
+        <h3 className="min-w-0 flex-1 break-words font-display text-[22px] font-semibold tracking-tight text-text-primary">{preview.title}</h3>
         <div className="flex shrink-0 items-center gap-0.5">{fileTools(preview.title, preview.body, preview.label)}</div>
       </div>
       <div className="max-w-3xl"><FileBody body={preview.body} empty="This file is empty." /></div>
@@ -668,7 +669,7 @@ export function DomainContextView({
         </button>
         {DomainIcon ? <DomainIcon className="h-5 w-5 shrink-0 text-accent" /> : null}
         <div className="min-w-0">
-          <h2 className={`min-w-0 truncate font-display font-bold tracking-tight text-text-primary ${phone ? "text-lg" : "text-2xl"}`}>
+          <h2 className={`min-w-0 truncate font-display font-bold tracking-tight text-text-primary ${phone ? "text-[18px]" : "text-[22px]"}`}>
             {domainLabel} context
           </h2>
           {finder}
@@ -1065,7 +1066,7 @@ export function DomainPrefsPanel({
       {/* Header */}
       <div className="mb-6 flex items-end justify-between gap-3">
         <div>
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Preferences</h2>
+          <h2 className={DETAIL_TITLE}>Preferences</h2>
           <p className="mt-1 text-sm text-text-secondary">
             Domain-only overrides. Pickers apply on the next reload of this domain; global defaults still apply when these are unset.
           </p>

@@ -130,7 +130,7 @@ function UpdateRow({ u, vaultPath, showSource }: { u: UpdateLine; vaultPath: str
         <span className={META}>{fmtDay(u.ts)}</span>
         {showSource && u.from_domain && <DomainChip slug={u.from_domain} />}
       </div>
-      <p className="text-[15px] leading-relaxed text-text-primary">{u.fact}</p>
+      <p className="text-[14px] leading-normal text-text-primary">{u.fact}</p>
       {u.thread && (
         <button type="button" data-testid="update-open-thread" onClick={() => { void openUpdateThread(vaultPath, u); }}
           className="inline-flex w-fit items-center gap-1.5 text-[13px] font-medium text-accent hover:underline">

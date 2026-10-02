@@ -917,7 +917,7 @@ export function SurfacePanel({ vaultPath, domain, onPick, onAddTask }: { vaultPa
     <div className="mb-4 rounded-xl border border-accent-border/40 bg-accent-soft/40 px-4 py-3">
       <div className="mb-2 flex items-baseline gap-2.5">
         <Sparkles className="h-4 w-4 shrink-0 self-center text-accent" />
-        <span className="text-lg font-semibold text-text-primary">For you · {titleCase(domain)}</span>
+        <span className="text-[15px] font-semibold text-text-primary">For you · {titleCase(domain)}</span>
         {freshMeta && <span className="font-mono text-[11px] text-text-muted">{freshMeta}</span>}
         <button onClick={() => void load(true)} disabled={loading}
           className="ml-auto text-[11px] text-text-muted hover:text-accent disabled:opacity-40">

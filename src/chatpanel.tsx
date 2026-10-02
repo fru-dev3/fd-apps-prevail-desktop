@@ -2645,7 +2645,7 @@ export function ChatPanel({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="truncate text-2xl font-bold tracking-tight text-text-primary">{dlabel}</h2>
+            <h2 className="truncate font-display text-[22px] font-semibold tracking-tight text-text-primary">{dlabel}</h2>
             <ContextScoreBadge score={ctxScore} onClick={() => setDomainTab("insights")} />
           </div>
           <div className="mt-1.5 truncate text-[13px] text-text-muted">{dblurb}</div>
@@ -2727,7 +2727,7 @@ export function ChatPanel({
             const I = domainIcon(domain);
             return I ? <I className="h-5 w-5 shrink-0 text-accent" /> : <span className="text-accent">◆</span>;
           })()}
-          <span className="shrink-0 text-lg font-semibold">{titleCase(domain)}</span>
+          <span className="shrink-0 text-[15px] font-semibold">{titleCase(domain)}</span>
           <span className="hidden min-w-0 flex-1 truncate text-sm text-text-muted md:inline">{domainBlurb(domain)}</span>
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <ContextScoreBadge
@@ -2877,7 +2877,7 @@ export function ChatPanel({
                         {(() => { const I = domainIcon(dkey); return I ? <I className="h-7 w-7" /> : <span className="text-2xl">◆</span>; })()}
                       </div>
                       <div className="min-w-0">
-                        <h2 className="truncate text-xl font-bold tracking-tight text-text-primary">{dlabel}</h2>
+                        <h2 className="truncate font-display text-[22px] font-semibold tracking-tight text-text-primary">{dlabel}</h2>
                         <p className="mt-1 text-[13px] leading-relaxed text-text-secondary">{dblurb}</p>
                       </div>
                     </div>

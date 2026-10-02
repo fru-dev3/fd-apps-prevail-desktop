@@ -148,7 +148,7 @@ export function FilingCard({ vaultPath }: { vaultPath: string }) {
       <div className="flex flex-wrap items-center gap-3">
         <FolderInput className="h-5 w-5 text-accent" />
         <div className="min-w-0 flex-1">
-          <h3 className="text-[16px] font-semibold text-text-primary">File {n} unfiled conversation{n === 1 ? "" : "s"}</h3>
+          <h3 className="text-[15px] font-semibold text-text-primary">File {n} unfiled conversation{n === 1 ? "" : "s"}</h3>
           <p className="text-[13px] text-text-muted">Give each one a home domain so it shows where you look for it.</p>
         </div>
         <button type="button" onClick={() => setOpen((v) => !v)}

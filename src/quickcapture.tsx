@@ -188,7 +188,7 @@ export function QuickCapture({ vaultPath }: { vaultPath: string }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Untitled note"
-          className="w-full bg-transparent text-[17px] font-semibold text-text-primary placeholder:text-text-muted/40 focus:outline-none"
+          className="w-full bg-transparent text-[15px] font-semibold text-text-primary placeholder:text-text-muted/40 focus:outline-none"
         />
 
         {/* Body, or the recording visualizer */}

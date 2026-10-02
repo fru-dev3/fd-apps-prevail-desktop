@@ -124,7 +124,7 @@ function ResultDetail({ r, vaultPath, onSeen }: { r: InboxResult; vaultPath: str
     <section data-testid="inbox-result" className="max-w-3xl">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="break-words text-[20px] font-semibold text-text-primary">{r.name}</h2>
+          <h2 className="break-words font-display text-[22px] font-semibold text-text-primary">{r.name}</h2>
           <p className="text-[13px] text-text-muted">{r.trigger === "event" && r.event ? `Ran when the radar flagged: ${r.event}` : "Ran on its schedule"}{r.domain ? ` · ${label(r.domain.replace(/^mission\//, ""))}` : ""} · {new Date(r.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
         </div>
         <button onClick={() => openPlaybook(r.playbook)} title="Open the playbook" aria-label="Open the playbook" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent"><Workflow className="h-4 w-4" /></button>

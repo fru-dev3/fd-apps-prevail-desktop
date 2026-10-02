@@ -269,7 +269,7 @@ export function RemotePairCard({ port }: { port: string }) {
           <div className="min-w-0 flex-1">
             {pairedDevice ? (
               <>
-                <h3 className="text-[19px] font-semibold text-text-primary">A device paired</h3>
+                <h3 className="text-[15px] font-semibold text-text-primary">A device paired</h3>
                 <p className="mt-2 text-sm leading-relaxed text-text-secondary">
                   <span className="font-medium text-text-primary">{pairedDevice.label}</span> at{" "}
                   <span className="font-mono text-xs">{pairedDevice.ip}</span> used the code and can now reach this vault.
@@ -286,7 +286,7 @@ export function RemotePairCard({ port }: { port: string }) {
               </>
             ) : (
               <>
-            <h3 className="text-[19px] font-semibold text-text-primary">Scan it with your phone</h3>
+            <h3 className="text-[15px] font-semibold text-text-primary">Scan it with your phone</h3>
             <ol className="mt-3 space-y-2.5">
               {[
                 ["Point your camera at the code", "Then open the link it offers."],

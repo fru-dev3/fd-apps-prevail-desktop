@@ -19,6 +19,7 @@ import { modelLabel } from "./helpers2";
 import { LS, lsGet } from "./storage";
 import { EDITOR_NAV, WORK_NAV, navSection } from "./navdefs";
 import type { CliInfo, Domain, DomainTab, LifeReadiness, TabId, ThreadMeta } from "./types";
+import { DETAIL_TITLE } from "./typescale";
 
 export type PhoneScreen = "chat" | "domains" | "work" | "settings";
 
@@ -88,7 +89,7 @@ function Header({ title, back, right, sub }: { title: string; back?: () => void;
             <ChevronLeft className="h-6 w-6" />
           </button>
         )}
-        <h1 className="min-w-0 flex-1 truncate font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{title}</h1>
+        <h1 className={`${DETAIL_TITLE} min-w-0 flex-1 truncate`}>{title}</h1>
         {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
       </div>
       {sub && <div className="flex items-center gap-2 pb-3">{sub}</div>}

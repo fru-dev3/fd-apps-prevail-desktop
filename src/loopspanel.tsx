@@ -35,6 +35,7 @@ import {
   writeLoops,
   writeLoopsRuntime,
 } from "./loops";
+import { DETAIL_TITLE } from "./typescale";
 
 const CADENCES: LoopCadence[] = ["continuous", "daily", "weekly", "monthly"];
 
@@ -296,7 +297,7 @@ export function LoopsPanel({ domain, vaultPath, domainPath, isApp = false }: { d
       {/* Header - L1 (Monday feedback): full-width like every other page. */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Loops</h2>
+          <h2 className={DETAIL_TITLE}>Loops</h2>
           <p className="mt-1 text-sm text-text-secondary">
             Standing forces on {titleCase(domain)}, not one-off tasks. Each loop watches signals and works to close the gap to your desired state. Open loops run forever; closed loops finish when their condition is met.
           </p>

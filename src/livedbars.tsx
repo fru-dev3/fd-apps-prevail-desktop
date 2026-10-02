@@ -28,7 +28,7 @@ export function MattersLived({ vaultPath }: { vaultPath: string }) {
       {!rows.length && !!q.data && <p className="mt-3 text-[15px] text-text-muted">Confirm your Compass values to see matters against lived.</p>}
       <ul className="mt-3 space-y-4">{rows.map((v) => (
         <li key={v.id} data-testid={`lived-${v.id}`}>
-          <p className="break-words text-[16px] font-semibold text-text-primary">{v.title}</p>
+          <p className="break-words text-[15px] font-semibold text-text-primary">{v.title}</p>
           <div className="mt-1.5 space-y-1">
             <Bar label="Matters" value={v.matters} tone="matters" testId="lived-matters" />
             <Bar label="Lived" value={v.lived} tone="lived" testId="lived-lived" />

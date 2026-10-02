@@ -19,6 +19,7 @@ type Entry = {
 // the value off an entry (with a friendly fallback for missing/legacy data).
 type DimId = "model" | "domain" | "surface" | "host" | "cli";
 import { modelLabel } from "./helpers2";
+import { DETAIL_TITLE } from "./typescale";
 
 const DIMS: { id: DimId; label: string; get: (e: Entry) => string }[] = [
   { id: "model", label: "Model", get: (e) => e.model || "(default)" },
@@ -99,7 +100,7 @@ const fmtNum = (n: number) => n.toLocaleString();
 function heat(t: number): string {
   if (t <= 0) return "transparent";
   const a = 0.08 + t * 0.82;
-  return `color-mix(in srgb, var(--color-accent, #0d7d8c) ${Math.round(a * 100)}%, transparent)`;
+  return `color-mix(in srgb, var(--color-accent) ${Math.round(a * 100)}%, transparent)`;
 }
 
 export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: { vaultPath: string; embedded?: boolean; view?: UsageView }) {
@@ -282,7 +283,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
   const detailBody = (
     <div className={`flex flex-col gap-5 ${embedded ? "" : phone ? "px-4 py-4" : "w-full px-8 py-6"}`} data-testid="usage-detail">
       {embedded && <div className="flex min-w-0 justify-end">{controls}</div>}
-      {!embedded && <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{viewLabel}</h2>}
+      {!embedded && <h2 className={DETAIL_TITLE}>{viewLabel}</h2>}
       {view === "overview" && ai && ai.total.tokens > 0 && <AllToolsPanel data={ai} />}
       {empty ? (
         <div className="rounded-xl border border-dashed border-border-subtle px-6 py-16 text-center text-sm text-text-muted">
@@ -304,7 +305,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
               { l: "Active days", v: `${totals.days.size}` },
             ].map((t) => (
               <div key={t.l} className="rounded-xl border border-border bg-surface p-3.5">
-                <div className="text-lg font-semibold tabular-nums text-text-primary">{t.v}</div>
+                <div className="text-[15px] font-semibold tabular-nums text-text-primary">{t.v}</div>
                 <div className="mt-0.5 text-[11px] tracking-wide text-text-muted">{t.l}</div>
               </div>
             ))}
@@ -433,9 +434,9 @@ function TimeSeries({ data, fmt }: { data: { day: string; v: number }[]; fmt: (v
   return (
     <div className="overflow-x-auto">
       <svg viewBox={`0 0 ${w} ${h + 16}`} className="w-full" style={{ minWidth: 420 }} role="img" aria-label="usage over time">
-        <path d={area} fill="color-mix(in srgb, var(--color-accent,#0d7d8c) 12%, transparent)" />
-        <path d={line} fill="none" stroke="var(--color-accent,#0d7d8c)" strokeWidth="1.5" />
-        {peak.v > 0 && <circle cx={x(data.indexOf(peak))} cy={y(peak.v)} r="2.5" fill="var(--color-accent,#0d7d8c)" />}
+        <path d={area} fill="color-mix(in srgb, var(--color-accent) 12%, transparent)" />
+        <path d={line} fill="none" stroke="var(--color-accent)" strokeWidth="1.5" />
+        {peak.v > 0 && <circle cx={x(data.indexOf(peak))} cy={y(peak.v)} r="2.5" fill="var(--color-accent)" />}
         <text x={pad} y={h + 12} className="fill-current text-[9px] text-text-muted">{data[0]?.day.slice(5)}</text>
         <text x={w - pad} y={h + 12} textAnchor="end" className="fill-current text-[9px] text-text-muted">{data[n - 1]?.day.slice(5)}</text>
       </svg>

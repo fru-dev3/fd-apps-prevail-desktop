@@ -111,7 +111,7 @@ function RecItem({ r, rank, vaultPath, saved, dismissed, onSave, onDismiss, onRe
                 {r.metric.value.toLocaleString()}
               </span>
             )}
-            <h3 className="min-w-0 text-[16px] font-semibold leading-snug text-text-primary">
+            <h3 className="min-w-0 text-[15px] font-semibold leading-snug text-text-primary">
               {rank ? <span className="sr-only">{`${rank}. `}</span> : null}{r.title}
             </h3>
           </div>
@@ -260,7 +260,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
     <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">{rs.map((r, i) => item(r, ranked ? i + 1 : undefined))}</ul>
   );
   const sectionHead = (label: string, n: number, Icon: LucideIcon) => (
-    <h2 className="text-[19px] font-semibold text-text-primary mb-2.5 flex items-center gap-2">
+    <h2 className="text-[15px] font-semibold text-text-primary mb-2.5 flex items-center gap-2">
       <Icon className="h-5 w-5 text-accent" />{label}<span className="text-[14px] font-normal tabular-nums text-text-muted">{n}</span>
     </h2>
   );

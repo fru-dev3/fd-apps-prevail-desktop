@@ -76,10 +76,10 @@ function CostInsight({ seats }: { seats: string[] }) {
   return (
     <div data-testid="council-cost" title="Rough estimate: about 6K tokens a seat at blended cloud rates. Local models are free. Actual prices vary."
       className="grid grid-cols-2 gap-3 rounded-xl border border-border-subtle bg-surface p-4 sm:grid-cols-4">
-      <div><div className={META}>Per question</div><div data-testid="council-cost-per" className="mt-0.5 text-[17px] font-semibold text-text-primary">{per > 0 ? `about ${fmtUsd(per)}` : "Free"}</div></div>
-      <div><div className={META}>Per 10 questions</div><div className="mt-0.5 text-[17px] font-semibold text-text-primary">{per > 0 ? `about ${fmtUsd(per * 10)}` : "Free"}</div></div>
-      <div><div className={META}>Models</div><div data-testid="council-cost-seats" className="mt-0.5 text-[17px] font-semibold text-text-primary">{seats.length}</div></div>
-      <div><div className={META}>Cloud and local</div><div className="mt-0.5 text-[17px] font-semibold text-text-primary">{cloud} cloud, {local} local</div></div>
+      <div><div className={META}>Per question</div><div data-testid="council-cost-per" className="mt-0.5 text-[15px] font-semibold text-text-primary">{per > 0 ? `about ${fmtUsd(per)}` : "Free"}</div></div>
+      <div><div className={META}>Per 10 questions</div><div className="mt-0.5 text-[15px] font-semibold text-text-primary">{per > 0 ? `about ${fmtUsd(per * 10)}` : "Free"}</div></div>
+      <div><div className={META}>Models</div><div data-testid="council-cost-seats" className="mt-0.5 text-[15px] font-semibold text-text-primary">{seats.length}</div></div>
+      <div><div className={META}>Cloud and local</div><div className="mt-0.5 text-[15px] font-semibold text-text-primary">{cloud} cloud, {local} local</div></div>
     </div>
   );
 }

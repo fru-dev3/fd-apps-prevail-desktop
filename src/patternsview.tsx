@@ -59,7 +59,7 @@ export function PatternsView({ vaultPath }: { vaultPath: string }) {
       <h3 className={`${SECTION_TITLE} mt-6`}>Themes</h3>
       <div className="mt-2 max-w-4xl space-y-3">{arr<ThemeTrend>(themes.data).map((t) => (
         <div key={t.kind} data-testid={`pattern-themes-${t.kind}`}>
-          <p className="text-[16px] font-semibold text-text-primary">{t.kind === "writing" ? "What you write about" : "What you read about"}{t.month ? `, ${t.month}` : ""}</p>
+          <p className="text-[15px] font-semibold text-text-primary">{t.kind === "writing" ? "What you write about" : "What you read about"}{t.month ? `, ${t.month}` : ""}</p>
           {t.topics.length ? <><Words label="New" xs={t.new} /><Words label="Steady" xs={t.steady} /><Words label="Gone" xs={t.gone} /></> : null}
           <p className={`${META} mt-0.5 break-words`}>{t.state}</p>
         </div>

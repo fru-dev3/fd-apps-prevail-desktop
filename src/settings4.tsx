@@ -21,6 +21,7 @@ import { useAppearance } from "./hooks";
 import { SettingsHeader, idealSectionIcon } from "./sectionutil";
 import { VaultEncryptionCard } from "./settings3";
 import type { Mode } from "./types";
+import { DETAIL_TITLE, SECTION_TITLE } from "./typescale";
 
 // SAFETY-1: a labelled cluster header so the panel reads as deliberate groups
 // (Access protection vs Agent guardrails) instead of one flat stack of rows.
@@ -314,10 +315,10 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
               <div className="text-[11px] font-bold text-accent">My constitution</div>
             )}
             {parsed.title && (
-              <h2 className={headerless ? "text-[19px] font-semibold text-text-primary" : "mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary"}>{parsed.title}</h2>
+              <h2 className={headerless ? SECTION_TITLE : `mt-2 ${DETAIL_TITLE}`}>{parsed.title}</h2>
             )}
             {parsed.intro && (
-              <div className="mt-3 text-[15px] leading-relaxed text-text-secondary">
+              <div className="mt-3 text-[14px] leading-normal text-text-secondary">
                 <Markdown source={parsed.intro} compact />
               </div>
             )}
@@ -332,10 +333,10 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
                     <div className="flex items-center gap-2.5">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-background">{idx + 1}</span>
                       <Icon className="h-4 w-4 shrink-0 text-accent" />
-                      <h3 className="text-lg font-semibold text-text-primary">{s.title}</h3>
+                      <h3 className="text-[15px] font-semibold text-text-primary">{s.title}</h3>
                     </div>
                     {s.body && (
-                      <div className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                      <div className="mt-2 text-[14px] leading-normal text-text-secondary">
                         <Markdown source={s.body} compact />
                       </div>
                     )}
