@@ -710,6 +710,7 @@ function Setup({ vaultPath, m }: { vaultPath: string; m: Mission }) {
           <select aria-label="Ceiling" value={m.ceiling} onChange={(e) => void set("ceiling", e.target.value)} className={inputCls}>{CEILINGS.map((c) => <option key={c} value={c}>{c.replace("-", " ")}</option>)}</select></label>
       </div>
       <p className={META}>The ceiling only tightens: a read mission never drafts, and acting, sending, spending or anything touching other people always asks you.</p>
+      <p className={META} data-testid="mission-telegram">Practice and spends told on the phone or Telegram that name this mission count here (practice goes here on its own when it is your only learning mission). On Telegram, /m {m.slug} pins a chat to it.</p>
       <div className="grid gap-4 sm:grid-cols-3">
         {text("budget-usd", "Budget ($)", m.budget.total_usd != null ? String(m.budget.total_usd) : "", "none")}
         {text("hours-wk", "Hours a week", m.budget.hours_wk != null ? String(m.budget.hours_wk) : "", "none")}
