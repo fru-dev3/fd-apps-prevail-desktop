@@ -335,6 +335,21 @@ pub(crate) async fn engine_experiment(vault: String, action: String, id: Option<
     blocking(a).await
 }
 
+// ── Today T5: time ──
+
+/// This week's calendar by value, next week against capacity, holds and drafted declines.
+#[tauri::command]
+pub(crate) async fn engine_time(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "time", "review", "--json"])).await
+}
+
+/// A protected block: approve (a tentative hold on your own calendar) or decline.
+#[tauri::command]
+pub(crate) async fn engine_time_hold(vault: String, id: String, action: String) -> Result<serde_json::Value, String> {
+    let act = one_of(&action, &["approve", "decline"])?.to_string();
+    blocking(v(&["--vault", &vault, "time", "hold", &act, ok_playbook(&id)?, "--json"])).await
+}
+
 /// Playbook ids and domain slugs: a plain slug, nothing else.
 fn ok_playbook(s: &str) -> Result<&str, String> {
     let mut c = s.chars();

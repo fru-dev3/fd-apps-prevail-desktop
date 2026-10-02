@@ -64,6 +64,14 @@ export interface ReviewCard {
   quarterly?: boolean;
   /** Metrics M5: the running experiment's arm this week. */
   experiment?: { id: string; arm: "A" | "B"; text: string } | null;
+  /** Today T5: this week's calendar by value, next week against capacity, holds that ask, drafted declines. */
+  time?: TimeReview | null;
+}
+export interface TimeReview {
+  thisWeek: { week: string; connected: boolean; note?: string; hours: number; meetings: number; focus: number; afterHours: number; byValue: { id: string; title: string; rank: number; hours: number; share: number; expected: number }[]; unlinked: number; lines: string[] };
+  warning: string | null;
+  holds: { id: string; title: string; start: string; end: string; for: string; status: string; note?: string }[];
+  declines: { id: string; title: string; start: string; body: string }[];
 }
 
 export interface MetricProposal {

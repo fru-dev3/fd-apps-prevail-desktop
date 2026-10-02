@@ -3,11 +3,11 @@
 // card when the week wants its check-in. Both come from the engine
 // (`prevail today`, `prevail review week`); every tap goes back to it.
 import { useState } from "react";
-import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleOff, Gavel, Handshake, Hourglass, Loader2, Mail, MessageSquare, RefreshCw, Scale, ThumbsUp, Undo2, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleOff, Copy, Gavel, Handshake, Hourglass, Loader2, Mail, MessageSquare, RefreshCw, Scale, ThumbsUp, Undo2, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { BODY, META, SECTION_TITLE } from "./typescale";
-import { fmtDue, label, openDecision, personName, radarGroups, type Radar, type ReviewCard, type TodayCard, type TodayItem } from "./plansmodel";
+import { fmtDue, label, openDecision, personName, radarGroups, type Radar, type ReviewCard, type TimeReview, type TodayCard, type TodayItem } from "./plansmodel";
 import { openMission } from "./missions";
 import { WHO5_ITEMS, WHO5_SCALE } from "./qualmodel";
 import { RowMenu } from "./ui";
@@ -313,6 +313,7 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
           </ul>
         </div>
       )}
+      {card.time && <TimeBlock t={card.time} vaultPath={vaultPath} onChanged={onChanged} />}
       {card.radar && card.radar.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-radar">
           <h3 className="text-[15px] font-semibold text-text-primary">Falling behind</h3>
@@ -406,6 +407,61 @@ function Who5Ask({ busy, onSave }: { busy: boolean; onSave: (xs: number[]) => vo
         </li>
       ))}</ul>
       <button onClick={() => onSave(xs as number[])} disabled={busy || xs.some((x) => x === null)} className={`${smallBtn} mt-2`} data-testid="who5-save"><Check className="h-3.5 w-3.5" /> Save</button>
+    </div>
+  );
+}
+
+/**
+ * Today T5 on the weekly card: this week's calendar by value against rank,
+ * next week against capacity (warned before it starts), protected blocks
+ * that wait for a yes, and declines drafted for meetings that serve nothing
+ * (yours to send; Prevail never sends).
+ */
+function TimeBlock({ t, vaultPath, onChanged }: { t: TimeReview; vaultPath: string; onChanged: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const w = t.thisWeek;
+  const answer = async (id: string, action: "approve" | "decline") => {
+    setBusy(id);
+    try { await invoke("engine_time_hold", { vault: vaultPath, id, action }); invalidateQueries("engine_review"); onChanged(); } finally { setBusy(null); }
+  };
+  const when = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return (
+    <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-time">
+      <h3 className="text-[15px] font-semibold text-text-primary">Time</h3>
+      {!w.connected ? <p className={`${META} mt-0.5`} data-testid="review-time-off">{w.note}</p> : (
+        <>
+          <p className={`${META} mt-0.5`}>{w.hours} h on the calendar · {w.meetings} h meetings · {w.focus} h focus{w.afterHours ? ` · ${w.afterHours} h after hours` : ""}</p>
+          <ul className="mt-1">{w.byValue.filter((v) => v.hours > 0 || v.rank <= 2).slice(0, 4).map((v) => (
+            <li key={v.id} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_3.5rem] items-center gap-3 py-0.5" title={`Rank ${v.rank}; its rank would give it about ${v.expected}%`}>
+              <span className="truncate text-[14px] text-text-secondary">{v.title}</span>
+              <span className="h-2.5 overflow-hidden rounded bg-surface-warm"><span className="block h-full rounded bg-accent" style={{ width: `${Math.max(2, v.share)}%` }} /></span>
+              <span className="text-right text-[13px] tabular-nums text-text-muted">{v.share}%</span>
+            </li>
+          ))}</ul>
+          {w.lines.map((l) => <p key={l} className={`${BODY} mt-1 text-text-secondary`}>{l}</p>)}
+        </>
+      )}
+      {t.warning && <p className={`${BODY} mt-2 text-warn`} data-testid="review-time-warning">{t.warning}</p>}
+      {t.holds.length > 0 && <ul className="mt-2">{t.holds.map((h) => (
+        <li key={h.id} className="group flex items-start gap-2 py-1.5" data-testid="review-hold">
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-[15px] font-medium text-text-primary">{h.title}</p>
+            <p className={`${META} mt-0.5`}>A protected block, {when(h.start)} · waits for your yes{h.note ? ` · ${h.note}` : ""}</p>
+          </div>
+          <button onClick={() => void answer(h.id, "approve")} disabled={!!busy} data-testid="review-hold-approve" className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">{busy === h.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Hold it</button>
+          <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"><RowMenu items={[{ icon: X, label: "Not this week", onClick: () => void answer(h.id, "decline") }]} /></span>
+        </li>
+      ))}</ul>}
+      {t.declines.length > 0 && <ul className="mt-2">{t.declines.map((d) => (
+        <li key={d.id} className="group flex items-start gap-2 py-1.5" data-testid="review-decline">
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-[15px] font-medium text-text-primary">Decline "{d.title}"?</p>
+            <p className={`${META} mt-0.5 line-clamp-2`} title={d.body}>{when(d.start)} · serves nothing your Compass names · a draft, yours to send</p>
+          </div>
+          <button onClick={() => { void navigator.clipboard?.writeText(d.body).then(() => setCopied(d.id)).catch(() => {}); }} title="Copy the draft" aria-label={`Copy the draft for ${d.title}`} className={iconBtn}>{copied === d.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button>
+        </li>
+      ))}</ul>}
     </div>
   );
 }

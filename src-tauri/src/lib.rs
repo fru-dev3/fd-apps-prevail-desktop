@@ -704,6 +704,8 @@ pub fn run() {
             plans::engine_story,
             plans::engine_story_write,
             plans::engine_experiment,
+            plans::engine_time,
+            plans::engine_time_hold,
             compass::compass_read,
             compass::compass_write,
             compass::compass_versions,
