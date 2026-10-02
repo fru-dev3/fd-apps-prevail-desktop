@@ -27,6 +27,7 @@ import { useDetectedClis, useFrameworkLens } from "./hooks";
 import { MISSION_DRAFT_KEY } from "./missioncards";
 import type { ThreadMeta } from "./types";
 import { parseCompass } from "./compassmodel";
+import { useChainTree, walkUp, LEVEL_LABEL } from "./compasschain";
 import {
   approveMissionEvent, attachToMission, CEILINGS, closeoutApply, closeoutPlan, closeoutUndo, createMission, createMissionEvent, daysLeftLabel, linkMissionPath, missionBudget, missionFor,
   MISSIONS_CHANGED, pendingLabel, trackMissionMetric, type MetricProposalM, type PendingEvent,
@@ -234,7 +235,10 @@ const personName = (p: string) => titleCase(p.replace(/^[a-z]+\//, "").replace(/
 const domainLink = "font-medium text-text-secondary hover:text-accent";
 
 /** Who the mission brought in, as one muted line: each domain name opens the domain. */
-function MissionWho({ m, owner }: { m: Mission; owner: string | null | undefined }) {
+function MissionWho({ m, owner, vaultPath }: { m: Mission; owner: string | null | undefined; vaultPath: string }) {
+  // What the mission serves, walked up the Compass chain: initiative, goal, objective (vision on hover).
+  const { tree } = useChainTree(vaultPath);
+  const chain = walkUp(tree, `mission/${m.slug}`);
   const doms = (ds: string[]) => ds.map((d, i) => <span key={d}>{i > 0 && ", "}<button type="button" onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: d === "general" ? "" : d }))} className={domainLink}>{titleCase(d)}</button></span>);
   const bits: ReactNode[] = [
     <span key="o">Owner {owner ? doms([owner]) : "none yet"}</span>,
@@ -243,7 +247,9 @@ function MissionWho({ m, owner }: { m: Mission; owner: string | null | undefined
     m.apps.length > 0 && <span key="a">{m.apps.map(titleCase).join(", ")}</span>,
     m.specialists.length > 0 && <span key="s">{m.specialists.map(titleCase).join(", ")}</span>,
     m.people.length > 0 && <span key="p">With {m.people.map(personName).join(", ")}</span>,
-    <span key="v" title={[m.goal, m.path].filter(Boolean).join(" > ")}>{m.goal || m.path ? `Serves ${m.goal || m.path}` : "Not linked to a goal"}</span>,
+    chain.length
+      ? <span key="v" data-testid="mission-chain" title={chain.map((n) => `${LEVEL_LABEL[n.level]}: ${n.title}`).join("\n")}>Serves {chain.filter((n) => n.level !== "vision").map((n) => n.title).join(" > ")}</span>
+      : <span key="v" data-testid="mission-chain">Not linked to a goal</span>,
   ].filter(Boolean);
   return (
     <p data-testid="mission-chips" className={`${META} mt-0.5 line-clamp-2`}>
@@ -283,7 +289,7 @@ export function MissionDetail({ vaultPath, slug }: { vaultPath: string; slug: st
           </div>
         </div>
         <p data-testid="mission-meta" className={`${META} mt-1`}>{missionMeta(m)}{m.result ? ` · result ${m.result.replace("-", " ")}` : ""}</p>
-        <MissionWho m={m} owner={owner} />
+        <MissionWho m={m} owner={owner} vaultPath={vaultPath} />
         {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
         <div role="tablist" aria-label="Mission" data-scroll-x className={`-mx-1 mt-3 flex gap-x-1 ${phone ? "overflow-x-auto" : "flex-wrap"}`} data-testid="mission-tabs">
           {D_TABS.map((t) => (

@@ -96,3 +96,49 @@ describe("WOOP", () => {
     expect(missionOf(b)?.text).toBe("Make foo things that last.");
   });
 });
+
+describe("the Compass chain (schema 2)", () => {
+  const CHAIN = `# Compass
+~schema:2
+
+## Purpose
+Live a calm foo life.
+
+## Values
+- Peace of mind ~id:v-peace ~rank:1
+
+## Mission statement
+- Build calm foo tools for families ~id:st-tools ~serves:v-peace
+
+## Vision
+- A foo home that runs on its own ~id:vi-home
+
+## Objectives
+- Twelve months of costs in cash ~id:o-cash ~metric:cash_months ~target:12
+
+## Goals
+- [ ] Bar cash buffer ~id:g-buffer ~objective:o-cash ~status:active
+  initiative: Automatic foo savings ~id:p-auto ~status:chosen
+    expect: a transfer every month
+`;
+  test("statement, vision and objectives parse; initiative: lines are the goal's; untouched round-trips byte for byte", () => {
+    const doc = parseCompass(CHAIN);
+    expect(items(doc, "statement").map((x) => x.tokens.serves)).toEqual(["v-peace"]);
+    expect(items(doc, "vision")[0]!.id).toBe("vi-home");
+    expect(items(doc, "objective")[0]!.tokens).toMatchObject({ metric: "cash_months", target: "12" });
+    expect(items(doc, "goal")[0]!.paths.map((p) => `${p.id}:${p.fields[0]!.value}`)).toEqual(["p-auto:a transfer every month"]);
+    expect(serializeCompass(doc)).toBe(CHAIN);
+  });
+  test("old path: lines read the same as initiative:, and a changed goal writes initiative:", () => {
+    const old = parseCompass(CHAIN.replace("initiative:", "path:"));
+    expect(items(old, "goal")[0]!.paths).toEqual(items(parseCompass(CHAIN), "goal")[0]!.paths);
+    const g = items(old, "goal")[0]!;
+    g.dirty = true;
+    expect(serializeCompass(old)).toContain("  initiative: Automatic foo savings ~id:p-auto ~status:chosen\n    expect: a transfer every month");
+  });
+  test("in a schema 2 file ## Mission is the mission statement, never the purpose", () => {
+    const doc = parseCompass("# Compass\n~schema:2\n\n## Purpose\nFoo.\n\n## Mission\n- Make bar for foo ~id:st-x\n");
+    expect(missionOf(doc)?.text).toBe("Foo.");
+    expect(items(doc, "statement").map((x) => x.id)).toEqual(["st-x"]);
+  });
+});

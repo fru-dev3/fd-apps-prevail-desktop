@@ -317,6 +317,31 @@ pub(crate) async fn engine_initiative_retire(vault: String, id: String, because:
     blocking(vec!["--vault".into(), vault, "compass".into(), "path".into(), "retire".into(), ok_playbook(&id)?.to_string(), "--because".into(), b, "--json".into()]).await
 }
 
+// ── Goals G1b: the Compass chain ──
+
+/// The chain as a tree: every node with its parents and children, and what is not linked per level.
+#[tauri::command]
+pub(crate) async fn engine_compass_tree(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "tree", "--json"])).await
+}
+
+/// Proposed links (goal to objective, task to initiative), each with the quote that suggested it.
+#[tauri::command]
+pub(crate) async fn engine_compass_links(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "links", "--json"])).await
+}
+
+/// Accept or turn down a proposed link, or link a goal to an objective directly.
+#[tauri::command]
+pub(crate) async fn engine_compass_link(vault: String, action: String, id: String, to: Option<String>) -> Result<serde_json::Value, String> {
+    let act = one_of(&action, &["accept", "decline", "link"])?.to_string();
+    if act == "link" {
+        let t = to.ok_or("an objective is needed")?;
+        return blocking(v(&["--vault", &vault, "compass", "link", ok_playbook(&id)?, ok_playbook(&t)?, "--json"])).await;
+    }
+    blocking(v(&["--vault", &vault, "compass", "link", &act, ok_playbook(&id)?, "--json"])).await
+}
+
 /// The quarterly initiative review (keep, switch or drop), written as a page in General.
 #[tauri::command]
 pub(crate) async fn engine_initiatives_review(vault: String) -> Result<serde_json::Value, String> {

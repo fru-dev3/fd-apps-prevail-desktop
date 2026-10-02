@@ -1,14 +1,18 @@
 // Compass: the one page for what the user lives by. It replaces Goals and
 // Ideals. Three views, picked by the header tabs, each a SideSpine page:
-//   Compass  the mission, ranked values, roles, life goals and rules from
-//            build/compass.md (compassmodel.ts), every line in the user's
-//            words with where it came from. Drafted lines wait as Proposed
+//   Compass  the chain from build/compass.md (compassmodel.ts), top to
+//            bottom: purpose, values, mission statement, vision, objectives,
+//            life goals and their initiatives, then roles, rules and routines
+//            beside it. Each line says what it serves (up) and what moves it
+//            (down, unfolds); the Chain view draws the tree from the engine
+//            (compasschain.tsx) and counts what is not linked per level.
+//            Every line is in the user's words with where it came from. Drafted lines wait as Proposed
 //            until the user confirms or drops them; History lists the
 //            earlier versions and every change.
 //   Goals    each domain's goals (source/goals.md), as the Goals page had them.
 //   Ideals   the constitution, Omega and every domain's ideal state.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Check, CheckCheck, Compass, Flag, History, LayoutList, Loader2, MessageSquare, Repeat, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
+import { Check, CheckCheck, Compass, Eye, Flag, GitFork, History, LayoutList, Link2, Loader2, MessageSquare, Milestone, Repeat, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
@@ -25,9 +29,11 @@ import { useChiefOfStaff } from "./chiefofstaff";
 import { MattersLived } from "./livedbars";
 import { AlignNeedsYou, AlignRules, SaidVsDid } from "./alignpanel";
 import { Initiatives } from "./initiatives";
+import { ChainView, chainBits, linkAction, notLinkedLine, useChainLinks, useChainTree } from "./compasschain";
+import { RowMenu, REVEAL } from "./ui";
 
 type View = "compass" | "goals" | "ideals";
-type Sel = "overview" | "mission" | "values" | "roles" | "goals" | "rules" | "routines" | "history";
+type Sel = "overview" | "chain" | "mission" | "values" | "statement" | "vision" | "objectives" | "roles" | "goals" | "rules" | "routines" | "history";
 export const COMPASS_FOCUS_KEY = "prevail.compass.focus";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -85,6 +91,15 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const rules = items(doc, "rule");
   const negotiables = items(doc, "negotiable");
   const routines = items(doc, "routine");
+  const statements = items(doc, "statement");
+  const visions = items(doc, "vision");
+  const objectives = items(doc, "objective");
+  // The chain as the engine sees it: parents, children, what is not linked.
+  const { tree, refresh: refreshTree } = useChainTree(vaultPath);
+  const { links, refresh: refreshLinks } = useChainLinks(vaultPath);
+  const nodeOf = useMemo(() => new Map((tree?.nodes ?? []).map((n) => [n.id, n])), [tree]);
+  const notLinked = (lvl: string) => tree?.levels.find((l) => l.level === lvl)?.notLinked ?? 0;
+  const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
   const proposed = proposedCount(doc);
   const empty = !mission?.text && !items(doc).length;
   const valueTitle = new Map(values.map((v) => [v.id, v.title]));
@@ -96,6 +111,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       const body = serializeCompass(next.doc);
       await invoke("compass_write", { vault: vaultPath, body, changes: next.changes });
       setText(body);
+      void refreshTree();
     } catch (e) { setErr(`Could not save: ${String(e)}`); }
     finally { setBusy(null); }
   };
@@ -105,6 +121,20 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     setErr(null); setBusy("draft");
     try { await invoke("engine_compass_bootstrap", { vault: vaultPath }); await load(); }
     catch (e) { setErr(`Could not draft: ${String(e)}`); }
+    finally { setBusy(null); }
+  };
+  // The rest of the chain (mission statement, vision, objectives) drafted from the
+  // notes and every domain's ideal state, quoted, with proposed links.
+  const draftChain = async () => {
+    setErr(null); setBusy("chain");
+    try { await invoke("engine_compass_bootstrap", { vault: vaultPath, chain: true }); await load(); void refreshTree(); void refreshLinks(); }
+    catch (e) { setErr(`Could not draft: ${String(e)}`); }
+    finally { setBusy(null); }
+  };
+  const link = async (action: "accept" | "decline" | "link", id: string, to?: string) => {
+    setErr(null); setBusy(`link:${id}`);
+    try { await linkAction(vaultPath, action, id, to); await load(); void refreshTree(); void refreshLinks(); }
+    catch (e) { setErr(`Not linked: ${String(e).replace(/^Error: /, "")}`); }
     finally { setBusy(null); }
   };
   // Routines drafted from each domain's Habits and routines, as proposed lines.
@@ -136,22 +166,46 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const list = (
     <nav className="space-y-0.5 p-2" aria-label="Compass">
       {row("overview", "Overview", LayoutList, undefined, proposed ? `${proposed} waiting for you` : undefined)}
+      {row("chain", "Chain", GitFork, undefined, notLinkedLine(tree) ? `Not linked: ${notLinkedLine(tree)}` : undefined)}
       {row("mission", "Purpose", Compass, undefined, mission?.text ? mission.text.split("\n")[0] : "Not written yet")}
       {row("values", "Values", Star, values.length)}
+      {row("statement", "Mission statement", Flag, statements.length, notLinked("statement") ? `${notLinked("statement")} not linked` : undefined)}
+      {row("vision", "Vision", Eye, visions.length, notLinked("vision") ? `${notLinked("vision")} not linked` : undefined)}
+      {row("objectives", "Objectives", Milestone, objectives.length, notLinked("objective") ? `${notLinked("objective")} not linked` : undefined)}
+      {row("goals", "Life goals", Target, goals.length, notLinked("goal") ? `${notLinked("goal")} not linked` : undefined)}
+      <div className="mx-2.5 my-1.5 border-t border-border-subtle" aria-hidden />
       {row("roles", "Roles", Users, roles.length)}
-      {row("goals", "Life goals", Target, goals.length)}
       {row("rules", "Rules", Scale, rules.length + negotiables.length)}
       {row("routines", "Routines", Repeat, routines.length)}
       {row("history", "History", History)}
     </nav>
   );
 
-  const actions = (x: { id: string; title: string; tokens: Record<string, string> }) => isProposed(x) ? (
-    <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
-      <button onClick={() => void confirmIds([x.id])} disabled={!!busy} title="Confirm" aria-label={`Confirm ${x.title}`} data-testid="compass-confirm" className={iconBtn}><Check className="h-4 w-4" /></button>
-      <button onClick={() => void dropIds([x.id])} disabled={!!busy} title="Not mine" aria-label={`Drop ${x.title}`} data-testid="compass-drop" className={`${iconBtn} hover:text-warn`}><X className="h-4 w-4" /></button>
-    </span>
-  ) : null;
+  // One primary action per row (confirm a drafted line, or accept the link
+  // proposed for it); everything else is in the row menu.
+  const actions = (x: { id: string; title: string; tokens: Record<string, string>; kind?: string }) => {
+    const proposedLink = links.find((l) => l.from === x.id && l.kind === "goal-objective");
+    const node = nodeOf.get(x.id);
+    const linkTargets = x.kind === "goal" && node && !node.parents.length ? objectives.filter((o) => !isProposed(o)).slice(0, 8) : [];
+    const menu = [
+      ...(isProposed(x) ? [{ icon: X, label: "Not mine", hint: "Leave this line out", onClick: () => void dropIds([x.id]) }] : []),
+      ...(proposedLink ? [{ icon: X, label: "Keep it apart", hint: `Not linked to ${proposedLink.toTitle}`, onClick: () => void link("decline", proposedLink.id) }] : []),
+      ...linkTargets.filter((o) => o.id !== proposedLink?.to).map((o) => ({ icon: Link2, label: `Link to ${o.title}`, hint: "Moves this objective", onClick: () => void link("link", x.id, o.id) })),
+    ];
+    if (!isProposed(x) && !proposedLink && !menu.length) return null;
+    return (
+      <span className={`flex shrink-0 items-center gap-0.5 ${REVEAL}`}>
+        {isProposed(x) ? (
+          <button onClick={() => void confirmIds([x.id])} disabled={!!busy} title="Confirm" aria-label={`Confirm ${x.title}`} data-testid="compass-confirm" className={iconBtn}><Check className="h-4 w-4" /></button>
+        ) : proposedLink ? (
+          <button onClick={() => void link("accept", proposedLink.id)} disabled={!!busy} title={`"${proposedLink.quote}"`} aria-label={`Link ${x.title} to ${proposedLink.toTitle}`} data-testid="compass-link-accept" className="inline-flex h-8 items-center gap-1 px-1 text-[13px] font-medium text-accent hover:underline disabled:opacity-50">
+            {busy === `link:${proposedLink.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />} Link
+          </button>
+        ) : null}
+        {menu.length > 0 && <RowMenu items={menu} label={`More for ${x.title}`} />}
+      </span>
+    );
+  };
   // One quiet meta line instead of a row of pills: state, what it serves,
   // dates and where it came from, separated by middle dots.
   const status = (x: { tokens: Record<string, string> }) => isProposed(x)
@@ -173,6 +227,9 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     const extra: [string, string][] = [];
     for (const k of ["enough", "hope", "fear", "why", "trade", "outcome", "obstacle", "plan"]) { const v = fieldOf(it, k); if (v) extra.push([k, v]); }
     const serves = (it.tokens.serves ?? "").split(",").map((id) => valueTitle.get(id)).filter(Boolean) as string[];
+    const chain = chainBits({ node: nodeOf.get(it.id), tree });
+    const open = !!unfolded[it.id];
+    const proposedLink = links.find((l) => l.from === it.id && l.kind === "goal-objective");
     return (
       <li key={it.id} data-testid="compass-item" data-id={it.id} className="group flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
         {lead && <span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-text-muted">{lead}</span>}
@@ -188,8 +245,12 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
             if (st) bits.push(st);
             if (it.flags.includes("local")) bits.push(<span title="Never sent to a cloud model">Local only</span>);
             if (it.tokens.cadence) bits.push(<span data-testid="compass-cadence">{cadenceLabel(it.tokens.cadence)}</span>);
-            if (it.tokens.metric) bits.push(<span>Measured by {it.tokens.metric}</span>);
-            if (serves.length) bits.push(<span>Serves {serves.join(", ")}</span>);
+            if (chain.up) bits.push(chain.up);
+            else if (serves.length) bits.push(<span>Serves {serves.join(", ")}</span>);
+            if (it.tokens.metric) bits.push(<span>Measured by {it.tokens.metric}{it.tokens.target ? `, target ${it.tokens.target}` : ""}</span>);
+            else if (it.kind === "objective") bits.push(<span title="An objective is measurable: name the metric that shows it">No measure yet</span>);
+            if (proposedLink) bits.push(<span title={`"${proposedLink.quote}"`} className="text-accent">Moves {proposedLink.toTitle}?</span>);
+            if (chain.down) bits.push(<button type="button" onClick={() => setUnfolded((u) => ({ ...u, [it.id]: !open }))} aria-expanded={open} className="hover:text-accent">{chain.down}</button>);
             if (it.tokens.due) bits.push(<span>By {it.tokens.due}</span>);
             if (it.tokens.domain) bits.push(<span>{titleCase(it.tokens.domain)}</span>);
             if (from) bits.push(<span title={from}>From {sourceLabel(from)}</span>);
@@ -199,7 +260,8 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
               </p>
             ) : null;
           })()}
-          {it.kind === "goal" && !isProposed(it) ? <Initiatives goalId={it.id} vaultPath={vaultPath} values={valueTitle} /> : it.paths.length > 0 && (
+          {it.kind !== "goal" && chain.list(open)}
+          {it.kind === "goal" && !isProposed(it) ? <Initiatives goalId={it.id} vaultPath={vaultPath} values={valueTitle} missions={new Map(it.paths.flatMap((p) => { const m = nodeOf.get(p.id)?.mission; return m ? [[p.id, m] as const] : []; }))} /> : it.paths.length > 0 && (
             <ul className="mt-2 border-l-2 border-border-subtle pl-3" data-testid="compass-paths">
               {it.paths.map((p) => <li key={p.id} className="py-1 text-[14px] text-text-secondary">{p.title}</li>)}
             </ul>
@@ -251,7 +313,25 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
         </section>
       )}
       {values.length > 0 && section("Values, most important first", values.slice(0, 8), true)}
+      {statements.length > 0 && section("Mission statement", statements)}
+      {visions.length > 0 && section("Vision", visions)}
+      {objectives.length > 0 && section("Objectives", objectives)}
       {rules.length > 0 && section("Non-negotiables", rules)}
+    </section>
+  );
+  // A chain level's page: its lines, and the tiny draft action while the level is empty.
+  const chainLevel = (testid: string, title: string, intro: string, list: CompassItem[], emptyText: string) => (
+    <section data-testid={`compass-detail-${testid}`}>
+      <div className="flex items-start gap-3">
+        <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>{title}</h2>
+        {!list.length && !empty && (
+          <button onClick={() => void draftChain()} disabled={!!busy} title="Draft from my notes" aria-label="Draft the mission statement, vision and objectives from my notes" data-testid="compass-draft-chain" className={iconBtn}>
+            {busy === "chain" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          </button>
+        )}
+      </div>
+      <p className={`${META} mt-1 mb-4`}>{intro}</p>
+      {section(title, list, false, emptyText)}
     </section>
   );
 
@@ -279,7 +359,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     invoke<{ name: string }[]>("compass_versions", { vault: vaultPath }).then((v) => setVersions(Array.isArray(v) ? v : [])).catch(() => setVersions([]));
     invoke<typeof ledger>("compass_ledger", { vault: vaultPath }).then((l) => setLedger(Array.isArray(l) ? l : [])).catch(() => setLedger([]));
   }, [sel, vaultPath, text]);
-  const titleOf = (id: string) => id === "mission" ? "Purpose" : items(doc).find((i) => i.id === id)?.title ?? id;
+  const titleOf = (id: string) => id === "mission" ? "Purpose" : id === "compass" ? "The Compass" : items(doc).find((i) => i.id === id)?.title ?? id;
   const historyView = (
     <section data-testid="compass-detail-history">
       <h2 className={DETAIL_TITLE}>History</h2>
@@ -308,10 +388,27 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>
       {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
       {sel === "overview" && overview}
+      {sel === "chain" && (
+        <section data-testid="compass-detail-chain">
+          <div className="flex items-start gap-3">
+            <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>Chain</h2>
+            {!empty && !statements.length && !visions.length && !objectives.length && (
+              <button onClick={() => void draftChain()} disabled={!!busy} title="Draft the mission statement, vision and objectives from my notes" aria-label="Draft the mission statement, vision and objectives from my notes" data-testid="compass-draft-chain" className={iconBtn}>
+                {busy === "chain" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              </button>
+            )}
+          </div>
+          <p className={`${META} mt-1`}>Each line serves the one above it, from your purpose down to the work.</p>
+          <ChainView vaultPath={vaultPath} tree={tree} links={links} onChanged={() => { void load(); void refreshTree(); void refreshLinks(); }} />
+        </section>
+      )}
+      {sel === "statement" && chainLevel("statement", "Mission statement", "What you do, for whom, and the contribution you make. Each serves your values.", statements, "Not written yet. Draft it from your notes, or say it to your chief of staff.")}
+      {sel === "vision" && chainLevel("vision", "Vision", "What you hope to become or to have built, long term.", visions, "Not written yet.")}
+      {sel === "objectives" && chainLevel("objectives", "Objectives", "The few measurable outcomes that show the vision is happening. Goals move them.", objectives, "None yet.")}
       {sel === "mission" && missionView}
       {sel === "values" && <section data-testid="compass-detail-values"><h2 className={DETAIL_TITLE}>Values</h2><p className={`${META} mt-1 mb-4`}>Directions, never done. Each may say what is enough.</p>{section("Most important first", values, true, "No values yet.")}<MattersLived vaultPath={vaultPath} /><SaidVsDid vaultPath={vaultPath} /></section>}
       {sel === "roles" && <section data-testid="compass-detail-roles"><h2 className={DETAIL_TITLE}>Roles</h2><p className={`${META} mt-1 mb-4`}>Who you are to the people in your life.</p>{section("Roles", roles, false, "No roles yet.")}</section>}
-      {sel === "goals" && <section data-testid="compass-detail-goals"><h2 className={DETAIL_TITLE}>Life goals</h2><p className={`${META} mt-1 mb-4`}>Destinations with a done, each serving values. Domain goals are under Goals.</p>{section("Goals", goals, false, "No life goals yet.")}</section>}
+      {sel === "goals" && <section data-testid="compass-detail-goals"><h2 className={DETAIL_TITLE}>Life goals</h2><p className={`${META} mt-1 mb-4`}>Time-bound targets, each moving an objective. Initiatives under each are the work that gets them there; domain goals are under Goals.</p>{section("Goals", goals, false, "No life goals yet.")}</section>}
       {sel === "routines" && (
         <section data-testid="compass-detail-routines">
           <div className="flex items-start gap-3">

@@ -1169,7 +1169,9 @@ test("41 · Compass: proposed lines show their words and source; confirm one, dr
   await expect(peace.getByTestId("compass-proposed")).toHaveCount(0);
   // Drop the rule: it leaves the file; the backend keeps a version and the ledger.
   await page.getByTestId("compass-row-rules").click();
-  await page.getByRole("button", { name: "Drop Home for dinner" }).click();
+  // One primary action per row (Confirm); "Not mine" lives in the row menu.
+  await page.getByRole("button", { name: /^More for Home for dinner/ }).click();
+  await page.getByRole("menuitem", { name: /Not mine/ }).click();
   await expect.poll(async () => (await compassWrites(page)).length).toBe(2);
   expect((await compassWrites(page))[1].body).not.toContain("Home for dinner");
   // Confirm all takes what is left (the mission).
