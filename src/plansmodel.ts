@@ -106,7 +106,7 @@ export const ACTION_STATUS_LABEL: Record<OperatorAction["status"], string> = {
 /** Scheduled and event playbook runs waiting in the Inbox. */
 export interface InboxResult {
   runId: string; playbook: string; name: string; trigger: "schedule" | "event"; event?: string; domain?: string;
-  ok: boolean; note: string; ts: number; waiting: number; steps: { label: string; ok: boolean; decision: string; note: string }[];
+  ok: boolean; note: string; ts: number; waiting: number; steps: { label: string; ok: boolean; decision: string; note: string; specialists?: string[] }[];
 }
 export interface Receipt { n: number; ts: number; domain: string; kind: string; file: string; ref: string; text: string; undone?: number }
 export interface StepRecord { id: string; specialist: string; status: string; passes: { n: number; check: { ok: boolean; missing: string[] } }[]; cost: { usd: number; minutes: number } }
