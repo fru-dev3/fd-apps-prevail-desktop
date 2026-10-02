@@ -6,7 +6,7 @@
 // and from Intent.
 import { useEffect, useMemo, useState } from "react";
 import { VIRTUAL_MIN, VirtualRows } from "./virtualrows";
-import { BookUser, CopyCheck, Loader2, RefreshCw, Search } from "lucide-react";
+import { BookUser, Box, Building2, CopyCheck, LayoutGrid, Loader2, MapPin, RefreshCw, Search, Users, type LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
 import { EntityDetailView, KindBadge } from "./entitydetail";
 import { DuplicatesPane, cachedDuplicates, loadDuplicates, type DupPair } from "./entitydups";
@@ -26,8 +26,9 @@ const GROUPS: { kind: EntityKindName; label: string }[] = [
   { kind: "org", label: "Companies" },
   { kind: "thing", label: "Things" },
 ];
-const FILTERS: { id: "all" | EntityKindName; label: string }[] = [
-  { id: "all", label: "All" }, { id: "person", label: "People" }, { id: "place", label: "Places" }, { id: "org", label: "Companies" }, { id: "thing", label: "Things" },
+const FILTERS: { id: "all" | EntityKindName; label: string; icon: LucideIcon }[] = [
+  { id: "all", label: "All", icon: LayoutGrid }, { id: "person", label: "People", icon: Users }, { id: "place", label: "Places", icon: MapPin },
+  { id: "org", label: "Companies", icon: Building2 }, { id: "thing", label: "Things", icon: Box },
 ];
 const PER_GROUP = 60;
 const KINDS = new Set<string>(["person", "place", "org", "thing"]);
@@ -174,10 +175,11 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
           </button>
         ))}
       </div>
-      <div role="tablist" aria-label="Entity kind" data-testid="entity-kind-filter" className="mx-1 mt-2 flex flex-nowrap rounded-lg bg-surface-warm p-0.5">
+      <div role="tablist" aria-label="Entity kind" data-testid="entity-kind-filter" className="mx-1 mt-2 flex flex-wrap rounded-lg bg-surface-warm p-0.5">
         {FILTERS.map((f) => (
-          <button key={f.id} role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)}
-            className={`inline-flex h-7 min-w-0 flex-auto items-center justify-center whitespace-nowrap rounded-md px-1 text-[12px] ${filter === f.id ? "bg-surface font-semibold text-text-primary shadow-sm ring-1 ring-black/5" : "text-text-muted hover:text-text-secondary"}`}>
+          <button key={f.id} role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)} data-testid={`entity-filter-${f.id}`}
+            className={`inline-flex h-7 min-w-0 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-md px-1.5 text-[12px] ${filter === f.id ? "bg-surface font-semibold text-text-primary shadow-sm ring-1 ring-black/5" : "text-text-muted hover:text-text-secondary"}`}>
+            <f.icon aria-hidden className={`h-3.5 w-3.5 shrink-0 ${filter === f.id ? "text-accent" : "text-text-muted"}`} />
             {f.label}
           </button>
         ))}
