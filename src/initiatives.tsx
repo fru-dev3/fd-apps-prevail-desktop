@@ -34,7 +34,7 @@ export function costLine(x: Pick<Initiative, "hours" | "usd" | "stress">): strin
   return bits.filter(Boolean).join(" · ");
 }
 
-export function Initiatives({ goalId, vaultPath, values }: { goalId: string; vaultPath: string; values: Map<string, string> }) {
+export function Initiatives({ goalId, vaultPath, values, missions }: { goalId: string; vaultPath: string; values: Map<string, string>; missions?: Map<string, { slug: string; name: string; status: string }> }) {
   const q = useInvokeQuery<InitiativeMap>("engine_initiatives", { vault: vaultPath, goal: goalId }, { staleMs: 30_000 });
   const m = q.data && typeof q.data === "object" && Array.isArray(q.data.paths) ? q.data : null;
   const [busy, setBusy] = useState<string | null>(null);
@@ -59,7 +59,9 @@ export function Initiatives({ goalId, vaultPath, values }: { goalId: string; vau
       {busy === "gen" && <p className={META}>Thinking through six to eight ways, then checking them against your rules and capacity. About a minute.</p>}
       <ul>{live.map((p) => {
         const st = p.status;
-        const meta = [STATUS_LABEL[st] ?? st, KIND_LABEL[p.kind ?? ""] ?? "", costLine(p), p.until && (st === "chosen" || st === "trial") ? `until ${p.until}` : ""].filter(Boolean);
+        // A chosen initiative runs as a mission: name it (the Compass chain).
+        const runs = missions?.get(p.id);
+        const meta = [STATUS_LABEL[st] ?? st, runs ? `Runs as ${runs.name}${runs.status !== "active" ? ` (${runs.status})` : ""}` : "", KIND_LABEL[p.kind ?? ""] ?? "", costLine(p), p.until && (st === "chosen" || st === "trial") ? `until ${p.until}` : ""].filter(Boolean);
         const check = p.check && (st === "chosen" || st === "trial") ? p.check : null;
         return (
           <li key={p.id} data-testid="initiative" data-status={st} className="group flex items-start gap-2 border-b border-border-subtle py-2 last:border-b-0">

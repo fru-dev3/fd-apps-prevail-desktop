@@ -117,6 +117,25 @@ async function openCello(page: Page, phone: boolean) {
   await expect(page.getByTestId("mission-header")).toContainText("Learn the cello", { timeout: 10_000 });
 }
 
+// The Compass chain (G1b): a mission says the initiative, goal and objective it serves (the vision on hover).
+const CHAIN_TREE = {
+  schema: 2, levels: [], domainGoals: { total: 0, linked: 0 }, tasks: { open: 0, linked: 0 },
+  nodes: [
+    { id: "vi-x", level: "vision", title: "A foo home full of music", status: "confirmed", parents: [], children: ["o-x"], linked: true },
+    { id: "o-x", level: "objective", title: "Three pieces a year for the family", status: "confirmed", parents: ["vi-x"], children: ["g-1"], linked: true },
+    { id: "g-1", level: "goal", title: "Play for the family", status: "active", parents: ["o-x"], children: ["p-lessons"], linked: true },
+    { id: "p-lessons", level: "initiative", title: "Weekly cello lessons", status: "chosen", parents: ["g-1"], children: ["mission/learn-the-cello"], linked: true },
+    { id: "mission/learn-the-cello", level: "mission", title: "Learn the cello", status: "active", parents: ["p-lessons"], children: [], linked: true },
+  ],
+};
+test("a mission names the initiative, goal and objective it serves", async ({ page }) => {
+  await home(page, 1280, { engine_compass_tree: CHAIN_TREE });
+  await openCello(page, false);
+  const c = page.getByTestId("mission-header").getByTestId("mission-chain");
+  await expect(c).toHaveText("Serves Weekly cello lessons > Play for the family > Three pieces a year for the family");
+  await expect(c).toHaveAttribute("title", /Vision: A foo home full of music/);
+});
+
 for (const width of [390, 768, 1280, 1920]) {
   const phone = width < 500;
   test.describe(`missions · ${width}`, () => {

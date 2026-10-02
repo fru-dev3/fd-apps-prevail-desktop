@@ -45,6 +45,11 @@ pub struct Task {
     // "~mission:<slug>": a domain-owned task that serves a mission (missions-plan.md).
     #[serde(default)]
     pub mission: Option<String>,
+    // "~initiative:<p-id>" / "~goal:<g-id>": the Compass line a task moves (the chain, goals-plan.md G1b).
+    #[serde(default)]
+    pub initiative: Option<String>,
+    #[serde(default)]
+    pub goal: Option<String>,
 }
 
 fn is_ymd(s: &str) -> bool {
@@ -96,6 +101,8 @@ struct Meta {
     to: Option<String>,
     from: Option<String>,
     mission: Option<String>,
+    initiative: Option<String>,
+    goal: Option<String>,
 }
 
 // Strip trailing metadata tokens off a task body, in any order, only at the END
@@ -130,6 +137,8 @@ fn split_meta(raw: &str) -> (String, Meta) {
                         "to" => { m.to = Some(v.to_string()); true }
                         "from" => { m.from = Some(v.to_string()); true }
                         "mission" => { m.mission = Some(v.to_string()); true }
+                        "initiative" => { m.initiative = Some(v.to_string()); true }
+                        "goal" => { m.goal = Some(v.to_string()); true }
                         _ => false,
                     };
                     if matched { text = t[..idx].to_string(); continue; }
@@ -177,6 +186,8 @@ fn parse_tasks(md: &str) -> Vec<Task> {
                 to: m.to,
                 from: m.from,
                 mission: m.mission,
+                initiative: m.initiative,
+                goal: m.goal,
             })
         })
         .filter(|t| !t.text.is_empty())
@@ -236,6 +247,8 @@ fn render_tasks(tasks: &[Task]) -> String {
         if let Some(p) = t.to.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~to:{p}")); }
         if let Some(p) = t.from.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~from:{p}")); }
         if let Some(p) = t.mission.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~mission:{p}")); }
+        if let Some(p) = t.initiative.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~initiative:{p}")); }
+        if let Some(p) = t.goal.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~goal:{p}")); }
         s.push_str(&line);
         s.push('\n');
     }
@@ -291,6 +304,8 @@ pub fn tasks_add(vault: String, domain: String, text: String, source: Option<Str
             to: m.to,
             from: m.from,
             mission: m.mission,
+            initiative: m.initiative,
+            goal: m.goal,
         });
         tasks_set(vault.clone(), domain.clone(), tasks)?;
         // Fire any user hooks bound to task creation (non-blocking).
@@ -601,6 +616,16 @@ mod tests {
         assert_eq!(t[0].source.as_deref(), Some("gmail:abc123"));
         assert_eq!(t[1].from.as_deref(), Some("person/pat-bar"));
         assert_eq!(t[2].source.as_deref(), Some("loop"));
+        assert_eq!(super::render_tasks(&t), md);
+    }
+
+    #[test]
+    fn chain_tokens_round_trip_like_the_engine() {
+        let md = "# Tasks\n\n- [ ] Set up the foo transfer @2026-10-02 ~id:t1 ~initiative:p-auto\n- [ ] Call the bar bank ~id:t2 ~goal:g-buffer\n";
+        let t = super::parse_tasks(md);
+        assert_eq!(t[0].initiative.as_deref(), Some("p-auto"));
+        assert_eq!(t[0].text, "Set up the foo transfer");
+        assert_eq!(t[1].goal.as_deref(), Some("g-buffer"));
         assert_eq!(super::render_tasks(&t), md);
     }
 

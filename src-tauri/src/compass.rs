@@ -108,8 +108,12 @@ pub(crate) fn compass_ledger(vault: String) -> Result<Vec<serde_json::Value>, St
 
 /// Draft proposed lines from the vault, each with a quote from the user's notes (engine).
 #[tauri::command]
-pub(crate) async fn engine_compass_bootstrap(vault: String) -> Result<serde_json::Value, String> {
-    tokio::task::spawn_blocking(move || crate::engine::run_engine_json(&["compass", "bootstrap", "--vault", &vault, "--json"]))
+/// With chain: only the mission statement, vision and objectives, and proposed links (the Compass chain).
+pub(crate) async fn engine_compass_bootstrap(vault: String, chain: Option<bool>) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        if chain == Some(true) { crate::engine::run_engine_json(&["compass", "bootstrap", "--chain", "--vault", &vault, "--json"]) }
+        else { crate::engine::run_engine_json(&["compass", "bootstrap", "--vault", &vault, "--json"]) }
+    })
         .await
         .map_err(|e| format!("compass task failed: {e}"))?
 }

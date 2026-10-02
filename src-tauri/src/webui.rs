@@ -143,6 +143,8 @@ const WEBUI_ALLOWED: &[&str] = &[
     "compass_read", "compass_versions", "compass_version_read", "compass_ledger",
     // The Compass roll-up and the rules' states (read); answering a conflict stays on the Mac.
     "engine_compass_align", "engine_compass_rules",
+    // The Compass chain and its proposed links (read); accepting a link stays on the Mac.
+    "engine_compass_tree", "engine_compass_links",
     // Commitments and the radar are read on the phone; filing, answering,
     // Undo, refreshing and drafting routines stay on the Mac.
     "engine_commitments", "engine_radar",

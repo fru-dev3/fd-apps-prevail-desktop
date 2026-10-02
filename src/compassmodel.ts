@@ -1,6 +1,8 @@
 // The Compass, the model: build/compass.md holds the user's purpose, ranked
-// values, roles, goals (with paths), non-negotiables, negotiables and
-// capacity, every line in the user's own words. The engine has the same
+// values, mission statement, vision, objectives, goals (with initiatives),
+// roles, non-negotiables, negotiables and capacity, every line in the user's
+// own words. Each level of the chain links to the one above (goals-plan.md
+// "The Compass chain"); the engine builds the tree (`compass tree`). The engine has the same
 // grammar (prevail-cli src/compass.ts); both read and write it.
 //
 //   ## Values
@@ -11,10 +13,10 @@
 //
 // "- " items carry ~key:value tokens (a bare ~local keeps a line off cloud
 // models); indented "key: value" lines belong to the item; goals may have
-// "path:" lines with deeper fields. Anything else is kept verbatim, and an
+// "initiative:" lines ("path:" before ~schema:2, still read) with deeper fields. Anything else is kept verbatim, and an
 // item nobody changed is written back byte for byte.
 
-export type Kind = "value" | "role" | "goal" | "rule" | "negotiable" | "capacity" | "routine" | "other";
+export type Kind = "value" | "statement" | "vision" | "objective" | "role" | "goal" | "rule" | "negotiable" | "capacity" | "routine" | "other";
 export interface Field { key: string; value: string }
 export interface CompassPath { id: string; title: string; tokens: Record<string, string>; fields: Field[] }
 export interface CompassItem {
@@ -29,11 +31,15 @@ export interface CompassDoc { head: string[]; sections: CompassSection[] }
 export interface LedgerChange { id: string; from: string; to: string; reason: string; evidence?: string[]; by: "user" }
 
 // The life statement is called Purpose (missions-plan.md: "Mission" names the
-// time-bound primitive). An older `## Mission` heading reads the same.
+// time-bound primitive; the Compass level is shown as "Mission statement").
+// In a file without ~schema:2 an older `## Mission` heading reads as Purpose;
+// in a schema 2 file it is the mission statement (the engine migrates once).
 const SECTION_KIND: Record<string, Kind | "mission"> = {
-  purpose: "mission", mission: "mission", values: "value", roles: "role", goals: "goal",
+  purpose: "mission", "core belief": "mission", values: "value", "mission statement": "statement", vision: "vision",
+  objectives: "objective", "strategic objectives": "objective", roles: "role", goals: "goal",
   "non-negotiables": "rule", rules: "rule", negotiables: "negotiable", capacity: "capacity", routines: "routine",
 };
+export const schemaOf = (head: string[]): number => { for (const l of head) { const m = /~schema:(\d+)/.exec(l); if (m) return Number(m[1]); } return 1; };
 const TOKEN = /\s+~([a-z][a-z0-9_-]*)(?::(\S+))?/g;
 
 function splitTokens(s: string): { title: string; tokens: Record<string, string>; flags: string[] } {
@@ -53,7 +59,7 @@ function parseItem(kind: Kind, lines: string[], n: number): CompassItem {
   const item: CompassItem = { kind, id: tokens.id ?? `${kind}-${n}`, title, done, tokens, flags, fields: [], paths: [], raw: lines };
   let path: CompassPath | null = null;
   for (const l of lines.slice(1)) {
-    const pm = /^ {2,3}path:\s*(.*)$/.exec(l);
+    const pm = /^ {2,3}(?:initiative|path):\s*(.*)$/.exec(l);
     if (pm) {
       const t = splitTokens(pm[1]);
       path = { id: t.tokens.id ?? `${item.id}-p${item.paths.length}`, title: t.title, tokens: t.tokens, fields: [] };
@@ -94,7 +100,8 @@ export function parseCompass(body: string): CompassDoc {
     const h = /^##\s+(.+?)\s*$/.exec(l);
     if (h) {
       flushMission();
-      sec = { heading: l, kind: SECTION_KIND[h[1].toLowerCase()] ?? "other", blocks: [] };
+      const name = h[1].toLowerCase();
+      sec = { heading: l, kind: name === "mission" ? (schemaOf(doc.head) >= 2 ? "statement" : "mission") : SECTION_KIND[name] ?? "other", blocks: [] };
       doc.sections.push(sec);
       continue;
     }
@@ -121,7 +128,7 @@ export function renderItem(it: CompassItem): string[] {
   const out = [`- ${box}${clean(it.title)}${tokenStr({ id: it.id, ...it.tokens }, it.flags)}`];
   for (const f of it.fields) out.push(`  ${f.key}: ${clean(f.value)}`);
   for (const p of it.paths) {
-    out.push(`  path: ${clean(p.title)}${tokenStr({ id: p.id, ...p.tokens })}`);
+    out.push(`  initiative: ${clean(p.title)}${tokenStr({ id: p.id, ...p.tokens })}`);
     for (const f of p.fields) out.push(`    ${f.key}: ${clean(f.value)}`);
   }
   return out;
