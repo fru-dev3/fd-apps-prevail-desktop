@@ -163,7 +163,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     const m = from.match(/data\/domains\/([^/]+)\//);
     if (m) return `${titleCase(m[1])} notes`;
     if (from.includes("user.md")) return "Your profile";
-    if (from.includes("constitution")) return "Your constitution";
+    if (from.includes("constitution") || from.endsWith("ideal-state.md")) return "Your constitution";
     return from.split("/").pop() ?? from;
   };
   const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9$%+]+/g, " ").trim();

@@ -504,7 +504,20 @@ export function Sidebar({
   const editorMode = tab === "settings";
   const homeActive = !editorMode && tab !== "work" && !selectedDomain;
 
-  // Home mode's one way into Settings: a quiet gear beside the profile.
+  // A minimal collapse toggle at the top, beside the profile (Fru, 2026-10-02).
+  const collapseButton = (
+    <button
+      onClick={() => setCollapsed((v) => !v)}
+      title={collapsed ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
+      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      data-testid="sidebar-collapse"
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted/70 transition-colors hover:bg-surface-warm hover:text-text-primary"
+    >
+      {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+    </button>
+  );
+
+  // Home mode's one way into Settings: a quiet gear in the footer.
   const settingsButton = (
     <button
       onClick={() => setTab("settings")}
@@ -698,7 +711,7 @@ export function Sidebar({
         </>
       ) : (
         <>
-          <ProfileSwitcher collapsed={collapsed} trailing={settingsButton} />
+          <ProfileSwitcher collapsed={collapsed} trailing={collapseButton} />
           {/* Search opens the command palette (it searches every screen, action
               and domain). */}
           <div className={collapsed ? "px-2 pb-2" : "px-3 pb-2"}>
@@ -938,16 +951,9 @@ export function Sidebar({
         )}
       </div>
 
-      {/* One slim footer line: collapse, and the background-work popover. */}
+      {/* One slim footer line: Settings, and the background-work popover. */}
       <div className={`flex shrink-0 items-center border-t border-border-subtle ${collapsed ? "flex-col gap-1 py-2" : "gap-1 px-3 py-2"}`}>
-        <button
-          onClick={() => setCollapsed((v) => !v)}
-          title={collapsed ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
-        >
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </button>
+        {!editorMode && settingsButton}
         {!collapsed && <div className="flex-1" />}
         <FooterProcesses collapsed={collapsed} setTab={setTab} />
       </div>
