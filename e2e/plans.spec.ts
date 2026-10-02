@@ -101,14 +101,15 @@ test("Home is Today: three things with their thread, taps go to the engine; the 
   await expect(card).toContainText("What matters today", { timeout: 15_000 });
   await expect(card.getByTestId("today-item")).toHaveCount(3);
   await expect(card.getByTestId("today-item").first()).toContainText("Promise to Sam Foo");
-  await expect(card.getByTestId("today-thread").first()).toHaveText("Money > Cash buffer of a year > Peace of mind");
-  await expect(card.getByTestId("today-thread").nth(2)).toHaveText("Home, unlinked to your Compass");
+  await expect(card.getByTestId("today-thread").first()).toHaveText("Money · Peace of mind");
+  await expect(card.getByTestId("today-thread").nth(2)).toHaveText("Home · Not linked");
   await expect(page.getByTestId("today-falling-behind")).toContainText("Renew the bar card");
   await expect(page.getByTestId("today-decision")).toContainText("Keep or sell the foo rental?");
   await expect(page.getByTestId("today-your-day")).toContainText("No calendar is connected");
   await card.getByTestId("today-done").first().click();
   await expect.poll(async () => (await calls(page, "engine_today_tap"))[0]).toEqual({ vault: "/tmp/smoke-vault", key: "task:money:m2", action: "done" });
-  await card.getByTestId("today-not-important").nth(1).click();
+  await card.getByTestId("today-item").nth(1).getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Not important" }).click();
   await expect.poll(async () => (await calls(page, "engine_today_tap")).length).toBe(2);
   // The weekly review: lines, glance, a candidate, a metric proposal, the question, the 1-5.
   const r = page.getByTestId("review-card");

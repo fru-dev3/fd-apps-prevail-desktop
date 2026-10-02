@@ -10,8 +10,10 @@ import { BODY, META, SECTION_TITLE } from "./typescale";
 import { fmtDue, label, openDecision, personName, radarGroups, type Radar, type ReviewCard, type TodayCard, type TodayItem } from "./plansmodel";
 import { openMission } from "./missions";
 import { WHO5_ITEMS, WHO5_SCALE } from "./qualmodel";
+import { RowMenu } from "./ui";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
+const iconSm = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
 const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
 
@@ -37,30 +39,40 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
     : x.kind === "job" ? () => openSection("specialists")
     : x.kind === "mission" && x.ref.mission ? () => openMission(x.ref.mission!) : null;
   return (
-    <li data-testid="today-item" data-kind={x.kind} className="flex flex-wrap items-start gap-x-3 gap-y-1 border-b border-border-subtle py-3 last:border-b-0">
-      {n !== undefined && <span className="w-5 shrink-0 pt-0.5 text-right text-[16px] font-semibold tabular-nums text-accent">{n}</span>}
-      <div className="min-w-[9rem] flex-1 basis-40">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="min-w-0 break-words text-[16px] font-semibold text-text-primary">{x.title}</span>
-          {x.due && <span className={META}>{fmtDue(x.due)}</span>}
-          {x.kind === "commitment" && <span className={chip}>Promise{x.person ? ` to ${label(x.person.split("/").pop() ?? "")}` : ""}</span>}
-          {x.kind === "waiting" && <span className={chip}>Waiting{x.person ? ` on ${label(x.person.split("/").pop() ?? "")}` : ""}</span>}
-          {x.kind === "mission" && <span className={chip} data-testid="today-mission-chip">Mission</span>}
-        </div>
-        <p className={`${META} mt-0.5`} data-testid="today-thread">{x.thread.join(" > ")}{x.unlinked ? ", unlinked to your Compass" : ""}</p>
+    <li data-testid="today-item" data-kind={x.kind} className="group flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
+      {n !== undefined && <span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-text-muted">{n}</span>}
+      <div className="min-w-0 flex-1">
+        <p title={x.title} className="line-clamp-2 break-words text-[15px] font-medium leading-snug text-text-primary">{x.title}</p>
+        <p className={`${META} mt-0.5 flex min-w-0 whitespace-pre`} title={`${x.thread.join(" > ")}${x.unlinked ? ", not linked to your Compass" : ""}`}>
+          {x.due && <span className={/late/.test(fmtDue(x.due)) ? "text-warn" : ""}>{fmtDue(x.due)}</span>}
+          {x.due && <span aria-hidden> · </span>}
+          {x.kind === "commitment" && <span>Promise{x.person ? ` to ${label(x.person.split("/").pop() ?? "")}` : ""} · </span>}
+          {x.kind === "waiting" && <span>Waiting{x.person ? ` on ${label(x.person.split("/").pop() ?? "")}` : ""} · </span>}
+          {x.kind === "mission" && <span data-testid="today-mission-chip">Mission · </span>}
+          <span data-testid="today-thread" className="min-w-0 truncate">{shortThread(x.thread, x.unlinked)}</span>
+        </p>
       </div>
-      <span className="ml-auto flex shrink-0 items-center gap-0.5">
-        {open && <button onClick={open} title="Open" aria-label={`Open ${x.title}`} className={iconBtn}><ArrowRight className="h-4 w-4" /></button>}
+      {/* Progressive reveal: actions appear on hover (always on touch). */}
+      <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
         {x.ref.id || x.ref.text ? (
-          <>
-            <button onClick={() => tap(x.key, "done")} disabled={!!busy} title="Done" aria-label={`Done: ${x.title}`} data-testid="today-done" className={iconBtn}>{busy === `${x.key}:done` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}</button>
-            <button onClick={() => tap(x.key, "move")} disabled={!!busy} title="Move to tomorrow" aria-label={`Move to tomorrow: ${x.title}`} data-testid="today-move" className={iconBtn}><CalendarClock className="h-4 w-4" /></button>
-          </>
+          <button onClick={() => tap(x.key, "done")} disabled={!!busy} title="Done" aria-label={`Done: ${x.title}`} data-testid="today-done" className={iconSm}>{busy === `${x.key}:done` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
         ) : null}
-        <button onClick={() => tap(x.key, "not-important")} disabled={!!busy} title="Not important" aria-label={`Not important: ${x.title}`} data-testid="today-not-important" className={iconBtn}><CircleOff className="h-4 w-4" /></button>
+        <RowMenu items={[
+          ...(open ? [{ icon: ArrowRight, label: "Open", onClick: open }] : []),
+          ...(x.ref.id || x.ref.text ? [{ icon: CalendarClock, label: "Move to tomorrow", onClick: () => tap(x.key, "move") }] : []),
+          { icon: CircleOff, label: "Not important", onClick: () => tap(x.key, "not-important") },
+        ]} />
       </span>
     </li>
   );
+}
+
+/** "Money · Peace of mind": where it lives and what it serves; the full chain is on hover. */
+function shortThread(thread: string[], unlinked?: boolean): string {
+  if (!thread.length) return unlinked ? "Not linked" : "";
+  const head = thread[0];
+  const tail = thread.length > 1 ? thread[thread.length - 1] : "";
+  return unlinked ? `${head} · Not linked` : tail && tail !== head ? `${head} · ${tail}` : head;
 }
 
 export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard; vaultPath: string; onChanged: () => void }) {

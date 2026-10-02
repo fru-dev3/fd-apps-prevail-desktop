@@ -2,7 +2,7 @@
 // App state - they're prop-driven leaf components, safe to live on their own.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Brain, Check, ChevronRight, MoreHorizontal } from "lucide-react";
+import { Brain, Check, ChevronRight, MoreVertical } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // One secondary-actions menu for list rows. A row gets ONE visible primary
@@ -56,7 +56,7 @@ export function RowMenu({ items, label = "More actions", reveal = false, classNa
           open ? "bg-surface-strong text-text-primary" : reveal ? "text-text-muted opacity-0 focus-visible:opacity-100 group-hover:opacity-100" : "text-text-muted"
         }`}
       >
-        <MoreHorizontal className="h-4 w-4" />
+        <MoreVertical className="h-4 w-4" />
       </button>
       {open && pos && createPortal(
         <div data-rowmenu role="menu" onClick={(e) => e.stopPropagation()} style={{ top: pos.top, left: pos.left }}
