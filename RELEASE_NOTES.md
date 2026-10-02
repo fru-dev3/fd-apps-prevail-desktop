@@ -1,22 +1,21 @@
-# Prevail 0.4.4
+# Prevail 0.4.5
 
-Projects are their own thing now. Work, Projects lists what you are working
-on, each with a status, what done looks like, a target date, its domains and
-goals. Open one to chat with it, keep notes and files, and see what other
-conversations said about it. Projects Intent noticed in your prompts sit
-underneath, one click to track.
+Every conversation has a home. Start one anywhere and Prevail files it in the
+domain it fits best, and links it to up to three more it concerns. You see it
+at the top of the conversation: "Filed in" one domain, "Also in" others. Tap
+to change the home, remove a domain or add one; your choice always wins, and
+a domain you remove never comes back. A conversation shows up in every
+domain it is filed in. Only when nothing fits is it left unfiled, with three
+suggestions one click away.
 
-Prevail suggests structure, and you decide. When a topic with no home keeps
-coming up, it offers a new domain and fills it in from those conversations.
-It offers to track a recurring effort as a project, and to archive a domain
-you have not touched in a year. Accept, Not now, or Never; it remembers.
-Suggestions live in Recommendations under Structure.
+Your older conversations can be filed too. "File unfiled conversations", in
+For You and in Settings, shows a plan you can edit before applying it. Only
+the filing changes; what you wrote stays exactly as it was.
 
-Apps work better. Reading from an app such as your mail is no longer refused
-inside Claude Code; sending still waits for you. If an app needs you to sign
-in again, the reply says so with a link instead of trying other ways in. With
-several Google accounts, pick one or all of them in the app's chat; drafts go
-only to the account you picked, and Activity shows which account each call
-used. "Also noted in" now lists only what you actually mentioned.
+Copy on select. Selecting text in replies and pages copies it, the way a
+terminal does. Text boxes are left alone. Turn it off in Settings, Behavior.
 
-Engine 1.10.4.
+Recommendations is now For You. Everything attached to a message (context,
+apps, people, domains, files) sits in one row above the text.
+
+Engine 1.10.5.
