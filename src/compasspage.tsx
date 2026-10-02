@@ -7,7 +7,7 @@
 //            earlier versions and every change.
 //   Goals    each domain's goals (source/goals.md), as the Goals page had them.
 //   Ideals   the constitution, Omega and every domain's ideal state.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, CheckCheck, Compass, Flag, History, LayoutList, Loader2, MessageSquare, Repeat, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
@@ -153,10 +153,20 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       <button onClick={() => void dropIds([x.id])} disabled={!!busy} title="Not mine" aria-label={`Drop ${x.title}`} data-testid="compass-drop" className={`${iconBtn} hover:text-warn`}><X className="h-4 w-4" /></button>
     </span>
   ) : null;
+  // One quiet meta line instead of a row of pills: state, what it serves,
+  // dates and where it came from, separated by middle dots.
   const status = (x: { tokens: Record<string, string> }) => isProposed(x)
-    ? <span className={`${chip} border-accent-border text-accent`} data-testid="compass-proposed">Proposed</span>
-    : x.tokens.status === "confirmed" ? <span className={chip} data-testid="compass-needs-plan" title="It goes active once it has an outcome, an obstacle and an if-then plan">Yours, needs its plan</span>
-    : x.tokens.status === "prototyping" ? <span className={chip}>Small trial</span> : null;
+    ? <span className="font-medium text-accent" data-testid="compass-proposed">Proposed</span>
+    : x.tokens.status === "confirmed" ? <span data-testid="compass-needs-plan" title="It goes active once it has an outcome, an obstacle and an if-then plan">Yours, needs its plan</span>
+    : x.tokens.status === "prototyping" ? <span>Small trial</span> : null;
+  const sourceLabel = (from: string) => {
+    const m = from.match(/data\/domains\/([^/]+)\//);
+    if (m) return `${titleCase(m[1])} notes`;
+    if (from.includes("user.md")) return "Your profile";
+    if (from.includes("constitution")) return "Your constitution";
+    return from.split("/").pop() ?? from;
+  };
+  const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9$%+]+/g, " ").trim();
 
   const startMission = async (pathId: string) => {
     setBusy(`m:${pathId}`);
@@ -173,23 +183,28 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       <li key={it.id} data-testid="compass-item" data-id={it.id} className="flex items-start gap-3 border-b border-border-subtle py-3 last:border-b-0">
         {lead && <span className="w-6 shrink-0 pt-0.5 text-right text-[15px] font-semibold tabular-nums text-accent">{lead}</span>}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[16px] font-semibold text-text-primary">{it.title}</span>
-            {status(it)}
-            {it.flags.includes("local") && <span className={chip} title="Never sent to a cloud model">Local only</span>}
-          </div>
-          {words && <p className={`${BODY} mt-1 text-text-secondary`}>"{words}"</p>}
-          {extra.map(([k, v]) => <p key={k} className={`${BODY} mt-0.5 text-text-secondary`}><span className="text-text-muted">{titleCase(k)}: </span>{v}</p>)}
-          {(serves.length > 0 || it.tokens.due || it.tokens.domain || it.tokens.cadence || it.tokens.metric) && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {it.tokens.cadence && <span className={chip} data-testid="compass-cadence">{cadenceLabel(it.tokens.cadence)}</span>}
-              {it.tokens.metric && <span className={chip}>Measured by {it.tokens.metric}</span>}
-              {serves.map((s) => <span key={s} className={chip}>Serves {s}</span>)}
-              {it.tokens.due && <span className={chip}>By {it.tokens.due}</span>}
-              {it.tokens.domain && <span className={chip}>{titleCase(it.tokens.domain)}</span>}
-            </div>
+          <p className="text-[16px] font-semibold leading-snug text-text-primary">{it.title}</p>
+          {words && norm(words) !== norm(it.title) && (
+            <p className={`${BODY} mt-1 border-l-2 border-border pl-3 italic text-text-secondary`}>{words}</p>
           )}
-          {from && <p className={`${META} mt-1`}>From {from}</p>}
+          {extra.map(([k, v]) => <p key={k} className={`${BODY} mt-0.5 text-text-secondary`}><span className="text-text-muted">{titleCase(k)}: </span>{v}</p>)}
+          {(() => {
+            const bits: ReactNode[] = [];
+            const st = status(it);
+            if (st) bits.push(st);
+            if (it.flags.includes("local")) bits.push(<span title="Never sent to a cloud model">Local only</span>);
+            if (it.tokens.cadence) bits.push(<span data-testid="compass-cadence">{cadenceLabel(it.tokens.cadence)}</span>);
+            if (it.tokens.metric) bits.push(<span>Measured by {it.tokens.metric}</span>);
+            if (serves.length) bits.push(<span>Serves {serves.join(", ")}</span>);
+            if (it.tokens.due) bits.push(<span>By {it.tokens.due}</span>);
+            if (it.tokens.domain) bits.push(<span>{titleCase(it.tokens.domain)}</span>);
+            if (from) bits.push(<span title={from}>From {sourceLabel(from)}</span>);
+            return bits.length ? (
+              <p className={`${META} mt-1.5 flex flex-wrap items-center gap-x-1.5`}>
+                {bits.map((b, i) => <span key={i} className="inline-flex items-center gap-1.5">{i > 0 && <span aria-hidden className="text-text-muted">·</span>}{b}</span>)}
+              </p>
+            ) : null;
+          })()}
           {it.paths.length > 0 && (
             <ul className="mt-2 border-l-2 border-border-subtle pl-3" data-testid="compass-paths">
               {it.paths.map((p) => {
@@ -270,9 +285,9 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       </div>
       {mission?.text ? (
         <>
-          <div className="mt-2 flex items-center gap-2">{status(mission)}</div>
+          <p className={`${META} mt-2`}>{status(mission)}</p>
           <p className="mt-3 max-w-3xl font-display text-[22px] leading-snug text-text-primary">{mission.text.replace(/^>\s*/gm, "").replace(/\*\*/g, "")}</p>
-          {fieldOf(mission, "from") && <p className={`${META} mt-2`}>From {fieldOf(mission, "from")}</p>}
+          {fieldOf(mission, "from") && <p className={`${META} mt-2`} title={fieldOf(mission, "from")}>From {sourceLabel(fieldOf(mission, "from")!)}</p>}
         </>
       ) : <p className={`${BODY} mt-2 text-text-muted`}>Not written yet. It comes last, drawn from your own words.</p>}
     </section>
