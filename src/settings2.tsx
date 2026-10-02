@@ -219,10 +219,10 @@ export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { 
         const Icon = it.icon;
         return (
           <button key={it.id} data-testid={`daemon-row-${it.id}`} aria-current={on ? "true" : undefined} onClick={() => { setSel(it.id); setPicked(true); }}
-            className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
             <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
             <span className="min-w-0 flex-1">
-              <span className={`block truncate text-sm font-semibold ${on ? "text-accent" : "text-text-primary"}`}>{it.title}</span>
+              <span className={`block truncate text-sm ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{it.title}</span>
               <span className="block truncate text-[12px] text-text-muted">{[it.hubOnly ? "Hub only" : null, typeof it.summary === "string" ? it.summary : null].filter(Boolean).join(" · ")}</span>
             </span>
             {it.running !== undefined && <DaemonDot running={it.running} enabled={it.enabled} />}
@@ -256,7 +256,7 @@ export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { 
                   type="button"
                   disabled={roleBusy}
                   onClick={() => pickRole(r)}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] transition-colors disabled:opacity-40 ${
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] transition-colors disabled:opacity-40 ${
                     active ? "bg-accent text-white" : "text-text-muted hover:text-accent"
                   }`}
                 >
@@ -327,7 +327,7 @@ export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { 
               className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" /><span className="text-xs text-text-muted">s</span></div>} />
           <Row title="Distill now" desc="Run a distillation pass immediately."
             control={<button onClick={distillNow} disabled={distilling}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
               {distilling ? "distilling…" : "distill now"}</button>} />
           {distillMsg && <div className="pb-3 text-xs text-text-secondary">{distillMsg}</div>}
         </div>
@@ -388,7 +388,7 @@ export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { 
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button onClick={runTaskgenNow} disabled={running}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
             {running ? "generating…" : "generate tasks now"}
           </button>
           {taskgenMsg && <span className="text-xs text-text-secondary">{taskgenMsg}</span>}
@@ -423,7 +423,7 @@ export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { 
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button onClick={runSkillgenNow} disabled={skillgenRunning}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-40">
             {skillgenRunning ? "learning…" : "learn skills now"}
           </button>
           {skillgenMsg && <span className="text-xs text-text-secondary">{skillgenMsg}</span>}
@@ -464,11 +464,11 @@ export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { 
             control={<div className="flex items-center gap-1.5"><input type="number" value={intentInterval} onChange={(e) => { setIntentInterval(e.target.value); setPref(PREF.intentDaemonIntervalSec, e.target.value); }}
               className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-accent-border focus:outline-none" /><span className="text-xs text-text-muted">s</span></div>} />
         </div>
-        <p className="mt-2 px-1 text-[11px] text-text-muted">View the distilled intents in Configuration → Intents. Uses the same provider/model as Distill.</p>
+        <p className="mt-2 px-1 text-[12px] text-text-muted">View the distilled intents in Configuration → Intents. Uses the same provider/model as Distill.</p>
       </DaemonGroup>
 
       {/* image #29: Memory & Context is what these routines PRODUCE, so it lives
-          here as a peer collapsible group — not a divider-separated orphan page. */}
+          here as a peer collapsible group, not a divider-separated orphan page. */}
       <DaemonGroup id="memory">
         <MemoryContextSection vaultPath={vaultPath} headerless />
       </DaemonGroup>
@@ -554,8 +554,8 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
         className="mb-4 flex w-full items-center gap-2 rounded-lg border border-border-subtle bg-surface px-4 py-2.5 text-left hover:border-accent-border"
       >
         <Brain className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="text-[11px] text-text-secondary">Distiller</span>
-        <span className="text-[11px] text-text-muted">
+        <span className="text-[12px] text-text-secondary">Distiller</span>
+        <span className="text-[12px] text-text-muted">
           {status?.running ? "Running" : "Idle"}
           {/* B2-19: last_run_ts is in SECONDS (treating it as ms gave "20601 days");
               formatFreshness already returns "... ago" (don't append a second one). */}
@@ -564,7 +564,7 @@ export function MemoryContextSection({ headerless }: { vaultPath: string; header
         </span>
         <span className="ml-auto text-[12px] text-accent">Schedule & controls in Daemons →</span>
       </button>
-      <div className="rounded-lg border border-border bg-surface px-5">
+      <div>
         <Row title="Persistent memory" desc="Distill the intent ledger into per-domain memory and prepend it to prompts. Master switch."
           control={<Toggle on={persistent} onChange={(v) => { setPersistent(v); setPref(PREF.persistentMemory, v ? "1" : "0"); }} />} />
         <Row title="Memory budget" desc="Hard cap (characters) on the distilled memory injected into each prompt."

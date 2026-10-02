@@ -21,7 +21,7 @@ import { SettingsHeader } from "./sectionutil";
 import { metaValue, parseSkillDoc } from "./skilldoc";
 import { SideSpine, STICKY_GROUP_HEAD } from "./sidespine";
 import { RowMenu, Toggle, type RowMenuItem } from "./ui";
-import { DetailTitle, META } from "./typescale";
+import { DetailTitle, META, SECTION_TITLE } from "./typescale";
 import { useIsPhone } from "./useisphone";
 import { lsSet } from "./storage";
 import { TOOLKIT_FOCUS_KEY } from "./navdefs";
@@ -239,7 +239,7 @@ export function ToolkitSection({ vaultPath }: { vaultPath: string }) {
       </button>
     );
   };
-  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`;
+  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`;
   const isPick = (g: Group, id: string) => pick?.group === g && pick.id === id && (!phone || picked);
   const dot = (on: boolean) => <span className={`h-2 w-2 shrink-0 rounded-full ${on ? "bg-ok" : "bg-text-muted/40"}`} />;
 
@@ -389,10 +389,10 @@ export function ToolkitSection({ vaultPath }: { vaultPath: string }) {
   };
   const props = (rows: [string, string][]) => rows.length === 0 ? null : (
     <div className="mb-5">
-      <h3 className="mb-2 text-[15px] font-semibold text-text-primary">Details</h3>
-      <dl data-testid="toolkit-details" className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+      <h3 className={`mb-1 ${SECTION_TITLE}`}>Details</h3>
+      <dl data-testid="toolkit-details" className="divide-y divide-border-subtle">
         {rows.map(([k, v]) => (
-          <div key={k} className="flex gap-4 px-4 py-2">
+          <div key={k} className="flex gap-4 py-2">
             <dt className="w-28 shrink-0 text-[13px] text-text-muted">{titleCase(k)}</dt>
             <dd className="min-w-0 flex-1 break-words text-[13px] text-text-primary">{v}</dd>
           </div>
@@ -401,10 +401,10 @@ export function ToolkitSection({ vaultPath }: { vaultPath: string }) {
     </div>
   );
   const onOffCard = (title: string, sub: string, toggle: React.ReactNode) => (
-    <div className="mb-5 flex items-center gap-3 rounded-xl border border-border-subtle bg-surface px-4 py-3">
+    <div className="mb-5 flex items-center gap-3 border-y border-border-subtle py-3">
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-text-primary">{title}</div>
-        <div className="mt-0.5 text-xs text-text-secondary">{sub}</div>
+        <div className="text-[14px] font-medium text-text-primary">{title}</div>
+        <div className="mt-0.5 text-[12px] text-text-muted">{sub}</div>
       </div>
       {toggle}
     </div>
@@ -413,7 +413,7 @@ export function ToolkitSection({ vaultPath }: { vaultPath: string }) {
     <div data-testid="toolkit-detail-tool">
       {head("Tool", t.name, `Built in, ${t.state === "on" ? "available" : TOOL_STATE_LABEL[t.state].toLowerCase()}`, t.desc,
         t.manage ? <ActionButton icon={ArrowUpRight} label={t.manage.label} primary onClick={() => goTo(t.manage!.section)} /> : undefined)}
-      {props([["Governed by", t.governance], ["State", titleCase(TOOL_STATE_LABEL[t.state])]])}
+      {props([["Governed by", t.governance]])}
     </div>
   );
   const fwDetail = (f: (typeof fwItems)[number]) => {
@@ -515,11 +515,11 @@ export function ToolkitSection({ vaultPath }: { vaultPath: string }) {
         right={
           <div className="flex items-center gap-1.5">
             <button onClick={() => void pickSkillFile()} title="Upload a skill from a SKILL.md file"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent">
+              className="inline-flex items-center gap-1.5 px-2 py-1.5 text-[13px] font-medium text-text-secondary hover:text-accent">
               <Upload className="h-4 w-4" /> Upload skill
             </button>
             <button onClick={() => goTo("mcp")} title="Add a capability by connecting an MCP server or an app"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-semibold text-background hover:bg-accent-hover">
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[13px] font-medium text-background hover:bg-accent-hover">
               <Plus className="h-4 w-4" /> Add tool
             </button>
           </div>

@@ -21,7 +21,7 @@ function BrandTile({ name }: { name: string }) {
 // logos render (rows, chips, mentions) so they stay consistent.
 // Best-effort website host for an app, used to fetch its real favicon when no
 // crisp brand icon exists. Uses the curated map where we have it, else guesses
-// www.<slug>.<tld> — a wrong guess just triggers the letter fallback via onError.
+// www.<slug>.<tld>, a wrong guess just triggers the letter fallback via onError.
 function faviconHost(app: { title?: string; id?: string; website?: string }): string {
   if (app.website) { try { return new URL(app.website).hostname; } catch { /* fall through */ } }
   const slug = (app.title || app.id || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -230,7 +230,7 @@ export function OnboardingModal({
                   {rec.rationale}
                 </p>
               )}
-              <div className="mb-2 text-[11px] font-bold text-text-primary">
+              <div className="mb-2 text-[14px] font-semibold text-text-primary">
                 Recommended domains · {picks.size} selected
               </div>
               <ul className="flex flex-col gap-2">
@@ -257,15 +257,15 @@ export function OnboardingModal({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-text-primary">{d.label}</span>
-                            <span className="font-mono text-[11px] text-text-muted">/{d.name}</span>
+                            <span className="font-mono text-[12px] text-text-muted">/{d.name}</span>
                             {d.recommended && (
-                              <span className="rounded-full bg-accent/15 px-1.5 py-0 text-[11px] text-accent">
+                              <span className="rounded-full bg-accent/15 px-1.5 py-0 text-[12px] text-accent">
                                 recommended
                               </span>
                             )}
                           </div>
                           {d.summary && <div className="mt-0.5 text-xs text-text-secondary">{d.summary}</div>}
-                          {d.reason && <div className="mt-1 text-[11px] italic text-text-muted">{d.reason}</div>}
+                          {d.reason && <div className="mt-1 text-[12px] italic text-text-muted">{d.reason}</div>}
                         </div>
                       </button>
                     </li>
@@ -312,7 +312,7 @@ export function OnboardingModal({
               </button>
             </>
           ) : (
-            <span className="font-mono text-[11px] text-text-muted">working…</span>
+            <span className="font-mono text-[12px] text-text-muted">working…</span>
           )}
         </div>
       </div>
@@ -452,8 +452,8 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
               <button onClick={() => bindApp(a)} disabled={binding === a.id} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent-soft disabled:opacity-40">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tint }} />
                 <span className="text-sm font-medium text-text-primary">{a.title}</span>
-                <span className="font-mono text-[11px] text-text-muted">{a.integration}</span>
-                <span className="ml-auto text-[11px] text-text-muted/60">{binding === a.id ? "adding…" : ""}</span>
+                <span className="font-mono text-[12px] text-text-muted">{a.integration}</span>
+                <span className="ml-auto text-[12px] text-text-muted/60">{binding === a.id ? "adding…" : ""}</span>
               </button>
             </li>
           );
@@ -466,7 +466,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
       </ul>
     </div>
   ) : (
-    <button onClick={() => setAddOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"><Plus className="h-3.5 w-3.5" /> add app</button>
+    <button onClick={() => setAddOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent"><Plus className="h-3.5 w-3.5" /> add app</button>
   );
 
   // Learned/AI suggestions block. Rendered in BOTH the empty and populated
@@ -475,13 +475,13 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
   const suggestBlock = (
       <div className="mt-4 rounded-lg border border-border-subtle bg-surface/60 p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-text-muted">
+          <span className="inline-flex items-center gap-1.5 text-[12px] text-text-muted">
             <Sparkles className="h-3 w-3 text-accent" /> Suggested for {titleCase(domain)}
           </span>
           <button
             onClick={generateSuggestions}
             disabled={suggesting}
-            className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50"
           >
             {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
             {suggesting ? "thinking" : suggestions.length ? "refresh" : "suggest apps"}
@@ -500,14 +500,14 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
                 <BrandTile name={s.name} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-text-primary">{s.name}</div>
-                  <div className="truncate text-[11px] text-text-muted">{s.reason}</div>
+                  <div className="truncate text-[12px] text-text-muted">{s.reason}</div>
                 </div>
                 {/* Two separate steps: add to this domain now (no setup), then
                     set up the connection later from the app's config page. */}
                 <button
                   onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))}
                   title={`Set up the ${s.name} connection on Apps`}
-                  className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-2 py-0.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
+                  className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-2 py-0.5 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent"
                 >
                   <SettingsIcon className="h-3 w-3" /> set up
                 </button>
@@ -515,7 +515,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
                   onClick={() => addSuggestionToDomain(s.name)}
                   disabled={adding}
                   title={`Add ${s.name} to ${titleCase(domain)} now (you can set up the connection later)`}
-                  className="inline-flex shrink-0 items-center gap-1 rounded border border-accent-border bg-accent-soft px-2 py-0.5 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
+                  className="inline-flex shrink-0 items-center gap-1 rounded border border-accent-border bg-accent-soft px-2 py-0.5 text-[12px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
                 >
                   {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} {adding ? "adding…" : "add to domain"}
                 </button>
@@ -542,7 +542,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
   return (
     <div className="space-y-2">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="font-mono text-[11px] text-text-muted">{domainApps.length} app{domainApps.length !== 1 ? "s" : ""} refreshing {domain}</span>
+        <span className="font-mono text-[12px] text-text-muted">{domainApps.length} app{domainApps.length !== 1 ? "s" : ""} refreshing {domain}</span>
       </div>
       {domainApps.map((app) => {
         const tint = STATUS_TINT[app.status] ?? "#9aa0a6";
@@ -561,10 +561,10 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium text-text-primary group-hover:text-accent">{app.account?.label ? `${app.title} · ${app.account.label}` : app.title}</span>
-                  <span className="shrink-0 text-[11px] text-text-muted">{app.integration}</span>
+                  <span className="shrink-0 text-[12px] text-text-muted">{app.integration}</span>
                   <ExternalLink className="h-3 w-3 shrink-0 text-text-muted/0 transition-colors group-hover:text-accent" />
                 </div>
-                <div className="font-mono text-[11px] text-text-muted">
+                <div className="font-mono text-[12px] text-text-muted">
                   {app.configured ? app.status : <span className="text-warn">not configured · click to set up</span>}{app.refresh?.every ? ` · every ${app.refresh.every}` : ""} · synced {relTime(app.lastSuccessTs)}
                   {probeResult[app.id] && <span className="ml-2 text-text-secondary">{probeResult[app.id]}</span>}
                   {app.lastError && !probeResult[app.id] && <span className="ml-2 text-warn">{app.lastError}</span>}
@@ -575,7 +575,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
               <button
                 onClick={() => sync(app.id)}
                 disabled={syncing}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded border px-2.5 py-1 text-[11px] disabled:opacity-100 ${syncing ? "border-accent-border bg-accent-soft text-accent" : "border-border bg-background text-text-secondary hover:border-accent-border hover:text-accent"}`}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded border px-2.5 py-1 text-[12px] disabled:opacity-100 ${syncing ? "border-accent-border bg-accent-soft text-accent" : "border-border bg-background text-text-secondary hover:border-accent-border hover:text-accent"}`}
               >
                 {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 {syncing ? "syncing…" : "sync"}
@@ -583,7 +583,7 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
             ) : (
               <button
                 onClick={openConfig}
-                className="inline-flex shrink-0 items-center gap-1 rounded border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] text-accent hover:bg-accent hover:text-background"
+                className="inline-flex shrink-0 items-center gap-1 rounded border border-accent-border bg-accent-soft px-2.5 py-1 text-[12px] text-accent hover:bg-accent hover:text-background"
               >
                 <SettingsIcon className="h-3 w-3" /> set up
               </button>
@@ -709,27 +709,27 @@ export function ContextScorePanel({
             <div className="mt-2 flex items-center gap-2">
               <Sparkline values={history} width={84} height={22} />
               {delta != null && (
-                <span className={`font-mono text-[11px] ${delta > 0 ? "text-ok" : delta < 0 ? "text-warn" : "text-text-muted"}`}>
+                <span className={`font-mono text-[12px] ${delta > 0 ? "text-ok" : delta < 0 ? "text-warn" : "text-text-muted"}`}>
                   {delta > 0 ? "↑" : delta < 0 ? "↓" : "→"} {delta > 0 ? "+" : ""}{Math.round(delta)} over {history.length} scans
                 </span>
               )}
             </div>
           ) : (
-            <div className="mt-2 text-[11px] text-text-muted">Climbs automatically as apps sync, memory builds, and you add context.</div>
+            <div className="mt-2 text-[12px] text-text-muted">Climbs automatically as apps sync, memory builds, and you add context.</div>
           )}
           <div className="mt-3">
             {rescanning ? (
               // Non-blocking progress: the audit runs off-thread and as a tracked
               // background process, so the page stays usable and the user can
               // navigate away and return. The ticking timer proves it is alive.
-              <div className="inline-flex items-center gap-2 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] text-accent">
+              <div className="inline-flex items-center gap-2 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[12px] text-accent">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Auditing… {auditElapsed}s · runs in the background, keep working
               </div>
             ) : (
               <button
                 onClick={onRescan}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:bg-accent-soft hover:text-accent"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-[12px] text-text-muted hover:border-accent-border hover:bg-accent-soft hover:text-accent"
               >
                 <RefreshCw className="h-3 w-3" /> Re-scan (audit)
               </button>
@@ -750,7 +750,7 @@ export function ContextScorePanel({
                 title={dim.detail || `${label}: ${dim.score}`}
                 className="group flex flex-col items-start rounded-lg border border-border-subtle bg-background px-2.5 py-1.5 text-left transition-colors hover:border-accent-border hover:bg-surface-warm"
               >
-                <span className="font-mono text-[8.5px] text-text-muted">{label}</span>
+                <span className="font-mono text-[12px] text-text-muted">{label}</span>
                 <span className="font-mono text-base font-semibold leading-tight" style={{ color: scoreColor(dim.score) }}>{dim.score}</span>
                 <span className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-surface-strong">
                   <span className="block h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, dim.score))}%`, backgroundColor: scoreColor(dim.score) }} />
@@ -780,10 +780,10 @@ export function ContextScorePanel({
       {score.relevance && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
-            <span className="font-mono text-[11px] font-bold text-text-primary">
+            <span className="font-mono text-[14px] font-semibold text-text-primary">
               Domain fit
             </span>
-            <span className="font-mono text-[11px] text-text-muted">{score.relevance.detail}</span>
+            <span className="font-mono text-[12px] text-text-muted">{score.relevance.detail}</span>
           </div>
           <div className="flex flex-col gap-1.5 rounded-2xl border border-border bg-surface p-3">
             {score.relevance.items.map((it) => {
@@ -814,10 +814,10 @@ export function ContextScorePanel({
                       >
                         {it.label}
                       </span>
-                      <span className="shrink-0 text-[11px] text-text-muted">{it.detail}</span>
+                      <span className="shrink-0 text-[12px] text-text-muted">{it.detail}</span>
                     </div>
                     {(!it.present || it.stale) && (
-                      <div className="mt-0.5 text-[11px] text-text-muted">{it.recommend}</div>
+                      <div className="mt-0.5 text-[12px] text-text-muted">{it.recommend}</div>
                     )}
                   </div>
                 </div>
@@ -829,7 +829,7 @@ export function ContextScorePanel({
 
       {/* Six dimensions */}
       <div>
-        <div className="mb-2 text-[11px] font-bold text-text-primary">
+        <div className="mb-2 text-[14px] font-semibold text-text-primary">
           Structural readiness
         </div>
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
@@ -849,7 +849,7 @@ export function ContextScorePanel({
                 </div>
                 <ScoreBar value={dim.score} max={100} color={scoreColor(dim.score)} />
                 {dim.detail && (
-                  <div className="mt-1 text-[11px] text-text-muted">{dim.detail}</div>
+                  <div className="mt-1 text-[12px] text-text-muted">{dim.detail}</div>
                 )}
               </div>
             );
@@ -860,7 +860,7 @@ export function ContextScorePanel({
       {/* What's missing, grouped by severity */}
       {score.missing.length > 0 && (
         <div>
-          <div className="mb-2 text-[11px] font-bold text-text-primary">
+          <div className="mb-2 text-[14px] font-semibold text-text-primary">
             What's missing
           </div>
           <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
@@ -888,7 +888,7 @@ export function ContextScorePanel({
                         <span>
                           {m.label}
                           {m.kind && (
-                            <span className="ml-1.5 rounded bg-surface-warm px-1 py-0 text-[11px] text-text-muted">
+                            <span className="ml-1.5 rounded bg-surface-warm px-1 py-0 text-[12px] text-text-muted">
                               {m.kind}
                             </span>
                           )}
@@ -906,12 +906,12 @@ export function ContextScorePanel({
       {/* Assessment + last audited */}
       {score.assessment && (
         <div>
-          <div className="mb-2 text-[11px] font-bold text-text-primary">
+          <div className="mb-2 text-[14px] font-semibold text-text-primary">
             Assessment
           </div>
           <div className="rounded-2xl border border-border bg-surface p-5">
             <p className="text-sm leading-relaxed text-text-primary">{score.assessment}</p>
-            <div className="mt-3 text-[11px] text-text-muted">
+            <div className="mt-3 text-[12px] text-text-muted">
               last audited · {formatAuditedAt(score.audited_at)}
             </div>
           </div>

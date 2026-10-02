@@ -42,7 +42,7 @@ export function ShortcutsSection() {
   ];
 
   const Key = ({ children }: { children: React.ReactNode }) => (
-    <kbd className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded border border-border bg-background px-1.5 font-mono text-[11px] font-medium text-text-primary shadow-sm">
+    <kbd className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded border border-border bg-background px-1.5 font-mono text-[12px] font-medium text-text-primary shadow-sm">
       {children}
     </kbd>
   );
@@ -52,8 +52,8 @@ export function ShortcutsSection() {
       <SettingsHeader title="Shortcuts" subtitle="Shortcuts, most of them global." />
       <div className="space-y-6">
         {groups.map((g) => (
-          <section key={g.name} className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-            <div className="mb-3 text-[11px] font-bold text-text-primary">
+          <section key={g.name} className="border-t border-border-subtle pt-4">
+            <div className="mb-3 text-[14px] font-semibold text-text-primary">
               {g.name}
             </div>
             <ul className="flex flex-col divide-y divide-border-subtle">
@@ -68,7 +68,7 @@ export function ShortcutsSection() {
                       <Fragment key={j}>
                         <Key>{k}</Key>
                         {j < e.keys.length - 1 && e.keys.length > 1 && k.length === 1 && e.keys[j+1].length === 1 && (
-                          <span className="text-[11px] text-text-muted">+</span>
+                          <span className="text-[12px] text-text-muted">+</span>
                         )}
                       </Fragment>
                     ))}
@@ -142,7 +142,7 @@ export function RemoteSection() {
     <>
       <SettingsHeader title="Remote (WebUI)" subtitle="Reach this app from another device." />
       <DesktopOnly feature="The WebUI server">
-      <div className="rounded-lg border border-border bg-surface px-5">
+      <div>
         <SettingsRowLite title="Enable WebUI" desc="Run the bridge server so a browser can use Prevail. This Mac must stay on."
           control={<Toggle on={running} onChange={toggle} />} />
         <SettingsRowLite title="Port" desc="Local port the WebUI listens on."
@@ -155,7 +155,7 @@ export function RemoteSection() {
           control={
             <div className="flex items-center gap-2">
               <input type={showPass ? "text" : "password"} value={pass} disabled={running} onChange={(e) => savePass(e.target.value)} className="w-40 rounded-md border border-border bg-background px-2 py-1.5 font-mono text-sm focus:border-accent-border focus:outline-none disabled:opacity-50" />
-              <button onClick={() => setShowPass((v) => !v)} className="font-mono text-[11px] text-text-muted hover:text-accent">{showPass ? "Hide" : "Show"}</button>
+              <button onClick={() => setShowPass((v) => !v)} className="font-mono text-[12px] text-text-muted hover:text-accent">{showPass ? "Hide" : "Show"}</button>
             </div>
           } />
       </div>

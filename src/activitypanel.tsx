@@ -80,11 +80,11 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   const multiline = value.includes("\n");
   return (
     <div className="grid grid-cols-[7rem_1fr] gap-2 py-1">
-      <div className="text-[11px] text-text-muted">{label}</div>
+      <div className="text-[12px] text-text-muted">{label}</div>
       {multiline ? (
         <pre className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-text-secondary">{value}</pre>
       ) : (
-        <div className="break-words text-[11px] leading-relaxed text-text-secondary">{value}</div>
+        <div className="break-words text-[12px] leading-relaxed text-text-secondary">{value}</div>
       )}
     </div>
   );
@@ -120,12 +120,12 @@ function ActivityDetail({ event }: { event: ActivityEvent }) {
       {knownRows.map((r) => <DetailRow key={`k-${r.label}`} label={r.label} value={r.value} />)}
       {extraRows.length > 0 && (
         <>
-          <div className="mt-2 mb-0.5 text-[11px] font-semibold text-text-muted">Additional detail</div>
+          <div className="mt-2 mb-0.5 text-[12px] font-semibold text-text-muted">Additional detail</div>
           {extraRows.map((r) => <DetailRow key={`x-${r.label}`} label={r.label} value={r.value} />)}
         </>
       )}
       {!hasMore && (
-        <div className="mt-1 text-[11px] italic leading-relaxed text-text-muted">No further detail recorded for this event.</div>
+        <div className="mt-1 text-[12px] italic leading-relaxed text-text-muted">No further detail recorded for this event.</div>
       )}
     </div>
   );
@@ -297,9 +297,9 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
         return (
           <button key={f.id} data-testid={`activity-kind-${f.id}`} aria-current={on ? "true" : undefined}
             onClick={() => { setUsageView(null); setTypeFilter(f.id); setPicked(true); setExpandedId(null); }}
-            className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
             <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
-            <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{f.label}</span>
+            <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{f.label}</span>
             <span className="text-[13px] tabular-nums text-text-muted">{counts[f.id]}</span>
           </button>
         );
@@ -311,9 +311,9 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
         return (
           <button key={v.id} data-testid={`usage-view-${v.id}`} aria-current={on ? "true" : undefined}
             onClick={() => { setUsageView(v.id); setPicked(true); }}
-            className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
             <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
-            <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{v.label}</span>
+            <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{v.label}</span>
           </button>
         );
       })}
@@ -337,48 +337,45 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
         }
         phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Back"
         detail={<div className={`space-y-5 ${phone ? "px-4 py-4" : "w-full px-8 py-6"}`} data-testid="activity-detail">
-      <h2 className={DETAIL_TITLE}>{kindLabel}{!usageView && <span className="ml-2 text-[14px] font-normal tabular-nums text-text-muted">{shown.length}</span>}</h2>
+      <h2 className={DETAIL_TITLE}>{kindLabel}{!usageView && shown.length > 0 && <span className="ml-2 font-sans text-[13px] font-normal tabular-nums text-text-muted">{shown.length}</span>}</h2>
       {usageView ? <UsageDashboard vaultPath={vaultPath} embedded view={usageView} /> : (<>
       {/* Running now - the live, in-flight processes (not yet in history). */}
+      {/* Shown only while something runs; an empty "nothing running" box said nothing. */}
+      {live.length > 0 && (
       <section>
         <h3 className="mb-1.5 text-[15px] font-semibold text-text-primary">Running now</h3>
-        {live.length === 0 ? (
-          <div className="rounded-lg border border-border-subtle bg-surface px-3 py-2.5 text-xs text-text-muted">Nothing running right now.</div>
-        ) : (
-          <ul className="space-y-1.5">
+          <ul className="divide-y divide-border-subtle">
             {live.map((p) => (
-              <li key={p.id} className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-soft/20 px-3 py-2">
+              <li key={p.id} className="flex items-center gap-2 py-2">
                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />
-                <span className="flex-1 truncate text-[13px] text-text-primary">{p.label}</span>
-                <span className="shrink-0 text-[11px] text-text-muted">{p.kind}</span>
+                <span className="flex-1 truncate text-[14px] text-text-primary">{p.label}</span>
+                <span className="shrink-0 text-[12px] text-text-muted">{p.kind}</span>
               </li>
             ))}
           </ul>
-        )}
       </section>
+      )}
 
-      {/* Filter toolbar: segmented type pills + domain select on the left, the
-          event count and a minimal refresh control aligned to the right. */}
+      {/* The domain filter, when there is more than one place to filter by. */}
+      {domains.length > 0 && (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        {domains.length > 0 && (
+        {(
           <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}
             className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent-border focus:border-accent-border focus:outline-none">
             <option value="all">All domains</option>
             {domains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
           </select>
         )}
-        <span className="ml-auto text-[13px] tabular-nums text-text-muted">{shown.length} event{shown.length === 1 ? "" : "s"}</span>
       </div>
+      )}
 
       {/* History feed */}
       <section>
-        <h3 className="mb-1.5 text-[15px] font-semibold text-text-primary">History</h3>
+        {live.length > 0 && <h3 className="mb-1.5 text-[15px] font-semibold text-text-primary">History</h3>}
         {loading ? (
-          <div className="text-sm text-text-muted">loading activity…</div>
+          <div className="text-[12px] text-text-muted">Loading activity…</div>
         ) : shown.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-text-secondary">
-            No activity recorded yet. Loop runs, executed approvals, and briefings will appear here as they happen.
-          </div>
+          <p className="text-[12px] text-text-muted">Nothing yet. Loop runs, approvals you allowed and briefings appear here as they happen.</p>
         ) : (
           <ul className="space-y-0 border-l border-border-subtle pl-4">
             <VirtualRows items={shown} estimate={56} getKey={(e, i) => `${e.ts}-${i}`} render={(e, i) => {
@@ -397,23 +394,23 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
                       className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1 text-left">
                       <ChevronRight className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted transition-transform group-hover:text-text-secondary ${open ? "rotate-90" : ""}`} />
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
+                        <div className="flex flex-wrap items-center gap-1 text-[12px] text-text-muted">
                           <span className={m.tint}>{m.label}</span>
-                          {e.domain && <span className="rounded bg-surface-warm px-1.5 py-0.5 text-text-secondary">{titleCase(e.domain)}</span>}
-                          <span>{relTime(e.ts)}</span>
+                          {e.domain && <span>· {titleCase(e.domain)}</span>}
+                          <span>· {relTime(e.ts)}</span>
                           {e.status === "error" && <span className="text-err">Failed</span>}
                           {e.status === "pending" && <span className="text-warn">Needs setup</span>}
                         </div>
                         {/* A filed task writes its whole rationale into the
                             title. Two lines collapsed keeps the row a row; the
                             expansion carries the rest. */}
-                        <div className={`mt-0.5 text-[13px] leading-snug text-text-primary ${open ? "" : "line-clamp-2"}`}>{e.title}</div>
+                        <div title={e.title} className={`mt-0.5 text-[14px] leading-snug text-text-primary ${open ? "" : "line-clamp-2"}`}>{e.title}</div>
                         {/* One line collapsed. A loop run writes a paragraph of
                             its own reasoning, and four hundred of those stacked
                             is not a timeline, it is a transcript you cannot
                             scan. Expanding shows the whole thing. */}
                         {e.detail && (
-                          <div className={`mt-0.5 text-[11px] leading-relaxed text-text-muted ${open ? "" : "line-clamp-1"}`}>{e.detail}</div>
+                          <div className={`mt-0.5 text-[12px] leading-relaxed text-text-muted ${open ? "" : "line-clamp-1"}`}>{e.detail}</div>
                         )}
                       </div>
                     </button>
@@ -425,7 +422,7 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
                         <button type="button"
                           onClick={() => { void openActivitySource(e, vaultPath); }}
                           title={`${SOURCE_LABEL[e.type]}: go to the source of this event`}
-                          className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary transition-colors hover:border-accent-border hover:text-accent">
+                          className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-accent">
                           {SOURCE_LABEL[e.type]}<ArrowUpRight className="h-3 w-3" />
                         </button>
                       )}

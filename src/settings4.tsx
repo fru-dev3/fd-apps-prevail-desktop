@@ -31,7 +31,7 @@ function SafetyGroup({ icon: Icon, label, desc, children }: { icon: LucideIcon; 
       <div className="mb-2 flex items-center gap-2 px-1">
         <Icon className="h-3.5 w-3.5 text-accent" />
         <h3 className="text-sm font-semibold text-text-primary">{label}</h3>
-        {desc && <span className="ml-auto text-[11px] text-text-muted">{desc}</span>}
+        {desc && <span className="ml-auto text-[12px] text-text-muted">{desc}</span>}
       </div>
       {children}
     </div>
@@ -76,7 +76,7 @@ export function SafetySection({ vaultPath, part }: { vaultPath: string; part?: "
         </div>
       </SafetyGroup>}
       {part !== "access" && <SafetyGroup icon={ShieldAlert} label="Agent guardrails" desc="">
-        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+        <div>
           <GuardRow icon={ShieldAlert} active={approvalMode === "manual"} title="Approval mode" desc=""
             control={
               <select value={approvalMode} onChange={(e) => { setApprovalMode(e.target.value); setPref(PREF.approvalMode, e.target.value); }}
@@ -118,17 +118,17 @@ export function TelemetrySettings() {
           and the collapsed "what we collect" list. Anonymous, on by default, opt-out. */}
       <div className="mb-2 flex items-baseline justify-between">
         <h3 className="text-sm font-semibold text-text-primary">Telemetry</h3>
-        <span className="font-mono text-[11px] text-text-muted">anonymous · on by default · one-tap opt-out</span>
+        <span className="font-mono text-[12px] text-text-muted">anonymous · on by default · one-tap opt-out</span>
       </div>
       <p className="mb-3 text-xs text-text-secondary">Never your prompts, your vault, or anything you named. Off the moment you say so, and Bunker Mode blocks it regardless.</p>
-      <div className="mb-3 rounded-lg border border-border bg-surface px-5">
+      <div className="mb-3 ">
         <SettingsRowLite title="Usage analytics (anonymous)" desc="Coarse, anonymous events (app opened, which features are used, OS) via PostHog. No content, ever."
           control={<Toggle on={usage} onChange={(v) => { setUsage(v); setUsageState(v); }} />} />
         <SettingsRowLite title="Crash & error reports" desc="Send anonymized crash stack traces (scrubbed of paths/PII) via Sentry so bugs get fixed faster."
           control={<Toggle on={crash} onChange={(v) => { setCrash(v); setCrashState(v); }} />} />
       </div>
       {!telemetryConfigured() && (usage || crash) && (
-        <p className="mb-3 px-1 text-[11px] text-text-muted">
+        <p className="mb-3 px-1 text-[12px] text-text-muted">
           Telemetry is enabled but no analytics keys are built into this release, so nothing is transmitted yet. Events are still recorded to the local log below so you can see exactly what would be sent.
         </p>
       )}
@@ -146,28 +146,28 @@ export function TelemetrySettings() {
             ["crash reports", "error type + scrubbed stack trace + app version"],
           ] as [string, string][]).map(([name, desc], i) => (
             <div key={name} className={`flex items-baseline gap-3 px-3 py-2 ${i > 0 ? "border-t border-border-subtle" : ""}`}>
-              <span className="w-40 shrink-0 text-[11px] text-text-primary">{name}</span>
-              <span className="flex-1 text-[11px] leading-snug text-text-secondary">{desc}</span>
+              <span className="w-40 shrink-0 text-[12px] text-text-primary">{name}</span>
+              <span className="flex-1 text-[12px] leading-snug text-text-secondary">{desc}</span>
             </div>
           ))}
         </div>
-        <div className="mt-3 rounded-md border border-border-subtle bg-background p-2 text-[11px] text-text-muted">
+        <div className="mt-3 rounded-md border border-border-subtle bg-background p-2 text-[12px] text-text-muted">
           Never collected: prompts, replies, vault contents, file paths, names of domains/apps/skills you created, API keys, email, name, machine name, or precise location.
         </div>
         <div className="mt-3 flex items-center gap-2">
           <button onClick={() => setShowLog((s) => !s)}
-            className="rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
+            className="rounded-md border border-border px-2.5 py-1 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent">
             {showLog ? "Hide" : "View"} local log · {log.length}
           </button>
           {log.length > 0 && (
             <button onClick={() => { clearTelemetryLog(); force((n) => n + 1); }}
-              className="rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:border-err hover:text-err">
+              className="rounded-md border border-border px-2.5 py-1 text-[12px] text-text-muted hover:border-err hover:text-err">
               Clear log
             </button>
           )}
         </div>
         {showLog && (
-          <div className="mt-2 max-h-48 overflow-auto rounded-md border border-border-subtle bg-background p-2 text-[11px] text-text-secondary">
+          <div className="mt-2 max-h-48 overflow-auto rounded-md border border-border-subtle bg-background p-2 text-[12px] text-text-secondary">
             {log.length === 0 ? <div className="text-text-muted">No events recorded.</div> : log.slice().reverse().map((e, i) => (
               <div key={i} className="border-b border-border-subtle/40 py-0.5 last:border-0">
                 <span className={e.sent ? "text-accent" : "text-text-muted"}>{e.sent ? "sent" : "local"}</span>{" "}
@@ -246,7 +246,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
       )}
       <AlignmentCard vaultPath={vaultPath} />
       <div className="mb-4 flex items-center justify-between gap-2">
-        <span className="text-[11px] text-text-muted">
+        <span className="text-[12px] text-text-muted">
           {editing
             ? "Editing markdown"
             : parsed.sections.length > 0
@@ -255,12 +255,12 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
         </span>
         <div className="flex items-center gap-2">
           {savedAt && !editing && (
-            <span className="text-[11px] text-ok">✓ saved</span>
+            <span className="text-[12px] text-ok">✓ saved</span>
           )}
           {loaded && (
             <button
               onClick={() => setEditing((e) => !e)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent"
             >
               {editing ? <Eye className="h-3.5 w-3.5" /> : <PenLine className="h-3.5 w-3.5" />}
               {editing ? "View" : "Edit"}
@@ -269,7 +269,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
         </div>
       </div>
       {editing ? (
-        <div className="rounded-lg border border-border bg-surface">
+        <div>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -278,7 +278,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
             className="w-full resize-y rounded-lg bg-transparent p-4 text-sm leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none"
           />
           <div className="flex items-center justify-between gap-2 border-t border-border-subtle px-4 py-2">
-            <span className="text-[11px] text-text-muted">
+            <span className="text-[12px] text-text-muted">
               {body.length.toLocaleString()} chars · sections start with ## headings
             </span>
             <button
@@ -312,7 +312,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
         <div>
           <div className="rounded-2xl border border-border bg-gradient-to-b from-accent-soft/40 to-surface px-6 py-7">
             {!headerless && (
-              <div className="text-[11px] font-bold text-accent">My constitution</div>
+              <div className="text-[12px] font-bold text-accent">My constitution</div>
             )}
             {parsed.title && (
               <h2 className={headerless ? SECTION_TITLE : `mt-2 ${DETAIL_TITLE}`}>{parsed.title}</h2>
@@ -331,7 +331,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
                 return (
                   <section key={s.title} className="relative border-l-2 border-accent-border/60 pl-5">
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-background">{idx + 1}</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[12px] font-bold text-background">{idx + 1}</span>
                       <Icon className="h-4 w-4 shrink-0 text-accent" />
                       <h3 className="text-[15px] font-semibold text-text-primary">{s.title}</h3>
                     </div>
@@ -361,7 +361,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
               <div className="flex flex-col gap-1">
                 {versions.map((v) => (
                   <div key={v.path} className="flex items-center gap-2 py-1">
-                    <span className="flex-1 text-[11px] text-text-secondary">{v.name.replace("_", " · ")}</span>
+                    <span className="flex-1 text-[12px] text-text-secondary">{v.name.replace("_", " · ")}</span>
                     <button
                       onClick={async () => {
                         try {
@@ -374,7 +374,7 @@ export function IdealStateSection({ vaultPath, headerless = false }: { vaultPath
                           }
                         } catch (e) { console.error("restore ideal state", e); }
                       }}
-                      className="rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                      className="rounded-md border border-border px-2 py-0.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent"
                     >
                       Restore
                     </button>
@@ -408,7 +408,7 @@ export function ObsidianCard() {
     } catch { /* dialog cancelled or unavailable */ }
   };
   return (
-      <div className="mb-2 rounded-lg border border-border bg-surface p-4">
+      <div className="mb-2 border-t border-border-subtle pt-4">
         <div className="mb-1 flex items-center gap-2">
           <ObsidianLogo className="h-4 w-4" />
           <h3 className="text-sm font-semibold text-text-primary">Obsidian vault</h3>
@@ -527,7 +527,7 @@ export function GeneralSection({ appearance, part, vaultPath = "" }: { appearanc
       />
       <div className="space-y-2">
       <GenSub id="main" title="Main" icon={SlidersHorizontal} summary="behavior & defaults">
-      <div className="rounded-lg border border-border bg-surface px-5">
+      <div>
         <Row
           title="Start on boot"
           control={<Switch on={startOnBoot} onChange={async (v) => { try { if (v) await autostartEnable(); else await autostartDisable(); setStartOnBoot(v); } catch (e) { console.error("autostart", e); } }} />}
@@ -649,9 +649,9 @@ export function GeneralSection({ appearance, part, vaultPath = "" }: { appearanc
       </div>
 
       {/* Budget meter */}
-      <div className="mt-4 rounded-lg border border-border bg-surface px-5 py-4">
+      <div className="mt-4 border-t border-border-subtle pt-4">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-[11px] font-bold text-text-primary">Budget this month</div>
+          <div className="text-[14px] font-semibold text-text-primary">Budget this month</div>
           <div className="text-xs text-text-secondary">
             ${budgetSpent.toFixed(2)}{hasCap ? ` / $${capNum.toFixed(2)}` : " spent"}
           </div>
@@ -669,7 +669,7 @@ export function GeneralSection({ appearance, part, vaultPath = "" }: { appearanc
       {part === "main" && vaultPath && <FilingSettings vaultPath={vaultPath} />}
       {appearance && (
         <GenSub id="appearance" title="Appearance" icon={Palette} summary={appearance?.mode ? `${appearance.mode} theme` : "theme & palette"}>
-          <div className="mb-6 rounded-xl border border-border bg-surface p-5">
+          <div className="mb-6 border-t border-border-subtle pt-4">
             <div className="mb-1 font-medium">Color Mode</div>
             <div className="mb-4 text-sm text-text-secondary">Pick a fixed mode or let Prevail follow your system setting.</div>
             <div className="inline-flex items-center rounded-md border border-border bg-background p-1 text-xs">

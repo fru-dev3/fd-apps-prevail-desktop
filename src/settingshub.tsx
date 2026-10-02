@@ -39,9 +39,9 @@ export function SettingsHub({ id, title, icon, subtitle, right, groups, sel, onS
             const Icon = it.icon;
             return (
               <button key={it.id} data-testid={`hub-row-${it.id}`} aria-current={on ? "true" : undefined} onClick={() => choose(it.id)}
-                className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
                 <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
-                <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{it.label}</span>
+                <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{it.label}</span>
                 {it.status && <span className="shrink-0 text-[12px] text-text-muted">{it.status}</span>}
               </button>
             );
