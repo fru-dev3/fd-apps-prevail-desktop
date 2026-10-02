@@ -778,14 +778,14 @@ export function Sidebar({
 
             <Divider />
             <section>
-            {!collapsed && <SectionHeader label="Missions" count={activeMissions.length} open={missionsOpen} onToggle={() => setMissionsOpen((v) => !v)} onAdd={() => openMissions("new")} addTitle="New mission" />}
+            {!collapsed && <SectionHeader label="Projects" count={activeMissions.length} open={missionsOpen} onToggle={() => setMissionsOpen((v) => !v)} onAdd={() => openMissions("new")} addTitle="New project" />}
             {(collapsed || missionsOpen) && (
-              <nav aria-label="Missions" data-testid="sidebar-missions" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+              <nav aria-label="Projects" data-testid="sidebar-missions" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
                 {activeMissions.map((m) => (
                   <MissionRow key={m.slug} name={m.name} left={daysLeftLabel(m)} active={tab === "work" && workActive === "missions" && openMissionSlug === m.slug} collapsed={collapsed} onClick={() => { setOpenMissionSlug(m.slug); openMission(m.slug); setWorkActive("missions"); }} testId={`sidebar-mission-${m.slug}`} />
                 ))}
                 {pausedMissions > 0 && <NavRow icon={Pause} label={`Paused (${pausedMissions})`} active={false} collapsed={collapsed} onClick={() => openMissions("paused")} testId="sidebar-missions-paused" />}
-                <NavRow icon={LayoutList} label={activeMissions.length ? "All missions" : "Missions"} active={tab === "work" && workActive === "missions" && !openMissionSlug} collapsed={collapsed} onClick={() => { setOpenMissionSlug(null); openMissions("all"); }} testId="sidebar-missions-all" />
+                <NavRow icon={LayoutList} label={activeMissions.length ? "All projects" : "Projects"} active={tab === "work" && workActive === "missions" && !openMissionSlug} collapsed={collapsed} onClick={() => { setOpenMissionSlug(null); openMissions("all"); }} testId="sidebar-missions-all" />
               </nav>
             )}
             </section>

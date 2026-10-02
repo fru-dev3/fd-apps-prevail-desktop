@@ -19,7 +19,7 @@ fn engine_blocking_json(args: Vec<String>) -> impl std::future::Future<Output = 
 /// shell before the first build.
 #[tauri::command]
 pub async fn projects_index(vault: String) -> Result<serde_json::Value, String> {
-    engine_blocking_json(vec!["projects".into(), "list".into(), "--vault".into(), vault]).await
+    engine_blocking_json(vec!["prompt-groups".into(), "list".into(), "--vault".into(), vault]).await
 }
 
 /// Build or refresh the projects. Incremental: only projects with new prompts
@@ -36,7 +36,7 @@ pub async fn projects_build(
 }
 
 pub(crate) fn build_args(vault: &str, rebrief: bool, model: Option<&str>, only: Option<&[String]>) -> Vec<String> {
-    let mut args: Vec<String> = vec!["projects".into(), "build".into(), "--vault".into(), vault.to_string()];
+    let mut args: Vec<String> = vec!["prompt-groups".into(), "build".into(), "--vault".into(), vault.to_string()];
     if rebrief {
         args.push("--rebrief".into());
     }
@@ -56,7 +56,7 @@ pub(crate) fn build_args(vault: &str, rebrief: bool, model: Option<&str>, only: 
 #[tauri::command]
 pub async fn projects_replay(vault: String, slug: String, with_prompts: Option<bool>) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
-        let mut args: Vec<&str> = vec!["projects", "replay", &slug, "--vault", &vault];
+        let mut args: Vec<&str> = vec!["prompt-groups", "replay", &slug, "--vault", &vault];
         if with_prompts.unwrap_or(false) {
             args.push("--with-prompts");
         }
@@ -70,7 +70,7 @@ pub async fn projects_replay(vault: String, slug: String, with_prompts: Option<b
 /// the projects are built from, bucketed by period with per-project counts.
 pub(crate) fn timeline(vault: &str, vantage: &str, tz_offset_minutes: i64) -> Result<serde_json::Value, String> {
     let tz = tz_offset_minutes.to_string();
-    crate::engine::run_engine_json(&["projects", "timeline", "--vault", vault, "--vantage", vantage, "--tz", &tz])
+    crate::engine::run_engine_json(&["prompt-groups", "timeline", "--vault", vault, "--vantage", vantage, "--tz", &tz])
 }
 
 #[cfg(test)]
@@ -79,11 +79,11 @@ mod tests {
 
     #[test]
     fn build_args_carry_only_what_was_asked() {
-        assert_eq!(build_args("/v", false, None, None), vec!["projects", "build", "--vault", "/v"]);
+        assert_eq!(build_args("/v", false, None, None), vec!["prompt-groups", "build", "--vault", "/v"]);
         assert_eq!(
             build_args("/v", true, Some(" claude-fable-5-1 "), Some(&["a".to_string(), "b".to_string()])),
-            vec!["projects", "build", "--vault", "/v", "--rebrief", "--model", "claude-fable-5-1", "--only", "a,b"]
+            vec!["prompt-groups", "build", "--vault", "/v", "--rebrief", "--model", "claude-fable-5-1", "--only", "a,b"]
         );
-        assert_eq!(build_args("/v", false, Some("  "), Some(&[])), vec!["projects", "build", "--vault", "/v"]);
+        assert_eq!(build_args("/v", false, Some("  "), Some(&[])), vec!["prompt-groups", "build", "--vault", "/v"]);
     }
 }

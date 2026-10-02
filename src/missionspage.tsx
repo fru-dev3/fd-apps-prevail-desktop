@@ -110,10 +110,10 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
 
   const rowCls = (on: boolean) => `mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`;
   const list = (
-    <nav className="p-2" aria-label="Missions">
+    <nav className="p-2" aria-label="Projects">
       {err && <p className="px-2.5 pb-2 text-[13px] text-err">{err}</p>}
-      {loading && !missions.length ? <p className="px-2.5 py-1 text-[13px] text-text-muted">Reading your missions</p>
-        : shown.length === 0 ? <p className="px-2.5 py-1 text-[13px] text-text-muted">{tab === "active" || tab === "all" ? "No missions yet." : `Nothing ${tab}.`}</p> : null}
+      {loading && !missions.length ? <p className="px-2.5 py-1 text-[13px] text-text-muted">Reading your projects</p>
+        : shown.length === 0 ? <p className="px-2.5 py-1 text-[13px] text-text-muted">{tab === "active" || tab === "all" ? "No projects yet." : `Nothing ${tab}.`}</p> : null}
       {shown.map((m) => {
         const on = m.slug === curSlug && (!phone || picked);
         const left = daysLeftLabel(m);
@@ -130,14 +130,14 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
       })}
       {suggested.length > 0 && (
         <section data-testid="missions-suggested" className="mt-3">
-          <h3 className="px-2.5 pb-1 pt-2 text-[13px] font-semibold text-text-secondary">From your prompt projects</h3>
+          <h3 className="px-2.5 pb-1 pt-2 text-[13px] font-semibold text-text-secondary">From your prompt groups</h3>
           {suggested.map((p) => (
             <div key={p.slug} data-testid="suggested-mission" className="flex items-center gap-2 rounded-lg px-2.5 py-1.5">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] text-text-secondary">{displayTitle(p.title)}</span>
                 <span className="block truncate text-[12px] text-text-muted">{titleCase(p.domain)} · {nPrompts(p.prompt_count)}</span>
               </span>
-              <button onClick={() => void startFromPrompts(p.slug, p.title)} disabled={busy !== null} data-testid="suggested-start" title="Start a mission for this" aria-label={`Start a mission for ${displayTitle(p.title)}`} className={iconBtn}>
+              <button onClick={() => void startFromPrompts(p.slug, p.title)} disabled={busy !== null} data-testid="suggested-start" title="Start a project for this" aria-label={`Start a project for ${displayTitle(p.title)}`} className={iconBtn}>
                 {busy === p.slug ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               </button>
             </div>
@@ -151,25 +151,25 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
     : curSlug ? <MissionDetail key={curSlug} vaultPath={vaultPath} slug={curSlug} />
     : (
       <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"} data-testid="missions-empty">
-        <h2 className={DETAIL_TITLE}>Your missions</h2>
+        <h2 className={DETAIL_TITLE}>Your projects</h2>
         <p className={`${BODY} mt-2 max-w-2xl text-text-secondary`}>An effort with an outcome and an end: an instrument, a trip, a remodel. It brings in the domains, apps, agents and people it needs, you talk to it, and when it is done what it learned goes back to your domains.</p>
-        <button onClick={() => setAdding(true)} data-testid="mission-new-cta" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover"><Plus className="h-4 w-4" />New mission</button>
+        <button onClick={() => setAdding(true)} data-testid="mission-new-cta" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover"><Plus className="h-4 w-4" />New project</button>
       </div>
     );
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="missions-page">
-      <SettingsHeader title="Missions" icon={Target} subtitle="Efforts with an outcome and an end. Talk to each one; it files what it learns back to your domains."
-        tabs={<SpineTabs label="Missions" value={tab} onChange={(t) => { setTab(t); setAdding(false); }} tabs={([
+      <SettingsHeader title="Projects" icon={Target} subtitle="Efforts with an outcome and an end. Talk to each one; it files what it learns back to your domains."
+        tabs={<SpineTabs label="Projects" value={tab} onChange={(t) => { setTab(t); setAdding(false); }} tabs={([
           { id: "active", label: "Active", count: count("active") },
           { id: "paused", label: "Paused", count: count("paused") },
           { id: "completed", label: phone ? "Done" : "Completed", count: count("completed") },
           { id: "archived", label: "Archived", count: count("archived") },
           { id: "all", label: "All", count: missions.length },
         ] as { id: Tab; label: string; count?: number }[]).map((t) => (phone ? { id: t.id, label: t.label } : t))} />} />
-      <SideSpine storageKey="prevail.missions.spine" title="Missions" label="missions" testId="missions-list"
-        actions={<button onClick={() => { setAdding(true); setPicked(true); }} title="New mission" aria-label="New mission" data-testid="mission-new" className={iconBtn}><Plus className="h-4 w-4" /></button>}
-        phone={phone} phoneDetail={phone && picked && (adding || !!curSlug)} onBack={() => { setPicked(false); setAdding(false); }} backLabel="All missions"
+      <SideSpine storageKey="prevail.missions.spine" title="Projects" label="missions" testId="missions-list"
+        actions={<button onClick={() => { setAdding(true); setPicked(true); }} title="New project" aria-label="New project" data-testid="mission-new" className={iconBtn}><Plus className="h-4 w-4" /></button>}
+        phone={phone} phoneDetail={phone && picked && (adding || !!curSlug)} onBack={() => { setPicked(false); setAdding(false); }} backLabel="All projects"
         detail={detail}>
         {list}
       </SideSpine>
@@ -227,7 +227,7 @@ export function MissionDetail({ vaultPath, slug }: { vaultPath: string; slug: st
     setBusy(key); setErr(null);
     try { await f(); await q.refresh(); } catch (e) { setErr(String(e)); } finally { setBusy(null); }
   };
-  if (!m) return <div className={phone ? "px-4 py-4" : "px-8 py-6"} data-testid="mission-detail"><p className={META}>{q.error ? `Could not read the mission: ${String(q.error)}` : "Reading the mission"}</p></div>;
+  if (!m) return <div className={phone ? "px-4 py-4" : "px-8 py-6"} data-testid="mission-detail"><p className={META}>{q.error ? `Could not read the project: ${String(q.error)}` : "Reading the project"}</p></div>;
   const open = m.status === "active" || m.status === "paused";
   const owner = ownerOf(m);
   const pad = phone ? "px-4" : "px-8";
@@ -236,7 +236,7 @@ export function MissionDetail({ vaultPath, slug }: { vaultPath: string; slug: st
       <header data-testid="mission-header" className={`sticky top-0 z-10 shrink-0 border-b border-border-subtle bg-background ${pad} pb-0 ${phone ? "pt-3" : "pt-6"}`}>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
           <h2 className={`${DETAIL_TITLE} min-w-[10rem] flex-1 break-words`}>{m.name}</h2>
-          <div className="flex shrink-0 items-center gap-0.5" role="toolbar" aria-label="Mission actions">
+          <div className="flex shrink-0 items-center gap-0.5" role="toolbar" aria-label="Project actions">
             {open && <button className={`${iconBtn} ${panel === "bring" ? "bg-accent-soft text-accent" : ""}`} title="Bring in" aria-label="Bring in" aria-expanded={panel === "bring"} data-testid="mission-bring" onClick={() => setPanel(panel === "bring" ? null : "bring")}><Plus className="h-4 w-4" /></button>}
             {m.status === "active" && <button className={iconBtn} title="Pause" aria-label="Pause" data-testid="mission-pause" disabled={!!busy} onClick={() => void act("pause", () => missionState(vaultPath, slug, "pause"))}><Pause className="h-4 w-4" /></button>}
             {m.status === "paused" && <button className={iconBtn} title="Resume" aria-label="Resume" data-testid="mission-resume" disabled={!!busy} onClick={() => void act("resume", () => missionState(vaultPath, slug, "resume"))}><Play className="h-4 w-4" /></button>}
@@ -248,7 +248,7 @@ export function MissionDetail({ vaultPath, slug }: { vaultPath: string; slug: st
         <p data-testid="mission-meta" className={`${META} mt-1`}>{missionMeta(m)}{m.result ? ` · result ${m.result.replace("-", " ")}` : ""}</p>
         <MissionWho m={m} owner={owner} vaultPath={vaultPath} />
         {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
-        <div role="tablist" aria-label="Mission" data-scroll-x className={`-mx-1 mt-3 flex gap-x-1 ${phone ? "overflow-x-auto" : "flex-wrap"}`} data-testid="mission-tabs">
+        <div role="tablist" aria-label="Project" data-scroll-x className={`-mx-1 mt-3 flex gap-x-1 ${phone ? "overflow-x-auto" : "flex-wrap"}`} data-testid="mission-tabs">
           {D_TABS.map((t) => (
             <button key={t.id} role="tab" aria-selected={tab === t.id} data-testid={`mission-tab-${t.id}`} onClick={() => setTab(t.id)}
               className={`inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-[14px] ${tab === t.id ? "border-accent font-semibold text-text-primary" : "border-transparent text-text-muted hover:text-text-secondary"}`}>
@@ -449,16 +449,16 @@ function CloseOut({ vaultPath, m, onClose, pad }: { vaultPath: string; m: Missio
         <input aria-label="In your words" value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => void draft()} placeholder="In your words (optional)" className="h-8 min-w-0 flex-1 basis-48 rounded-md border border-border bg-background px-2 text-[13px]" />
       </div>)}
       {!plan ? <p className={META}>{busy ? "Drafting the close-out" : ""}</p> : <>
-        {step(2, "Lessons", groups(["lesson"]).length ? groups(["lesson"]).map(line) : <p className={META}>Nothing written down as learned. Add lines to the mission's memory, or say them in chat.</p>)}
+        {step(2, "Lessons", groups(["lesson"]).length ? groups(["lesson"]).map(line) : <p className={META}>Nothing written down as learned. Add lines to the project's memory, or say them in chat.</p>)}
         {step(3, "Open tasks", groups(["task"]).length ? groups(["task"]).map((f) => (
           <div key={f.n} className="flex flex-wrap items-center gap-2 py-1">
             <span className="min-w-0 flex-1 basis-48 text-[14px] text-text-primary">{f.text.replace(/\s+[~@+]\S+/g, "")}</span>
             <span className={segGroup} role="group" aria-label={`What happens to ${f.text}`}>{(["move", "drop", "carry"] as const).map((a) => <button key={a} aria-pressed={(f.action ?? "move") === a} onClick={() => setAction(f.n, a)} className={seg((f.action ?? "move") === a)}>{a === "move" ? `Move to ${titleCase(f.domain)}` : titleCase(a)}</button>)}</span>
           </div>
-        )) : <p className={META}>No open mission tasks.</p>)}
+        )) : <p className={META}>No open project tasks.</p>)}
         {step(4, "Filing", <div>{groups(["summary", "note", "money", "person", "file", "routine"]).map(line)}</div>)}
         <div className="flex flex-wrap items-center gap-3 py-2 pl-8">
-          <button data-testid="closeout-apply" onClick={() => void complete()} disabled={!!busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover disabled:opacity-50">{busy === "apply" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Complete mission</button>
+          <button data-testid="closeout-apply" onClick={() => void complete()} disabled={!!busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover disabled:opacity-50">{busy === "apply" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Complete project</button>
           <span className={META}>Nothing is deleted. Each line keeps a receipt and an Undo for 7 days.</span>
         </div>
       </>}
@@ -506,8 +506,8 @@ function Tasks({ vaultPath, slug }: { vaultPath: string; slug: string }) {
   const open = tasks.filter((t) => !t.done);
   return (
     <section data-testid="mission-tasks">
-      {tasks.length > 0 && <p className={META} title="The mission's own tasks, and tasks in any domain marked for it">{open.length} open</p>}
-      {tasks.length === 0 ? <p className={META}>No tasks yet. Jobs this mission runs add the next step here.</p> : (
+      {tasks.length > 0 && <p className={META} title="The project's own tasks, and tasks in any domain marked for it">{open.length} open</p>}
+      {tasks.length === 0 ? <p className={META}>No tasks yet. Jobs this project runs add the next step here.</p> : (
         <ul className="mt-1 divide-y divide-border-subtle">{tasks.map((t, i) => (
           <li key={`${t.id ?? i}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-2">
             <span title={t.text} className={`min-w-0 flex-1 basis-48 line-clamp-2 break-words text-[15px] ${t.done ? "text-text-muted line-through" : "text-text-primary"}`}>{t.text}</span>
@@ -532,7 +532,7 @@ function Calendar({ vaultPath, m }: { vaultPath: string; m: Mission }) {
   const attendees = who.split(",").map((x) => x.trim()).filter(Boolean);
   return (
     <section data-testid="mission-calendar">
-      <p className={META}>Events that match the mission count on their own. A hold on your calendar waits for your yes; an event with other people stays a draft you send.</p>
+      <p className={META}>Events that match the project count on their own. A hold on your calendar waits for your yes; an event with other people stays a draft you send.</p>
       {ev.length === 0 ? null : (
         <ul className="mt-3 divide-y divide-border-subtle">{ev.map((e) => {
           const p = pending.get(e.event);
@@ -677,8 +677,8 @@ function Setup({ vaultPath, m }: { vaultPath: string; m: Mission }) {
         <label className="block"><span className={fieldLabel}>Ceiling</span>
           <select aria-label="Ceiling" value={m.ceiling} onChange={(e) => void set("ceiling", e.target.value)} className={inputCls}>{CEILINGS.map((c) => <option key={c} value={c}>{c.replace("-", " ")}</option>)}</select></label>
       </div>
-      <p className={META}>The ceiling only tightens: a read mission never drafts, and acting, sending, spending or anything touching other people always asks you.</p>
-      <p className={META} data-testid="mission-telegram">Practice and spends told on the phone or Telegram that name this mission count here (practice goes here on its own when it is your only learning mission). On Telegram, /m {m.slug} pins a chat to it.</p>
+      <p className={META}>The ceiling only tightens: a read project never drafts, and acting, sending, spending or anything touching other people always asks you.</p>
+      <p className={META} data-testid="mission-telegram">Practice and spends told on the phone or Telegram that name this project count here (practice goes here on its own when it is your only learning project). On Telegram, /m {m.slug} pins a chat to it.</p>
       <div className="grid gap-4 sm:grid-cols-3">
         {text("budget-usd", "Budget ($)", m.budget.total_usd != null ? String(m.budget.total_usd) : "", "none")}
         {text("hours-wk", "Hours a week", m.budget.hours_wk != null ? String(m.budget.hours_wk) : "", "none")}
@@ -724,7 +724,7 @@ function Progress({ vaultPath, m }: { vaultPath: string; m: Mission }) {
       </div>
       <div>
         <h3 className={SECTION_TITLE}>Metrics</h3>
-        {props.length === 0 ? <p className={`${META} mt-1`}>Nothing to propose for this kind of mission yet.</p> : (
+        {props.length === 0 ? <p className={`${META} mt-1`}>Nothing to propose for this kind of project yet.</p> : (
           <ul className="mt-2 divide-y divide-border-subtle">{props.map((p) => (
             <li key={p.key} data-testid="mission-metric" className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-2">
               <span className="min-w-0 flex-1 basis-48"><span className="block break-words text-[15px] text-text-primary">{p.title}</span><span title={p.why} className={`${META} block line-clamp-2 break-words`}>{p.why}</span></span>

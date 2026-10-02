@@ -62,7 +62,7 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
           {x.due && <span aria-hidden> · </span>}
           {x.kind === "commitment" && <span>Promise{x.person ? ` to ${label(x.person.split("/").pop() ?? "")}` : ""} · </span>}
           {x.kind === "waiting" && <span>Waiting{x.person ? ` on ${label(x.person.split("/").pop() ?? "")}` : ""} · </span>}
-          {x.kind === "mission" && <span data-testid="today-mission-chip">Mission · </span>}
+          {x.kind === "mission" && <span data-testid="today-mission-chip">Project · </span>}
           <span data-testid="today-thread" className="min-w-0 truncate">{shortThread(x.thread, x.unlinked)}</span>
         </p>
       </div>
@@ -317,7 +317,7 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
       )}
       {card.missions && card.missions.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-missions">
-          <h3 className={SECTION_TITLE}>Missions</h3>
+          <h3 className={SECTION_TITLE}>Projects</h3>
           <ul>{card.missions.map((m) => <li key={m} title={m} className={`${BODY} line-clamp-2 break-words py-1 text-text-secondary`}>{m}</li>)}</ul>
         </div>
       )}

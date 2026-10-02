@@ -67,7 +67,7 @@ export type PeriodSel = { kind: "week" | "day"; key: string };
 
 export type MirrorView = "noticed" | "history" | "projects" | "entities" | "metrics" | "capture";
 const VIEWS: { id: MirrorView; label: string }[] = [
-  { id: "noticed", label: "Noticed" }, { id: "history", label: "History" }, { id: "projects", label: "Prompt projects" }, { id: "entities", label: "Entities" }, { id: "metrics", label: "Metrics" },
+  { id: "noticed", label: "Noticed" }, { id: "history", label: "History" }, { id: "projects", label: "Prompt groups" }, { id: "entities", label: "Entities" }, { id: "metrics", label: "Metrics" },
 ];
 const VIEW_KEY = "prevail.mirror.view";
 const FOCUS_KEY = "prevail.intent.focus";
@@ -628,7 +628,7 @@ function SpentOn({ projects, title, onProject }: { projects: PeriodProject[]; ti
           return (
             <li key={p.slug || "other"}>
               {p.slug ? (
-                <button onClick={() => onProject(p.slug)} title={`Open ${p.title} in Prompt projects`} className="flex w-full items-center gap-3 py-2.5 text-left hover:[&>span:first-child]:text-accent">{row}</button>
+                <button onClick={() => onProject(p.slug)} title={`Open ${p.title} in Prompt groups`} className="flex w-full items-center gap-3 py-2.5 text-left hover:[&>span:first-child]:text-accent">{row}</button>
               ) : <div className="flex items-center gap-3 py-2.5">{row}</div>}
             </li>
           );

@@ -136,13 +136,13 @@ test.describe("drag a specialist into the chat", () => {
   });
 });
 
-const DRAFT1 = { draft: { name: "Learn the cello", outcome: "Play one piece for the family", owner: "hobbies", specialists: ["coach", "researcher"] }, filled: ["name", "outcome", "owner", "specialists"], dropped: [], question: "By when would you like to play it?", reply: "A cello mission in Hobbies, with the Coach and the Researcher. By when would you like to play it?", ready: false, missing: ["target"], go: false };
+const DRAFT1 = { draft: { name: "Learn the cello", outcome: "Play one piece for the family", owner: "hobbies", specialists: ["coach", "researcher"] }, filled: ["name", "outcome", "owner", "specialists"], dropped: [], question: "By when would you like to play it?", reply: "A cello project in Hobbies, with the Coach and the Researcher. By when would you like to play it?", ready: false, missing: ["target"], go: false };
 const DRAFT2 = { ...DRAFT1, draft: { ...DRAFT1.draft, target: "2027-06-30", budgetUsd: 1500 }, filled: ["target", "budgetUsd"], question: null, reply: "June 30, about $1,500. Say go when you want it started, or keep adding details.", ready: true, missing: [] };
 const DRAFT3 = { ...DRAFT2, filled: [], reply: "Starting it.", go: true };
 
-test.describe("a mission by talking", () => {
+test.describe("a project by talking", () => {
   for (const width of [390, 768, 1280, 1920]) {
-    test(`New mission opens as a chat, drafts the fields, starts only on go (${width})`, async ({ page }) => {
+    test(`New project opens as a chat, drafts the fields, starts only on go (${width})`, async ({ page }) => {
       await home(page, width, { engine_missions_draft: DRAFT1, engine_missions_create_from_draft: { slug: "learn-the-cello", name: "Learn the cello" } });
       await fire(page, "prevail:work-section", "missions");
       await expect(page.getByTestId("missions-page")).toBeVisible({ timeout: 10_000 });
@@ -182,7 +182,7 @@ test.describe("a mission by talking", () => {
       // The fields, prefilled from the chat; back to the chat keeps it all.
       await page.getByTestId("mission-mode-fields").click();
       const form = page.getByTestId("mission-new-form");
-      await expect(form.getByLabel("Mission name")).toHaveValue("Learn the cello");
+      await expect(form.getByLabel("Project name")).toHaveValue("Learn the cello");
       await expect(form.getByLabel("Target date")).toHaveValue("2027-06-30");
       await expect(form.getByLabel("Budget")).toHaveValue("1500");
       await shot(page, "mission-fields");
@@ -204,7 +204,7 @@ test.describe("a mission by talking", () => {
     await fire(page, "prevail:work-section", "missions");
     await page.getByTestId("mission-new").click();
     await page.getByTestId("mission-mode-fields").click();
-    await page.getByTestId("mission-new-form").getByLabel("Mission name").fill("Kitchen remodel");
+    await page.getByTestId("mission-new-form").getByLabel("Project name").fill("Kitchen remodel");
     await page.getByTestId("mission-create").click();
     await expect.poll(async () => (await calls(page, "engine_missions_create")).length).toBe(1);
     expect(await page.evaluate(() => localStorage.getItem("prevail.missions.newMode"))).toBe("fields");
