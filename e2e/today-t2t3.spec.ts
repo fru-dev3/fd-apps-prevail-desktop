@@ -6,6 +6,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
+/** Today and the weekly review live in the Inbox's Briefing tab (Home is the chat). */
+async function openBriefing(page: Page, which: "today" | "week" = "today") {
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "inbox" })));
+  await page.getByTestId("tab-briefing").click({ timeout: 15_000 });
+  await page.getByTestId(`briefing-${which}`).click();
+  await page.getByTestId(which === "today" ? "today-card" : "review-card").waitFor({ timeout: 15_000 });
+}
+
+
 const TODAY = {
   date: "2026-10-01", generated: 1, calm: null,
   items: [{ key: "task:foo:p1", kind: "commitment", title: "Send the foo deck", domain: "foo", due: "2026-10-02", person: "person/sam-rivera", thread: ["Foo"], unlinked: true, why: "due in 1 day, a promise to someone, nothing done on it yet", score: 1, ref: { domain: "foo", id: "p1" } }],
@@ -85,6 +94,7 @@ for (const width of [390, 768, 1280, 1920]) {
   test.describe(`today T2 T3 · ${width}`, () => {
     test("Today: promises this week, added from mail with Undo, and the radar behind and N more", async ({ page }) => {
       await setup(page, width);
+      await openBriefing(page);
       const card = page.getByTestId("today-card");
       await expect(card).toBeVisible({ timeout: 15_000 });
       const p = card.getByTestId("today-promises");
@@ -105,6 +115,7 @@ for (const width of [390, 768, 1280, 1920]) {
 
     test("the weekly card: a promise from mail to say yes to, and everything falling behind", async ({ page }) => {
       await setup(page, width);
+      await openBriefing(page, "week");
       const rc = page.getByTestId("review-card");
       await expect(rc).toBeVisible({ timeout: 15_000 });
       await expect(rc.getByTestId("review-commitment")).toContainText("I'll call the bar office next week.");
@@ -134,7 +145,7 @@ for (const width of [390, 768, 1280, 1920]) {
 
 test("a promise told in chat: a receipt with Undo, live and from the saved thread", async ({ page }) => {
   await setup(page, 1280);
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: "foo" })));
   const box = page.locator("[data-tour=composer] textarea").first();
   await expect(box).toBeVisible({ timeout: 10_000 });

@@ -6,6 +6,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
+/** Today and the weekly review live in the Inbox's Briefing tab (Home is the chat). */
+async function openBriefing(page: Page, which: "today" | "week" = "today") {
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "inbox" })));
+  await page.getByTestId("tab-briefing").click({ timeout: 15_000 });
+  await page.getByTestId(`briefing-${which}`).click();
+  await page.getByTestId(which === "today" ? "today-card" : "review-card").waitFor({ timeout: 15_000 });
+}
+
+
 const N = (lo: number, hi: number) => ({ lo, hi, learning: false });
 const REVIEW = {
   week: "2026-09-28", through: "2026-10-02", due: true, checkin: null, calmNormal: 4,
@@ -72,6 +81,7 @@ for (const width of [390, 768, 1280, 1920]) {
   test.describe(`metrics M4 · ${width}`, () => {
     test("the review card asks the ladder, the WHO-5 and one hypothesis; a guardrail and a paused row", async ({ page }) => {
       await setup(page, width);
+      await openBriefing(page, "week");
       const r = page.getByTestId("review-card");
       await expect(r).toBeVisible({ timeout: 15_000 });
       await expect(r.getByTestId("review-paused")).toHaveText("paused for Foo Valley trip");

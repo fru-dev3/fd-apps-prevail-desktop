@@ -21,19 +21,29 @@ const accentLink = "inline-flex items-center gap-1.5 text-[13px] font-medium tex
 
 function openSection(id: string) { window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: id })); }
 
-/** The Home landing: Today, then the weekly review when it is due. Null until the engine has answered with something to show. */
-export function TodayHome({ vaultPath, phone, onAsk, fallback }: { vaultPath: string; phone: boolean; onAsk: (text: string) => void; fallback: React.ReactNode }) {
+/** Home is the chat (Fru, 2026-10-02: "just focus on the chat"); briefings live in the Inbox. */
+export function TodayHome({ fallback }: { vaultPath: string; phone: boolean; onAsk: (text: string) => void; fallback: React.ReactNode }) {
+  return <>{fallback}</>;
+}
+
+/** The Inbox's Briefing: Today, or the weekly review. */
+export function Briefing({ which, vaultPath, phone, onAsk }: { which: "today" | "week"; vaultPath: string; phone: boolean; onAsk?: (text: string) => void }) {
   const today = useInvokeQuery<TodayCard>("engine_today", { vault: vaultPath, refresh: null }, { staleMs: 5 * 60_000 });
   const review = useInvokeQuery<ReviewCard>("engine_review", { vault: vaultPath }, { staleMs: 10 * 60_000 });
   const t = today.data && typeof today.data === "object" && Array.isArray(today.data.items) ? today.data : null;
   const r = review.data && typeof review.data === "object" && review.data.lines ? review.data : null;
-  if (!t && !r) return <>{fallback}</>;
+  // Asking from the Inbox opens Home's chat with the text in the composer.
+  const ask = onAsk ?? ((text: string) => {
+    window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: "" }));
+    setTimeout(() => window.dispatchEvent(new CustomEvent("prevail:compose", { detail: text })), 50);
+  });
   return (
-    <div data-testid="today-home" className={`mx-auto w-full max-w-3xl ${phone ? "px-4 py-4" : "px-6 py-8"}`}>
-      {/* Desktop Home stays clean: the chat composer below already files anything said to it. */}
-      {phone && <TellBox vaultPath={vaultPath} surface="phone" />}
-      {t && <TodayCardView card={t} vaultPath={vaultPath} onChanged={() => void today.refresh()} />}
-      {r && (r.due || !t) && <div className={t ? "mt-10" : ""}><ReviewCardView card={r} vaultPath={vaultPath} onAsk={onAsk} onChanged={() => { invalidateQueries("engine_review"); void review.refresh(); }} /></div>}
+    <div data-testid="today-home" className="w-full">
+      {phone && which === "today" && <TellBox vaultPath={vaultPath} surface="phone" />}
+      {which === "today" && (t ? <TodayCardView card={t} vaultPath={vaultPath} onChanged={() => void today.refresh()} />
+        : <p className={`${META}`}>{today.loading ? "Reading your day" : "Nothing for today yet."}</p>)}
+      {which === "week" && (r ? <ReviewCardView card={r} vaultPath={vaultPath} onAsk={ask} onChanged={() => { invalidateQueries("engine_review"); void review.refresh(); }} />
+        : <p className={`${META}`}>{review.loading ? "Reading your week" : "No weekly review yet."}</p>)}
     </div>
   );
 }
