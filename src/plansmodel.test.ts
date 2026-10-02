@@ -78,3 +78,29 @@ describe("Goals G3 job chips", () => {
     expect(RULE_STATE_LABEL.unchecked).toBe("The Steward judges it");
   });
 });
+
+import { draftOf, editOf, loosens, scopeLabel, type Specialist } from "./plansmodel";
+
+const SPEC: Specialist = { id: "researcher", name: "Researcher", icon: "search", family: "know", returns: "findings", ceiling: "read", tools: ["web", "vault-read"], apps: [], runtime: "deep", budget: { minutes: 6, usd: 0.4, passes: 2 }, handoff: "offer", doneWhen: ["every claim has a source"], mandate: "A foo answer.", method: "1. Read.", never: "Guess.", on: true, builtIn: true };
+
+describe("specialist editing", () => {
+  test("an untouched draft is an empty edit; a change sends only what changed", () => {
+    expect(editOf(SPEC, draftOf(SPEC))).toEqual({});
+    const d = { ...draftOf(SPEC), minutes: "3", doneWhen: "every claim has a source\n\nthe answer comes first", tools: ["vault-read"] };
+    expect(editOf(SPEC, d)).toEqual({ budget: { minutes: 3, usd: 0.4, passes: 2 }, doneWhen: ["every claim has a source", "the answer comes first"], tools: ["vault-read"] });
+  });
+  test("bad numbers and an empty mandate are caught before the engine", () => {
+    expect(editOf(SPEC, { ...draftOf(SPEC), passes: "9" })).toMatch(/Passes/);
+    expect(editOf(SPEC, { ...draftOf(SPEC), mandate: " " })).toMatch(/mandate/);
+  });
+  test("a domain may only tighten", () => {
+    expect(loosens(SPEC, { ceiling: "draft" })).toMatch(/Read or lower/);
+    expect(loosens({ ...SPEC, tools: ["vault-read"] }, { tools: ["web"] })).toMatch(/Web is not one of its own/);
+    expect(loosens(SPEC, { ceiling: "read", tools: ["web"] })).toBeNull();
+  });
+  test("a mission scope reads as words, never a slug", () => {
+    expect(scopeLabel("mission/oca")).toBe("Mission OCA");
+    expect(scopeLabel("mission/foo-house")).toBe("Mission Foo House");
+    expect(scopeLabel("real-estate")).toBe("Real Estate");
+  });
+});

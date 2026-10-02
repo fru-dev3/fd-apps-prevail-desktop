@@ -59,7 +59,7 @@ const DECISIONS = [
 ];
 const FIX = {
   engine_today: TODAY, engine_review: REVIEW, engine_job_show: JOB_VIEW, engine_jobs: [JOB, { ...JOB, id: "b-job", ask: "Plan the foo move", status: "proposed", startsAlone: false, askReason: "over your limit of $1 and 10 minutes" }],
-  engine_specialists: SPECIALISTS, engine_specialist_show: { notebooks: [{ domain: "insurance", lines: 2, notes: false }] }, engine_decisions: DECISIONS,
+  engine_specialists: SPECIALISTS, engine_specialist_show: { spec: { ...SPECIALISTS[0], method: "1. Read the domain context first.\n2. Search the web for primary sources.\n3. Lead with the answer.", never: "Guess a number or a source." }, notebooks: [{ domain: "insurance", lines: 2, notes: false }, { domain: "mission/oca", lines: 1, notes: true }] }, engine_decisions: DECISIONS,
   engine_today_tap: TODAY, engine_review_checkin: { ok: true }, engine_review_candidate: { ok: true }, engine_job_undo: { ok: true }, engine_chief_set: { ok: true },
   engine_decision_action: { ok: true }, engine_metric_proposals: REVIEW.metricProposals, engine_metric_answer: { ok: true },
   chief_of_staff_read: "---\nname: Foo\nhandoff: auto\n---\n\n## Limits\n- usd: 1\n- minutes: 10\n\n## Never pull in\n- health\n\n## What I've learned\n- insurance jobs: skip the scout\n",
@@ -194,6 +194,54 @@ test("Specialists: families, a specialist's ceiling and notebooks, the chief of 
   await expect.poll(async () => (await calls(page, "engine_chief_set"))[0]).toEqual({ vault: "/tmp/smoke-vault", key: "handoff", value: "offer" });
 });
 
+test("Specialists: Edit saves the specialist in place; a ceiling raise asks first; Reset and a domain's tighten-only instructions", async ({ page }) => {
+  await setup(page, 1280, {
+    engine_specialists: SPECIALISTS.map((s) => (s.id === "researcher" ? { ...s, source: "build/specialists/researcher.md" } : s)),
+    engine_specialist_reset: { ok: true, moved: "build/specialists/.versions/researcher.x.md" },
+    engine_specialist_domain_save: { ok: true },
+  });
+  // Answers that depend on the call: installed in the page (functions do not cross addInitScript).
+  await page.evaluate((spec) => {
+    const fx = (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures;
+    fx.engine_specialist_show = (a: { domain?: string | null }) => a.domain
+      ? { spec: { ...spec, tools: ["vault-read"] }, notes: "Prefer foo sources.", notebook: ["2026-09-30: Rating is the tiebreak"] }
+      : { spec: { ...spec, method: "1. Read the domain first.", never: "Guess a number." }, notebooks: [{ domain: "insurance", lines: 1, notes: true }] };
+    fx.engine_specialist_save = (a: { confirmRaise?: boolean; edit: { ceiling?: string } }) => (a.edit.ceiling && !a.confirmRaise ? { ok: false, needsConfirm: true, error: "This raises Researcher's ceiling above read. Confirm to save." } : { ok: true });
+  }, SPECIALISTS[0]);
+  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await fire(page, "prevail:work-section", "specialists");
+  await page.getByTestId("specialists-row-spec:researcher").click();
+  const d = page.getByTestId("specialist-detail");
+  await expect(d).toContainText("Your version");
+  await expect(d.getByTestId("specialist-ceiling")).toHaveText("Reads only");
+  await d.getByTestId("specialist-edit").click();
+  const ed = d.getByTestId("specialist-editor");
+  await expect(ed.getByTestId("spec-edit-method")).toHaveValue("1. Read the domain first.");
+  await ed.getByTestId("spec-edit-minutes").fill("4");
+  await ed.getByRole("button", { name: "Draft" }).click();
+  await ed.getByTestId("spec-save").click();
+  await expect(ed.getByTestId("spec-confirm")).toContainText("raises Researcher's ceiling");
+  await ed.getByTestId("spec-confirm-raise").click();
+  await expect.poll(async () => (await calls(page, "engine_specialist_save")).length).toBe(2);
+  const [first, second] = await calls(page, "engine_specialist_save");
+  expect(first).toMatchObject({ id: "researcher", edit: { ceiling: "draft", budget: { minutes: 4, usd: 0.4, passes: 2 } }, confirmRaise: false });
+  expect(second).toMatchObject({ confirmRaise: true });
+  await expect(d.getByTestId("specialist-msg")).toContainText("Saved");
+  // Reset to built-in from the menu.
+  await d.getByRole("button", { name: "More actions" }).first().click();
+  await page.getByRole("menuitem", { name: /Reset to built-in/ }).click();
+  await expect.poll(async () => (await calls(page, "engine_specialist_reset"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "researcher" });
+  // A domain's instructions: tighten only, the higher ceilings are not offered.
+  await d.getByTestId("specialist-notebooks").getByRole("button", { name: /Insurance/ }).click();
+  const dom = d.getByTestId("specialist-domain");
+  await expect(dom).toContainText("Prefer foo sources.");
+  await dom.getByTestId("specialist-domain-edit").click();
+  await expect(dom.getByRole("button", { name: "Draft" })).toBeDisabled();
+  await dom.getByTestId("spec-domain-notes").fill("Prefer bar sources.");
+  await dom.getByTestId("spec-domain-save").click();
+  await expect.poll(async () => (await calls(page, "engine_specialist_domain_save"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "researcher", domain: "insurance", edit: { ceiling: "read", tools: ["vault-read"], notes: "Prefer bar sources." } });
+});
+
 test("Decisions: the gut call comes before the recommendation", async ({ page }) => {
   await setup(page, 1280);
   await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
@@ -247,6 +295,14 @@ for (const width of [390, 768, 1280, 1920]) {
     await noOverflow(page);
     if (SHOTS) { await page.screenshot({ path: `${SHOTS}/decisions-${width}.png` }); }
     await fire(page, "prevail:work-section", "specialists");
+    await page.evaluate(() => { localStorage.setItem("prevail.specialists.focus", "spec:researcher"); window.dispatchEvent(new Event("prevail:specialists-focus")); });
+    await expect(page.getByTestId("specialist-detail")).toBeVisible({ timeout: 10_000 });
+    await noOverflow(page);
+    if (SHOTS) { await page.waitForTimeout(300); await page.screenshot({ path: `${SHOTS}/specialist-${width}.png`, fullPage: true }); }
+    await page.getByTestId("specialist-edit").click();
+    await expect(page.getByTestId("specialist-editor")).toBeVisible();
+    await noOverflow(page);
+    if (SHOTS) { await page.screenshot({ path: `${SHOTS}/specialist-edit-${width}.png`, fullPage: true }); }
     await page.evaluate(() => { localStorage.setItem("prevail.specialists.focus", "setup"); window.dispatchEvent(new Event("prevail:specialists-focus")); });
     await expect(page.getByTestId("chief-setup")).toBeVisible({ timeout: 10_000 });
     await noOverflow(page);

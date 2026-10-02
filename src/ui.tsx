@@ -167,3 +167,15 @@ export function ThinkingDisclosure({ text, open }: { text: string; open?: boolea
     </details>
   );
 }
+
+// Status as a small dot and a word, never a pill.
+const DOT_TONE = { ok: "bg-ok", warn: "bg-warn", err: "bg-err", accent: "bg-accent", muted: "bg-text-muted/50" } as const;
+export type DotTone = keyof typeof DOT_TONE;
+export function StatusDot({ tone, label, className = "" }: { tone: DotTone; label: string; className?: string }) {
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1.5 text-[12px] text-text-muted ${className}`}>
+      <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${DOT_TONE[tone]}`} />
+      {label}
+    </span>
+  );
+}

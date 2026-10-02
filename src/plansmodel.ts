@@ -116,6 +116,65 @@ export interface Specialist {
   id: string; name: string; icon: string; family: "know" | "decide" | "do" | "grow" | "deliver"; returns: string;
   ceiling: string; tools: string[]; apps: string[]; runtime: string; budget: { minutes: number; usd: number; passes: number };
   handoff: string; doneWhen: string[]; mandate: string; on: boolean; builtIn: boolean; source?: string;
+  /** Only from `specialists show`: the rest of the system prompt. */
+  method?: string; never?: string; lens?: string;
+}
+
+// ── Editing a specialist (the engine enforces all of this again) ──
+export const CEILINGS = ["read", "write-vault", "draft", "act-ask", "act"] as const;
+export const CEILING_LABEL: Record<string, string> = { read: "Read", "write-vault": "Write vault", draft: "Draft", "act-ask": "Ask, then act", act: "Act" };
+/** What a ceiling lets a specialist do, as a sentence fragment for the view. */
+export const CEILING_SAYS: Record<string, string> = { read: "Reads only", "write-vault": "Writes to your vault", draft: "Drafts, never sends", "act-ask": "Acts after your yes", act: "Acts alone" };
+export const SPECIALIST_TOOLS: { id: string; label: string }[] = [{ id: "web", label: "Web" }, { id: "vault-read", label: "Vault" }];
+export const HANDOFF_LABEL: Record<string, string> = { off: "Only when named", offer: "Offers first", auto: "Starts alone" };
+export const RUNTIME_LABEL: Record<string, string> = { fast: "Fast", standard: "Standard", deep: "Deep" };
+export const ceilingRank = (c: string) => Math.max(0, (CEILINGS as readonly string[]).indexOf(c));
+export const toolLabel = (t: string) => SPECIALIST_TOOLS.find((x) => x.id === t)?.label ?? label(t);
+
+export interface SpecialistDraft {
+  mandate: string; method: string; never: string; tools: string[]; apps: string[]; ceiling: string;
+  minutes: string; usd: string; passes: string; handoff: string; runtime: string; doneWhen: string;
+}
+export function draftOf(s: Specialist): SpecialistDraft {
+  return {
+    mandate: s.mandate, method: s.method ?? "", never: s.never ?? "", tools: [...s.tools], apps: [...s.apps], ceiling: s.ceiling,
+    minutes: String(s.budget.minutes), usd: String(s.budget.usd), passes: String(s.budget.passes), handoff: s.handoff, runtime: s.runtime,
+    doneWhen: s.doneWhen.join("\n"),
+  };
+}
+/** The edit the engine gets: only what changed. A string is the first problem found. */
+export function editOf(s: Specialist, d: SpecialistDraft): Record<string, unknown> | string {
+  const out: Record<string, unknown> = {};
+  if (!d.mandate.trim()) return "Say what it is for (the mandate).";
+  const m = Number(d.minutes), u = Number(d.usd), p = Number(d.passes);
+  if (!(m > 0 && m <= 120)) return "Minutes run from 1 to 120.";
+  if (!(u >= 0 && u <= 50)) return "Dollars run from 0 to 50.";
+  if (!(Number.isInteger(p) && p >= 1 && p <= 5)) return "Passes run from 1 to 5.";
+  if (d.mandate.trim() !== s.mandate.trim()) out.mandate = d.mandate;
+  if (d.method.trim() !== (s.method ?? "").trim()) out.method = d.method;
+  if (d.never.trim() !== (s.never ?? "").trim()) out.never = d.never;
+  if (d.tools.join() !== s.tools.join()) out.tools = d.tools;
+  if (d.apps.join() !== s.apps.join()) out.apps = d.apps;
+  if (d.ceiling !== s.ceiling) out.ceiling = d.ceiling;
+  if (d.handoff !== s.handoff) out.handoff = d.handoff;
+  if (d.runtime !== s.runtime) out.runtime = d.runtime;
+  if (m !== s.budget.minutes || u !== s.budget.usd || p !== s.budget.passes) out.budget = { minutes: m, usd: u, passes: p };
+  const done = d.doneWhen.split("\n").map((x) => x.trim()).filter(Boolean);
+  if (done.join("\n") !== s.doneWhen.join("\n")) out.doneWhen = done;
+  return out;
+}
+/** Why a domain's instructions would loosen the specialist, or null. In a domain it may only tighten. */
+export function loosens(s: Pick<Specialist, "ceiling" | "tools" | "apps">, e: { ceiling?: string; tools?: string[]; apps?: string[] }): string | null {
+  if (e.ceiling && ceilingRank(e.ceiling) > ceilingRank(s.ceiling)) return `Its ceiling here must be ${CEILING_LABEL[s.ceiling]} or lower.`;
+  const extra = [...(e.tools ?? []).filter((t) => !s.tools.includes(t)), ...(e.apps ?? []).filter((a) => !s.apps.includes(a))];
+  return extra.length ? `${extra.map(toolLabel).join(", ")} is not one of its own.` : null;
+}
+
+/** Where a job or run lives, in words: "mission/oca" reads "Mission OCA", a domain slug its name. */
+export function scopeLabel(owner: string): string {
+  const m = /^mission\/(.+)$/.exec(owner ?? "");
+  if (m) return `Mission ${m[1]!.length <= 4 ? m[1]!.toUpperCase() : label(m[1]!)}`;
+  return label(owner || "general");
 }
 
 export interface DecisionRecord {
@@ -275,4 +334,12 @@ export const RULE_STATE_LABEL: Record<RuleStateName, string> = { ok: "Holding", 
 export function compassChips(c: JobCompass | undefined): { serves: string[]; watch: string[]; rules: { title: string; state: RuleStateName }[] } {
   if (!c) return { serves: [], watch: [], rules: [] };
   return { serves: c.serves.map((x) => x.title), watch: c.costs.map((x) => x.title), rules: c.rules.map((r) => ({ title: r.title, state: r.state })) };
+}
+
+/** The tone of a job's status dot. */
+export function jobTone(j: Pick<Job, "status" | "startsAlone">): "ok" | "warn" | "err" | "accent" | "muted" {
+  if (j.status === "running") return "accent";
+  if (j.status === "proposed" || j.status === "needs-approval") return "warn";
+  if (j.status === "done") return "ok";
+  return j.status === "failed" ? "err" : "muted";
 }
