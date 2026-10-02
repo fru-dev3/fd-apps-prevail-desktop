@@ -44,3 +44,72 @@ pub(crate) async fn engine_pack_install(vault: String, id: String, only: Option<
 pub(crate) async fn engine_pack_uninstall(vault: String, id: String) -> Result<serde_json::Value, String> {
     blocking(v(&["--vault", &vault, "packs", "uninstall", ok_id(&id)?])).await
 }
+
+// ── Goals G5: over a lifetime, and beyond one person ───────────────────────
+
+/// Every value and role over the years (from the Compass versions and ledger).
+#[tauri::command]
+pub(crate) async fn engine_compass_history(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "history"])).await
+}
+
+/// The yearly review page; draft lets a model sketch the odyssey lives from the notes (quotes checked in code).
+#[tauri::command]
+pub(crate) async fn engine_compass_yearly(vault: String, draft: Option<bool>, write: Option<bool>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "compass", "yearly"]);
+    if draft == Some(true) { a.push("--draft".into()); }
+    if write == Some(true) { a.push("--write".into()); }
+    blocking(a).await
+}
+
+/// Fresh starts on today (new year, birthday, a new quarter, a move or a new job).
+#[tauri::command]
+pub(crate) async fn engine_compass_fresh(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "fresh"])).await
+}
+
+/// The confirmed Compass as a constitution any AI can read (build/exports/).
+#[tauri::command]
+pub(crate) async fn engine_compass_export(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "export"])).await
+}
+
+/// The household: members and consent, shared goals, conflicts (nothing unconsented is read).
+#[tauri::command]
+pub(crate) async fn engine_household(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "household", "list"])).await
+}
+
+#[tauri::command]
+pub(crate) async fn engine_household_add(vault: String, name: String, relation: Option<String>) -> Result<serde_json::Value, String> {
+    let n: String = name.chars().take(60).collect();
+    if n.trim().is_empty() { return Err("a member needs a name".into()); }
+    let mut a = v(&["--vault", &vault, "compass", "household", "add", "--name", &n]);
+    if let Some(r) = relation.filter(|r| !r.trim().is_empty()) { a.push("--relation".into()); a.push(r.chars().take(30).collect()); }
+    blocking(a).await
+}
+
+/// Consent per person: on needs the member's own name typed (checked by the engine); off always works.
+#[tauri::command]
+pub(crate) async fn engine_household_consent(vault: String, id: String, scope: String, on: bool, confirm: Option<String>) -> Result<serde_json::Value, String> {
+    let sc = one_of(&scope, &["compass", "metrics"])?.to_string();
+    let mut a = v(&["--vault", &vault, "compass", "household", "consent", ok_id(&id)?, &sc, if on { "on" } else { "off" }]);
+    if let Some(c) = confirm.filter(|c| !c.trim().is_empty()) { a.push("--confirm".into()); a.push(c.chars().take(60).collect()); }
+    blocking(a).await
+}
+
+#[tauri::command]
+pub(crate) async fn engine_household_remove(vault: String, id: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "household", "remove", ok_id(&id)?])).await
+}
+
+#[tauri::command]
+pub(crate) async fn engine_household_shared_add(vault: String, title: String, members: Vec<String>, hours: Option<f64>) -> Result<serde_json::Value, String> {
+    let t: String = title.chars().take(140).collect();
+    if t.trim().is_empty() { return Err("a shared goal needs a title".into()); }
+    let ms: Result<Vec<&str>, String> = members.iter().map(|m| ok_id(m)).collect();
+    let joined = ms?.join(",");
+    let mut a = v(&["--vault", &vault, "compass", "household", "shared", "add", "--title", &t, "--members", &joined]);
+    if let Some(h) = hours.filter(|h| *h > 0.0 && *h < 200.0) { a.push("--hours".into()); a.push(format!("{h}")); }
+    blocking(a).await
+}

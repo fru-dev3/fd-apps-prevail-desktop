@@ -12,7 +12,9 @@
 //   Goals    each domain's goals (source/goals.md), as the Goals page had them.
 //   Ideals   the constitution, Omega and every domain's ideal state.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Check, CheckCheck, Compass, Eye, Flag, GitFork, History, LayoutList, Link2, Loader2, MessageSquare, Milestone, Repeat, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
+import { CalendarHeart, Check, CheckCheck, Compass, Download, Eye, Flag, GitFork, History, Home, LayoutList, Link2, Loader2, MessageSquare, Milestone, Package, Repeat, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
+import { Household, ValueRoleHistory, YearlyReview, exportCompass } from "./compasslife";
+import { PacksView } from "./specialistnew";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
@@ -33,7 +35,7 @@ import { ChainView, chainBits, linkAction, notLinkedLine, useChainLinks, useChai
 import { RowMenu, REVEAL } from "./ui";
 
 type View = "compass" | "goals" | "ideals";
-type Sel = "overview" | "chain" | "mission" | "values" | "statement" | "vision" | "objectives" | "roles" | "goals" | "rules" | "routines" | "history";
+type Sel = "overview" | "chain" | "mission" | "values" | "statement" | "vision" | "objectives" | "roles" | "goals" | "rules" | "routines" | "history" | "yearly" | "household" | "packs";
 export const COMPASS_FOCUS_KEY = "prevail.compass.focus";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -70,6 +72,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const [picked, setPicked] = useState(false);
   const [text, setText] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -177,7 +180,11 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       {row("roles", "Roles", Users, roles.length)}
       {row("rules", "Rules", Scale, rules.length + negotiables.length)}
       {row("routines", "Routines", Repeat, routines.length)}
-      {row("history", "History", History)}
+      {row("history", "History", History, undefined, "Values and roles over the years")}
+      <div className="mx-2.5 my-1.5 border-t border-border-subtle" aria-hidden />
+      {row("yearly", "Yearly review", CalendarHeart, undefined, "Three possible lives")}
+      {row("household", "Household", Home, undefined, "Shared goals, with consent")}
+      {row("packs", "Packs", Package, undefined, "Starting lines for your kind of life")}
     </nav>
   );
 
@@ -363,6 +370,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const historyView = (
     <section data-testid="compass-detail-history">
       <h2 className={DETAIL_TITLE}>History</h2>
+      <ValueRoleHistory vaultPath={vaultPath} />
       <h3 className={`${SECTION_TITLE} mt-5 mb-1`}>Changes</h3>
       {ledger.length ? (
         <ul data-testid="compass-ledger">{ledger.slice(0, 60).map((l, i) => (
@@ -387,6 +395,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const detail = (
     <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>
       {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
+      {note && <p className={`${META} mb-3`} data-testid="compass-note">{note}</p>}
       {sel === "overview" && overview}
       {sel === "chain" && (
         <section data-testid="compass-detail-chain">
@@ -421,6 +430,9 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       )}
       {sel === "rules" && <section data-testid="compass-detail-rules"><h2 className={DETAIL_TITLE}>Rules</h2>{section("Non-negotiables", rules, false, "None yet.")}{section("Negotiables", negotiables, false, "None yet.")}<AlignRules vaultPath={vaultPath} /></section>}
       {sel === "history" && historyView}
+      {sel === "yearly" && <YearlyReview vaultPath={vaultPath} />}
+      {sel === "household" && <Household vaultPath={vaultPath} />}
+      {sel === "packs" && <PacksView vaultPath={vaultPath} only="compass" />}
     </div>
   );
 
@@ -429,6 +441,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       <SettingsHeader title="Compass" icon={Compass} subtitle="What you live by, in your own words."
         right={<span className="flex items-center gap-3">
           {view === "compass" && confirmAll}
+          <button onClick={() => void exportCompass(vaultPath).then((m) => setNote(m)).catch((e) => setErr(`Not exported: ${String(e)}`))} title="Export as a constitution any AI can read" aria-label="Export as a constitution any AI can read" data-testid="compass-export" className={iconBtn}><Download className="h-4 w-4" /></button>
           <button onClick={talk} title={`Talk to ${chief ?? "your chief of staff"}`} aria-label={`Talk to ${chief ?? "your chief of staff"}`} className={iconBtn}><MessageSquare className="h-4 w-4" /></button>
         </span>}
         tabs={<SpineTabs label="Compass" value={view} onChange={setView} tabs={[

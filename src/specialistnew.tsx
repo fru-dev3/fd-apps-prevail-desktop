@@ -193,7 +193,8 @@ interface PackRow {
   installed: { specialists: string[]; compass: string[]; metrics: string[] };
 }
 
-export function PacksView({ vaultPath }: { vaultPath: string }) {
+/** All of a pack, or (from the Compass or Metrics) only its Compass lines or its metrics. */
+export function PacksView({ vaultPath, only }: { vaultPath: string; only?: "compass" | "metrics" }) {
   const q = useInvokeQuery<PackRow[]>("engine_packs", { vault: vaultPath }, { staleMs: 30_000 });
   const packs = Array.isArray(q.data) ? q.data : [];
   const [busy, setBusy] = useState<string | null>(null);
@@ -210,13 +211,15 @@ export function PacksView({ vaultPath }: { vaultPath: string }) {
   };
   return (
     <section data-testid="packs-view" className="max-w-3xl">
-      <h2 className={DETAIL_TITLE}>Packs</h2>
-      <p className={`${META} mt-1`}>A starting set for one kind of life or work. Compass lines arrive as suggestions; nothing is yours until you say yes.</p>
+      <h2 className={DETAIL_TITLE}>{only === "compass" ? "Compass packs" : only === "metrics" ? "Metric packs" : "Packs"}</h2>
+      <p className={`${META} mt-1`}>{only === "metrics" ? "Metrics people like you track. They start under Tracking; nothing is pinned for you." : "A starting set for one kind of life or work. Compass lines arrive as suggestions; nothing is yours until you say yes."}</p>
       {msg && <p className={`${META} mt-3`} data-testid="packs-msg">{msg}</p>}
       <ul className="mt-3">
         {packs.map((p) => {
-          const total = p.specialists.length + p.compass.length + p.metrics.track.length + p.metrics.define.length;
-          const have = p.installed.specialists.length + p.installed.compass.length + p.installed.metrics.length;
+          const nMetrics = p.metrics.track.length + p.metrics.define.length;
+          const total = only === "compass" ? p.compass.length : only === "metrics" ? nMetrics : p.specialists.length + p.compass.length + nMetrics;
+          const have = only === "compass" ? p.installed.compass.length : only === "metrics" ? p.installed.metrics.length : p.installed.specialists.length + p.installed.compass.length + p.installed.metrics.length;
+          const what = only === "compass" ? p.compass.map((c) => c.title).join(", ") : only === "metrics" ? [...p.metrics.define.map((m) => m.title), ...p.metrics.track].join(", ") : `${p.specialists.map((s) => s.name).join(", ")} · ${plural(p.compass.length, "Compass line")} · ${plural(nMetrics, "metric")}`;
           const all = have >= total;
           return (
             <li key={p.id} data-testid="pack-row" data-pack={p.id} className="group flex items-start gap-3 border-b border-border-subtle py-3 last:border-b-0">
@@ -224,18 +227,18 @@ export function PacksView({ vaultPath }: { vaultPath: string }) {
               <div className="min-w-0 flex-1">
                 <p className={`${ROW_TITLE} line-clamp-2`}>{p.name}</p>
                 <p className={`${META} mt-0.5 truncate`} title={[...p.specialists.map((s) => `${s.name}: ${s.mandate}`), ...p.compass.map((c) => `${label(c.kind)}: ${c.title}`)].join("\n")}>
-                  {p.who} · {p.specialists.map((s) => s.name).join(", ")} · {plural(p.compass.length, "Compass line")} · {plural(p.metrics.track.length + p.metrics.define.length, "metric")}{have ? ` · ${all ? "added" : `${have} of ${total} added`}` : ""}
+                  {p.who} · {what}{have ? ` · ${all ? "added" : `${have} of ${total} added`}` : ""}
                 </p>
-                <div className="mt-1.5 flex -space-x-1">{p.specialists.map((s) => <SpecialistAvatar key={s.id} id={s.id} size={18} label={s.name} className="rounded-full ring-1 ring-background" />)}</div>
+                {!only && <div className="mt-1.5 flex -space-x-1">{p.specialists.map((s) => <SpecialistAvatar key={s.id} id={s.id} size={18} label={s.name} className="rounded-full ring-1 ring-background" />)}</div>}
               </div>
               <span className="flex shrink-0 items-center gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
-                {!all && <button type="button" disabled={busy === p.id} onClick={() => void act("engine_pack_install", p.id)} data-testid="pack-install" className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-accent hover:bg-accent-soft disabled:opacity-50">{busy === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Add</button>}
-                <RowMenu items={[
+                {!all && <button type="button" disabled={busy === p.id} onClick={() => void act("engine_pack_install", p.id, only)} data-testid="pack-install" className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-accent hover:bg-accent-soft disabled:opacity-50">{busy === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Add</button>}
+                {!only && <RowMenu items={[
                   { icon: Plus, label: "Add only its specialists", onClick: () => void act("engine_pack_install", p.id, "specialists") },
                   { icon: Plus, label: "Add only its Compass lines", hint: "As suggestions", onClick: () => void act("engine_pack_install", p.id, "compass") },
                   { icon: Plus, label: "Add only its metrics", onClick: () => void act("engine_pack_install", p.id, "metrics") },
                   ...(p.installed.specialists.length ? [{ icon: Package, label: "Take its specialists out", hint: "Files are kept", onClick: () => void act("engine_pack_uninstall", p.id) }] : []),
-                ]} />
+                ]} />}
               </span>
             </li>
           );
