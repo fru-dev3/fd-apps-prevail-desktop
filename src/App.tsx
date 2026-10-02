@@ -142,7 +142,6 @@ import {
   MessageSquarePlus,
   ListChecks,
   Blocks,
-  PanelLeft,
   Compass,
   ShieldCheck,
   Power,
@@ -1428,7 +1427,7 @@ export default function App() {
       { id: "act:inbox", label: "Open inbox", group: "Actions", icon: Inbox, keywords: "decisions approvals needs you", run: () => openWorkAt("inbox") },
       { id: "act:tasks", label: "Open tasks", group: "Actions", icon: ListChecks, keywords: "tasks todo work board", run: () => openWorkAt("task-list") },
       { id: "act:apps", label: "Open apps", group: "Actions", icon: Plug, keywords: "apps connectors", run: () => openWorkAt("apps") },
-      { id: "act:toggle-rail", label: "Toggle domain rail", hint: "⌘B", group: "Actions", icon: PanelLeft, keywords: "sidebar hide show", run: () => setSidebarCollapsed((v) => !v) },
+      { id: "act:toggle-rail", label: "Toggle domain rail", hint: "⌘B", group: "Actions", icon: ChevronsLeft, keywords: "sidebar hide show", run: () => setSidebarCollapsed((v) => !v) },
       { id: "act:settings", label: "Open settings", hint: "⌘,", group: "Actions", icon: SettingsIcon, keywords: "preferences config", run: () => setTab("settings") },
     );
     // Navigation to every Work + Editor section.

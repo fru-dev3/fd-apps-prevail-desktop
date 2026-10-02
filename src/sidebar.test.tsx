@@ -22,7 +22,10 @@ import type { Domain, TabId } from "./types";
 
 const domains = [{ name: "health", path: "/v/health" }, { name: "wealth", path: "/v/wealth" }] as unknown as Domain[];
 
-function renderSidebar(tab: TabId = "chat", setTab = vi.fn()) {
+const OPEN = ["workOpen", "missionsOpen", "appsOpen", "domainsOpen"];
+function renderSidebar(tab: TabId = "chat", setTab = vi.fn(), fresh = false) {
+  // A new user sees every section collapsed; most tests open them.
+  for (const k of OPEN) { if (fresh) localStorage.removeItem(`prevail.sidebar.${k}`); else if (localStorage.getItem(`prevail.sidebar.${k}`) === null) localStorage.setItem(`prevail.sidebar.${k}`, "1"); }
   return render(
     <Sidebar collapsed={false} setCollapsed={() => {}} vaultPath="/v" domains={domains} vaultError={null}
       selectedDomain="" setSelectedDomain={() => {}} openInFinder={() => {}} tab={tab} setTab={setTab}
@@ -102,6 +105,21 @@ describe("Sidebar", () => {
     fireEvent.click(screen.getByText("Apps"));
     expect(screen.queryByTestId("sidebar-apps")).toBeNull();
     expect(localStorage.getItem("prevail.sidebar.appsOpen")).toBe("0");
+  });
+
+  it("every section starts collapsed for a new user; the chevron and + wait for a hover", () => {
+    renderSidebar("chat", vi.fn(), true);
+    for (const k of ["work", "projects", "domains"]) {
+      const head = screen.getByTestId(`sidebar-head-${k}`);
+      expect(head.querySelector("[aria-expanded]")!.getAttribute("aria-expanded")).toBe("false");
+      expect(screen.getByTestId(`sidebar-toggle-${k}`).className).toContain("opacity-0");
+      expect(screen.getByTestId(`sidebar-toggle-${k}`).className).toContain("group-hover/h:opacity-100");
+    }
+    expect(screen.getByTestId("sidebar-add-work").className).toContain("[@media(pointer:coarse)]:opacity-100");
+    expect(screen.queryByTestId("sidebar-missions")).toBeNull();
+    fireEvent.click(screen.getByText("Projects"));
+    expect(screen.getByTestId("sidebar-missions")).toBeTruthy();
+    expect(localStorage.getItem("prevail.sidebar.missionsOpen")).toBe("1");
   });
 
   it("search opens the command palette and the gear opens settings", () => {
