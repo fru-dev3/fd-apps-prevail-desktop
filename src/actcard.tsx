@@ -9,8 +9,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Hourglass, Loader2, ShieldAlert, ShieldCheck, Trash2, X } from "lucide-react";
 import { invoke } from "./bridge";
-import { relTime, titleCase } from "./format";
+import { relTime } from "./format";
 import { RowAction } from "./rowaction";
+import { scopeLabel } from "./plansmodel";
 import { announceActsChanged, type PendingAct, useWaitingState } from "./waiting";
 
 export const APPROVED_FOLLOW_UP = "Approved. Go ahead.";
@@ -129,7 +130,7 @@ export function ActApprovalCard({ vaultPath, actId, onFollowUp }: {
           <div className="text-[14px] font-semibold leading-snug text-text-primary">{act.summary}</div>
           <div className="mt-0.5 text-[12px] text-text-muted">
             {toolLine && <span>{toolLine} · </span>}
-            <span>{titleCase(act.domain || "general")}</span>
+            <span>{scopeLabel(act.domain || "general")}</span>
             {act.ts ? <span> · held {relTime(act.ts)}</span> : null}
           </div>
           {sensitive && (
@@ -138,25 +139,25 @@ export function ActApprovalCard({ vaultPath, actId, onFollowUp }: {
             </div>
           )}
           {err && <div className="mt-1.5 text-[12px] text-err">{err}</div>}
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <div className="mt-2 flex flex-wrap items-center gap-3">
             {busy ? (
               <span className="inline-flex items-center gap-1 text-[12px] text-text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Working</span>
             ) : (
               <>
                 <button onClick={() => void allow(false)} data-testid="act-allow"
-                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold ${sensitive ? "border border-warn/60 bg-warn/10 text-text-primary hover:bg-warn/20" : "bg-accent text-background hover:bg-accent-hover"}`}>
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold ${sensitive ? "border border-warn/60 bg-warn/10 text-text-primary hover:bg-warn/20" : "bg-accent text-on-accent hover:bg-accent-hover"}`}>
                   <Check className="h-3.5 w-3.5" /> {sensitive ? "Approve including sensitive info" : "Allow"}
                 </button>
                 {act.alwaysEligible === true && !sensitive && (
                   <button onClick={() => void allow(true)} data-testid="act-always"
-                    title={`Always allow ${tool || "this tool"} in ${titleCase(act.domain || "general")}`}
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent">
+                    title={`Always allow ${tool || "this tool"} in ${scopeLabel(act.domain || "general")}`}
+                    className="inline-flex items-center gap-1 text-[12px] text-text-muted hover:text-accent">
                     <ShieldCheck className="h-3.5 w-3.5" /> Always
                   </button>
                 )}
                 <button onClick={() => void deny()} data-testid="act-deny"
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[12px] text-text-muted hover:!text-err">
-                  <X className="h-3.5 w-3.5" /> Deny
+                  className="inline-flex items-center gap-1 text-[12px] text-text-muted hover:!text-err">
+                  Deny
                 </button>
               </>
             )}
@@ -199,19 +200,19 @@ export function AlwaysAllowedCard({ vaultPath }: { vaultPath: string }) {
     announceActsChanged();
   };
   return (
-    <div data-testid="always-allowed" className="rounded-xl border border-border bg-surface">
+    <div data-testid="always-allowed">
       {rules === null ? (
-        <div className="flex items-center gap-2 px-4 py-3 text-sm text-text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Loading</div>
+        <div className="flex items-center gap-2 py-2 text-[13px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Loading</div>
       ) : rules.length === 0 ? (
-        <div className="px-4 py-3 text-sm text-text-muted">Nothing yet. Choose Always on an approval to skip asking for that tool in that domain.</div>
+        <div className="py-2 text-[13px] text-text-muted">Nothing yet. Choose Always on an approval to skip asking for that tool in that domain.</div>
       ) : (
         <ul className="divide-y divide-border-subtle">
           {rules.map((r) => (
-            <li key={`${r.tool}::${r.domain}`} data-rule={`${r.tool}::${r.domain}`} className="flex items-center gap-3 px-4 py-2.5">
+            <li key={`${r.tool}::${r.domain}`} data-rule={`${r.tool}::${r.domain}`} className="group flex items-center gap-3 py-2.5">
               <ShieldCheck className="h-4 w-4 shrink-0 text-accent" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-text-primary" title={r.tool}>{friendlyTool(r.tool)}</div>
-                <div className="text-xs text-text-muted">{titleCase(r.domain || "general")}{r.ts ? ` · added ${relTime(r.ts)}` : ""}</div>
+                <div className="truncate text-[14px] font-medium text-text-primary" title={r.tool}>{friendlyTool(r.tool)}</div>
+                <div className="text-[12px] text-text-muted">{scopeLabel(r.domain || "general")}{r.ts ? ` · added ${relTime(r.ts)}` : ""}</div>
               </div>
               <RowAction icon={Trash2} label="Revoke" doneLabel="Revoked" onClick={() => revoke(r)} testId="rule-revoke" />
             </li>

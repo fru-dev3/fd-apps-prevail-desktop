@@ -9,16 +9,17 @@ import { Check, FileText, FolderOpen, Loader2, Play, RotateCcw, SlidersHorizonta
 import { invoke } from "./bridge";
 import { useInvokeQuery, invalidateQueries } from "./query";
 import { Markdown } from "./Markdown";
-import { RowMenu } from "./ui";
+import { REVEAL, RowMenu } from "./ui";
+import { ROW_TITLE } from "./typescale";
 import { LS, lsGet } from "./storage";
-import { ACTION_STATUS_LABEL, compassChips, elapsed, jobStatusLabel, label, openPlaybook, RULE_STATE_LABEL, stepState, type Job, type JobView, type OperatorAction } from "./plansmodel";
+import { ACTION_STATUS_LABEL, compassChips, elapsed, jobStatusLabel, label, openPlaybook, RULE_STATE_LABEL, scopeLabel, stepState, type Job, type JobView, type OperatorAction } from "./plansmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
-const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
+// Quiet text links instead of bordered secondary buttons.
+const textLink = "inline-flex items-center gap-1.5 text-[13px] text-text-muted transition-colors hover:text-accent disabled:opacity-50";
 const chipBase = "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px]";
-const STATE_CHIP: Record<string, string> = {
-  done: "border-accent-border bg-accent-soft text-accent", now: "border-accent text-accent", next: "border-border text-text-muted", failed: "border-warn/50 text-warn",
-};
+// A team member's step as plain text: done in the body color with a check, now in accent, next muted.
+const STATE_TEXT: Record<string, string> = { done: "text-text-primary", now: "font-medium text-accent", next: "text-text-muted", failed: "text-warn" };
 const EFFORTS: Job["effort"][] = ["quick", "standard", "deep"];
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
@@ -55,28 +56,28 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
   };
   useEffect(() => { if (busy === "start" && job?.status === "running") setBusy(null); }, [busy, job?.status]);
   if (!vault) return null;
-  if (!v || !job) return <div data-testid="job-card" className="mt-3 rounded-xl border border-border p-3 text-[13px] text-text-muted">{q.error ? `Could not read the job: ${String(q.error)}` : "Reading the job..."}</div>;
+  if (!v || !job) return <div data-testid="job-card" className="mt-3 rounded-xl border border-border-subtle p-3 text-[13px] text-text-muted">{q.error ? `Could not read the job: ${String(q.error)}` : "Reading the job..."}</div>;
   const running = job.status === "running";
   const waiting = job.status === "proposed" || job.status === "needs-approval";
   const done = job.status === "done";
   return (
-    <div data-testid="job-card" data-status={job.status} className="mt-3 rounded-xl border border-border bg-background/40 p-3 sm:p-4">
+    <div data-testid="job-card" data-status={job.status} className="mt-3 rounded-xl border border-border-subtle p-3 sm:p-4">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-text-primary">{done ? "Done" : "Job"}: <span className="break-words">{job.ask}</span></p>
+          <p title={job.ask} className={`${ROW_TITLE} line-clamp-2 break-words`}>{job.ask}</p>
           <p className="mt-0.5 text-[12px] text-text-muted"><span data-testid="job-status">{jobStatusLabel(job)}</span>{job.started ? ` · ${elapsed(job)}` : ""}{job.cost ? ` · about $${job.cost.usd.toFixed(2)}` : ""}</p>
         </div>
         {running && <button onClick={() => void act("stop", "engine_job_action", { action: "stop" })} disabled={!!busy} title="Stop" aria-label="Stop the job" data-testid="job-stop" className={iconBtn}><Square className="h-4 w-4" /></button>}
       </div>
       {!done && (
         <div className="mt-2 border-t border-border-subtle pt-1">
-          <Row k="Owner">{label(job.domains.owner)}</Row>
-          {job.domains.consulted.length > 0 && <Row k="Reads">{job.domains.consulted.map(label).join(", ")}</Row>}
-          {job.domains.informed.length > 0 && <Row k="Tells">{job.domains.informed.map(label).join(", ")}</Row>}
+          <Row k="Owner">{scopeLabel(job.domains.owner)}</Row>
+          {job.domains.consulted.length > 0 && <Row k="Reads">{job.domains.consulted.map(scopeLabel).join(", ")}</Row>}
+          {job.domains.informed.length > 0 && <Row k="Tells">{job.domains.informed.map(scopeLabel).join(", ")}</Row>}
           <Row k="Team">
-            <span className="flex flex-wrap gap-1.5">{job.team.flatMap((s) => s.specialists.map((sp) => {
+            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">{job.team.flatMap((s) => s.specialists.map((sp) => {
               const st = stepState(job, sp, v.steps);
-              return <span key={`${s.step}-${sp}`} data-testid="job-team-chip" data-state={st} className={`${chipBase} ${STATE_CHIP[st]}`}>{st === "now" && <Loader2 className="h-3 w-3 animate-spin" />}{st === "done" && <Check className="h-3 w-3" />}{label(sp)}{s.gate ? " (gate)" : ""}</span>;
+              return <span key={`${s.step}-${sp}`} data-testid="job-team-chip" data-state={st} title={s.gate ? "A gate: the job stops here if it does not pass" : undefined} className={`inline-flex items-center gap-1 ${STATE_TEXT[st]}`}>{st === "now" && <Loader2 className="h-3 w-3 animate-spin" />}{st === "done" && <Check className="h-3 w-3 text-text-muted" />}{label(sp)}{s.gate ? " (gate)" : ""}</span>;
             }))}</span>
           </Row>
           <Row k="Effort">{label(job.effort)}, up to ${job.budget.usd} and {job.budget.minutes} minutes</Row>
@@ -87,10 +88,10 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
         <div className="mt-2">
           {job.askReason && <p className="text-[13px] text-text-secondary">Asking first: {job.askReason}.</p>}
           {job.note && <p className="text-[13px] text-text-secondary">{job.note}</p>}
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button onClick={() => void act("start", "engine_job_action", { action: "start" })} disabled={!!busy} data-testid="job-start" className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">{busy === "start" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Start</button>
-            <button onClick={() => setAdjust((x) => !x)} aria-expanded={adjust} data-testid="job-adjust" className={smallBtn}><SlidersHorizontal className="h-3.5 w-3.5" /> Adjust</button>
-            <button onClick={() => void act("stop", "engine_job_action", { action: "stop" })} disabled={!!busy} className={smallBtn}><X className="h-3.5 w-3.5" /> Not now</button>
+          <div className="mt-2 flex flex-wrap items-center gap-4">
+            <button onClick={() => void act("start", "engine_job_action", { action: "start" })} disabled={!!busy} data-testid="job-start" className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent disabled:opacity-50">{busy === "start" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Start</button>
+            <button onClick={() => setAdjust((x) => !x)} aria-expanded={adjust} data-testid="job-adjust" className={textLink}><SlidersHorizontal className="h-3.5 w-3.5" /> Adjust</button>
+            <button onClick={() => void act("stop", "engine_job_action", { action: "stop" })} disabled={!!busy} className={textLink}>Not now</button>
           </div>
         </div>
       )}
@@ -98,15 +99,15 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
       {(job.status === "failed" || job.status === "stopped") && (
         <div className="mt-2">
           <p className="text-[13px] text-text-secondary">{job.note ?? "It did not finish."}</p>
-          <button onClick={() => void act("start", "engine_job_action", { action: "start" })} disabled={!!busy} className={`${smallBtn} mt-2`}><Play className="h-3.5 w-3.5" /> Run again</button>
+          <button onClick={() => void act("start", "engine_job_action", { action: "start" })} disabled={!!busy} className={`${textLink} mt-1.5`}><Play className="h-3.5 w-3.5" /> Run again</button>
         </div>
       )}
       {done && job.result && (
         <div className="mt-2" data-testid="job-result">
-          <p className="break-words text-[15px] text-text-primary">{job.result.summary}</p>
-          {job.result.verdict && <p className="mt-1 text-[13px] text-text-muted">Steward: {job.result.verdict}</p>}
-          <div className="mt-2 flex flex-wrap gap-2">
-            {v.body && <button onClick={() => setShowPage((x) => !x)} aria-expanded={showPage} data-testid="job-open-page" className={smallBtn}><FileText className="h-3.5 w-3.5" /> {showPage ? "Hide page" : "Open page"}</button>}
+          <p className="break-words text-[14px] text-text-primary">{job.result.summary}</p>
+          {job.result.verdict && <p className="mt-0.5 text-[12px] text-text-muted">Steward: {job.result.verdict}</p>}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            {v.body && <button onClick={() => setShowPage((x) => !x)} aria-expanded={showPage} data-testid="job-open-page" className={`${textLink} mr-2`}><FileText className="h-3.5 w-3.5" /> {showPage ? "Hide page" : "Open page"}</button>}
             {job.result.page && <button onClick={() => void invoke("open_in_finder", { path: `${vault}/${job.result!.page}` }).catch(() => {})} title="Show the file" aria-label="Show the file" className={iconBtn}><FolderOpen className="h-4 w-4" /></button>}
             {!saved && <button onClick={() => void (async () => {
               setBusy("save"); setErr(null);
@@ -126,11 +127,11 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
         <div className="mt-3 border-t border-border-subtle pt-2" data-testid="job-filed">
           <p className="text-[13px] font-medium text-text-muted">Filed</p>
           <ul>{v.filed.map((r) => (
-            <li key={r.n} data-testid="job-filed-row" className="flex items-start gap-2 py-1">
-              <span className="w-24 shrink-0 truncate text-[13px] font-medium text-text-primary">{label(r.domain)}</span>
+            <li key={r.n} data-testid="job-filed-row" className="group flex items-start gap-2 py-1">
+              <span className="w-24 shrink-0 truncate text-[13px] text-text-muted" title={scopeLabel(r.domain)}>{scopeLabel(r.domain)}</span>
               <span className={`min-w-0 flex-1 break-words text-[13px] ${r.undone ? "text-text-muted line-through" : "text-text-secondary"}`}>{r.text}</span>
-              {r.kind === "build" && !r.undone && <button onClick={() => void invoke("open_in_finder", { path: `${vault}/${r.file}` }).catch(() => {})} title="Show the file" aria-label={`Show ${r.file}`} className={iconBtn}><FolderOpen className="h-4 w-4" /></button>}
-              {!r.undone && <button onClick={() => void act(`undo${r.n}`, "engine_job_undo", { n: r.n })} disabled={!!busy} title="Undo" aria-label={`Undo: ${r.text}`} data-testid="job-undo" className={iconBtn}>{busy === `undo${r.n}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}</button>}
+              {!r.undone && <span className={`flex shrink-0 items-center ${REVEAL}`}>{r.kind === "build" && <button onClick={() => void invoke("open_in_finder", { path: `${vault}/${r.file}` }).catch(() => {})} aria-label="Show the file" title="Show the file" className={iconBtn}><FolderOpen className="h-4 w-4" /></button>}
+              <button onClick={() => void act(`undo${r.n}`, "engine_job_undo", { n: r.n })} disabled={!!busy} title="Undo" aria-label={`Undo: ${r.text}`} data-testid="job-undo" className={iconBtn}>{busy === `undo${r.n}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}</button></span>}
             </li>
           ))}</ul>
         </div>
@@ -161,7 +162,7 @@ function OperatorActions({ job, vault, onChanged }: { job: Job; vault: string; o
       <ul>{job.actions!.map((x) => (
         <li key={x.n} data-testid="job-action" data-status={x.status} className="group flex items-start gap-3 border-b border-border-subtle py-2 last:border-b-0">
           <div className="min-w-0 flex-1">
-            <p title={x.text} className="line-clamp-2 break-words text-[15px] font-medium leading-snug text-text-primary">{x.text}</p>
+            <p title={x.text} className={`${ROW_TITLE} line-clamp-2 break-words`}>{x.text}</p>
             <p data-testid="job-action-meta" className="mt-0.5 truncate text-[12px] text-text-muted" title={[x.status === "done" || x.status === "failed" ? x.report : x.reason, x.undo ? `Undo: ${x.undo}` : ""].filter(Boolean).join(". ")}>
               <span className={tone[x.status]}>{x.status === "running" && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />}{ACTION_STATUS_LABEL[x.status]}</span>
               {x.status === "asks" && x.carries?.length ? <span> · carries {x.carries.join(" and ")}</span> : null}
@@ -170,8 +171,8 @@ function OperatorActions({ job, vault, onChanged }: { job: Job; vault: string; o
           </div>
           {x.status === "asks" && (
             <span className="flex shrink-0 items-center gap-1">
-              <button onClick={() => void answer(x, "allow")} disabled={!!busy} data-testid="job-action-allow" title={x.carries?.length ? `Allow; it carries ${x.carries.join(" and ")}` : "Allow"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">{busy === `allow${x.n}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Allow</button>
-              <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
+              <button onClick={() => void answer(x, "allow")} disabled={!!busy} data-testid="job-action-allow" title={x.carries?.length ? `Allow; it carries ${x.carries.join(" and ")}` : "Allow"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent disabled:opacity-50">{busy === `allow${x.n}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Allow</button>
+              <span className={REVEAL}>
                 <RowMenu items={[{ icon: X, label: "Deny", onClick: () => void answer(x, "deny") }]} />
               </span>
             </span>
@@ -188,11 +189,14 @@ function CompassChips({ job }: { job: Job }) {
   const c = compassChips(job.compass);
   if (!c.serves.length && !c.watch.length && !c.rules.length) return null;
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5" data-testid="job-compass">
-      {c.serves.map((t) => <span key={`s-${t}`} data-testid="job-serves" className={`${chipBase} border-accent-border bg-accent-soft text-accent`}>Serves {t}</span>)}
-      {c.watch.map((t) => <span key={`w-${t}`} data-testid="job-watch" className={`${chipBase} border-warn/50 text-warn`}>Watch {t}</span>)}
-      {c.rules.map((r) => <span key={`r-${r.title}`} data-testid="job-rule" data-state={r.state} className={`${chipBase} ${r.state === "broken" ? "border-err/50 text-err" : r.state === "at-risk" ? "border-warn/50 text-warn" : "border-border text-text-secondary"}`}>{r.title}: {RULE_STATE_LABEL[r.state]}</span>)}
-    </div>
+    // One quiet meta line: what it serves, what to watch, the rules it touches.
+    <p className="mt-2 text-[12px] leading-relaxed text-text-muted" data-testid="job-compass">
+      {[
+        c.serves.length ? <span key="s" data-testid="job-serves">Serves <span className="text-text-secondary">{c.serves.join(", ")}</span></span> : null,
+        ...c.watch.map((t) => <span key={`w-${t}`} data-testid="job-watch" className="text-warn">Watch {t}</span>),
+        ...c.rules.map((r) => <span key={`r-${r.title}`} data-testid="job-rule" data-state={r.state} className={r.state === "broken" ? "text-err" : r.state === "at-risk" ? "text-warn" : ""}>{r.title}: {RULE_STATE_LABEL[r.state]}</span>),
+      ].filter(Boolean).flatMap((x, i) => (i ? [<span key={`d${i}`} aria-hidden> · </span>, x] : [x]))}
+    </p>
   );
 }
 
@@ -267,7 +271,7 @@ function AdjustPanel({ job, vault, onSaved }: { job: Job; vault: string; onSaved
         </span>
       </Row>
       {err && <p className="mt-1 text-[13px] text-err">{err}</p>}
-      <button onClick={() => void save()} disabled={saving} data-testid="job-adjust-save" className={`${smallBtn} mt-2`}>{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save</button>
+      <button onClick={() => void save()} disabled={saving} data-testid="job-adjust-save" className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent disabled:opacity-50">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save</button>
     </div>
   );
 }

@@ -6,8 +6,8 @@ import { useState } from "react";
 import { ArrowUp, Brain, Loader2, Undo2, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
-import { META } from "./typescale";
-import { label } from "./plansmodel";
+import { META, ROW_TITLE } from "./typescale";
+import { scopeLabel } from "./plansmodel";
 
 export interface Told { id: string; kind: string; text: string; where: string; due?: string; undone?: number }
 interface Forgetting { sections: { title: string; items: { text: string; why: string; domain?: string }[] }[]; count: number }
@@ -43,7 +43,7 @@ export function TellBox({ vaultPath, surface = "desktop" }: { vaultPath: string;
           placeholder="Tell me anything to keep" aria-label="Tell me anything to keep" data-testid="tell-input"
           className="h-9 min-w-0 flex-1 bg-transparent text-[15px] text-text-primary outline-none placeholder:text-text-muted" />
         <button onClick={() => setOpen((x) => !x)} title="What am I forgetting?" aria-label="What am I forgetting?" aria-expanded={open} data-testid="tell-forgetting" className={iconSm}><Brain className="h-4 w-4" /></button>
-        <button onClick={() => void send()} disabled={busy || !text.trim()} title="File it" aria-label="File it" data-testid="tell-send" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}</button>
+        <button onClick={() => void send()} disabled={busy || !text.trim()} title="File it" aria-label="File it" data-testid="tell-send" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-on-accent disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}</button>
       </div>
       {last && (
         <div className="mt-1.5 flex items-center gap-2 px-1" data-testid="tell-receipt">
@@ -72,8 +72,8 @@ export function ForgettingList({ vaultPath, onClose }: { vaultPath: string; onCl
           <p className="text-[13px] font-medium text-text-muted">{s.title}</p>
           <ul>{s.items.map((x, i) => (
             <li key={`${s.title}-${i}`} className="border-b border-border-subtle py-1.5 last:border-b-0" data-testid="forgetting-item">
-              <p className="line-clamp-2 text-[15px] font-medium leading-snug text-text-primary">{x.text}</p>
-              <p className={`${META} mt-0.5 truncate`}>{[x.why, x.domain ? label(x.domain.replace(/^_mission-/, "")) : ""].filter(Boolean).join(" · ")}</p>
+              <p title={x.text} className={`${ROW_TITLE} line-clamp-2`}>{x.text}</p>
+              <p className={`${META} mt-0.5 truncate`}>{[x.why, x.domain ? scopeLabel(x.domain.replace(/^_mission-/, "mission/")) : ""].filter(Boolean).join(" · ")}</p>
             </li>
           ))}</ul>
         </div>

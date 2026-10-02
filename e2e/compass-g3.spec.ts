@@ -117,7 +117,7 @@ for (const width of [390, 768, 1280, 1920]) {
       await page.getByTestId("specialists-row-jobs:waiting").click();
       await page.getByTestId("job-row").first().getByRole("button").first().click();
       const chips = page.getByTestId("job-compass");
-      await expect(chips.getByTestId("job-serves")).toHaveText(["Serves Foo independence", "Serves Freedom"]);
+      await expect(chips.getByTestId("job-serves")).toHaveText(["Serves Foo independence, Freedom"]);
       await expect(chips.getByTestId("job-watch")).toHaveText("Watch Family presence");
       await expect(chips.getByTestId("job-rule")).toHaveText("Spend under 3000 a month: At risk");
       await noOverflow(page);

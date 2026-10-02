@@ -8,11 +8,11 @@ import { CheckCircle2, Gavel, Handshake, Loader2, Sparkles } from "lucide-react"
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
 import { BODY, META, SECTION_TITLE } from "./typescale";
+import { REVEAL, RowMenu, StatusDot, type DotTone } from "./ui";
 import { openDecision, RULE_STATE_LABEL, type Rollup } from "./plansmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
-const chip = "inline-flex items-center rounded-full border px-2 py-0.5 text-[12px]";
-const STATE_TONE: Record<string, string> = { ok: "border-accent-border text-accent", "at-risk": "border-warn/50 text-warn", broken: "border-err/50 text-err", unchecked: "border-border text-text-muted" };
+const STATE_TONE: Record<string, DotTone> = { ok: "ok", "at-risk": "warn", broken: "err", unchecked: "muted" };
 
 function useRollup(vaultPath: string) {
   return useInvokeQuery<Rollup>("engine_compass_align", { vault: vaultPath, model: null }, { staleMs: 10 * 60_000 });
@@ -51,23 +51,24 @@ export function AlignNeedsYou({ vaultPath }: { vaultPath: string }) {
         </button>
       </div>
       {err && <p className="mt-1 text-[13px] text-err">{err}</p>}
-      {!r && <p className={`${BODY} mt-1 text-text-muted`}>{q.loading ? "Checking your Compass..." : "Could not check the Compass yet."}</p>}
-      {r && !r.needsYou.length && <p className={`${BODY} mt-1 text-text-muted`}>Nothing needs you: no conflict with evidence, no rule at risk.</p>}
+      {!r && <p className={`${META} mt-1`}>{q.loading ? "Checking your Compass..." : "Could not check the Compass yet."}</p>}
       {r && r.needsYou.length > 0 && (
         <ul className="mt-1">{r.needsYou.map((n) => {
           const c = n.kind === "conflict" ? evidence.get(n.key) : undefined;
           return (
-            <li key={n.key} data-testid="align-need" data-kind={n.kind} className="flex items-start gap-2 border-b border-border-subtle py-2.5 last:border-b-0">
+            <li key={n.key} data-testid="align-need" data-kind={n.kind} className="group flex items-start gap-2 border-b border-border-subtle py-2.5 last:border-b-0">
               <div className="min-w-0 flex-1">
-                <p className={`${BODY} break-words text-text-primary`}>{n.text}</p>
+                <p title={n.text} className={`${BODY} line-clamp-2 break-words text-text-primary`}>{n.text}</p>
                 {c && <p className={`${META} mt-0.5 break-words`} data-testid="align-evidence">{c.evidence.join("; ")}{c.asserted_by === "model" ? " (found by the model, from your words)" : ""}</p>}
               </div>
               {n.kind === "conflict" && (
-                <>
-                  <button onClick={() => void answer(n.key, "accept")} disabled={!!busy} title="Accept the tension" aria-label="Accept the tension" data-testid="align-accept" className={iconBtn}>{busy === n.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}</button>
-                  <button onClick={() => void answer(n.key, "resolved")} disabled={!!busy} title="Resolved" aria-label="Resolved" data-testid="align-resolved" className={iconBtn}><CheckCircle2 className="h-4 w-4" /></button>
-                  <button onClick={() => void decide(n.key)} disabled={!!busy} title="Make it a decision" aria-label="Make it a decision" data-testid="align-decide" className={iconBtn}>{busy === `d:${n.key}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gavel className="h-4 w-4" />}</button>
-                </>
+                <span className={`flex shrink-0 items-center gap-0.5 ${REVEAL}`}>
+                  <button onClick={() => void answer(n.key, "accept")} disabled={!!busy} title="Accept the tension" aria-label="Accept the tension" data-testid="align-accept" className={iconBtn}>{busy === n.key || busy === `d:${n.key}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}</button>
+                  <RowMenu items={[
+                    { icon: CheckCircle2, label: "Resolved", onClick: () => void answer(n.key, "resolved") },
+                    { icon: Gavel, label: "Make it a decision", onClick: () => void decide(n.key) },
+                  ]} />
+                </span>
               )}
             </li>
           );
@@ -87,10 +88,12 @@ export function AlignRules({ vaultPath }: { vaultPath: string }) {
       <h3 className={SECTION_TITLE}>Checked in code</h3>
       <p className={`${META} mt-1`}>A rule with a check is read from your data; anything that would break a hard one is blocked before it runs.</p>
       <ul className="mt-2">{rules.map((x) => (
-        <li key={x.id} data-testid="align-rule" data-state={x.state} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border-subtle py-2 last:border-b-0">
-          <span className="min-w-[10rem] flex-1 break-words text-[15px] text-text-primary">{x.title}</span>
-          <span className={`${chip} ${STATE_TONE[x.state]}`}>{RULE_STATE_LABEL[x.state]}</span>
-          <span className={`${META} w-full break-words`}>{x.detail}</span>
+        <li key={x.id} data-testid="align-rule" data-state={x.state} className="flex items-start gap-3 border-b border-border-subtle py-2 last:border-b-0">
+          <span className="min-w-0 flex-1">
+            <span className="block break-words text-[14px] text-text-primary">{x.title}</span>
+            <span className={`${META} mt-0.5 line-clamp-2 break-words`} title={x.detail}>{x.detail}</span>
+          </span>
+          <StatusDot tone={STATE_TONE[x.state] ?? "muted"} label={RULE_STATE_LABEL[x.state]} className="mt-0.5" />
         </li>
       ))}</ul>
     </section>
@@ -109,10 +112,10 @@ export function SaidVsDid({ vaultPath }: { vaultPath: string }) {
       {r!.saidVsDid.length > 0 && <ul className={`${BODY} mt-2 list-disc pl-5 text-text-secondary`}>{r!.saidVsDid.map((l) => <li key={l} className="break-words">{l}</li>)}</ul>}
       <ul className="mt-3 space-y-2">{values.map((v) => (
         <li key={v.id} data-testid="said-row" className="flex min-w-0 items-center gap-2">
-          <span className="w-6 shrink-0 text-right text-[14px] font-semibold tabular-nums text-accent">{v.rank}</span>
+          <span className="w-6 shrink-0 text-right text-[13px] tabular-nums text-text-muted">{v.rank}</span>
           <span className="w-32 min-w-0 shrink truncate text-[14px] text-text-primary sm:w-48">{v.title}</span>
           <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-warm" aria-hidden><span className="block h-full rounded-full bg-accent" style={{ width: `${Math.max(0, Math.min(100, v.attention))}%` }} /></span>
-          <span className="w-12 shrink-0 text-right text-[13px] tabular-nums text-text-secondary">{v.attention}%</span>
+          <span className="w-12 shrink-0 text-right text-[12px] tabular-nums text-text-muted">{v.attention}%</span>
         </li>
       ))}</ul>
     </section>

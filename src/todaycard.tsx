@@ -6,17 +6,18 @@ import { useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleOff, Copy, Gavel, Handshake, Hourglass, Loader2, Mail, MessageSquare, RefreshCw, Scale, ThumbsUp, Undo2, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
-import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import { fmtDue, label, openDecision, personName, radarGroups, type Radar, type ReviewCard, type TimeReview, type TodayCard, type TodayItem } from "./plansmodel";
 import { openMission } from "./missions";
 import { WHO5_ITEMS, WHO5_SCALE } from "./qualmodel";
-import { RowMenu } from "./ui";
+import { REVEAL, RowMenu } from "./ui";
 import { TellBox } from "./tellbox";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const iconSm = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
-const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
-const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
+// Quiet text links instead of bordered secondary buttons.
+const textLink = "inline-flex items-center gap-1.5 text-[13px] text-text-muted transition-colors hover:text-accent disabled:opacity-50";
+const accentLink = "inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-50 disabled:no-underline";
 
 function openSection(id: string) { window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: id })); }
 
@@ -32,7 +33,7 @@ export function TodayHome({ vaultPath, phone, onAsk, fallback }: { vaultPath: st
       {/* Desktop Home stays clean: the chat composer below already files anything said to it. */}
       {phone && <TellBox vaultPath={vaultPath} surface="phone" />}
       {t && <TodayCardView card={t} vaultPath={vaultPath} onChanged={() => void today.refresh()} />}
-      {r && (r.due || !t) && <div className="mt-8"><ReviewCardView card={r} vaultPath={vaultPath} onAsk={onAsk} onChanged={() => { invalidateQueries("engine_review"); void review.refresh(); }} /></div>}
+      {r && (r.due || !t) && <div className={t ? "mt-10" : ""}><ReviewCardView card={r} vaultPath={vaultPath} onAsk={onAsk} onChanged={() => { invalidateQueries("engine_review"); void review.refresh(); }} /></div>}
     </div>
   );
 }
@@ -45,7 +46,7 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
     <li data-testid="today-item" data-kind={x.kind} className="group flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
       {n !== undefined && <span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-text-muted">{n}</span>}
       <div className="min-w-0 flex-1">
-        <p title={x.title} className="line-clamp-2 break-words text-[15px] font-medium leading-snug text-text-primary">{x.title}</p>
+        <p title={x.title} className={`${ROW_TITLE} line-clamp-2 break-words`}>{x.title}</p>
         <p className={`${META} mt-0.5 flex min-w-0 whitespace-pre`} title={`${x.thread.join(" > ")}${x.unlinked ? ", not linked to your Compass" : ""}`}>
           {x.due && <span className={/late/.test(fmtDue(x.due)) ? "text-warn" : ""}>{fmtDue(x.due)}</span>}
           {x.due && <span aria-hidden> · </span>}
@@ -56,7 +57,7 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
         </p>
       </div>
       {/* Progressive reveal: actions appear on hover (always on touch). */}
-      <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
+      <span className={`flex shrink-0 items-center gap-0.5 ${REVEAL}`}>
         {x.ref.id || x.ref.text ? (
           <button onClick={() => tap(x.key, "done")} disabled={!!busy} title="Done" aria-label={`Done: ${x.title}`} data-testid="today-done" className={iconSm}>{busy === `${x.key}:done` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
         ) : null}
@@ -103,7 +104,7 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
     <section data-testid="today-card">
       <div className="flex items-start gap-3">
         <h2 className={`min-w-0 flex-1 break-words ${DETAIL_TITLE}`}>Today, {day}</h2>
-        {card.calm !== null && <span className={`${chip} mt-2`}>calm {card.calm}</span>}
+        {card.calm !== null && <span className={`${META} mt-2.5 shrink-0`} title="How calm you said last week was, 1 to 5">calm {card.calm}</span>}
         <button onClick={() => void refresh()} disabled={!!busy} title="Look again" aria-label="Look again" className={`${iconBtn} mt-1`}>{busy === "refresh" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</button>
       </div>
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
@@ -112,7 +113,7 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
         <ul className="mt-1">{items.map((x, i) => <ItemRow key={x.key} x={x} n={i + 1} busy={busy} tap={(k, a) => void tap(k, a)} />)}</ul>
       ) : <p className={`${BODY} mt-1 text-text-muted`}>Nothing with a date is pressing. A good day to move a goal.</p>}
       {items.length > 0 && !card.feedback.some((f) => f.action === "right-list") && (
-        <button onClick={() => void tap("list", "right-list")} disabled={!!busy} data-testid="today-right-list" className={`${smallBtn} mt-2`}><ThumbsUp className="h-3.5 w-3.5" /> The right three</button>
+        <button onClick={() => void tap("list", "right-list")} disabled={!!busy} data-testid="today-right-list" className={`${textLink} mt-2`}><ThumbsUp className="h-3.5 w-3.5" /> The right three</button>
       )}
       {card.promises && card.promises.length > 0 && (
         <div className="mt-6" data-testid="today-promises">
@@ -121,7 +122,7 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
             <li key={p.key} data-testid="today-promise" data-slipping={p.slipping ? "true" : undefined} className="flex items-start gap-2.5 border-b border-border-subtle py-2 last:border-b-0">
               {p.kind === "waiting" ? <Hourglass className="mt-1 h-4 w-4 shrink-0 text-text-muted" /> : <Handshake className={`mt-1 h-4 w-4 shrink-0 ${p.slipping ? "text-warn" : "text-text-muted"}`} />}
               <div className="min-w-0 flex-1">
-                <p className="break-words text-[15px] text-text-primary">{p.title}</p>
+                <p title={p.title} className={`${ROW_TITLE} line-clamp-2 break-words`}>{p.title}</p>
                 <p className={`${META} ${p.slipping ? "text-warn" : ""}`}>{p.kind === "waiting" ? `Waiting on ${personName(p.person) || "someone"}` : `To ${personName(p.person) || "someone"}`}, {p.why}</p>
               </div>
             </li>
@@ -132,10 +133,10 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
         <div className="mt-6" data-testid="today-added">
           <h3 className={SECTION_TITLE}>Added from your mail and notes</h3>
           <ul className="mt-1">{card.added.map((a) => (
-            <li key={a.id} className="flex items-start gap-2.5 py-1.5">
+            <li key={a.id} className="group flex items-start gap-2.5 py-1.5">
               <Mail className="mt-1 h-4 w-4 shrink-0 text-text-muted" />
               <p className={`${BODY} min-w-0 flex-1 break-words text-text-secondary`}>{a.text} <span className={META}>on {label(a.domain)}'s board, from {a.src === "meeting" ? "meeting notes" : "sent mail"}</span></p>
-              <button onClick={() => void undoAdded(a.id)} disabled={!!busy} title="Undo" aria-label={`Undo: ${a.text}`} data-testid="today-added-undo" className={iconBtn}>{busy === `undo:${a.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}</button>
+              <button onClick={() => void undoAdded(a.id)} disabled={!!busy} title="Undo" aria-label={`Undo: ${a.text}`} data-testid="today-added-undo" className={`${iconBtn} ${REVEAL}`}>{busy === `undo:${a.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}</button>
             </li>
           ))}</ul>
         </div>
@@ -143,9 +144,9 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
       {card.fallingBehind && (
         <div className="mt-6" data-testid="today-falling-behind">
           <h3 className={SECTION_TITLE}>Falling behind</h3>
-          <p className={`${BODY} mt-1 flex items-start gap-2 text-text-secondary`}><AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-warn" /><span className="min-w-0 break-words">{card.fallingBehind.text}</span></p>
+          <p className={`${BODY} mt-1 flex items-start gap-2 text-text-secondary`}><AlertTriangle className="mt-[3px] h-4 w-4 shrink-0 text-warn" /><span title={card.fallingBehind.text} className="line-clamp-2 min-w-0 break-words">{card.fallingBehind.text}</span></p>
           {(card.fallingBehind.count ?? 0) > 1 && (
-            <button onClick={() => setRadarOpen((v) => !v)} aria-expanded={radarOpen} data-testid="today-radar-more" className={`${smallBtn} mt-2`}>
+            <button onClick={() => setRadarOpen((v) => !v)} aria-expanded={radarOpen} data-testid="today-radar-more" className={`${textLink} ml-6 mt-1`}>
               {radarOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />} And {(card.fallingBehind.count ?? 1) - 1} more
             </button>
           )}
@@ -157,19 +158,21 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
           <h3 className={SECTION_TITLE}>Decision due</h3>
           <div className="mt-1 flex items-start gap-2">
             <Gavel className="mt-1 h-4 w-4 shrink-0 text-text-muted" />
-            <p className={`${BODY} min-w-0 flex-1 break-words text-text-secondary`}>{card.decisionDue.question}{card.decisionDue.due ? ` Due ${fmtDue(card.decisionDue.due)}.` : ""}{card.decisionDue.recommendation ? " A recommendation is ready." : ""}</p>
+            <p className={`${BODY} line-clamp-2 min-w-0 flex-1 break-words text-text-secondary`}>{card.decisionDue.question}{card.decisionDue.due ? ` Due ${fmtDue(card.decisionDue.due)}.` : ""}{card.decisionDue.recommendation ? " A recommendation is ready." : ""}</p>
             <button onClick={() => openDecision(`${card.decisionDue!.domain}/${card.decisionDue!.slug}`)} title="Open the decision" aria-label="Open the decision" data-testid="today-decision-open" className={iconBtn}><ArrowRight className="h-4 w-4" /></button>
           </div>
         </div>
       )}
-      <div className="mt-6">
-        <h3 className={SECTION_TITLE}>Your day</h3>
-        <p className={`${BODY} mt-1 text-text-muted`} data-testid="today-your-day">{card.yourDay.note}</p>
-      </div>
+      {card.yourDay.connected ? (
+        <div className="mt-6">
+          <h3 className={SECTION_TITLE}>Your day</h3>
+          <p className={`${BODY} mt-1 text-text-secondary`} data-testid="today-your-day">{card.yourDay.note}</p>
+        </div>
+      ) : card.yourDay.note ? <p className={`${META} mt-6`} data-testid="today-your-day">{card.yourDay.note}</p> : null}
       {card.alsoDue.length > 0 && (
         <div className="mt-6">
-          <button onClick={() => setMore((v) => !v)} aria-expanded={more} data-testid="today-also-due" className={`${SECTION_TITLE} inline-flex items-center gap-1.5 hover:text-accent`}>
-            Also due ({card.alsoDue.length}) {more ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <button onClick={() => setMore((v) => !v)} aria-expanded={more} data-testid="today-also-due" className={textLink}>
+            {more ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />} Also due ({card.alsoDue.length})
           </button>
           {more && <ul className="mt-1">{card.alsoDue.filter((x) => !handled.has(x.key)).map((x) => <ItemRow key={x.key} x={x} busy={busy} tap={(k, a) => void tap(k, a)} />)}</ul>}
         </div>
@@ -190,13 +193,13 @@ export function RadarList({ vaultPath }: { vaultPath: string }) {
         <span className={`${META} min-w-0 flex-1`}>{q.data?.computed ? `Checked ${new Date(q.data.computed).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : q.loading ? "Looking..." : ""}</span>
         <button onClick={() => void refresh()} disabled={busy} title="Look again" aria-label="Look again at what is falling behind" data-testid="radar-refresh" className={iconBtn}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</button>
       </div>
-      {!items.length && !q.loading && <p className={`${BODY} text-text-muted`}>Nothing is falling behind.</p>}
+      {!items.length && !q.loading && <p className={META}>Nothing is falling behind.</p>}
       {radarGroups(items).map((g) => (
         <div key={g.kind} className="mt-3" data-testid="radar-group" data-kind={g.kind}>
-          <h4 className="text-[15px] font-semibold text-text-primary">{g.label}</h4>
+          <h4 className="text-[13px] font-semibold text-text-secondary">{g.label}</h4>
           <ul>{g.items.map((x) => (
             <li key={x.key} className="border-b border-border-subtle py-1.5 last:border-b-0">
-              <p className="break-words text-[15px] text-text-secondary">{x.text}</p>
+              <p className={`${BODY} break-words text-text-secondary`}>{x.text}</p>
               <p className={`${META} break-words`}>{x.evidence}{x.domain && x.domain !== "general" ? `, ${label(x.domain)}` : ""}</p>
             </li>
           ))}</ul>
@@ -219,21 +222,22 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
     finally { setBusy(null); }
   };
   const week = new Date(`${card.week}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const line = (title: string, xs: string[], empty: string) => (
-    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3"><span className="w-20 shrink-0 text-[14px] font-semibold text-text-primary">{title}</span><span className={`${BODY} min-w-0 break-words text-text-secondary`}>{xs.length ? xs.join("; ") : empty}</span></div>
+  // An empty line says nothing: it is left out.
+  const line = (title: string, xs: string[]) => !xs.length ? null : (
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3"><span className="w-20 shrink-0 pt-px text-[13px] text-text-muted">{title}</span><span className={`${BODY} min-w-0 break-words text-text-secondary`}>{xs.join("; ")}</span></div>
   );
   return (
-    <section data-testid="review-card" className="rounded-xl border border-border p-4 sm:p-5">
+    <section data-testid="review-card">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className={`min-w-0 flex-1 ${DETAIL_TITLE}`}>Week of {week}</h2>
-        {card.checkin && <span className={chip}>calm {card.checkin.calm}{card.calmNormal ? ` (normal ${card.calmNormal})` : ""}</span>}
+        {card.checkin && <span className={META}>calm {card.checkin.calm}{card.calmNormal ? ` · normal ${card.calmNormal}` : ""}</span>}
       </div>
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
       <div className="mt-3 space-y-1.5">
-        {line("Moved", card.lines.moved, "Nothing past your normal.")}
-        {line("Drifted", card.lines.drifted, "Nothing below your normal.")}
+        {line("Moved", card.lines.moved)}
+        {line("Drifted", card.lines.drifted)}
         <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3" data-testid="review-conflict">
-          <span className="w-20 shrink-0 text-[14px] font-semibold text-text-primary">Conflict</span>
+          <span className="w-20 shrink-0 pt-px text-[13px] text-text-muted">Conflict</span>
           <div className="min-w-0 flex-1">
             <span className={`${BODY} break-words text-text-secondary`}>{card.lines.conflict}</span>
             {card.conflict?.evidence.length ? <p className={`${META} mt-0.5 break-words`} data-testid="review-conflict-evidence">{card.conflict.evidence.join("; ")}</p> : null}
@@ -245,9 +249,9 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
         <ul className="mt-4 border-t border-border-subtle pt-3" data-testid="review-glance">
           {card.glance.map((g) => (
             <li key={g.id} className="flex flex-wrap items-baseline gap-x-3 py-1">
-              <span className="min-w-0 flex-1 text-[15px] text-text-primary">{g.title}</span>
+              <span className="min-w-0 flex-1 text-[14px] text-text-primary">{g.title}</span>
               {g.paused ? <span className={META} data-testid="review-paused">paused for {g.paused}</span> : g.documentary ? <span className={META}>{g.record ?? "a record, no target"}</span>
-                : <><span className="text-[16px] font-semibold tabular-nums text-text-primary">{fmtVal(g.value, g.unit)}</span><span className={META}>{g.normal.learning ? "learning your normal" : `normal ${fmtVal(g.normal.lo, g.unit)} to ${fmtVal(g.normal.hi, g.unit)}`}</span></>}
+                : <><span className="text-[14px] font-semibold tabular-nums text-text-primary">{fmtVal(g.value, g.unit)}</span><span className={META}>{g.normal.learning ? "learning your normal" : `normal ${fmtVal(g.normal.lo, g.unit)} to ${fmtVal(g.normal.hi, g.unit)}`}</span></>}
             </li>
           ))}
           {card.surprise && <li className={`${BODY} pt-1 text-text-secondary`}><span className="font-semibold text-text-primary">One surprise: </span>{card.surprise}</li>}
@@ -255,74 +259,80 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
       )}
       {card.candidates.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-candidates">
-          <h3 className="text-[15px] font-semibold text-text-primary">You said</h3>
+          <h3 className={SECTION_TITLE}>You said</h3>
           <ul>{card.candidates.map((c) => (
-            <li key={c.key} data-testid="review-candidate" className="flex items-start gap-3 py-2">
+            <li key={c.key} data-testid="review-candidate" className="group flex items-start gap-3 py-2">
               <div className="min-w-0 flex-1">
                 <p className={`${BODY} break-words text-text-secondary`}>"{c.quote}"</p>
                 <p className={`${META} mt-0.5`}>Make "{c.title}" a {c.kind === "rule" ? "rule you never trade" : c.kind}? Heard {c.count} time{c.count === 1 ? "" : "s"}.</p>
               </div>
-              <button onClick={() => void run(c.key, "engine_review_candidate", { key: c.key, answer: "yes" })} disabled={!!busy} title="Yes" aria-label={`Yes: ${c.title}`} className={iconBtn}><Check className="h-4 w-4" /></button>
-              <button onClick={() => void run(c.key, "engine_review_candidate", { key: c.key, answer: "no" })} disabled={!!busy} title="Not now" aria-label={`Not now: ${c.title}`} className={iconBtn}><X className="h-4 w-4" /></button>
+              <span className={`flex shrink-0 items-center gap-0.5 ${REVEAL}`}>
+                <button onClick={() => void run(c.key, "engine_review_candidate", { key: c.key, answer: "yes" })} disabled={!!busy} title="Yes" aria-label={`Yes: ${c.title}`} className={iconSm}><Check className="h-4 w-4" /></button>
+                <RowMenu items={[{ icon: X, label: "Not now", onClick: () => void run(c.key, "engine_review_candidate", { key: c.key, answer: "no" }) }]} />
+              </span>
             </li>
           ))}</ul>
         </div>
       )}
       {card.metricProposals.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-metric-proposals">
-          <h3 className="text-[15px] font-semibold text-text-primary">New metric?</h3>
+          <h3 className={SECTION_TITLE}>New metric?</h3>
           <ul>{card.metricProposals.map((p) => (
-            <li key={p.key} className="flex items-start gap-3 py-2">
-              <div className="min-w-0 flex-1"><p className="break-words text-[15px] text-text-primary">{p.title}</p><p className={`${META} mt-0.5 break-words`}>{p.why}</p></div>
-              <button onClick={() => void run(p.key, "engine_metric_answer", { key: p.key, answer: "track" })} disabled={!!busy} title="Track" aria-label={`Track ${p.title}`} className={iconBtn}><Check className="h-4 w-4" /></button>
-              <button onClick={() => void run(p.key, "engine_metric_answer", { key: p.key, answer: "dismiss" })} disabled={!!busy} title="Not useful" aria-label={`Not useful: ${p.title}`} className={iconBtn}><X className="h-4 w-4" /></button>
+            <li key={p.key} className="group flex items-start gap-3 py-2">
+              <div className="min-w-0 flex-1"><p title={p.title} className={`${ROW_TITLE} line-clamp-2 break-words`}>{p.title}</p><p className={`${META} mt-0.5 line-clamp-2 break-words`} title={p.why}>{p.why}</p></div>
+              <span className={`flex shrink-0 items-center gap-0.5 ${REVEAL}`}>
+                <button onClick={() => void run(p.key, "engine_metric_answer", { key: p.key, answer: "track" })} disabled={!!busy} title="Track" aria-label={`Track ${p.title}`} className={iconSm}><Check className="h-4 w-4" /></button>
+                <RowMenu items={[{ icon: X, label: "Not useful", onClick: () => void run(p.key, "engine_metric_answer", { key: p.key, answer: "dismiss" }) }]} />
+              </span>
             </li>
           ))}</ul>
         </div>
       )}
       {card.commitments && card.commitments.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-commitments">
-          <h3 className="text-[15px] font-semibold text-text-primary">A promise?</h3>
+          <h3 className={SECTION_TITLE}>A promise?</h3>
           <ul>{card.commitments.map((c) => (
-            <li key={c.src} data-testid="review-commitment" className="flex items-start gap-3 py-2">
+            <li key={c.src} data-testid="review-commitment" className="group flex items-start gap-3 py-2">
               <div className="min-w-0 flex-1">
                 <p className={`${BODY} break-words text-text-secondary`}>"{c.quote}"</p>
                 <p className={`${META} mt-0.5 break-words`}>Track "{c.text}"{c.person ? ` for ${personName(c.person)}` : ""}{c.due ? `, due ${fmtDue(c.due)}` : ""}?</p>
               </div>
-              <button onClick={() => void run(c.src, "engine_commitment_answer", { src: c.src, yes: true, domain: null })} disabled={!!busy} title="Yes" aria-label={`Yes: ${c.text}`} data-testid="review-commitment-yes" className={iconBtn}><Check className="h-4 w-4" /></button>
-              <button onClick={() => void run(c.src, "engine_commitment_answer", { src: c.src, yes: false, domain: null })} disabled={!!busy} title="Not now" aria-label={`Not now: ${c.text}`} className={iconBtn}><X className="h-4 w-4" /></button>
+              <span className={`flex shrink-0 items-center gap-0.5 ${REVEAL}`}>
+                <button onClick={() => void run(c.src, "engine_commitment_answer", { src: c.src, yes: true, domain: null })} disabled={!!busy} title="Yes" aria-label={`Yes: ${c.text}`} data-testid="review-commitment-yes" className={iconSm}><Check className="h-4 w-4" /></button>
+                <RowMenu items={[{ icon: X, label: "Not now", onClick: () => void run(c.src, "engine_commitment_answer", { src: c.src, yes: false, domain: null }) }]} />
+              </span>
             </li>
           ))}</ul>
         </div>
       )}
       {card.missions && card.missions.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-missions">
-          <h3 className="text-[15px] font-semibold text-text-primary">Missions</h3>
-          <ul>{card.missions.map((m) => <li key={m} className="break-words py-1 text-[15px] text-text-secondary">{m}</li>)}</ul>
+          <h3 className={SECTION_TITLE}>Missions</h3>
+          <ul>{card.missions.map((m) => <li key={m} title={m} className={`${BODY} line-clamp-2 break-words py-1 text-text-secondary`}>{m}</li>)}</ul>
         </div>
       )}
       {((card.initiatives ?? []).some((x) => x.state === "missing" || x.state === "stop") || card.quarterly || card.experiment) && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-initiatives">
-          <h3 className="text-[15px] font-semibold text-text-primary">Initiatives</h3>
+          <h3 className={SECTION_TITLE}>Initiatives</h3>
           <ul>
             {(card.initiatives ?? []).filter((x) => x.state === "missing" || x.state === "stop").map((x) => (
               <li key={x.id} className="py-1">
-                <p className="line-clamp-2 text-[15px] font-medium text-text-primary" title={x.explanation}>{x.title}</p>
+                <p className={`${ROW_TITLE} line-clamp-2`} title={x.explanation}>{x.title}</p>
                 <p className={`${META} mt-0.5 line-clamp-2`}>{x.proposal}</p>
               </li>
             ))}
             {card.quarterly && <li className={`${META} py-1`}>The quarterly review is due: keep, switch or drop each initiative.</li>}
-            {card.experiment && <li className="py-1 text-[15px] text-text-secondary" data-testid="review-experiment">Experiment: {card.experiment.text}</li>}
+            {card.experiment && <li className={`${BODY} py-1 text-text-secondary`} data-testid="review-experiment">Experiment: {card.experiment.text}</li>}
           </ul>
         </div>
       )}
       {card.time && (card.time.thisWeek.connected || card.time.warning || card.time.holds.length > 0 || card.time.declines.length > 0) && <TimeBlock t={card.time} vaultPath={vaultPath} onChanged={onChanged} />}
       {card.radar && card.radar.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-radar">
-          <h3 className="text-[15px] font-semibold text-text-primary">Falling behind</h3>
+          <h3 className={SECTION_TITLE}>Falling behind</h3>
           <ul>{card.radar.map((x) => (
             <li key={x.key} className="py-1">
-              <p className="break-words text-[15px] text-text-secondary">{x.text}</p>
+              <p title={x.text} className={`${BODY} line-clamp-2 break-words text-text-secondary`}>{x.text}</p>
               <p className={`${META} break-words`}>{x.evidence}</p>
             </li>
           ))}</ul>
@@ -331,7 +341,7 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
       {(card.woop[0] || card.question) && (
         <div className="mt-4 border-t border-border-subtle pt-3">
           <p className={`${BODY} text-text-secondary`}>{card.woop[0] ? `Your goal "${card.woop[0].title}" needs its plan before it goes active.` : card.question!.text}</p>
-          <button onClick={() => onAsk("Let's continue my Compass")} className={`${smallBtn} mt-2`} data-testid="review-continue"><MessageSquare className="h-3.5 w-3.5" /> Answer in chat</button>
+          <button onClick={() => onAsk("Let's continue my Compass")} className={`${accentLink} mt-1.5`} data-testid="review-continue"><MessageSquare className="h-3.5 w-3.5" /> Answer in chat</button>
         </div>
       )}
       {card.apps && <p className={`${BODY} mt-3 break-words text-text-secondary`} data-testid="review-apps">{card.apps}</p>}
@@ -351,11 +361,11 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
           <p className={`${BODY} text-text-secondary`}>You said calm {card.checkin.calm} this week.</p>
         ) : (
           <>
-            <h3 className="flex items-center gap-1.5 text-[15px] font-semibold text-text-primary"><Scale className="h-4 w-4 text-text-muted" /> How calm was this week?</h3>
+            <h3 className={`${SECTION_TITLE} flex items-center gap-1.5`}><Scale className="h-4 w-4 text-text-muted" /> How calm was this week?</h3>
             <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="How calm was this week, 1 to 5">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button key={n} onClick={() => void run(`calm${n}`, "engine_review_checkin", { calm: n, note: null })} disabled={!!busy} data-testid={`review-calm-${n}`}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-[16px] font-semibold tabular-nums text-text-primary hover:border-accent-border hover:bg-accent-soft hover:text-accent disabled:opacity-50">{busy === `calm${n}` ? <Loader2 className="h-4 w-4 animate-spin" /> : n}</button>
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-[14px] font-medium tabular-nums text-text-primary hover:border-accent-border hover:bg-accent-soft hover:text-accent disabled:opacity-50">{busy === `calm${n}` ? <Loader2 className="h-4 w-4 animate-spin" /> : n}</button>
               ))}
             </div>
           </>
@@ -368,9 +378,9 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
 function Stepper({ label: l, value, onChange, testId }: { label: string; value: number; onChange: (n: number) => void; testId: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="min-w-0 flex-1 basis-40 text-[15px] text-text-secondary">{l}</span>
+      <span className={`${BODY} min-w-0 flex-1 basis-40 text-text-secondary`}>{l}</span>
       <button type="button" onClick={() => onChange(Math.max(0, value - 1))} aria-label={`${l}: lower`} className={iconBtn}>-</button>
-      <span className="w-8 text-center text-[18px] font-semibold tabular-nums text-text-primary" data-testid={testId}>{value}</span>
+      <span className="w-8 text-center text-[15px] font-semibold tabular-nums text-text-primary" data-testid={testId}>{value}</span>
       <button type="button" onClick={() => onChange(Math.min(10, value + 1))} aria-label={`${l}: higher`} className={iconBtn}>+</button>
     </div>
   );
@@ -382,13 +392,13 @@ function LadderAsk({ busy, onSave }: { busy: boolean; onSave: (now: number, futu
   const [future, setFuture] = useState(5);
   return (
     <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-ladder">
-      <h3 className="text-[15px] font-semibold text-text-primary">Once a quarter: your ladder</h3>
+      <h3 className={SECTION_TITLE}>Once a quarter: your ladder</h3>
       <p className={`${META} mt-0.5`}>0 is the worst possible life for you, 10 the best possible.</p>
       <div className="mt-2 max-w-md space-y-1.5">
         <Stepper label="Where you stand now" value={now} onChange={setNow} testId="ladder-now" />
         <Stepper label="Where you will stand in five years" value={future} onChange={setFuture} testId="ladder-future" />
       </div>
-      <button onClick={() => onSave(now, future)} disabled={busy} className={`${smallBtn} mt-2`} data-testid="ladder-save"><Check className="h-3.5 w-3.5" /> Save</button>
+      <button onClick={() => onSave(now, future)} disabled={busy} className={`${accentLink} mt-2`} data-testid="ladder-save"><Check className="h-3.5 w-3.5" /> Save</button>
     </div>
   );
 }
@@ -398,10 +408,10 @@ function Who5Ask({ busy, onSave }: { busy: boolean; onSave: (xs: number[]) => vo
   const [xs, setXs] = useState<(number | null)[]>([null, null, null, null, null]);
   return (
     <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-who5">
-      <h3 className="text-[15px] font-semibold text-text-primary">This month: the last two weeks</h3>
+      <h3 className={SECTION_TITLE}>This month: the last two weeks</h3>
       <ul className="mt-2 space-y-2">{WHO5_ITEMS.map((item, i) => (
         <li key={item} className="flex flex-wrap items-center gap-2">
-          <span className="min-w-0 flex-1 basis-56 text-[15px] text-text-secondary">{item}</span>
+          <span className={`${BODY} min-w-0 flex-1 basis-56 text-text-secondary`}>{item}</span>
           <select aria-label={item} data-testid={`who5-${i}`} value={xs[i] ?? ""} onChange={(e) => setXs(xs.map((x, j) => (j === i ? Number(e.target.value) : x)))}
             className="h-9 min-w-0 max-w-full rounded-md border border-border bg-background px-2 text-[14px] text-text-primary">
             <option value="" disabled>Pick one</option>
@@ -409,7 +419,7 @@ function Who5Ask({ busy, onSave }: { busy: boolean; onSave: (xs: number[]) => vo
           </select>
         </li>
       ))}</ul>
-      <button onClick={() => onSave(xs as number[])} disabled={busy || xs.some((x) => x === null)} className={`${smallBtn} mt-2`} data-testid="who5-save"><Check className="h-3.5 w-3.5" /> Save</button>
+      <button onClick={() => onSave(xs as number[])} disabled={busy || xs.some((x) => x === null)} className={`${accentLink} mt-2`} data-testid="who5-save"><Check className="h-3.5 w-3.5" /> Save</button>
     </div>
   );
 }
@@ -431,15 +441,15 @@ function TimeBlock({ t, vaultPath, onChanged }: { t: TimeReview; vaultPath: stri
   const when = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
   return (
     <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-time">
-      <h3 className="text-[15px] font-semibold text-text-primary">Time</h3>
+      <h3 className={SECTION_TITLE}>Time</h3>
       {w.connected && (
         <>
           <p className={`${META} mt-0.5`}>{w.hours} h on the calendar · {w.meetings} h meetings · {w.focus} h focus{w.afterHours ? ` · ${w.afterHours} h after hours` : ""}</p>
           <ul className="mt-1">{w.byValue.filter((v) => v.hours > 0 || v.rank <= 2).slice(0, 4).map((v) => (
             <li key={v.id} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_3.5rem] items-center gap-3 py-0.5" title={`Rank ${v.rank}; its rank would give it about ${v.expected}%`}>
-              <span className="truncate text-[14px] text-text-secondary">{v.title}</span>
+              <span className="truncate text-[13px] text-text-secondary">{v.title}</span>
               <span className="h-2.5 overflow-hidden rounded bg-surface-warm"><span className="block h-full rounded bg-accent" style={{ width: `${Math.max(2, v.share)}%` }} /></span>
-              <span className="text-right text-[13px] tabular-nums text-text-muted">{v.share}%</span>
+              <span className="text-right text-[12px] tabular-nums text-text-muted">{v.share}%</span>
             </li>
           ))}</ul>
           {w.lines.map((l) => <p key={l} className={`${BODY} mt-1 text-text-secondary`}>{l}</p>)}
@@ -449,20 +459,20 @@ function TimeBlock({ t, vaultPath, onChanged }: { t: TimeReview; vaultPath: stri
       {t.holds.length > 0 && <ul className="mt-2">{t.holds.map((h) => (
         <li key={h.id} className="group flex items-start gap-2 py-1.5" data-testid="review-hold">
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-[15px] font-medium text-text-primary">{h.title}</p>
+            <p title={h.title} className={`${ROW_TITLE} line-clamp-2`}>{h.title}</p>
             <p className={`${META} mt-0.5`}>A protected block, {when(h.start)} · waits for your yes{h.note ? ` · ${h.note}` : ""}</p>
           </div>
-          <button onClick={() => void answer(h.id, "approve")} disabled={!!busy} data-testid="review-hold-approve" className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">{busy === h.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Hold it</button>
-          <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"><RowMenu items={[{ icon: X, label: "Not this week", onClick: () => void answer(h.id, "decline") }]} /></span>
+          <button onClick={() => void answer(h.id, "approve")} disabled={!!busy} data-testid="review-hold-approve" className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent disabled:opacity-50">{busy === h.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Hold it</button>
+          <span className={REVEAL}><RowMenu items={[{ icon: X, label: "Not this week", onClick: () => void answer(h.id, "decline") }]} /></span>
         </li>
       ))}</ul>}
       {t.declines.length > 0 && <ul className="mt-2">{t.declines.map((d) => (
         <li key={d.id} className="group flex items-start gap-2 py-1.5" data-testid="review-decline">
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-[15px] font-medium text-text-primary">Decline "{d.title}"?</p>
+            <p title={d.title} className={`${ROW_TITLE} line-clamp-2`}>Decline "{d.title}"?</p>
             <p className={`${META} mt-0.5 line-clamp-2`} title={d.body}>{when(d.start)} · serves nothing your Compass names · a draft, yours to send</p>
           </div>
-          <button onClick={() => { void navigator.clipboard?.writeText(d.body).then(() => setCopied(d.id)).catch(() => {}); }} title="Copy the draft" aria-label={`Copy the draft for ${d.title}`} className={iconBtn}>{copied === d.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button>
+          <button onClick={() => { void navigator.clipboard?.writeText(d.body).then(() => setCopied(d.id)).catch(() => {}); }} title="Copy the draft" aria-label={`Copy the draft for ${d.title}`} className={`${iconBtn} ${REVEAL}`}>{copied === d.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button>
         </li>
       ))}</ul>}
     </div>
