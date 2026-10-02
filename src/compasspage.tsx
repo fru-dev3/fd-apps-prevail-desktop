@@ -14,7 +14,7 @@ import { titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone, useStacked } from "./useisphone";
-import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import {
   confirmLines, dropLines, fieldOf, isProposed, items, missionOf, parseCompass, proposedCount, rankOf, serializeCompass,
   type CompassDoc, type CompassItem, type LedgerChange,
@@ -177,7 +177,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       <li key={it.id} data-testid="compass-item" data-id={it.id} className="group flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
         {lead && <span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-text-muted">{lead}</span>}
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-medium leading-snug text-text-primary">{it.title}</p>
+          <p title={it.title} className={`${ROW_TITLE} line-clamp-2 break-words`}>{it.title}</p>
           {words && norm(words) !== norm(it.title) && (
             <p className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-text-secondary">{words}</p>
           )}
@@ -213,13 +213,13 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     <section className="mt-6 first:mt-0">
       <h3 className={`${SECTION_TITLE} mb-1`}>{title}</h3>
       {list.length ? <ul>{list.map((it, i) => itemRow(it, ranked ? String(i + 1) : undefined))}</ul>
-        : <p className={`${BODY} text-text-muted`}>{emptyText}</p>}
+        : <p className={META}>{emptyText}</p>}
     </section>
   );
 
   const confirmAll = proposed > 0 ? (
     <button onClick={() => void confirmIds("all")} disabled={!!busy} data-testid="compass-confirm-all"
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 text-[13px] font-medium text-accent hover:bg-accent hover:text-white disabled:opacity-50">
+      className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline disabled:opacity-50">
       {busy === "all" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />} Confirm all {proposed}
     </button>
   ) : null;
@@ -227,30 +227,27 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const overview = (
     <section data-testid="compass-detail-overview">
       <h2 className={DETAIL_TITLE}>Your Compass</h2>
-      <p className={`${BODY} mt-1 text-text-secondary`}>What you live by, in your own words. Every chat carries the lines you confirmed.</p>
+      <p className={`${META} mt-1`}>Every chat carries the lines you confirmed.</p>
       {text !== null && empty && (
-        <div className="mt-6 max-w-2xl rounded-lg border border-border p-4">
-          <p className={`${BODY} text-text-primary`}>No Compass yet. {chief ?? "Your chief of staff"} can draft one from your notes: your constitution, profile and memory. Every line keeps the words it came from, and nothing counts until you confirm it.</p>
+        <div className="mt-5 max-w-2xl">
+          <p className={`${BODY} text-text-secondary`}>No Compass yet. {chief ?? "Your chief of staff"} can draft one from your notes: your constitution, profile and memory. Every line keeps the words it came from, and nothing counts until you confirm it.</p>
           <button onClick={() => void draft()} disabled={!!busy} data-testid="compass-draft"
-            className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md bg-accent px-3 text-[14px] font-medium text-white disabled:opacity-50">
+            className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50">
             {busy === "draft" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Draft from my notes
           </button>
         </div>
       )}
       {proposed > 0 && (
-        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-border-subtle py-3" data-testid="compass-needs-you">
-          <p className="min-w-0 flex-1 text-[14px] text-text-secondary"><span className="font-medium text-text-primary">{proposed} {proposed === 1 ? "line" : "lines"} drafted from your notes</span> wait for you. Confirm what is yours, drop the rest.</p>
-          <span className="flex shrink-0 items-center gap-2">
-            {confirmAll}
-            <button onClick={() => choose("values")} className="inline-flex h-8 items-center rounded-md px-2.5 text-[13px] text-text-secondary hover:bg-surface-warm hover:text-accent">Review one by one</button>
-          </span>
+        <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-1" data-testid="compass-needs-you">
+          <p className="min-w-0 text-[14px] text-text-secondary"><span className="font-medium text-text-primary">{proposed} {proposed === 1 ? "line" : "lines"} drafted from your notes</span> wait for you.</p>
+          <button onClick={() => choose("values")} className="text-[13px] font-medium text-accent hover:underline">Review one by one</button>
         </div>
       )}
       {!empty && text !== null && <AlignNeedsYou vaultPath={vaultPath} />}
       {mission?.text && (
         <section className="mt-6">
           <h3 className={`${SECTION_TITLE} mb-1`}>Purpose</h3>
-          <p className="font-display text-[22px] leading-snug text-text-primary">{mission.text.replace(/^>\s*/gm, "").replace(/\*\*/g, "")}</p>
+          <p className="font-display text-[20px] leading-snug text-text-primary">{mission.text.replace(/^>\s*/gm, "").replace(/\*\*/g, "")}</p>
         </section>
       )}
       {values.length > 0 && section("Values, most important first", values.slice(0, 8), true)}
@@ -267,10 +264,10 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       {mission?.text ? (
         <>
           <p className={`${META} mt-2`}>{status(mission)}</p>
-          <p className="mt-3 max-w-3xl font-display text-[22px] leading-snug text-text-primary">{mission.text.replace(/^>\s*/gm, "").replace(/\*\*/g, "")}</p>
+          <p className="mt-3 max-w-3xl font-display text-[20px] leading-snug text-text-primary">{mission.text.replace(/^>\s*/gm, "").replace(/\*\*/g, "")}</p>
           {fieldOf(mission, "from") && <p className={`${META} mt-2`} title={fieldOf(mission, "from")}>From {sourceLabel(fieldOf(mission, "from")!)}</p>}
         </>
-      ) : <p className={`${BODY} mt-2 text-text-muted`}>Not written yet. It comes last, drawn from your own words.</p>}
+      ) : <p className={`${META} mt-2`}>Not written yet. It comes last, drawn from your own words.</p>}
     </section>
   );
 
@@ -295,14 +292,14 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
             <span className={META}>{new Date(l.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
           </li>
         ))}</ul>
-      ) : <p className={`${BODY} text-text-muted`}>No changes yet.</p>}
+      ) : <p className={META}>No changes yet.</p>}
       <h3 className={`${SECTION_TITLE} mt-6 mb-1`}>Earlier versions</h3>
       {versions.length ? (
         <ul data-testid="compass-versions">{versions.map((v) => (
           <li key={v.name}><button onClick={() => void invoke<string>("compass_version_read", { vault: vaultPath, name: v.name }).then((t) => setVersion({ name: v.name, text: t }))}
             className={`${BODY} py-1 text-left text-text-primary hover:text-accent`}>{v.name.replace(/T(\d\d)-(\d\d)-(\d\d)Z.*/, " $1:$2")}</button></li>
         ))}</ul>
-      ) : <p className={`${BODY} text-text-muted`}>None yet. Each change keeps the file as it was.</p>}
+      ) : <p className={META}>None yet. Each change keeps the file as it was.</p>}
       {version && <pre data-testid="compass-version-text" className="mt-3 max-w-3xl overflow-x-auto whitespace-pre-wrap rounded-lg border border-border bg-surface p-3 text-[13px] text-text-secondary">{version.text}</pre>}
     </section>
   );
@@ -333,7 +330,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="compass-page">
       <SettingsHeader title="Compass" icon={Compass} subtitle="What you live by, in your own words."
-        right={<span className="flex items-center gap-1">
+        right={<span className="flex items-center gap-3">
           {view === "compass" && confirmAll}
           <button onClick={talk} title={`Talk to ${chief ?? "your chief of staff"}`} aria-label={`Talk to ${chief ?? "your chief of staff"}`} className={iconBtn}><MessageSquare className="h-4 w-4" /></button>
         </span>}

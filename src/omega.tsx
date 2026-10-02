@@ -4,12 +4,13 @@
 // Ideal State. This page lets the user distill, view, and hand-edit it.
 // See docs/OMEGA-PLAN.md. Engine: src-tauri/src/omega.rs.
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Compass, Eye, FileText, History, Lightbulb, Loader2, PenLine, Sigma, Sparkles } from "lucide-react";
+import { Eye, History, Loader2, PenLine, Sigma, Sparkles } from "lucide-react";
 import { invoke } from "./bridge";
 import { CollapsibleSection } from "./collapsible";
 import { Markdown } from "./Markdown";
 import { PREF, cheapModel, getPref, lsGet, lsSet, setPref } from "./storage";
-import { Toggle } from "./ui";
+import { REVEAL, Toggle } from "./ui";
+import { BODY, META } from "./typescale";
 import { SettingsHeader } from "./sectionutil";
 
 // The distiller wraps its auto block in HTML-comment markers
@@ -104,6 +105,8 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
   }
 
   const empty = body.trim() === "";
+  const icon = "flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent disabled:opacity-40";
+  const link = "inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline disabled:opacity-50";
 
   return (
     <>
@@ -115,132 +118,82 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
         />
       )}
 
-      {/* Clarity: spell out how Omega relates to the Ideal State (your declared
-          constitution) so the two surfaces don't read as duplicates. */}
-      <div className="mb-4 rounded-lg border border-border-subtle bg-surface px-3 py-2.5 text-[13px] leading-relaxed text-text-secondary">
-        Your Ideal State is what you declare: your values and how you want to operate. Omega is what Prevail has learned about you from how you actually work. The two should align, but Omega can surface non-obvious truths that aren't spelled out in your Ideal State.
-      </div>
-
-      {/* M7 (Monday feedback): the cohesive view - show what FEEDS Omega + how it
-          sits with the Ideal State, so the flow Journals/Intents/States → Omega is
-          legible. Each source links to its surface. */}
-      <CollapsibleSection icon={Compass} title="What feeds Omega" summary="journals · intents · states → omega" className="mb-4">
-        <div className="space-y-2 text-[13px] text-text-secondary">
-          <p>Your raw activity compounds upward into Omega, then sits alongside your authored Ideal State:</p>
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="rounded-full border border-border-subtle bg-surface px-2 py-0.5">Journals (what you asked)</span>
-            <ArrowRight className="h-3 w-3 text-text-muted" />
-            <span className="rounded-full border border-border-subtle bg-surface px-2 py-0.5">Intents (the goal behind it)</span>
-            <ArrowRight className="h-3 w-3 text-text-muted" />
-            <span className="rounded-full border border-border-subtle bg-surface px-2 py-0.5">Domain memory + state</span>
-            <ArrowRight className="h-3 w-3 text-accent" />
-            <span className="rounded-full border border-accent-border bg-accent-soft px-2 py-0.5 text-accent">Omega (learned)</span>
-          </div>
-          <div className="mt-1 flex flex-wrap gap-2">
-            <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "ideal-state" }))} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs hover:border-accent-border hover:text-accent"><Compass className="h-3.5 w-3.5" /> Ideal State (authored)</button>
-            <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "intents" }))} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs hover:border-accent-border hover:text-accent"><Lightbulb className="h-3.5 w-3.5" /> Intents</button>
-            <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "recommendations" }))} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs hover:border-accent-border hover:text-accent"><FileText className="h-3.5 w-3.5" /> Recommendations</button>
-          </div>
-          <p className="text-[11px] text-text-muted">Ideals are what you want and win any conflict. Omega is what Prevail learned. Both ride every turn.</p>
-        </div>
-      </CollapsibleSection>
-
-      {/* Action bar: distill + edit/view. */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] text-text-muted">
-          {editing ? "Editing markdown" : "App-wide · highest precedence after the Ideal State"}
-        </span>
-        <div className="flex items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 text-[11px] text-text-muted" title="Auto-distill Omega across your domains on a slow cadence (default daily)">
+      {/* One line on how Omega sits beside the constitution, then tiny actions. */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className={`${META} min-w-0 flex-1 basis-64`} title="Journals, intents and each domain's memory compound into Omega.">
+          {editing ? "Editing. The auto block is rewritten on each distill; write above it." : "What Prevail learned from how you work. Your constitution wins any conflict; both ride every turn."}
+        </p>
+        <span className="flex shrink-0 items-center gap-1">
+          <label className="mr-1 inline-flex items-center gap-1.5 text-[12px] text-text-muted" title="Auto-distill Omega across your domains on a slow cadence (default daily)">
             <Toggle on={auto} onChange={(v) => { setAuto(v); setPref(PREF.omegaAuto, v ? "1" : "0"); }} label="Auto-distill Omega" />
             Auto
           </label>
-          {savedAt && !editing && <span className="text-[12px] text-ok">✓ saved</span>}
-          <button
-            onClick={distill}
-            disabled={distilling}
-            className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
-          >
-            {distilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {distilling ? "Distilling…" : "Distill now"}
+          {savedAt && !editing && <span className="text-[12px] text-ok">Saved</span>}
+          <button onClick={distill} disabled={distilling} title="Distill now" aria-label="Distill now" className={icon}>
+            {distilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           </button>
           {loaded && !empty && (
-            <button
-              onClick={() => setEditing((e) => !e)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
-            >
-              {editing ? <Eye className="h-3.5 w-3.5" /> : <PenLine className="h-3.5 w-3.5" />}
-              {editing ? "View" : "Edit"}
+            <button onClick={() => setEditing((e) => !e)} title={editing ? "View" : "Edit"} aria-label={editing ? "View" : "Edit"} className={icon}>
+              {editing ? <Eye className="h-4 w-4" /> : <PenLine className="h-4 w-4" />}
             </button>
           )}
-        </div>
+        </span>
       </div>
 
-      {note && (
-        <div className="mb-3 rounded-lg border border-border-subtle bg-surface px-3 py-2 text-xs text-text-secondary">{note}</div>
-      )}
+      {note && <p className={`${META} mb-3`}>{note}</p>}
 
       {editing ? (
-        <div className="rounded-lg border border-border bg-surface">
+        <div>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder={"## What you've learned about how you work\n\n- Prefer terse, decision-first answers\n\n(or hit “Distill now” to let Prevail draft this from your domains)"}
+            placeholder={"## What you've learned about how you work\n\n- Prefer terse, decision-first answers"}
             rows={20}
-            className="w-full resize-y rounded-lg bg-transparent p-4 text-sm leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none"
+            className="w-full resize-y rounded-lg border border-border bg-background p-3 text-[14px] leading-normal text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
           />
-          <div className="flex items-center justify-between gap-2 border-t border-border-subtle px-4 py-2">
-            <span className="text-[12px] text-text-muted">{body.length.toLocaleString()} chars · the auto block is rewritten on each distill; edit above it</span>
-            <button
-              onClick={save}
-              disabled={saving || !loaded}
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-background hover:bg-accent-hover disabled:bg-surface-strong disabled:text-text-muted"
-            >
-              {saving ? "saving…" : "Save"}
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className={META}>{body.length.toLocaleString()} characters</span>
+            <button onClick={save} disabled={saving || !loaded}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50">
+              {saving ? "Saving" : "Save"}
             </button>
           </div>
         </div>
       ) : !loaded ? null : empty ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-surface px-6 py-10 text-center">
-          <Sigma className="h-8 w-8 text-accent" />
-          <div className="text-base font-semibold">No learned knowledge yet</div>
-          <p className="max-w-md text-sm text-text-secondary">
-            Omega fills in as Prevail learns across your domains. Click <span className="font-semibold">Distill now</span> to draft it from what you've done so far, or write the first lines yourself.
-          </p>
-          <div className="flex items-center gap-2">
-            <button onClick={distill} disabled={distilling}
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-background hover:bg-accent-hover disabled:opacity-50">
+        <div>
+          <p className={META}>Nothing learned yet. It fills in as Prevail learns across your domains.</p>
+          <div className="mt-2 flex items-center gap-4">
+            <button onClick={distill} disabled={distilling} className={link}>
               {distilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {distilling ? "Distilling…" : "Distill now"}
+              {distilling ? "Distilling" : "Distill now"}
             </button>
-            <button onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:border-accent-border hover:text-accent">
+            <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1 text-[13px] text-text-muted hover:text-text-primary">
               <PenLine className="h-3.5 w-3.5" /> Write it myself
             </button>
           </div>
         </div>
       ) : (
         <div>
-          <div className="rounded-xl border border-border bg-surface p-4 text-sm leading-relaxed text-text-secondary">
+          <div className={`${BODY} max-w-3xl text-text-secondary`}>
             <Markdown source={sanitizeForDisplay(body)} compact />
           </div>
           {versions.length > 0 && (
             <CollapsibleSection
               icon={History}
               title="History"
-              subtitle="Every distill + edit is snapshotted; nothing is lost."
+              subtitle="Every distill and edit is kept; nothing is lost."
               summary={`${versions.length} version${versions.length === 1 ? "" : "s"}`}
-              className="mt-4"
+              className="mt-6"
             >
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col">
                 {versions.map((v) => (
-                  <div key={v.path} className="flex items-center gap-2 py-1">
-                    <span className="flex-1 text-[11px] text-text-secondary">{v.name.replace("_", " · ")}</span>
+                  <div key={v.path} className="group flex items-center gap-2 py-1">
+                    <span className="flex-1 text-[13px] text-text-secondary">{v.name.replace("_", " · ")}</span>
                     <button
                       onClick={async () => {
                         try {
                           const old = await invoke<string>("read_text_file", { path: v.path });
-                          if (window.confirm("Restore this version? The current text is snapshotted first.")) {
+                          if (window.confirm("Restore this version? The current text is kept first.")) {
                             setBody(old);
                             await invoke("write_omega", { vault: vaultPath, body: old });
                             setSavedAt(Date.now());
@@ -249,7 +202,7 @@ export function OmegaSection({ vaultPath, headerless }: { vaultPath: string; hea
                           }
                         } catch (e) { console.error("restore omega", e); }
                       }}
-                      className="rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                      className={`${link} ${REVEAL}`}
                     >
                       Restore
                     </button>

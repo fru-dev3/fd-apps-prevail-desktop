@@ -131,7 +131,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
         )}
       </div>
       {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
-      {body === null && <p className={`${BODY} text-text-muted`}>Reading your mission</p>}
+      {body === null && <p className={META}>Reading your mission</p>}
       {body !== null && tab === "current" && (
         editing === "all" ? editor : (
           <div className="max-w-3xl space-y-1">
@@ -161,7 +161,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
                     className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
                     <span className="flex items-center gap-2">
                       <span className={`min-w-0 flex-1 truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{r.when}</span>
-                      {r.latest && <span data-testid="version-latest" className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-on-accent">Latest</span>}
+                      {r.latest && <span data-testid="version-latest" className="shrink-0 text-[12px] font-medium text-accent">Latest</span>}
                     </span>
                     {summary && <span className="block truncate text-[12px] text-text-muted">{summary}</span>}
                   </button>
@@ -175,7 +175,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
                 <span className={`${META} flex-1`}>Read only. Restore saves it as the new latest version; the current text is kept too.</span>
                 <button onClick={() => { if (pickedRow.text !== undefined) { void save(pickedRow.text).then(() => setPicked("latest")); } }}
                   disabled={pickedRow.text === undefined} data-testid="version-restore"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
+                  className="inline-flex h-8 items-center gap-1 text-[13px] font-medium text-accent hover:underline disabled:opacity-50">
                   <RotateCcw className="h-3.5 w-3.5" />Restore
                 </button>
               </div>
