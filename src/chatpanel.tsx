@@ -1426,6 +1426,7 @@ export function ChatPanel({
           output_tokens: usage?.output_tokens ?? null,
           cost_usd: usage?.cost_usd ?? null,
           ok,
+          token_source: usage?.estimated ? "estimated" : null,
         },
       })
         // S2: nudge the Usage panel to refresh now that a new record landed, so it

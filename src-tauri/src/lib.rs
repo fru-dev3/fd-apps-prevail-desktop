@@ -424,6 +424,7 @@ pub fn run() {
             usage::usage_append,
             usage::usage_summary,
             usage::usage_entries,
+            usage::engine_ai_usage,
             usage::usage_summary_domain,
             usage::engine_budget_status,
             intents::intent_append,
@@ -902,6 +903,7 @@ mod usage_tests {
             cost_usd: cost,
             ok,
             surface: None,
+            token_source: None,
         }
     }
 
@@ -924,6 +926,10 @@ mod usage_tests {
         assert!(p.get("cost_usd").is_none(), "cost is the engine's job");
         // No thread → a stable default session.
         assert_eq!(p["session"], "desktop");
+        // An estimate stays labeled as one in the engine's ledger.
+        let mut e = rec("2026-06-06", "claude", None, None, Some(10), Some(4), None, true);
+        e.token_source = Some("estimated".into());
+        assert_eq!(usage_record_payload(&e)["tokenSource"], "estimated");
     }
 
     #[test]

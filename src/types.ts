@@ -319,7 +319,7 @@ export interface ChatMessage {
   // Token / cost accounting from the engine's `usage` ChatEvent, when the
   // reply came through the unified engine chat path (Track D5). Null on
   // replies that came through the native chat_send path.
-  usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number };
+  usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number; estimated?: boolean };
   // I9: the framework + lens in effect when this turn was sent, so each message
   // records HOW it was produced (not just which model). Shown in the bubble.
   framework?: string;
@@ -367,7 +367,7 @@ export interface ChatEvent {
   // The model's declared plan (from TodoWrite), rendered as a header above the
   // checklist. Also arrives on `type: "tool"` events.
   plan?: string[];
-  usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number };
+  usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number; estimated?: boolean };
   engine?: string;
   error?: string;
   // Present only on the `route` event (auto model routing): the chosen model + why.
