@@ -141,6 +141,8 @@ const WEBUI_ALLOWED: &[&str] = &[
     "chief_of_staff_read",
     // The Compass, its versions and ledger (read). Writing and drafting stay on the Mac.
     "compass_read", "compass_versions", "compass_version_read", "compass_ledger",
+    // The Compass roll-up and the rules' states (read); answering a conflict stays on the Mac.
+    "engine_compass_align", "engine_compass_rules",
     // Today and the weekly review on the phone: the cards, plus the two taps
     // the plans put on the phone (a Today tap and the weekly 1-5). Jobs,
     // specialists, decisions and metric proposals are read here; starting,

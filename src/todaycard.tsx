@@ -3,7 +3,7 @@
 // card when the week wants its check-in. Both come from the engine
 // (`prevail today`, `prevail review week`); every tap goes back to it.
 import { useState } from "react";
-import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleOff, Gavel, Loader2, MessageSquare, RefreshCw, Scale, ThumbsUp, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleOff, Gavel, Handshake, Loader2, MessageSquare, RefreshCw, Scale, ThumbsUp, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { BODY, META, SECTION_TITLE } from "./typescale";
@@ -146,7 +146,14 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
       <div className="mt-3 space-y-1.5">
         {line("Moved", card.lines.moved, "Nothing past your normal.")}
         {line("Drifted", card.lines.drifted, "Nothing below your normal.")}
-        {line("Conflict", [card.lines.conflict], "")}
+        <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3" data-testid="review-conflict">
+          <span className="w-20 shrink-0 text-[14px] font-semibold text-text-primary">Conflict</span>
+          <div className="min-w-0 flex-1">
+            <span className={`${BODY} break-words text-text-secondary`}>{card.lines.conflict}</span>
+            {card.conflict?.evidence.length ? <p className={`${META} mt-0.5 break-words`} data-testid="review-conflict-evidence">{card.conflict.evidence.join("; ")}</p> : null}
+          </div>
+          {card.conflict?.key && <button onClick={() => void run("conflict", "engine_compass_conflict", { key: card.conflict!.key, answer: "accept" })} disabled={!!busy} title="Accept the tension" aria-label="Accept the tension" data-testid="review-conflict-accept" className={iconBtn}><Handshake className="h-4 w-4" /></button>}
+        </div>
       </div>
       {card.glance.length > 0 && (
         <ul className="mt-4 border-t border-border-subtle pt-3" data-testid="review-glance">

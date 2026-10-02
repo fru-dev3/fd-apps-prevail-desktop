@@ -67,3 +67,13 @@ describe("playbooks", () => {
     expect(triggerLine([{ domain: "foo", loop: "x", cadence: "daily", enabled: true }, { domain: "bar-baz", loop: "y", cadence: "daily", enabled: true }])).toBe("Daily in Foo and Bar Baz");
   });
 });
+
+import { compassChips, RULE_STATE_LABEL } from "./plansmodel";
+describe("Goals G3 job chips", () => {
+  test("serves, watch and rules with their state; nothing without a Compass", () => {
+    expect(compassChips(undefined)).toEqual({ serves: [], watch: [], rules: [] });
+    const c = compassChips({ serves: [{ id: "g-foo", title: "Foo independence" }, { id: "v-free", title: "Freedom" }], costs: [{ id: "v-calm", title: "Calm", why: "Foo travel: Calm -1" }], rules: [{ id: "nn-debt", title: "No new debt", state: "unchecked" }] });
+    expect(c).toEqual({ serves: ["Foo independence", "Freedom"], watch: ["Calm"], rules: [{ title: "No new debt", state: "unchecked" }] });
+    expect(RULE_STATE_LABEL.unchecked).toBe("The Steward judges it");
+  });
+});

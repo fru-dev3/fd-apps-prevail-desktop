@@ -373,3 +373,51 @@ mod step4_tests {
         assert!(small_int("2.5", 5).is_err());
     }
 }
+
+// ── Goals G3: alignment, conflicts and the non-negotiables ──
+
+/// A conflict key from the engine (`presence:g-a-p1|g-b-p1`): plain characters only.
+fn ok_conflict_key(s: &str) -> Result<&str, String> {
+    if !s.is_empty() && s.len() <= 200 && !s.starts_with('-') && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '_' | '|' | '.' | '-')) {
+        Ok(s)
+    } else {
+        Err(format!("invalid conflict key: {s}"))
+    }
+}
+
+/// The weekly roll-up: matters vs lived, attention per value, conflicts, rules, Needs you (model: also run the model pass).
+#[tauri::command]
+pub(crate) async fn engine_compass_align(vault: String, model: Option<bool>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "compass", "align"]);
+    if model == Some(true) { a.push("--model".into()); }
+    blocking(a).await
+}
+
+/// Each confirmed non-negotiable's state, checked in code.
+#[tauri::command]
+pub(crate) async fn engine_compass_rules(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "rules"])).await
+}
+
+/// Accept a conflict as a tension, mark it resolved, or reopen it.
+#[tauri::command]
+pub(crate) async fn engine_compass_conflict(vault: String, key: String, answer: String) -> Result<serde_json::Value, String> {
+    let ans = one_of(&answer, &["accept", "resolved", "reopen"])?.to_string();
+    let k = ok_conflict_key(&key)?.to_string();
+    blocking(vec!["--vault".into(), vault, "compass".into(), "conflict".into(), k, ans]).await
+}
+
+#[cfg(test)]
+mod g3_tests {
+    use super::*;
+    #[test]
+    fn conflict_keys_are_validated() {
+        assert!(ok_conflict_key("presence:g-a-p1|g-b-p1").is_ok());
+        assert!(ok_conflict_key("model:g-3511ed|g-bdebdb").is_ok());
+        assert!(ok_conflict_key("--evil").is_err());
+        assert!(ok_conflict_key("a b").is_err());
+        assert!(ok_conflict_key("../x/y").is_err());
+        assert!(one_of("accept", &["accept", "resolved", "reopen"]).is_ok());
+        assert!(one_of("delete", &["accept", "resolved", "reopen"]).is_err());
+    }
+}

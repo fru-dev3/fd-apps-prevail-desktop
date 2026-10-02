@@ -21,6 +21,8 @@ export interface ReviewCard {
   week: string; through: string; due: boolean;
   checkin: { calm: number; note?: string } | null; calmNormal: number | null;
   lines: { moved: string[]; drifted: string[]; conflict: string };
+  /** Goals G3: the conflict behind the line, with its evidence. */
+  conflict?: { key: string; evidence: string[] } | null;
   glance: GlanceRowLite[]; surprise: string | null;
   candidates: { key: string; kind: string; title: string; quote: string; count: number }[];
   metricProposals: MetricProposal[];
@@ -52,6 +54,8 @@ export interface Job {
   progress?: { step: number; specialist: string; pass: number }[];
   result?: { type: string; summary: string; page?: string; verdict?: string; drafts?: { to: string; subject: string; body: string }[] };
   note?: string;
+  /** Goals G3: what it serves, what it may cost, the non-negotiables it touches. */
+  compass?: JobCompass;
 }
 export interface Receipt { n: number; ts: number; domain: string; kind: string; file: string; ref: string; text: string; undone?: number }
 export interface StepRecord { id: string; specialist: string; status: string; passes: { n: number; check: { ok: boolean; missing: string[] } }[]; cost: { usd: number; minutes: number } }
@@ -161,3 +165,24 @@ export function openPlaybook(id: string): void {
   window.dispatchEvent(new CustomEvent("prevail:playbooks-focus", { detail: id }));
 }
 
+
+// ── Goals G3: alignment, conflicts, rules (engine compass-align.ts) ──
+
+export type RuleStateName = "ok" | "at-risk" | "broken" | "unchecked";
+export interface JobCompass { serves: { id: string; title: string }[]; costs: { id: string; title: string; why: string }[]; rules: { id: string; title: string; state: RuleStateName }[] }
+export interface RuleState { id: string; title: string; check?: string; state: RuleStateName; value?: number | null; detail: string }
+export interface Conflict { key: string; kind: string; a: string; b: string; aTitle: string; bTitle: string; question: string; evidence: string[]; confidence: number; asserted_by: "code" | "model" }
+export interface Rollup {
+  week: string; computed: number;
+  values: { id: string; title: string; rank: number; matters: number; lived: number | null; attention: number; unmeasured: boolean }[];
+  saidVsDid: string[]; conflicts: Conflict[]; rules: RuleState[];
+  needsYou: { kind: "conflict" | "rule" | "stalled" | "woop"; key: string; text: string }[];
+}
+
+export const RULE_STATE_LABEL: Record<RuleStateName, string> = { ok: "Holding", "at-risk": "At risk", broken: "Broken", unchecked: "The Steward judges it" };
+
+/** The chips a job card shows: what it serves (goals first), what to watch, the rules it touches with their state. */
+export function compassChips(c: JobCompass | undefined): { serves: string[]; watch: string[]; rules: { title: string; state: RuleStateName }[] } {
+  if (!c) return { serves: [], watch: [], rules: [] };
+  return { serves: c.serves.map((x) => x.title), watch: c.costs.map((x) => x.title), rules: c.rules.map((r) => ({ title: r.title, state: r.state })) };
+}

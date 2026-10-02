@@ -13,7 +13,7 @@ import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine, SpineTabs } from "./sidespine";
-import { useIsPhone } from "./useisphone";
+import { useIsPhone, useStacked } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import {
   confirmLines, dropLines, fieldOf, isProposed, items, missionOf, parseCompass, proposedCount, rankOf, serializeCompass,
@@ -23,6 +23,7 @@ import { DomainGoals } from "./goalspage";
 import { IdealsSection } from "./idealspage";
 import { useChiefOfStaff } from "./chiefofstaff";
 import { MattersLived } from "./livedbars";
+import { AlignNeedsYou, AlignRules, SaidVsDid } from "./alignpanel";
 
 type View = "compass" | "goals" | "ideals";
 type Sel = "overview" | "mission" | "values" | "roles" | "goals" | "rules" | "history";
@@ -42,7 +43,10 @@ function readFocus(): { view: View; row: string | null } {
 }
 
 export function CompassPage({ vaultPath }: { vaultPath: string }) {
-  const phone = useIsPhone();
+  // Below 1100px the detail beside the list is too narrow: stack like the phone.
+  const isPhone = useIsPhone();
+  const stacked = useStacked();
+  const phone = isPhone || stacked;
   const chief = useChiefOfStaff(vaultPath);
   const [focus] = useState(readFocus);
   const [view, setView] = useState<View>(focus.view);
@@ -203,6 +207,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
           </div>
         </div>
       )}
+      {!empty && text !== null && <AlignNeedsYou vaultPath={vaultPath} />}
       {mission?.text && (
         <section className="mt-6">
           <h3 className={`${SECTION_TITLE} mb-1`}>Purpose</h3>
@@ -268,10 +273,10 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
       {sel === "overview" && overview}
       {sel === "mission" && missionView}
-      {sel === "values" && <section data-testid="compass-detail-values"><h2 className={DETAIL_TITLE}>Values</h2><p className={`${META} mt-1 mb-4`}>Directions, never done. Each may say what is enough.</p>{section("Most important first", values, true, "No values yet.")}<MattersLived vaultPath={vaultPath} /></section>}
+      {sel === "values" && <section data-testid="compass-detail-values"><h2 className={DETAIL_TITLE}>Values</h2><p className={`${META} mt-1 mb-4`}>Directions, never done. Each may say what is enough.</p>{section("Most important first", values, true, "No values yet.")}<MattersLived vaultPath={vaultPath} /><SaidVsDid vaultPath={vaultPath} /></section>}
       {sel === "roles" && <section data-testid="compass-detail-roles"><h2 className={DETAIL_TITLE}>Roles</h2><p className={`${META} mt-1 mb-4`}>Who you are to the people in your life.</p>{section("Roles", roles, false, "No roles yet.")}</section>}
       {sel === "goals" && <section data-testid="compass-detail-goals"><h2 className={DETAIL_TITLE}>Life goals</h2><p className={`${META} mt-1 mb-4`}>Destinations with a done, each serving values. Domain goals are under Goals.</p>{section("Goals", goals, false, "No life goals yet.")}</section>}
-      {sel === "rules" && <section data-testid="compass-detail-rules"><h2 className={DETAIL_TITLE}>Rules</h2>{section("Non-negotiables", rules, false, "None yet.")}{section("Negotiables", negotiables, false, "None yet.")}</section>}
+      {sel === "rules" && <section data-testid="compass-detail-rules"><h2 className={DETAIL_TITLE}>Rules</h2>{section("Non-negotiables", rules, false, "None yet.")}{section("Negotiables", negotiables, false, "None yet.")}<AlignRules vaultPath={vaultPath} /></section>}
       {sel === "history" && historyView}
     </div>
   );

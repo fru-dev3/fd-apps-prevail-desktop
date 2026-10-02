@@ -10,7 +10,7 @@ import { invoke } from "./bridge";
 import { useInvokeQuery, invalidateQueries } from "./query";
 import { Markdown } from "./Markdown";
 import { LS, lsGet } from "./storage";
-import { elapsed, jobStatusLabel, label, openPlaybook, stepState, type Job, type JobView } from "./plansmodel";
+import { compassChips, elapsed, jobStatusLabel, label, openPlaybook, RULE_STATE_LABEL, stepState, type Job, type JobView } from "./plansmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
@@ -81,6 +81,7 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
           <Row k="Effort">{label(job.effort)}, up to ${job.budget.usd} and {job.budget.minutes} minutes</Row>
         </div>
       )}
+      <CompassChips job={job} />
       {waiting && (
         <div className="mt-2">
           {job.askReason && <p className="text-[13px] text-text-secondary">Asking first: {job.askReason}.</p>}
@@ -133,6 +134,19 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
         </div>
       )}
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
+    </div>
+  );
+}
+
+/** Goals G3: "Serves X", "Watch Y" and the non-negotiables the job touches. */
+function CompassChips({ job }: { job: Job }) {
+  const c = compassChips(job.compass);
+  if (!c.serves.length && !c.watch.length && !c.rules.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5" data-testid="job-compass">
+      {c.serves.map((t) => <span key={`s-${t}`} data-testid="job-serves" className={`${chipBase} border-accent-border bg-accent-soft text-accent`}>Serves {t}</span>)}
+      {c.watch.map((t) => <span key={`w-${t}`} data-testid="job-watch" className={`${chipBase} border-warn/50 text-warn`}>Watch {t}</span>)}
+      {c.rules.map((r) => <span key={`r-${r.title}`} data-testid="job-rule" data-state={r.state} className={`${chipBase} ${r.state === "broken" ? "border-err/50 text-err" : r.state === "at-risk" ? "border-warn/50 text-warn" : "border-border text-text-secondary"}`}>{r.title}: {RULE_STATE_LABEL[r.state]}</span>)}
     </div>
   );
 }
