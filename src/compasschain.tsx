@@ -94,12 +94,23 @@ export function ChainView({ vaultPath, tree, links, onChanged }: { vaultPath: st
   const byId = new Map(tree.nodes.map((n) => [n.id, n]));
   const placed = new Set<string>();
   const folded = (n: ChainNode) => (n.id in open ? !open[n.id] : !["purpose", "value", "statement", "vision", "objective"].includes(n.level));
+  // Values are drawn as one line under the purpose (most serve the same
+  // statement, and a run of eight childless rows would push the chain down);
+  // the statements they serve hang under that line.
+  const values = tree.nodes.filter((n) => n.level === "value");
+  const VALUES = "values:group";
+  if (values.length) byId.set(VALUES, {
+    id: VALUES, level: "value", title: values.map((v) => v.title).join(" · "), status: "confirmed", parents: [], linked: true,
+    children: [...new Set(values.flatMap((v) => v.children))],
+  });
+  const childrenOf = (n: ChainNode) => n.level === "purpose" && values.length ? [VALUES, ...n.children.filter((c) => byId.get(c)?.level !== "value")] : n.children;
   const line = (n: ChainNode, depth: number): ReactNode => {
     if (placed.has(n.id) || depth > 10) return null;
     placed.add(n.id);
-    const kids = n.children.map((c) => byId.get(c)).filter((c): c is ChainNode => !!c && !placed.has(c.id));
+    if (n.id === VALUES) values.forEach((v) => placed.add(v.id));
+    const kids = childrenOf(n).map((c) => byId.get(c)).filter((c): c is ChainNode => !!c && !placed.has(c.id));
     const isOpen = kids.length > 0 && !folded(n);
-    const meta = [LEVEL_LABEL[n.level], n.status === "proposed" ? "Proposed" : "", n.level === "objective" && n.needs?.includes("metric") ? "No measure yet" : "", n.mission ? `Runs as ${n.mission.name}` : "", !isOpen && kids.length ? `${kids.length} below` : ""].filter(Boolean);
+    const meta = [n.id === VALUES ? `Values · ${values.length}` : LEVEL_LABEL[n.level], n.status === "proposed" ? "Proposed" : "", n.level === "objective" && n.needs?.includes("metric") ? "No measure yet" : "", n.mission ? `Runs as ${n.mission.name}` : "", !isOpen && kids.length ? `${kids.length} below` : ""].filter(Boolean);
     const title = n.level === "mission"
       ? <button type="button" onClick={() => openMission(n.id.replace(/^mission\//, ""))} className="text-left hover:text-accent">{n.title}</button>
       : n.title;
@@ -121,6 +132,7 @@ export function ChainView({ vaultPath, tree, links, onChanged }: { vaultPath: st
     );
   };
   const roots = tree.nodes.filter((n) => n.linked && !n.parents.length);
+  if (!roots.some((n) => n.level === "purpose") && values.length) roots.unshift(byId.get(VALUES)!);
   const body = roots.map((n) => line(n, 0));
   // What is not linked: per level, folded under one line each (tasks only counted).
   const loose = tree.levels.filter((l) => l.notLinked > 0 && l.level !== "task" && l.level !== "purpose").map((l) => ({ l, nodes: tree.nodes.filter((n) => n.level === l.level && !n.linked && !placed.has(n.id) && !["rejected", "retired", "achieved", "released"].includes(n.status)) }));
