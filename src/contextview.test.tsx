@@ -51,8 +51,9 @@ describe("DomainContextView", () => {
     const detail = screen.getByTestId("ctx-detail-memory");
     // One click shows the file itself, rendered, with no second click.
     expect(detail.querySelector("[data-testid=ctx-markdown]")?.textContent).toContain("Tomatoes like sun.");
-    // The path sits in the detail header, not in the rows.
-    expect(detail.querySelector("[data-testid=ctx-file]")?.textContent).toBe("memory/memory.md");
+    // The file it comes from is on hover in the detail header, never printed.
+    expect(detail.querySelector("[data-testid=ctx-file]")?.getAttribute("title")).toBe("From memory/memory.md");
+    expect(detail.textContent).not.toContain("memory.md");
     expect(screen.getByTestId("ctx-row-memory").textContent).not.toContain("memory.md");
     // The canvas is a tiny icon action, not the default.
     expect(canvas).not.toHaveBeenCalled();
@@ -92,10 +93,10 @@ describe("DomainContextView", () => {
     expect(canvas).not.toHaveBeenCalled();
   });
 
-  it("shows the domain folder in the header and opens it in Finder", async () => {
+  it("offers the domain folder as an icon (path on hover) and opens it in Finder", async () => {
     setup();
     const folder = screen.getByTestId("ctx-folder");
-    expect(folder.textContent).toBe("data/domains/garden");
+    expect(folder.textContent).toBe("");
     expect(folder.getAttribute("title")).toContain("/v/data/domains/garden");
     fireEvent.click(folder);
     await waitFor(() => expect(calls.find((c) => c.cmd === "open_in_finder")?.args).toEqual({ path: "/v/data/domains/garden" }));

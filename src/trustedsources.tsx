@@ -9,19 +9,20 @@ import { invoke, isBrowser } from "./bridge";
 import { RowMenu } from "./ui";
 import { toast } from "./toast";
 import { relTime } from "./format";
-import { AppLogo, TONE_PILL } from "./appsmirror-parts";
+import { AppLogo } from "./appsmirror-parts";
 import { statusMeta, type MirrorApp } from "./appsmirror-model";
 import { AppScopeView } from "./appchat";
-import { DetailTitle, META, SECTION_TITLE } from "./typescale";
+import { DetailTitle, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import {
   SOURCE_KINDS, SOURCE_KIND_LABEL, SUGGESTED_SOURCES, isWebSource, parseUrls, slugifyId,
   type AddSourceResult, type SourceKind, type SourceProbe, type UntrustedSource,
 } from "./appscope";
 
-const card = "rounded-xl border border-border-subtle bg-surface p-4 sm:p-5";
+// Plain sections, no boxes: the page is one column of quiet content.
+const card = "";
 const field = "w-full rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary placeholder:text-text-muted/70 focus:border-accent-border focus:outline-none";
 const primary = "inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-45";
-const secondary = "inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45";
+const secondary = "inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-45 disabled:no-underline";
 
 export const KIND_ICON: Record<string, typeof Plug> = { "mcp-remote": Plug, web: Globe, links: Link2 };
 
@@ -111,7 +112,7 @@ export function AddSourcePane({ vaultPath, existing, onAdded, onOpen }: {
           <div className="flex items-center gap-3">
             <AppLogo name={done.app?.name ?? done.name} url={done.urls[0]} size={32} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[15px] font-semibold text-text-primary">{done.app?.name ?? done.name}</div>
+              <div className={`${ROW_TITLE} truncate`}>{done.app?.name ?? done.name}</div>
               <div className={META}>{done.adopted ? "Already here, checked again" : "Added"} · {SOURCE_KIND_LABEL[done.kind]}</div>
             </div>
             {done.probe.ok
@@ -128,16 +129,16 @@ export function AddSourcePane({ vaultPath, existing, onAdded, onOpen }: {
         <section aria-label="Suggested">
           <h3 className={`${SECTION_TITLE} mb-2`}>Suggested</h3>
           {suggestions.map((s) => (
-            <div key={s.url} data-testid="suggested-source" className={`${card} flex flex-col gap-3 sm:flex-row sm:items-center`}>
+            <div key={s.url} data-testid="suggested-source" className="flex items-center gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <AppLogo name={s.name} url={s.url} size={32} />
                 <div className="min-w-0">
-                  <div className="truncate text-[15px] font-semibold text-text-primary">{s.name}</div>
-                  <div className="text-[13px] text-text-muted">{s.blurb}</div>
+                  <div className={`${ROW_TITLE} truncate`}>{s.name}</div>
+                  <div className={`${META} line-clamp-2`} title={s.blurb}>{s.blurb}</div>
                 </div>
               </div>
-              <button type="button" className={primary} disabled={!desktop || !!busy} onClick={() => void add(s.kind, [s.url], s.name, s.url)}>
-                {busy === s.url ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add
+              <button type="button" className={`${secondary} shrink-0`} disabled={!desktop || !!busy} onClick={() => void add(s.kind, [s.url], s.name, s.url)}>
+                {busy === s.url ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add
               </button>
             </div>
           ))}
@@ -157,7 +158,7 @@ export function AddSourcePane({ vaultPath, existing, onAdded, onOpen }: {
             );
           })}
         </div>
-        <p className="mt-2 text-[13px] text-text-muted">{meta.hint}</p>
+        <p className={`${META} mt-2`}>{meta.hint}</p>
         <label className="mt-3 block text-[13px] font-semibold text-text-primary" htmlFor="source-urls">{kind === "links" ? "Addresses" : "Address"}</label>
         {kind === "links"
           ? <textarea id="source-urls" rows={3} value={urls} onChange={(e) => setUrls(e.target.value)} placeholder={meta.placeholder} className={`${field} mt-1.5 resize-y`} />
@@ -171,7 +172,7 @@ export function AddSourcePane({ vaultPath, existing, onAdded, onOpen }: {
             onClick={() => void add(kind, list, name.trim(), "form")}>
             {busy === "form" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add and check
           </button>
-          <span className="text-[12px] text-text-muted">{desktop ? "Prevail looks at it before it is used. No passwords or keys: the address must work without them." : "Adding a source runs on your Mac."}</span>
+          <span className={META}>{desktop ? "Prevail looks at it before it is used. No passwords or keys: the address must work without them." : "Adding a source runs on your Mac."}</span>
         </div>
       </section>
     </div>
@@ -202,17 +203,17 @@ export function UntrustedSourceDetail({ vaultPath, source, onTrusted }: { vaultP
           <p className={`${META} truncate`}>Trusted source · {SOURCE_KIND_LABEL[source.integration] ?? source.integration}</p>
         </div>
       </div>
-      <div className={`${card} flex flex-col gap-3 sm:flex-row sm:items-center`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <ShieldCheck className="hidden h-5 w-5 shrink-0 text-warn sm:block" />
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-text-primary">Not trusted on this Mac yet</p>
-          <p className="text-[13px] text-text-muted">It came over with your vault. Each Mac decides for itself what it trusts, so chats here leave it out until you trust it.</p>
+          <p className={ROW_TITLE}>Not trusted on this Mac yet</p>
+          <p className={META}>It came over with your vault. Each Mac decides for itself what it trusts, so chats here leave it out until you trust it.</p>
         </div>
         <button type="button" className={primary} disabled={busy || isBrowser()} onClick={() => void trust()} data-testid="trust-here">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Trust on this Mac
         </button>
       </div>
-      <ul className="space-y-1 text-[13px] text-text-secondary">{source.urls.map((u) => <li key={u} className="truncate" title={u}>{u}</li>)}</ul>
+      <ul className={`${META} space-y-1`}>{source.urls.map((u) => <li key={u} className="truncate" title={u}>{u}</li>)}</ul>
       {err && <p className="text-[13px] text-err">{err}</p>}
       {probe && <ProbeView probe={probe} kind={source.integration} />}
     </div>
@@ -251,52 +252,52 @@ export function TrustedSourceDetail({ vaultPath, app, onChanged }: { vaultPath: 
       <div data-testid="source-archived" className="space-y-2 p-4 sm:p-6">
         <DetailTitle>{app.name}</DetailTitle>
         <p className="flex items-center gap-2 text-[14px] text-text-secondary"><Archive className="h-4 w-4 text-text-muted" /> Archived. Nothing was deleted.</p>
-        <p className="break-words text-[13px] text-text-muted [overflow-wrap:anywhere]">Moved to {archived.to}</p>
+        <p className={META} title={archived.to}>Its folder moved to the archive in your vault.</p>
       </div>
     );
   }
 
   const tools = kind === "mcp-remote" ? (
     <section className={card} aria-label="Tools">
-      <h4 className="text-base font-semibold text-text-primary">Tools{app.tools?.length ? <span className="ml-2 text-[13px] font-normal text-text-muted">{app.tools.length}</span> : null}</h4>
-      {!app.tools?.length ? <p className="mt-2 text-[13px] text-text-muted">No tools listed yet. Check it again from Connection.</p> : (
-        <ul className="mt-3 divide-y divide-border-subtle">
+      <h4 className={SECTION_TITLE}>Tools{app.tools?.length ? <span className="ml-2 text-[12px] font-normal text-text-muted">{app.tools.length}</span> : null}</h4>
+      {!app.tools?.length ? <p className={`${META} mt-2`}>No tools listed yet. Check it again from Connection.</p> : (
+        <ul className="mt-2 divide-y divide-border-subtle">
           {app.tools.map((t) => (
             <li key={t.name} className="flex min-w-0 items-center gap-3 py-2">
               <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-text-primary">{t.name}</span>
-              <span data-testid="tool-badge" className={`shrink-0 rounded-full px-2 py-0.5 text-[12px] font-medium ring-1 ${TONE_PILL[t.kind === "read" ? "ok" : "err"]}`}>{t.kind === "read" ? "Read" : "Blocked"}</span>
+              <span data-testid="tool-badge" className={`shrink-0 text-[12px] ${t.kind === "read" ? "text-text-muted" : "text-err"}`}>{t.kind === "read" ? "Read" : "Blocked"}</span>
             </li>
           ))}
         </ul>
       )}
-      <p className="mt-3 text-[12px] text-text-muted">A trusted source is read only. Its read tools run without asking and are logged in Activity.</p>
+      <p className={`${META} mt-3`}>A trusted source is read only. Its read tools run without asking and are logged in Activity.</p>
     </section>
   ) : undefined;
 
   const connection = (
-    <div className="space-y-4">
-      <section className={card} aria-label="Source">
+    <div className="space-y-6">
+      <section aria-label="Source">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-base font-semibold text-text-primary">{SOURCE_KIND_LABEL[kind] ?? kind}</h4>
+          <h4 className={SECTION_TITLE}>{SOURCE_KIND_LABEL[kind] ?? kind}</h4>
           <button type="button" className={secondary} disabled={!desktop || busy !== null} onClick={() => void check()}>
             {busy === "check" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Check again
           </button>
         </div>
         <ul className="mt-2 space-y-1">{urls.map((u) => <li key={u} className="truncate text-[13px] text-text-secondary" title={u}>{u}</li>)}</ul>
-        {app.tools_checked_at && <p className="mt-2 text-[12px] text-text-muted">Checked {relTime(app.tools_checked_at)}</p>}
+        {app.tools_checked_at && <p className={`${META} mt-1`}>Checked {relTime(app.tools_checked_at)}</p>}
         {probe && <div className="mt-3"><ProbeView probe={probe} kind={kind} /></div>}
         {err && <p className="mt-3 text-[13px] text-err">{err}</p>}
       </section>
       {app.source && (app.source.llms || app.source.endpoints?.length) ? (
         <section className={card} aria-label="What it documents">
-          <h4 className="flex items-center gap-2 text-base font-semibold text-text-primary"><FileText className="h-4 w-4 text-text-muted" /> {app.source.title || "What it documents"}</h4>
+          <h4 className={`${SECTION_TITLE} flex items-center gap-2`}><FileText className="h-4 w-4 text-text-muted" /> {app.source.title || "What it documents"}</h4>
           {app.source.llms && <p className="mt-2 line-clamp-6 whitespace-pre-wrap text-[13px] text-text-secondary">{app.source.llms}</p>}
           {!!app.source.endpoints?.length && (
             <ul className="mt-2 space-y-0.5">{app.source.endpoints.slice(0, 20).map((e) => <li key={e.path} className="truncate text-[13px] text-text-secondary"><span className="font-mono text-text-primary">GET {e.path}</span>{e.summary ? ` · ${e.summary}` : ""}</li>)}</ul>
           )}
         </section>
       ) : null}
-      <p className="text-[12px] text-text-muted">Read only, on this Mac. Prevail never stores a password or database key for a source; the address must work without one.</p>
+      <p className={META}>Read only, on this Mac. Prevail never stores a password or database key for a source; the address must work without one.</p>
     </div>
   );
 
@@ -310,8 +311,8 @@ export function TrustedSourceDetail({ vaultPath, app, onChanged }: { vaultPath: 
         { icon: Archive, label: "Archive source", hint: "Moves its folder to the archive", onClick: () => void archive() },
       ]} /> : undefined}
       notice={app.status !== "connected" ? (
-        <div className="flex flex-col gap-2 rounded-xl border border-err/30 bg-err/5 p-3 sm:flex-row sm:items-center">
-          <p className="min-w-0 flex-1 break-words text-[13px] text-err">Could not use it yet{app.status_detail ? `: ${app.status_detail}` : "."}</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <p className="min-w-0 break-words text-[13px] text-err">Could not use it yet{app.status_detail ? `: ${app.status_detail}` : "."}</p>
           <button type="button" className={secondary} disabled={!desktop || busy !== null} onClick={() => void check()}>
             {busy === "check" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Retry
           </button>

@@ -10,6 +10,7 @@ import { titleCase } from "./format";
 import { isUserDomain } from "./helpers";
 import { useEngineQuery, useInvokeQuery } from "./query";
 import { DomainMenu } from "./routechips";
+import { REVEAL } from "./ui";
 import { readFilePlan, saveFiling, type Filing, type FilePlanRow } from "./routing";
 
 export const THREADS_CHANGED = "prevail:threads-changed";
@@ -68,7 +69,7 @@ export function FilingPlan({ vaultPath }: { vaultPath: string }) {
   const ready = pending.filter((r) => filingOfRow(r).home);
   return (
     <div data-testid="filing-plan" className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-[13px] text-text-muted">
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
         <span>
           {pending.length === 0 ? "Every conversation has a home." : `${pending.length} to file`}
           {data && data.skipped > 0 ? ` · ${data.skipped} skipped: incognito, local-only or Bunker Mode` : ""}
@@ -76,20 +77,20 @@ export function FilingPlan({ vaultPath }: { vaultPath: string }) {
         {done.size > 0 && <span data-testid="filing-done" className="text-accent">Filed {done.size} conversation{done.size === 1 ? "" : "s"}</span>}
         {ready.length > 0 && (
           <button type="button" disabled={busy} onClick={() => void apply(ready)}
-            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-background hover:bg-accent/90 disabled:opacity-50">
+            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50">
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderInput className="h-3.5 w-3.5" />}File all {ready.length}
           </button>
         )}
       </div>
       {error && <div className="text-[13px] text-warn">{error}</div>}
-      <ul className="divide-y divide-border-subtle rounded-xl border border-border bg-surface">
+      <ul className="divide-y divide-border-subtle">
         {pending.map((r) => {
           const f = filingOfRow(r);
           const locked = !!r.current_home && r.current_home !== "general";
           return (
-            <li key={r.thread} data-testid="filing-row" className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
+            <li key={r.thread} data-testid="filing-row" className="group flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-medium text-text-primary">{r.title}</div>
+                <div className="truncate text-[15px] font-medium text-text-primary" title={r.title}>{r.title}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-text-muted">
                   <span>Home</span>
                   <span className="relative">
@@ -126,7 +127,7 @@ export function FilingPlan({ vaultPath }: { vaultPath: string }) {
                 </div>
               </div>
               <button type="button" disabled={busy || !f.home} onClick={() => void apply([r])}
-                className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-border px-3 text-[13px] hover:border-accent-border hover:text-accent disabled:opacity-40">
+                className={`${"inline-flex h-8 shrink-0 items-center text-[13px] font-medium text-accent hover:underline disabled:opacity-40 disabled:no-underline"} ${REVEAL}`}>
                 File
               </button>
             </li>
@@ -144,15 +145,15 @@ export function FilingCard({ vaultPath }: { vaultPath: string }) {
   const n = data?.rows.length ?? 0;
   if (n === 0 && !open) return null;
   return (
-    <section data-testid="filing-card" className="mb-6 rounded-2xl border border-border bg-surface p-5">
+    <section data-testid="filing-card" className="mb-6">
       <div className="flex flex-wrap items-center gap-3">
-        <FolderInput className="h-5 w-5 text-accent" />
+        <FolderInput className="h-4 w-4 text-text-muted" />
         <div className="min-w-0 flex-1">
           <h3 className="text-[15px] font-semibold text-text-primary">File {n} unfiled conversation{n === 1 ? "" : "s"}</h3>
-          <p className="text-[13px] text-text-muted">Give each one a home domain so it shows where you look for it.</p>
+          <p className="text-[12px] text-text-muted">Give each one a home domain so it shows where you look for it.</p>
         </div>
         <button type="button" onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-[13px] hover:border-accent-border hover:text-accent">
+          className="inline-flex h-8 shrink-0 items-center text-[13px] font-medium text-accent hover:underline disabled:opacity-40 disabled:no-underline">
           {open ? "Hide" : "Review"}
         </button>
       </div>
@@ -167,7 +168,7 @@ export function FilingSettings({ vaultPath }: { vaultPath: string }) {
   const n = useFilePlan(vaultPath).data?.rows.length ?? 0;
   const [open, setOpen] = useState(false);
   return (
-    <div data-testid="filing-settings" className="rounded-lg border border-border bg-surface px-5 py-4">
+    <div data-testid="filing-settings" className="py-1">
       <div className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
           <div className="text-[14px] font-medium text-text-primary">File unfiled conversations</div>
@@ -176,7 +177,7 @@ export function FilingSettings({ vaultPath }: { vaultPath: string }) {
           </div>
         </div>
         <button type="button" onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-8 shrink-0 items-center rounded-lg border border-border px-3 text-[13px] hover:border-accent-border hover:text-accent">
+          className="inline-flex h-8 shrink-0 items-center text-[13px] font-medium text-accent hover:underline disabled:opacity-40 disabled:no-underline">
           {open ? "Hide" : "Review"}
         </button>
       </div>

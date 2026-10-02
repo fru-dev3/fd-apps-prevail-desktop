@@ -10,11 +10,14 @@ import {
   RUNTIME_LABEL, emptyDraft, statusMeta, recipeSavePayload, syncBlockedReason, syncableTools, toolBadge,
   type MirrorApp, type RecipeDraft, type Schedule, type SyncResult,
 } from "./appsmirror-model";
-import { PinButton, SigninHelp, TONE_PILL, TONE_TEXT } from "./appsmirror-parts";
+import { PinButton, SigninHelp, TONE_TEXT } from "./appsmirror-parts";
 import { AppScopeView } from "./appchat";
 import { useGoogleAccounts } from "./appscope";
 
-const card = "rounded-xl border border-border-subtle bg-surface p-4 sm:p-5";
+// Plain sections, no boxed cards; a text link for a secondary action.
+const card = "";
+const link = "inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-45 disabled:no-underline";
+const h4 = "text-[15px] font-semibold text-text-primary";
 const SCHEDULES: { id: Schedule; label: string }[] = [
   { id: "daily", label: "Daily" },
   { id: "weekly", label: "Weekly" },
@@ -109,7 +112,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
       subtitle={<>via {runtimeLabel} · <span className={TONE_TEXT[status.tone]}>{status.label}</span>{app.status_detail && app.status !== "connected" ? ` · ${app.status_detail}` : ""}</>}
       actions={<PinButton app={app} />}
       notice={app.status !== "connected" ? (
-        <div className="flex flex-col gap-2 rounded-xl border border-border-subtle bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[13px] text-text-secondary">
             {app.status === "disabled" ? `${app.name} is turned off in ${runtimeLabel}.` : app.status === "error" ? `${runtimeLabel} reports a problem with ${app.name}.` : `${app.name} needs you to sign in again in ${runtimeLabel}.`}
             {" "}Prevail uses the sign-in your runtime already has.
@@ -118,16 +121,16 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
         </div>
       ) : null}
       tools={
-        <div className="space-y-4">
+        <div className="space-y-7">
           <section className={card} aria-label="Tools">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-base font-semibold text-text-primary">Tools{tools?.length ? <span className="ml-2 text-[13px] font-normal text-text-muted">{tools.length}</span> : null}</h4>
+              <h4 className={h4}>Tools{tools?.length ? <span className="ml-2 text-[13px] font-normal text-text-muted">{tools.length}</span> : null}</h4>
               {!phone && app.status === "connected" && (
                 <button
                   type="button"
                   onClick={loadTools}
                   disabled={busy !== null}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45"
+                  className={link}
                 >
                   {busy === "tools" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />} {tools?.length ? "Check again" : "Load tools"}
                 </button>
@@ -143,7 +146,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
                     return (
                       <li key={t.name} className="flex min-w-0 items-center gap-3 py-2" title={b.reason}>
                         <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-text-primary">{t.name}</span>
-                        <span data-testid="tool-badge" className={`shrink-0 rounded-full px-2 py-0.5 text-[12px] font-medium ring-1 ${TONE_PILL[b.tone]}`}>{b.label}</span>
+                        <span data-testid="tool-badge" className={`shrink-0 text-[12px] ${b.tone === "ok" || b.tone === "muted" ? "text-text-muted" : TONE_TEXT[b.tone]}`}>{b.label}</span>
                       </li>
                     );
                   })}
@@ -157,26 +160,26 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
         </div>
       }
       connection={
-        <div className="space-y-4">
+        <div className="space-y-7">
           {app.last_error && (
-            <div className="flex items-start gap-2 rounded-lg border border-err/30 bg-err/5 px-3 py-2 text-[13px] text-err">
+            <div className="flex items-start gap-2 text-[13px] text-err">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> <span className="min-w-0 break-words">{app.last_error}</span>
             </div>
           )}
           {lastRun && !lastRun.error && lastRun.ok && (
-            <div className="flex items-center gap-2 rounded-lg border border-ok/30 bg-ok/5 px-3 py-2 text-[13px] text-ok">
+            <div className="flex items-center gap-2 text-[13px] text-ok">
               <Check className="h-4 w-4 shrink-0" /> Wrote {lastRun.records} record{lastRun.records === 1 ? "" : "s"} to {lastRun.files} file{lastRun.files === 1 ? "" : "s"}.
             </div>
           )}
 
           {accounts.length > 0 && (
             <section className={card} aria-label="Google accounts" data-testid="app-accounts">
-              <h4 className="text-base font-semibold text-text-primary">Accounts<span className="ml-2 text-[13px] font-normal text-text-muted">{accounts.length}</span></h4>
+              <h4 className={h4}>Accounts<span className="ml-2 text-[13px] font-normal text-text-muted">{accounts.length}</span></h4>
               <ul className="mt-2 divide-y divide-border-subtle">
                 {accounts.map((a) => (
                   <li key={a.id} data-testid="app-account-row" className="flex min-w-0 items-center gap-3 py-2">
                     <span className="min-w-0 flex-1 truncate text-[13px] text-text-primary" title={a.id}>{a.label && a.label !== a.id ? `${a.label} (${a.id})` : a.id}</span>
-                    {a.default && <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[12px] font-medium text-accent">Default</span>}
+                    {a.default && <span className="shrink-0 text-[12px] font-medium text-accent">Default</span>}
                     <span className="shrink-0 text-[12px] text-text-muted">via {a.via === "gws" ? "Google Workspace" : "Claude"}</span>
                   </li>
                 ))}
@@ -186,7 +189,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
           )}
           <div className={`${card} flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between`}>
             <div className="min-w-0">
-              <p className="text-[14px] font-semibold text-text-primary">{lastLine ?? "Last sync failed"}</p>
+              <p className="text-[15px] font-medium text-text-primary">{lastLine ?? "Last sync failed"}</p>
               <p className="text-[13px] text-text-muted">{blocked ?? (phone ? "Sync runs on your Mac." : "Pull what is new now, with read tools only.")}</p>
             </div>
             <button
@@ -194,7 +197,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
               onClick={syncNow}
               disabled={!!blocked || busy !== null || phone}
               title={blocked ?? (phone ? "Sync runs on your Mac" : "Run this recipe now")}
-              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
             >
               {busy === "sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sync now
             </button>
@@ -209,12 +212,12 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
           ) : (
             <section className={card} aria-label="Sync recipe">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="text-base font-semibold text-text-primary">Sync recipe</h4>
+                <h4 className={h4}>Sync recipe</h4>
                 <button
                   type="button"
                   onClick={draftWithAi}
                   disabled={busy !== null || phone}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45"
+                  className={link}
                 >
                   {busy === "draft" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Draft with AI
                 </button>
@@ -292,7 +295,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
                   type="button"
                   onClick={save}
                   disabled={busy !== null || !draft.prompt.trim() || phone}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-45"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-45"
                 >
                   {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save recipe
                 </button>

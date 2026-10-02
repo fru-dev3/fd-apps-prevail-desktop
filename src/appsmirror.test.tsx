@@ -152,8 +152,9 @@ describe("AppsMirrorPanel", () => {
     const claude = screen.getByRole("region", { name: "Claude" });
     expect(within(claude).getAllByTestId("status-pill").map((p) => p.textContent)).toEqual(["Connected", "Connected", "Needs sign-in"]);
     expect(within(claude).getByText("Sign in on claude.ai")).toBeTruthy();
-    const gemini = screen.getByRole("region", { name: "Gemini" });
-    expect(within(gemini).getByText("Not installed on this Mac.")).toBeTruthy();
+    // A missing runtime gets no section of its own, just one calm line.
+    expect(screen.queryByRole("region", { name: "Gemini" })).toBeNull();
+    expect(screen.getByTestId("runtimes-missing").textContent).toMatch(/Not installed on this Mac: .*Gemini/);
     const codex = screen.getByRole("region", { name: "Codex" });
     expect(within(codex).getByText("codex mcp login baz-helper")).toBeTruthy();
     // The page header stays in view while scrolling; the content is one column.
