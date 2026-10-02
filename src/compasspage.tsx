@@ -22,6 +22,7 @@ import {
 import { DomainGoals } from "./goalspage";
 import { IdealsSection } from "./idealspage";
 import { useChiefOfStaff } from "./chiefofstaff";
+import { MattersLived } from "./livedbars";
 
 type View = "compass" | "goals" | "ideals";
 type Sel = "overview" | "mission" | "values" | "roles" | "goals" | "rules" | "history";
@@ -267,7 +268,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
       {sel === "overview" && overview}
       {sel === "mission" && missionView}
-      {sel === "values" && <section data-testid="compass-detail-values"><h2 className={DETAIL_TITLE}>Values</h2><p className={`${META} mt-1 mb-4`}>Directions, never done. Each may say what is enough.</p>{section("Most important first", values, true, "No values yet.")}</section>}
+      {sel === "values" && <section data-testid="compass-detail-values"><h2 className={DETAIL_TITLE}>Values</h2><p className={`${META} mt-1 mb-4`}>Directions, never done. Each may say what is enough.</p>{section("Most important first", values, true, "No values yet.")}<MattersLived vaultPath={vaultPath} /></section>}
       {sel === "roles" && <section data-testid="compass-detail-roles"><h2 className={DETAIL_TITLE}>Roles</h2><p className={`${META} mt-1 mb-4`}>Who you are to the people in your life.</p>{section("Roles", roles, false, "No roles yet.")}</section>}
       {sel === "goals" && <section data-testid="compass-detail-goals"><h2 className={DETAIL_TITLE}>Life goals</h2><p className={`${META} mt-1 mb-4`}>Destinations with a done, each serving values. Domain goals are under Goals.</p>{section("Goals", goals, false, "No life goals yet.")}</section>}
       {sel === "rules" && <section data-testid="compass-detail-rules"><h2 className={DETAIL_TITLE}>Rules</h2>{section("Non-negotiables", rules, false, "None yet.")}{section("Negotiables", negotiables, false, "None yet.")}</section>}

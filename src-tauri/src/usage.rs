@@ -179,7 +179,7 @@ pub(crate) fn engine_ai_usage(vault: String, month: Option<String>) -> Result<se
 #[tauri::command(async)]
 pub(crate) fn engine_metrics(vault: String, view: String, week: Option<String>) -> Result<serde_json::Value, String> {
     let sub = match view.as_str() {
-        "glance" | "list" | "rhythm" | "sources" => view.as_str(),
+        "glance" | "list" | "rhythm" | "sources" | "lived" | "guardrails" | "lags" | "proxies" | "themes" | "hypotheses" | "seasons" => view.as_str(),
         _ => return Err(format!("unknown metrics view: {view}")),
     };
     let mut args: Vec<&str> = vec!["--vault", &vault, "metrics", sub, "--json"];

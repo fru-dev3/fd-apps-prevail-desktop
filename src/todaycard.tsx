@@ -8,6 +8,7 @@ import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { BODY, META, SECTION_TITLE } from "./typescale";
 import { fmtDue, label, type ReviewCard, type TodayCard, type TodayItem } from "./plansmodel";
+import { WHO5_ITEMS, WHO5_SCALE } from "./qualmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
@@ -152,7 +153,7 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
           {card.glance.map((g) => (
             <li key={g.id} className="flex flex-wrap items-baseline gap-x-3 py-1">
               <span className="min-w-0 flex-1 text-[15px] text-text-primary">{g.title}</span>
-              {g.documentary ? <span className={META}>{g.record ?? "a record, no target"}</span>
+              {g.paused ? <span className={META} data-testid="review-paused">paused for {g.paused}</span> : g.documentary ? <span className={META}>{g.record ?? "a record, no target"}</span>
                 : <><span className="text-[16px] font-semibold tabular-nums text-text-primary">{fmtVal(g.value, g.unit)}</span><span className={META}>{g.normal.learning ? "learning your normal" : `normal ${fmtVal(g.normal.lo, g.unit)} to ${fmtVal(g.normal.hi, g.unit)}`}</span></>}
             </li>
           ))}
@@ -193,6 +194,16 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
         </div>
       )}
       {card.apps && <p className={`${BODY} mt-3 break-words text-text-secondary`} data-testid="review-apps">{card.apps}</p>}
+      {(card.guardrails ?? []).map((g) => <p key={g} className={`${BODY} mt-2 break-words text-warn`} data-testid="review-guardrail">Guardrail: {g}</p>)}
+      {card.hypothesis && (
+        <div className="mt-4 flex items-start gap-3 border-t border-border-subtle pt-3" data-testid="review-hypothesis">
+          <p className={`${BODY} min-w-0 flex-1 break-words text-text-primary`}>{card.hypothesis.text}</p>
+          <button onClick={() => void run("hyp-yes", "engine_review_answer", { kind: "hypothesis", values: [card.hypothesis!.key, "yes"] })} disabled={!!busy} title="Yes" aria-label="Yes" data-testid="hypothesis-yes" className={iconBtn}><Check className="h-4 w-4" /></button>
+          <button onClick={() => void run("hyp-no", "engine_review_answer", { kind: "hypothesis", values: [card.hypothesis!.key, "no"] })} disabled={!!busy} title="No" aria-label="No" data-testid="hypothesis-no" className={iconBtn}><X className="h-4 w-4" /></button>
+        </div>
+      )}
+      {card.asked?.ladder && <LadderAsk busy={!!busy} onSave={(now, future) => void run("ladder", "engine_review_answer", { kind: "ladder", values: [String(now), String(future)] })} />}
+      {card.asked?.who5 && <Who5Ask busy={!!busy} onSave={(xs) => void run("who5", "engine_review_answer", { kind: "who5", values: xs.map(String) })} />}
       {card.waited.length > 0 && <p className={`${META} mt-3`}>Waited for this review: {card.waited.map((w) => w.text).join("; ")}</p>}
       <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-checkin">
         {card.checkin ? (
@@ -210,5 +221,54 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
         )}
       </div>
     </section>
+  );
+}
+
+function Stepper({ label: l, value, onChange, testId }: { label: string; value: number; onChange: (n: number) => void; testId: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="min-w-0 flex-1 basis-40 text-[15px] text-text-secondary">{l}</span>
+      <button type="button" onClick={() => onChange(Math.max(0, value - 1))} aria-label={`${l}: lower`} className={iconBtn}>-</button>
+      <span className="w-8 text-center text-[18px] font-semibold tabular-nums text-text-primary" data-testid={testId}>{value}</span>
+      <button type="button" onClick={() => onChange(Math.min(10, value + 1))} aria-label={`${l}: higher`} className={iconBtn}>+</button>
+    </div>
+  );
+}
+
+/** Once a quarter: the Cantril ladder, now and in five years, 0 to 10. */
+function LadderAsk({ busy, onSave }: { busy: boolean; onSave: (now: number, future: number) => void }) {
+  const [now, setNow] = useState(5);
+  const [future, setFuture] = useState(5);
+  return (
+    <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-ladder">
+      <h3 className="text-[15px] font-semibold text-text-primary">Once a quarter: your ladder</h3>
+      <p className={`${META} mt-0.5`}>0 is the worst possible life for you, 10 the best possible.</p>
+      <div className="mt-2 max-w-md space-y-1.5">
+        <Stepper label="Where you stand now" value={now} onChange={setNow} testId="ladder-now" />
+        <Stepper label="Where you will stand in five years" value={future} onChange={setFuture} testId="ladder-future" />
+      </div>
+      <button onClick={() => onSave(now, future)} disabled={busy} className={`${smallBtn} mt-2`} data-testid="ladder-save"><Check className="h-3.5 w-3.5" /> Save</button>
+    </div>
+  );
+}
+
+/** The optional monthly WHO-5: five statements about the last two weeks, 0 to 5 each. */
+function Who5Ask({ busy, onSave }: { busy: boolean; onSave: (xs: number[]) => void }) {
+  const [xs, setXs] = useState<(number | null)[]>([null, null, null, null, null]);
+  return (
+    <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-who5">
+      <h3 className="text-[15px] font-semibold text-text-primary">This month: the last two weeks</h3>
+      <ul className="mt-2 space-y-2">{WHO5_ITEMS.map((item, i) => (
+        <li key={item} className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1 basis-56 text-[15px] text-text-secondary">{item}</span>
+          <select aria-label={item} data-testid={`who5-${i}`} value={xs[i] ?? ""} onChange={(e) => setXs(xs.map((x, j) => (j === i ? Number(e.target.value) : x)))}
+            className="h-9 min-w-0 max-w-full rounded-md border border-border bg-background px-2 text-[14px] text-text-primary">
+            <option value="" disabled>Pick one</option>
+            {WHO5_SCALE.map((s, n) => <option key={s} value={n}>{s}</option>)}
+          </select>
+        </li>
+      ))}</ul>
+      <button onClick={() => onSave(xs as number[])} disabled={busy || xs.some((x) => x === null)} className={`${smallBtn} mt-2`} data-testid="who5-save"><Check className="h-3.5 w-3.5" /> Save</button>
+    </div>
   );
 }

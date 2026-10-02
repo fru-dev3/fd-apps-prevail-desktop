@@ -16,7 +16,7 @@ export interface TodayCard {
   feedback: { ts: number; key: string; action: string }[];
 }
 
-export interface GlanceRowLite { id: string; title: string; unit: string; value: number; documentary: boolean; record?: string; normal: { lo: number; hi: number; learning: boolean } }
+export interface GlanceRowLite { id: string; title: string; unit: string; value: number; documentary: boolean; record?: string; normal: { lo: number; hi: number; learning: boolean }; paused?: string | null }
 export interface ReviewCard {
   week: string; through: string; due: boolean;
   checkin: { calm: number; note?: string } | null; calmNormal: number | null;
@@ -30,6 +30,10 @@ export interface ReviewCard {
   interruptions: { used: number; budget: number };
   /** One line about the stack (apps plan A4); null when there is nothing to say. */
   apps?: string | null;
+  /** Metrics M4: the quarterly ladder and the optional monthly WHO-5 when due, one hypothesis, slipping guardrails. */
+  asked?: { ladder: boolean; who5: boolean };
+  hypothesis?: { key: string; text: string } | null;
+  guardrails?: string[];
 }
 
 export interface MetricProposal {

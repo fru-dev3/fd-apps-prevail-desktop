@@ -251,3 +251,64 @@ pub(crate) async fn engine_source_consent(vault: String, id: String, on: bool) -
 pub(crate) async fn engine_source_sync(vault: String, id: String) -> Result<serde_json::Value, String> {
     blocking(vec!["--vault".into(), vault, "sources".into(), "sync".into(), ok_id(&id)?.to_string()]).await
 }
+
+// ── Metrics M4: the asked measures and hypotheses on the review card ──
+
+fn small_int(s: &str, max: u32) -> Result<String, String> {
+    match s.parse::<u32>() { Ok(n) if n <= max => Ok(n.to_string()), _ => Err(format!("must be a whole number from 0 to {max}: {s}")) }
+}
+
+/// One answer on the weekly review card: the quarterly ladder (now, in five
+/// years, 0 to 10), the monthly WHO-5 (five items, 0 to 5), WHO-5 on or off,
+/// or a hypothesis yes or no.
+#[tauri::command]
+pub(crate) async fn engine_review_answer(vault: String, kind: String, values: Vec<String>) -> Result<serde_json::Value, String> {
+    let mut a = vec!["--vault".to_string(), vault, "review".into()];
+    match one_of(&kind, &["ladder", "who5", "who5-toggle", "hypothesis"])? {
+        "ladder" => {
+            if values.len() != 2 { return Err("the ladder takes two answers".into()); }
+            a.push("ladder".into());
+            for v in &values { a.push(small_int(v, 10)?); }
+        }
+        "who5" => {
+            if values.len() != 5 { return Err("WHO-5 takes five answers".into()); }
+            a.push("who5".into());
+            for v in &values { a.push(small_int(v, 5)?); }
+        }
+        "who5-toggle" => {
+            a.push("who5".into());
+            a.push(one_of(values.first().map(|s| s.as_str()).unwrap_or(""), &["on", "off"])?.to_string());
+        }
+        _ => {
+            if values.len() != 2 { return Err("a hypothesis takes its key and yes or no".into()); }
+            a.push("hypothesis".into());
+            a.push(ok_id(&values[0])?.to_string());
+            a.push(one_of(&values[1], &["yes", "no"])?.to_string());
+        }
+    }
+    blocking(a).await
+}
+
+/// Whether the optional monthly WHO-5 is on (build/_meta/metrics/asked.json, written by the engine).
+#[tauri::command]
+pub(crate) async fn metrics_who5_state(vault: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        let p = crate::paths::build_root(&vault).join("_meta").join("metrics").join("asked.json");
+        std::fs::read_to_string(p).ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .and_then(|v| v.get("who5").and_then(|b| b.as_bool()))
+            .unwrap_or(false)
+    }).await.map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod step4_tests {
+    use super::*;
+    #[test]
+    fn answers_are_bounded() {
+        assert_eq!(small_int("10", 10).unwrap(), "10");
+        assert!(small_int("11", 10).is_err());
+        assert!(small_int("-1", 5).is_err());
+        assert!(small_int("2.5", 5).is_err());
+    }
+}

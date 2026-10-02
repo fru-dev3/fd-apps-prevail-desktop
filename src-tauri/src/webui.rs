@@ -152,6 +152,8 @@ const WEBUI_ALLOWED: &[&str] = &[
     // The stack and the sources are read on the phone; probes, answers,
     // mapping, consent and syncs stay on the Mac.
     "engine_apps_stack", "engine_apps_unknown", "engine_sources",
+    // The review card's asked measures and hypothesis answers are review taps, like the 1-5.
+    "engine_review_answer", "metrics_who5_state",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.

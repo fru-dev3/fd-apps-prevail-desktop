@@ -666,6 +666,8 @@ pub fn run() {
             plans::engine_sources,
             plans::engine_source_consent,
             plans::engine_source_sync,
+            plans::engine_review_answer,
+            plans::metrics_who5_state,
             plans::engine_chief_set,
             compass::compass_read,
             compass::compass_write,

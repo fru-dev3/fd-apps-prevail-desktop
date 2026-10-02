@@ -13,6 +13,7 @@ import { invalidateQueries, useInvokeQuery } from "./query";
 import type { MetricProposal } from "./plansmodel";
 import { SideSpine } from "./sidespine";
 import { SourcesConsent } from "./sourcesview";
+import { PatternsView } from "./patternsview";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 
 export interface Normal { median: number; lo: number; hi: number; weeks: number; learning: boolean; learningWeeksLeft: number }
@@ -146,7 +147,7 @@ export function RhythmPlot({ dots, days = 30, end }: { dots: Dot[]; days?: numbe
   );
 }
 
-type Sel = "week" | "rhythm" | "sources" | "proposals" | "changes" | `family:${string}`;
+type Sel = "week" | "rhythm" | "sources" | "proposals" | "changes" | "patterns" | `family:${string}`;
 interface Insight { key: string; week: string; metric: string; title: string; text: string; direction: "up" | "down"; files: string[] }
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -226,6 +227,7 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
       {row("proposals", "Proposals", Lightbulb, "Metrics to track, from what you said", props.length)}
       <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Patterns</div>
       {row("changes", "Changes", TrendingUp, "Three weeks outside your normal")}
+      {row("patterns", "Patterns", Sparkles, "What moves what, themes, seasons")}
       {row("rhythm", "Rhythm", Activity, "When you work")}
       {row("sources", "Sources", Database, "What each number reads")}
     </nav>
@@ -281,6 +283,8 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         ))}</ul>
       </section>
     );
+  } else if (sel === "patterns") {
+    detail = <PatternsView vaultPath={vaultPath} />;
   } else if (sel === "rhythm") {
     const dots = Array.isArray(rhythmQ.data) ? rhythmQ.data : [];
     const end = g?.through ?? new Date().toISOString().slice(0, 10);
