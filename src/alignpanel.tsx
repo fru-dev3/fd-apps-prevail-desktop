@@ -40,6 +40,8 @@ export function AlignNeedsYou({ vaultPath }: { vaultPath: string }) {
     catch (e) { setErr(`The check did not run: ${String(e)}`); } finally { setBusy(null); }
   };
   const evidence = new Map((r?.conflicts ?? []).map((c) => [c.key, c]));
+  // Progressive reveal: when nothing needs the user, show nothing.
+  if (!err && (!r || !r.needsYou.length)) return null;
   return (
     <section className="mt-6 max-w-3xl" data-testid="align-needs-you">
       <div className="flex items-center gap-2">

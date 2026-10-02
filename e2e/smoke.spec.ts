@@ -1149,7 +1149,7 @@ test("41 · Compass: proposed lines show their words and source; confirm one, dr
   await expect(header).toContainText("Compass", { timeout: 10_000 });
   await expect(page.getByTestId("tab-compass")).toHaveAttribute("aria-selected", "true");
   // Overview: the mission, the ranked values, and what waits.
-  await expect(page.getByTestId("compass-needs-you")).toContainText("3 lines were drafted from your notes");
+  await expect(page.getByTestId("compass-needs-you")).toContainText("3 lines drafted from your notes");
   await expect(page.getByTestId("compass-detail-overview")).toContainText("Live a calm foo life.");
   // Values: words, enough and the source file on each line.
   await page.getByTestId("compass-row-values").click();
