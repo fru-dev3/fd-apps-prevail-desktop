@@ -83,7 +83,7 @@ pub(crate) async fn engine_missions_create(vault: String, name: String, outcome:
 /// Edit a field on the Setup tab.
 #[tauri::command]
 pub(crate) async fn engine_missions_set(vault: String, slug: String, field: String, value: String) -> Result<serde_json::Value, String> {
-    let f = one_of(&field, &["name", "outcome", "why", "target", "cadence", "ceiling", "notes", "local-only", "budget-usd", "hours-wk", "nudges"])?.to_string();
+    let f = one_of(&field, &["name", "outcome", "why", "target", "cadence", "ceiling", "notes", "local-only", "budget-usd", "hours-wk", "nudges", "match-calendar", "match-email-from", "match-merchants"])?.to_string();
     let mut a = base(&vault, "set");
     a.push(ok_slug(&slug)?.into());
     a.push(format!("--{f}"));

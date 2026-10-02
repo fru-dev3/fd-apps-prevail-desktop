@@ -139,8 +139,11 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect(h).toContainText("Learn the cello", { timeout: 10_000 });
       await h.getByTestId("mission-tab-setup").click();
       const p = page.getByTestId("mission-progress");
-      await expect(p).toContainText("cello lesson");
-      await expect(p).toContainText("@foo-music.example");
+      await expect(p.getByTestId("mission-match-calendar")).toHaveValue(/cello lesson/);
+      await expect(p.getByTestId("mission-match-email-from")).toHaveValue(/@foo-music\.example/);
+      await p.getByTestId("mission-match-merchants").fill("FOO MUSIC SCHOOL");
+      await p.getByTestId("mission-match-merchants").press("Enter");
+      await expect.poll(() => calls(page, "engine_missions_set")).toContainEqual({ vault: "/tmp/smoke-vault", slug: "learn-the-cello", field: "match-merchants", value: "FOO MUSIC SCHOOL" });
       await expect(p.getByTestId("mission-metric")).toHaveCount(2);
       await expect(p.getByTestId("mission-metric-tracked")).toHaveCount(1);
       await p.getByTestId("mission-metric-track").click();

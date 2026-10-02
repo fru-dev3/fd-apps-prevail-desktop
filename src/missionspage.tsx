@@ -738,13 +738,19 @@ function Progress({ vaultPath, m }: { vaultPath: string; m: Mission }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const run = async (key: string, f: () => Promise<unknown>) => { setBusy(key); setErr(null); try { await f(); await pq.refresh(); } catch (e) { setErr(String(e)); } finally { setBusy(null); } };
-  const rules: [string, string[] | undefined][] = [["Calendar titles", m.match?.calendar], ["Mail from", m.match?.email_from], ["Card charges from", m.match?.merchants]];
+  const rules: [string, string, string[] | undefined, string][] = [["Calendar titles", "match-calendar", m.match?.calendar, "cello lesson, recital"], ["Mail from", "match-email-from", m.match?.email_from, "@school.example"], ["Card charges from", "match-merchants", m.match?.merchants, "MUSIC SCHOOL"]];
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const saveRule = (field: string, cur: string) => { const v = draft[field]; if (v === undefined || v === cur) return; void run(field, () => setMissionField(vaultPath, m.slug, field, v)); };
   return (
     <div className="grid gap-4 border-t border-border-subtle pt-4" data-testid="mission-progress">
       <div>
         <h3 className={SECTION_TITLE}>What counts on its own</h3>
         <dl className="mt-2 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-y-1 text-[14px]">
-          {rules.flatMap(([k, v]) => [<dt key={`${k}-t`} className="text-text-muted">{k}</dt>, <dd key={`${k}-d`} className="break-words text-text-secondary">{v?.length ? v.join(", ") : "none yet"}</dd>])}
+          {rules.flatMap(([k, field, v, hint]) => [<dt key={`${k}-t`} className="self-center text-text-muted">{k}</dt>, <dd key={`${k}-d`} className="min-w-0">
+            <input aria-label={k} data-testid={`mission-${field}`} value={draft[field] ?? (v ?? []).join(", ")} placeholder={hint} disabled={!!busy}
+              onChange={(e) => setDraft((d) => ({ ...d, [field]: e.target.value }))} onBlur={() => saveRule(field, (v ?? []).join(", "))}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} className={inputCls} />
+          </dd>])}
         </dl>
       </div>
       <div>
