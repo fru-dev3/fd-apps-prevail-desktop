@@ -7,7 +7,7 @@
 // A specialist's detail: what it is for, how it works, its ceiling, budget
 // and tools, its notebooks per domain, and the jobs it worked on.
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Briefcase, CircleDashed, Clock, Compass, FileText, Hourglass, ListOrdered, Loader2, PenLine, Scale, Search, Settings2, UserCog } from "lucide-react";
+import { BadgeCheck, BookOpen, Briefcase, ChartColumn, CircleDashed, Clock, Compass, FileText, FolderInput, Hammer, History, Hourglass, ListOrdered, Loader2, PenLine, Radar, Scale, Search, Settings2, UserCog } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { SettingsHeader } from "./sectionutil";
@@ -19,7 +19,7 @@ import { useChiefOfStaff } from "./chiefofstaff";
 import { FAMILY_LABEL, jobGroups, jobStatusLabel, label, type Job, type Specialist } from "./plansmodel";
 
 export const SPECIALISTS_FOCUS_KEY = "prevail.specialists.focus";
-const ICON: Record<string, typeof Search> = { search: Search, compass: Compass, "list-ordered": ListOrdered, scale: Scale, "file-text": FileText, "pen-line": PenLine };
+const ICON: Record<string, typeof Search> = { search: Search, compass: Compass, "list-ordered": ListOrdered, scale: Scale, "file-text": FileText, "pen-line": PenLine, "chart-column": ChartColumn, history: History, radar: Radar, "badge-check": BadgeCheck, hammer: Hammer, "folder-input": FolderInput };
 const CEILINGS = ["read", "write-vault", "draft", "act-ask", "act"];
 const CEILING_LABEL: Record<string, string> = { read: "Read", "write-vault": "Write vault", draft: "Draft", "act-ask": "Ask, then act", act: "Act" };
 const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";

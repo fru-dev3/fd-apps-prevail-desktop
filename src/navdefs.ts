@@ -6,7 +6,7 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, Blocks, BookUser, Compass, Database, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords } from "lucide-react";
+import { Activity, Blocks, BookUser, Compass, Database, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Workflow } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
@@ -28,6 +28,7 @@ export const WORK_NAV: NavGroup[] = [
     { id: "task-list", label: "Tasks", icon: ListChecks },
     { id: "compass", label: "Compass", icon: Compass },
     { id: "decisions", label: "Decisions", icon: Gavel },
+    { id: "playbooks", label: "Playbooks", icon: Workflow },
   ]},
 ];
 

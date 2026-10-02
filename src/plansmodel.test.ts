@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { elapsed, fmtDue, jobGroups, jobIdOf, jobStatusLabel, stepState, type Job, type StepRecord } from "./plansmodel";
+import { elapsed, fmtDue, jobGroups, jobIdOf, jobStatusLabel, playbookGroups, stepState, triggerLine, type Job, type PlaybookRow, type StepRecord } from "./plansmodel";
 import { addStep } from "./jobcard";
 import { parseChief } from "./specialistspage";
 import { calibrate } from "./decisionspage";
@@ -49,5 +49,21 @@ describe("plans model", () => {
     expect(calibrate([r("home", "gut"), r("home", "both"), r("money", "recommendation"), r("money")])).toEqual([
       { domain: "home", retros: 2, gut: 2, rec: 1 }, { domain: "money", retros: 1, gut: 0, rec: 1 },
     ]);
+  });
+});
+
+describe("playbooks", () => {
+  const row = (id: string, group: PlaybookRow["group"]): PlaybookRow => ({ id, name: id, goal: "", group, source: group === "built-in" ? "built-in" : "yours", draft: group === "drafts", steps: 2, running: group === "running" });
+  test("groups rows in the page's order and keeps empty groups", () => {
+    const g = playbookGroups([row("a", "built-in"), row("b", "drafts"), row("c", "yours"), row("d", "built-in")]);
+    expect(g.running).toEqual([]);
+    expect(g["built-in"].map((r) => r.id)).toEqual(["a", "d"]);
+    expect(g.drafts.map((r) => r.id)).toEqual(["b"]);
+  });
+  test("says what runs a playbook", () => {
+    expect(triggerLine([])).toBe("By hand");
+    expect(triggerLine([{ domain: "foo", loop: "x", cadence: "weekly", enabled: false }])).toBe("By hand");
+    expect(triggerLine([{ domain: "foo", loop: "x", cadence: "weekly", enabled: true }])).toBe("Weekly in Foo");
+    expect(triggerLine([{ domain: "foo", loop: "x", cadence: "daily", enabled: true }, { domain: "bar-baz", loop: "y", cadence: "daily", enabled: true }])).toBe("Daily in Foo and Bar Baz");
   });
 });

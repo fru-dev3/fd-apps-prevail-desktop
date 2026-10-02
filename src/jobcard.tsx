@@ -5,12 +5,12 @@
 // any time. Data: `prevail job show <id>` (engine_job_show), polled while the
 // job runs.
 import { useEffect, useMemo, useState } from "react";
-import { Check, FileText, FolderOpen, Loader2, Play, RotateCcw, SlidersHorizontal, Square, X } from "lucide-react";
+import { Check, FileText, FolderOpen, Loader2, Play, RotateCcw, SlidersHorizontal, Square, Workflow, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery, invalidateQueries } from "./query";
 import { Markdown } from "./Markdown";
 import { LS, lsGet } from "./storage";
-import { elapsed, jobStatusLabel, label, stepState, type Job, type JobView } from "./plansmodel";
+import { elapsed, jobStatusLabel, label, openPlaybook, stepState, type Job, type JobView } from "./plansmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
@@ -38,6 +38,7 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [adjust, setAdjust] = useState(false);
   const [showPage, setShowPage] = useState(false);
+  const [saved, setSaved] = useState<{ id: string; name: string; steps: number } | null>(null);
   const [, tick] = useState(0);
   // Live while it runs: re-read the record every two seconds.
   useEffect(() => {
@@ -105,7 +106,16 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
           <div className="mt-2 flex flex-wrap gap-2">
             {v.body && <button onClick={() => setShowPage((x) => !x)} aria-expanded={showPage} data-testid="job-open-page" className={smallBtn}><FileText className="h-3.5 w-3.5" /> {showPage ? "Hide page" : "Open page"}</button>}
             {job.result.page && <button onClick={() => void invoke("open_in_finder", { path: `${vault}/${job.result!.page}` }).catch(() => {})} title="Show the file" aria-label="Show the file" className={iconBtn}><FolderOpen className="h-4 w-4" /></button>}
+            {!saved && <button onClick={() => void (async () => {
+              setBusy("save"); setErr(null);
+              try {
+                const r = await invoke<{ ok?: boolean; error?: string; playbook?: { id: string; name: string; steps: unknown[] } }>("engine_playbook_save", { vault, jobId: id, name: null, adopt: null });
+                if (!r?.playbook) throw new Error(r?.error ?? "not saved");
+                setSaved({ id: r.playbook.id, name: r.playbook.name, steps: r.playbook.steps.length }); invalidateQueries("engine_playbook_rows");
+              } catch (e) { setErr(`Not saved: ${String(e)}`); } finally { setBusy(null); }
+            })()} disabled={!!busy} title="Save as playbook" aria-label="Save as playbook" data-testid="job-save-playbook" className={iconBtn}>{busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Workflow className="h-4 w-4" />}</button>}
           </div>
+          {saved && <p className="mt-2 text-[13px] text-text-secondary" data-testid="job-saved-playbook">Saved as a draft playbook, {saved.steps} step{saved.steps === 1 ? "" : "s"}: <button onClick={() => openPlaybook(saved.id)} className="text-accent underline-offset-2 hover:underline">{saved.name}</button></p>}
           {showPage && <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-lg border border-border-subtle bg-surface p-3 text-[14px]"><Markdown source={v.body} /></div>}
         </div>
       )}
@@ -116,6 +126,7 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
             <li key={r.n} data-testid="job-filed-row" className="flex items-start gap-2 py-1">
               <span className="w-24 shrink-0 truncate text-[13px] font-medium text-text-primary">{label(r.domain)}</span>
               <span className={`min-w-0 flex-1 break-words text-[13px] ${r.undone ? "text-text-muted line-through" : "text-text-secondary"}`}>{r.text}</span>
+              {r.kind === "build" && !r.undone && <button onClick={() => void invoke("open_in_finder", { path: `${vault}/${r.file}` }).catch(() => {})} title="Show the file" aria-label={`Show ${r.file}`} className={iconBtn}><FolderOpen className="h-4 w-4" /></button>}
               {!r.undone && <button onClick={() => void act(`undo${r.n}`, "engine_job_undo", { n: r.n })} disabled={!!busy} title="Undo" aria-label={`Undo: ${r.text}`} data-testid="job-undo" className={iconBtn}>{busy === `undo${r.n}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}</button>}
             </li>
           ))}</ul>

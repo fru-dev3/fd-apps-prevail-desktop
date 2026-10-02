@@ -16,7 +16,7 @@ import { titleCase } from "./format";
 import { isUserDomain } from "./helpers";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine, SpineTabs } from "./sidespine";
-import { useIsPhone } from "./useisphone";
+import { useIsPhone, useStacked } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import { DomainChip } from "./linking";
 import { useChatApps } from "./chatrefs";
@@ -58,22 +58,6 @@ export function missionMeta(m: Mission): string {
 }
 
 // ── The page ────────────────────────────────────────────────────────────────
-
-// Below this width the column and a mission side by side leave the mission too
-// narrow to read, so the page stacks like a phone: the list, then the mission
-// with a back button.
-function useStacked(maxPx = 1100): boolean {
-  const q = `(max-width: ${maxPx}px)`;
-  const [on, setOn] = useState(() => { try { return window.matchMedia(q).matches; } catch { return false; } });
-  useEffect(() => {
-    let mq: MediaQueryList | null = null;
-    try { mq = window.matchMedia(q); } catch { return; }
-    const f = (e: MediaQueryListEvent) => setOn(e.matches);
-    mq.addEventListener("change", f);
-    return () => mq?.removeEventListener("change", f);
-  }, [q]);
-  return on;
-}
 
 export function MissionsPage({ vaultPath }: { vaultPath: string }) {
   const isPhone = useIsPhone();

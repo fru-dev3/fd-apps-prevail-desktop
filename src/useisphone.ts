@@ -22,6 +22,20 @@ export function useIsPhone(): boolean {
   return phone;
 }
 
+/** True below maxPx: a SideSpine page whose detail would be too narrow stacks like the phone. */
+export function useStacked(maxPx = 1100): boolean {
+  const q = `(max-width: ${maxPx}px)`;
+  const [on, setOn] = useState(() => { try { return window.matchMedia(q).matches; } catch { return false; } });
+  useEffect(() => {
+    let mq: MediaQueryList | null = null;
+    try { mq = window.matchMedia(q); } catch { return; }
+    const f = (e: MediaQueryListEvent) => setOn(e.matches);
+    mq.addEventListener("change", f);
+    return () => mq?.removeEventListener("change", f);
+  }, [q]);
+  return on;
+}
+
 // The height of the part of the screen the user can actually see, in px, or
 // null when the browser has no visualViewport (then CSS `height: 100%` on the
 // pinned body is already right). On a phone the on-screen keyboard does not

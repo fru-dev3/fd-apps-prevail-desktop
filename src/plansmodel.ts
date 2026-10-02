@@ -120,3 +120,44 @@ export function fmtDue(due?: string, today = new Date().toISOString().slice(0, 1
 export function jobIdOf(text: string): string | null {
   return /\[job:([A-Za-z0-9_-]+)\]\s*$/.exec(text ?? "")?.[1] ?? null;
 }
+
+// ── Specialists Phase 2: playbooks (prevail playbook rows | show) ──
+
+export type PlaybookGroup = "running" | "yours" | "drafts" | "built-in";
+export interface PlaybookRow { id: string; name: string; goal: string; domain?: string; group: PlaybookGroup; source: "yours" | "built-in"; draft: boolean; steps: number; running: boolean; lastRun?: { ts: number; status: string } }
+export interface PlaybookStepRow { n: number; kind: string; label: string; specialists: string[]; returns: string[]; gate: boolean; ask: boolean; domain?: string }
+export interface PlaybookView extends PlaybookRow {
+  rows: PlaybookStepRow[];
+  triggers: { domain: string; loop: string; cadence: string; enabled: boolean }[];
+  runs: { id: string; status: string; ts: number; summary?: string }[];
+  from?: string;
+}
+
+export const PLAYBOOK_GROUPS: { id: PlaybookGroup; label: string }[] = [
+  { id: "running", label: "Running" }, { id: "yours", label: "Yours" }, { id: "drafts", label: "Drafts" }, { id: "built-in", label: "Built in" },
+];
+
+/** Rows by group, in the page's order; empty groups stay (they show a count of 0). */
+export function playbookGroups(rows: PlaybookRow[]): Record<PlaybookGroup, PlaybookRow[]> {
+  const out: Record<PlaybookGroup, PlaybookRow[]> = { running: [], yours: [], drafts: [], "built-in": [] };
+  for (const r of rows) (out[r.group] ?? out["built-in"]).push(r);
+  return out;
+}
+
+/** "Weekly in Foo", "Daily in Foo and Bar", or "By hand". */
+export function triggerLine(t: PlaybookView["triggers"]): string {
+  const on = t.filter((x) => x.enabled);
+  if (!on.length) return "By hand";
+  const cad = [...new Set(on.map((x) => x.cadence).filter(Boolean))];
+  const doms = [...new Set(on.map((x) => label(x.domain)))];
+  return `${cad.length ? label(cad.join(", ")) : "On a loop"} in ${doms.length > 1 ? `${doms.slice(0, -1).join(", ")} and ${doms[doms.length - 1]}` : doms[0]}`;
+}
+
+export const PLAYBOOKS_FOCUS_KEY = "prevail.playbooks.focus";
+/** Open the Playbooks page on one playbook (from a job card's Save as playbook). */
+export function openPlaybook(id: string): void {
+  try { localStorage.setItem(PLAYBOOKS_FOCUS_KEY, id); } catch { /* storage off */ }
+  window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "playbooks" }));
+  window.dispatchEvent(new CustomEvent("prevail:playbooks-focus", { detail: id }));
+}
+

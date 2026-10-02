@@ -18,10 +18,11 @@ import { CompassPage } from "./compasspage";
 import { MissionsPage } from "./missionspage";
 import { DecisionsPage } from "./decisionspage";
 import { SpecialistsPage } from "./specialistspage";
+import { PlaybooksPage } from "./playbookspage";
 import { workSection } from "./navdefs";
 import type { CliInfo } from "./types";
 
-export type WorkSection = "task-list" | "inbox" | "apps" | "recommendations" | "insights" | "missions" | "compass" | "decisions" | "specialists";
+export type WorkSection = "task-list" | "inbox" | "apps" | "recommendations" | "insights" | "missions" | "compass" | "decisions" | "specialists" | "playbooks";
 // Insights is a view of the Intent screen. Its remembered view is set before
 // it mounts, so the row you clicked is the view you land on.
 const INTENT_VIEW: Partial<Record<WorkSection, string>> = { insights: "noticed" };
@@ -29,7 +30,7 @@ export function normalizeWorkSection(s: string): WorkSection | null {
   return workSection(s) as WorkSection | null;
 }
 // Sections that lay out their own columns (a SideSpine page).
-const FLUSH: WorkSection[] = ["recommendations", "inbox", "apps", "insights", "missions", "compass", "task-list", "decisions", "specialists"];
+const FLUSH: WorkSection[] = ["recommendations", "inbox", "apps", "insights", "missions", "compass", "task-list", "decisions", "specialists", "playbooks"];
 
 export function WorkPanel({
   vaultPath,
@@ -70,6 +71,7 @@ export function WorkPanel({
         {section === "missions" && <MissionsPage vaultPath={vaultPath} />}
         {section === "decisions" && <DecisionsPage vaultPath={vaultPath} />}
         {section === "specialists" && <SpecialistsPage vaultPath={vaultPath} />}
+        {section === "playbooks" && <PlaybooksPage vaultPath={vaultPath} />}
     </ScrollPage>
   );
 }

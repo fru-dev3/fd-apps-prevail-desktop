@@ -173,6 +173,67 @@ pub(crate) async fn engine_chief_set(vault: String, key: String, value: String) 
     blocking(vec!["--vault".into(), vault, "chief".into(), "set".into(), k, val]).await
 }
 
+// ── Specialists Phase 2: playbooks ──
+
+/// Every playbook in its group (running, yours, drafts, built-in).
+#[tauri::command]
+pub(crate) async fn engine_playbook_rows(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "playbook", "rows", "--json"])).await
+}
+
+/// One playbook: its steps as rows, what triggers it, its run history.
+#[tauri::command]
+pub(crate) async fn engine_playbook_show(vault: String, id: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "playbook", "show", ok_playbook(&id)?, "--json"])).await
+}
+
+/// Save a job as a playbook (a draft unless adopt).
+#[tauri::command]
+pub(crate) async fn engine_playbook_save(vault: String, job_id: String, name: Option<String>, adopt: Option<bool>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "playbook", "save", ok_id(&job_id)?, "--json"]);
+    if let Some(n) = name.filter(|n| !n.trim().is_empty()) {
+        if n.starts_with('-') || n.chars().any(|c| c.is_control()) { return Err("invalid name".into()); }
+        a.push("--name".into()); a.push(n.chars().take(80).collect());
+    }
+    if adopt == Some(true) { a.push("--adopt".into()); }
+    blocking(a).await
+}
+
+/// A draft becomes one of yours.
+#[tauri::command]
+pub(crate) async fn engine_playbook_adopt(vault: String, id: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "playbook", "adopt", ok_playbook(&id)?, "--json"])).await
+}
+
+/// Run a playbook now (in a domain, for one that names none). Waits for the run.
+#[tauri::command]
+pub(crate) async fn engine_playbook_run(vault: String, id: String, domain: Option<String>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "run-playbook", ok_playbook(&id)?, "--json"]);
+    if let Some(d) = domain.filter(|d| !d.is_empty()) { a.push("--domain".into()); a.push(ok_playbook(&d)?.to_string()); }
+    blocking(a).await
+}
+
+/// Playbook ids and domain slugs: a plain slug, nothing else.
+fn ok_playbook(s: &str) -> Result<&str, String> {
+    let mut c = s.chars();
+    let first_ok = c.next().map(|f| f.is_ascii_alphanumeric()).unwrap_or(false);
+    if first_ok && s.len() <= 81 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') { Ok(s) } else { Err(format!("invalid id: {s}")) }
+}
+
+#[cfg(test)]
+mod playbook_tests {
+    use super::*;
+    #[test]
+    fn playbook_ids_are_slugs() {
+        assert!(ok_playbook("renewal-review").is_ok());
+        assert!(ok_playbook("foo_2").is_ok());
+        assert!(ok_playbook("../x").is_err());
+        assert!(ok_playbook("-x").is_err());
+        assert!(ok_playbook("a/b").is_err());
+        assert!(ok_playbook("").is_err());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
