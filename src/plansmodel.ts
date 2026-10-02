@@ -3,9 +3,9 @@
 // decisions and metric proposals.
 
 export interface TodayItem {
-  key: string; kind: "task" | "commitment" | "waiting" | "decision" | "job"; title: string; domain: string;
+  key: string; kind: "task" | "commitment" | "waiting" | "decision" | "job" | "mission"; title: string; domain: string;
   due?: string; person?: string; thread: string[]; unlinked: boolean; why: string; score: number;
-  ref: { domain: string; id?: string; text?: string; slug?: string; job?: string };
+  ref: { domain: string; id?: string; text?: string; slug?: string; job?: string; mission?: string };
 }
 export interface TodayCard {
   date: string; generated: number; calm: number | null; items: TodayItem[];
@@ -57,6 +57,8 @@ export interface ReviewCard {
   commitments?: { src: string; text: string; due?: string; person?: string; quote: string }[];
   /** Today T3: everything falling behind. */
   radar?: { key: string; kind: string; text: string; evidence: string; due?: string }[];
+  /** Missions MS4: one line per active mission. */
+  missions?: string[];
 }
 
 export interface MetricProposal {
@@ -92,6 +94,22 @@ export interface DecisionRecord {
   slug: string; domain: string; file: string; question: string; status: "open" | "decided" | "revisit"; due?: string;
   owner: string; consulted: string[]; serves: string[]; gut?: string; recommendation?: string; confidence?: string;
   decided?: string; chose?: string; retroDue?: string; retroRight?: string; sections: Record<string, string>;
+  /** Today T4 (DecisionView): what the record still lacks, whether a recommendation waits behind the gut call, and whether it is big (the council). */
+  missing?: string[]; recommendationReady?: boolean; big?: boolean;
+}
+
+/** Open one decision on the Decisions page ("domain/slug"). */
+export const DECISIONS_FOCUS_KEY = "prevail.decisions.focus";
+export function openDecision(target: string) {
+  try { localStorage.setItem(DECISIONS_FOCUS_KEY, target); } catch { /* storage off */ }
+  window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "decisions" }));
+  window.dispatchEvent(new CustomEvent("prevail:decisions-focus", { detail: target }));
+}
+
+/** What a decision row says beside its question: due, decided, or a retro owed. */
+export function decisionStatus(r: Pick<DecisionRecord, "status" | "due" | "decided" | "retroDue" | "retroRight">, today = new Date().toISOString().slice(0, 10)): string {
+  if (r.status === "decided") return r.retroDue && !r.retroRight && r.retroDue <= today ? "retro owed" : r.decided ? `decided ${r.decided}` : "decided";
+  return r.due ? fmtDue(r.due, today) : "";
 }
 
 export const FAMILY_LABEL: Record<Specialist["family"], string> = { know: "Know", decide: "Decide", do: "Do", grow: "Grow", deliver: "Deliver" };

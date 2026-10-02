@@ -25,8 +25,10 @@ import { ChatPanel } from "./chatpanel";
 import { useDetectedClis, useFrameworkLens } from "./hooks";
 import { MISSION_DRAFT_KEY } from "./missioncards";
 import type { ThreadMeta } from "./types";
+import { parseCompass } from "./compassmodel";
 import {
-  attachToMission, CEILINGS, closeoutApply, closeoutPlan, closeoutUndo, createMission, daysLeftLabel, missionBudget, missionFor,
+  approveMissionEvent, attachToMission, CEILINGS, closeoutApply, closeoutPlan, closeoutUndo, createMission, createMissionEvent, daysLeftLabel, linkMissionPath, missionBudget, missionFor,
+  MISSIONS_CHANGED, pendingLabel, trackMissionMetric, type MetricProposalM, type PendingEvent,
   missionMilestone, missionState, OPEN_MISSION_EVENT, ownerOf, rolesOf, setMissionField, takeOpenMission, useMission, useMissions,
   type CloseoutPlan, type Mission, type MissionStatus, type MissionTask, type Receipt,
 } from "./missions";
@@ -290,7 +292,7 @@ export function MissionDetail({ vaultPath, slug }: { vaultPath: string; slug: st
         <div className={`min-h-0 flex-1 overflow-y-auto ${pad} py-5`}>
           {tab === "milestones" && <Milestones vaultPath={vaultPath} m={m} />}
           {tab === "tasks" && <Tasks vaultPath={vaultPath} slug={slug} />}
-          {tab === "calendar" && <Calendar m={m} />}
+          {tab === "calendar" && <Calendar vaultPath={vaultPath} m={m} />}
           {tab === "budget" && <Budget vaultPath={vaultPath} m={m} />}
           {tab === "artifacts" && <Artifacts m={m} />}
           {tab === "timeline" && <Timeline vaultPath={vaultPath} m={m} />}
@@ -546,20 +548,41 @@ function Tasks({ vaultPath, slug }: { vaultPath: string; slug: string }) {
   );
 }
 
-function Calendar({ m }: { m: Mission }) {
+function Calendar({ vaultPath, m }: { vaultPath: string; m: Mission }) {
   const ev = m.links.calendar;
+  const pq = useInvokeQuery<PendingEvent[]>("engine_missions_progress", { vault: vaultPath, sub: "events-pending", slug: m.slug }, { invalidateOn: [MISSIONS_CHANGED] });
+  const pending = new Map((Array.isArray(pq.data) ? pq.data : []).map((p) => [p.id, p]));
+  const [title, setTitle] = useState("");
+  const [start, setStart] = useState("");
+  const [who, setWho] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async (key: string, f: () => Promise<unknown>) => { setBusy(key); setErr(null); try { await f(); await pq.refresh(); } catch (e) { setErr(String(e)); } finally { setBusy(null); } };
+  const attendees = who.split(",").map((x) => x.trim()).filter(Boolean);
   return (
     <section data-testid="mission-calendar">
       <h3 className={SECTION_TITLE}>Calendar</h3>
-      {ev.length === 0 ? <p className={`${BODY} mt-2 text-text-muted`}>No events linked yet. Events that match the mission and holds it drafts show here; a hold on your calendar always asks first.</p> : (
-        <ul className="mt-3 divide-y divide-border-subtle">{ev.map((e) => (
-          <li key={e.event} className="flex flex-wrap items-center gap-x-3 py-2">
-            <span className="w-32 shrink-0 text-[13px] tabular-nums text-text-muted">{fmtDate(e.start)}{e.start.length > 10 ? ` ${e.start.slice(11, 16)}` : ""}</span>
-            <span className="min-w-0 flex-1 basis-40 break-words text-[15px] text-text-primary">{e.title}</span>
-            <span className={META}>{e.source === "created" ? "hold you drafted" : "matched"}</span>
-          </li>
-        ))}</ul>
+      <p className={`${META} mt-1`}>Events that match the mission count on their own. A hold on your calendar waits for your yes; an event with other people stays a draft you send.</p>
+      {ev.length === 0 ? <p className={`${BODY} mt-2 text-text-muted`}>No events linked yet.</p> : (
+        <ul className="mt-3 divide-y divide-border-subtle">{ev.map((e) => {
+          const p = pending.get(e.event);
+          return (
+            <li key={e.event} data-testid="mission-event" className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+              <span className="w-32 shrink-0 text-[13px] tabular-nums text-text-muted">{fmtDate(e.start)}{e.start.length > 10 ? ` ${e.start.slice(11, 16)}` : ""}</span>
+              <span className="min-w-0 flex-1 basis-40 break-words text-[15px] text-text-primary">{e.title}</span>
+              <span className={META} data-testid="mission-event-state">{p ? pendingLabel(p) : e.source === "created" ? "created" : "matched"}</span>
+              {p?.status === "ask" && <button onClick={() => void run(p.id, () => approveMissionEvent(vaultPath, m.slug, p.id))} disabled={!!busy} title="Put the hold on my calendar" aria-label={`Approve ${e.title}`} data-testid="mission-event-approve" className={iconBtn}>{busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}</button>}
+            </li>
+          );
+        })}</ul>
       )}
+      <form className="mt-4 flex flex-wrap items-center gap-2" data-testid="mission-event-form" onSubmit={(e) => { e.preventDefault(); if (title.trim() && start) void run("create", async () => { await createMissionEvent(vaultPath, m.slug, { title: title.trim(), start, attendees }); setTitle(""); setStart(""); setWho(""); }); }}>
+        <input aria-label="Event title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A practice block, a viewing" className="h-9 min-w-0 flex-1 basis-48 rounded-lg border border-border bg-background px-2.5 text-[14px]" />
+        <input type="datetime-local" aria-label="Starts" value={start} onChange={(e) => setStart(e.target.value)} className="h-9 min-w-0 rounded-lg border border-border bg-background px-2 text-[14px]" />
+        <input aria-label="With (emails, optional)" value={who} onChange={(e) => setWho(e.target.value)} placeholder="With (emails, optional)" className="h-9 min-w-0 flex-1 basis-40 rounded-lg border border-border bg-background px-2.5 text-[14px]" />
+        <button type="submit" disabled={!title.trim() || !start || !!busy} className={smallBtn}>{busy === "create" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}{attendees.length ? "Draft invite" : "Draft a hold"}</button>
+      </form>
+      {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
     </section>
   );
 }
@@ -694,6 +717,57 @@ function Setup({ vaultPath, m }: { vaultPath: string; m: Mission }) {
       </div>
       {text("notes", "Your notes", m.notes, "Never overwritten", true)}
       {err && <p className="text-[13px] text-err">{err}</p>}
+      <Progress vaultPath={vaultPath} m={m} />
     </section>
+  );
+}
+
+/** The Compass paths a mission can carry out: chosen or in trial, with their goal. */
+export function chosenPaths(compassText: string): { id: string; title: string; goal: string }[] {
+  const doc = parseCompass(compassText);
+  return doc.sections.filter((x) => x.kind === "goal").flatMap((x) => x.blocks.flatMap((b) => ("item" in b ? b.item.paths.filter((p) => ["chosen", "trial"].includes(p.tokens.status ?? "")).map((p) => ({ id: p.id, title: p.title, goal: b.item.title })) : [])));
+}
+
+/** What counts toward the mission without data entry: its match rules, its metrics, and the Compass path it carries out. */
+function Progress({ vaultPath, m }: { vaultPath: string; m: Mission }) {
+  const pq = useInvokeQuery<MetricProposalM[]>("engine_missions_progress", { vault: vaultPath, sub: "metrics", slug: m.slug }, { invalidateOn: [MISSIONS_CHANGED] });
+  const cq = useInvokeQuery<string>("compass_read", { vault: vaultPath }, { staleMs: 60_000 });
+  const props = Array.isArray(pq.data) ? pq.data : [];
+  const tracked = new Set(m.metrics ?? []);
+  const paths = chosenPaths(typeof cq.data === "string" ? cq.data : "");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async (key: string, f: () => Promise<unknown>) => { setBusy(key); setErr(null); try { await f(); await pq.refresh(); } catch (e) { setErr(String(e)); } finally { setBusy(null); } };
+  const rules: [string, string[] | undefined][] = [["Calendar titles", m.match?.calendar], ["Mail from", m.match?.email_from], ["Card charges from", m.match?.merchants]];
+  return (
+    <div className="grid gap-4 border-t border-border-subtle pt-4" data-testid="mission-progress">
+      <div>
+        <h3 className={SECTION_TITLE}>What counts on its own</h3>
+        <dl className="mt-2 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-y-1 text-[14px]">
+          {rules.flatMap(([k, v]) => [<dt key={`${k}-t`} className="text-text-muted">{k}</dt>, <dd key={`${k}-d`} className="break-words text-text-secondary">{v?.length ? v.join(", ") : "none yet"}</dd>])}
+        </dl>
+      </div>
+      <div>
+        <h3 className={SECTION_TITLE}>Metrics</h3>
+        {props.length === 0 ? <p className={`${BODY} mt-1 text-text-muted`}>Nothing to propose for this kind of mission yet.</p> : (
+          <ul className="mt-2 divide-y divide-border-subtle">{props.map((p) => (
+            <li key={p.key} data-testid="mission-metric" className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-2">
+              <span className="min-w-0 flex-1 basis-48"><span className="block break-words text-[15px] text-text-primary">{p.title}</span><span className={`${META} block break-words`}>{p.why}</span></span>
+              {tracked.has(p.id) ? <span className={META} data-testid="mission-metric-tracked">Tracking</span>
+                : <button onClick={() => void run(p.key, () => trackMissionMetric(vaultPath, m.slug, p.key))} disabled={!!busy} className={smallBtn} data-testid="mission-metric-track">{busy === p.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Track</button>}
+            </li>
+          ))}</ul>
+        )}
+      </div>
+      <label className="block">
+        <span className={fieldLabel}>Carries out a Compass path</span>
+        <select aria-label="Compass path" data-testid="mission-path" value={m.path ?? ""} disabled={!!busy || !paths.length}
+          onChange={(e) => e.target.value && void run("path", () => linkMissionPath(vaultPath, m.slug, e.target.value))} className={inputCls}>
+          <option value="">{paths.length ? "Not linked" : "No chosen paths in your Compass"}</option>
+          {paths.map((p) => <option key={p.id} value={p.id}>{p.goal}: {p.title}</option>)}
+        </select>
+      </label>
+      {err && <p className="text-[13px] text-err">{err}</p>}
+    </div>
   );
 }

@@ -4,11 +4,11 @@
 // beside matters and lived). Data: `prevail compass align` (engine_compass_align),
 // shared by every block on the page through the query cache.
 import { useState } from "react";
-import { CheckCircle2, Handshake, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, Gavel, Handshake, Loader2, Sparkles } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
 import { BODY, META, SECTION_TITLE } from "./typescale";
-import { RULE_STATE_LABEL, type Rollup } from "./plansmodel";
+import { openDecision, RULE_STATE_LABEL, type Rollup } from "./plansmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const chip = "inline-flex items-center rounded-full border px-2 py-0.5 text-[12px]";
@@ -28,6 +28,11 @@ export function AlignNeedsYou({ vaultPath }: { vaultPath: string }) {
     setBusy(key); setErr(null);
     try { await invoke("engine_compass_conflict", { vault: vaultPath, key, answer: ans }); await q.refresh(); }
     catch (e) { setErr(`Not saved: ${String(e)}`); } finally { setBusy(null); }
+  };
+  const decide = async (key: string) => {
+    setBusy(`d:${key}`); setErr(null);
+    try { const r0 = await invoke<{ domain?: string; slug?: string }>("engine_decision_from_conflict", { vault: vaultPath, key }); if (r0?.slug) openDecision(`${r0.domain ?? "general"}/${r0.slug}`); }
+    catch (e) { setErr(`Not opened: ${String(e)}`); } finally { setBusy(null); }
   };
   const model = async () => {
     setBusy("model"); setErr(null);
@@ -59,6 +64,7 @@ export function AlignNeedsYou({ vaultPath }: { vaultPath: string }) {
                 <>
                   <button onClick={() => void answer(n.key, "accept")} disabled={!!busy} title="Accept the tension" aria-label="Accept the tension" data-testid="align-accept" className={iconBtn}>{busy === n.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}</button>
                   <button onClick={() => void answer(n.key, "resolved")} disabled={!!busy} title="Resolved" aria-label="Resolved" data-testid="align-resolved" className={iconBtn}><CheckCircle2 className="h-4 w-4" /></button>
+                  <button onClick={() => void decide(n.key)} disabled={!!busy} title="Make it a decision" aria-label="Make it a decision" data-testid="align-decide" className={iconBtn}>{busy === `d:${n.key}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gavel className="h-4 w-4" />}</button>
                 </>
               )}
             </li>

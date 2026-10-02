@@ -7,7 +7,8 @@ import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRi
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { BODY, META, SECTION_TITLE } from "./typescale";
-import { fmtDue, label, personName, radarGroups, type Radar, type ReviewCard, type TodayCard, type TodayItem } from "./plansmodel";
+import { fmtDue, label, openDecision, personName, radarGroups, type Radar, type ReviewCard, type TodayCard, type TodayItem } from "./plansmodel";
+import { openMission } from "./missions";
 import { WHO5_ITEMS, WHO5_SCALE } from "./qualmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -32,7 +33,9 @@ export function TodayHome({ vaultPath, phone, onAsk, fallback }: { vaultPath: st
 }
 
 function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string | null; tap: (key: string, a: string) => void }) {
-  const open = x.kind === "decision" ? () => openSection("decisions") : x.kind === "job" ? () => openSection("specialists") : null;
+  const open = x.kind === "decision" ? () => (x.ref.slug ? openDecision(`${x.ref.domain}/${x.ref.slug}`) : openSection("decisions"))
+    : x.kind === "job" ? () => openSection("specialists")
+    : x.kind === "mission" && x.ref.mission ? () => openMission(x.ref.mission!) : null;
   return (
     <li data-testid="today-item" data-kind={x.kind} className="flex flex-wrap items-start gap-x-3 gap-y-1 border-b border-border-subtle py-3 last:border-b-0">
       {n !== undefined && <span className="w-5 shrink-0 pt-0.5 text-right text-[16px] font-semibold tabular-nums text-accent">{n}</span>}
@@ -42,6 +45,7 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
           {x.due && <span className={META}>{fmtDue(x.due)}</span>}
           {x.kind === "commitment" && <span className={chip}>Promise{x.person ? ` to ${label(x.person.split("/").pop() ?? "")}` : ""}</span>}
           {x.kind === "waiting" && <span className={chip}>Waiting{x.person ? ` on ${label(x.person.split("/").pop() ?? "")}` : ""}</span>}
+          {x.kind === "mission" && <span className={chip} data-testid="today-mission-chip">Mission</span>}
         </div>
         <p className={`${META} mt-0.5`} data-testid="today-thread">{x.thread.join(" > ")}{x.unlinked ? ", unlinked to your Compass" : ""}</p>
       </div>
@@ -139,7 +143,7 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
           <div className="mt-1 flex items-start gap-2">
             <Gavel className="mt-1 h-4 w-4 shrink-0 text-text-muted" />
             <p className={`${BODY} min-w-0 flex-1 break-words text-text-secondary`}>{card.decisionDue.question}{card.decisionDue.due ? ` Due ${fmtDue(card.decisionDue.due)}.` : ""}{card.decisionDue.recommendation ? " A recommendation is ready." : ""}</p>
-            <button onClick={() => openSection("decisions")} title="Open decisions" aria-label="Open decisions" className={iconBtn}><ArrowRight className="h-4 w-4" /></button>
+            <button onClick={() => openDecision(`${card.decisionDue!.domain}/${card.decisionDue!.slug}`)} title="Open the decision" aria-label="Open the decision" data-testid="today-decision-open" className={iconBtn}><ArrowRight className="h-4 w-4" /></button>
           </div>
         </div>
       )}
@@ -274,6 +278,12 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
               <button onClick={() => void run(c.src, "engine_commitment_answer", { src: c.src, yes: false, domain: null })} disabled={!!busy} title="Not now" aria-label={`Not now: ${c.text}`} className={iconBtn}><X className="h-4 w-4" /></button>
             </li>
           ))}</ul>
+        </div>
+      )}
+      {card.missions && card.missions.length > 0 && (
+        <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-missions">
+          <h3 className="text-[15px] font-semibold text-text-primary">Missions</h3>
+          <ul>{card.missions.map((m) => <li key={m} className="break-words py-1 text-[15px] text-text-secondary">{m}</li>)}</ul>
         </div>
       )}
       {card.radar && card.radar.length > 0 && (

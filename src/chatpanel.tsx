@@ -1809,6 +1809,17 @@ export function ChatPanel({
               });
               break;
             }
+            case "decision_offer": {
+              // A deliberating message: offer to track it as a decision (nothing is opened without a yes).
+              const o = (ev as { decisionOffer?: { question?: string; domain?: string; due?: string } }).decisionOffer;
+              if (!o?.question || !o.domain) break;
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, decisionOffer: { question: o.question!, domain: o.domain!, due: o.due ?? "" } }];
+              });
+              break;
+            }
             case "filed": {
               // A promise told to the chief of staff was filed on a board: a receipt with Undo.
               const f = (ev as { filed?: { id?: string } }).filed;

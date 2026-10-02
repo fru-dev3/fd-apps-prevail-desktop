@@ -234,6 +234,41 @@ mod playbook_tests {
     }
 }
 
+// ── Today T4: decisions found and recommended ──
+
+/// Get an open decision a recommendation (the Steward, or the council for a big one). Takes minutes.
+#[tauri::command]
+pub(crate) async fn engine_decision_recommend(vault: String, target: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "decide", "recommend", ok_id(&target)?])).await
+}
+
+/// Open decision records from tasks phrased as decisions.
+#[tauri::command]
+pub(crate) async fn engine_decisions_scan(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "decide", "scan"])).await
+}
+
+/// A Compass conflict as a decision.
+#[tauri::command]
+pub(crate) async fn engine_decision_from_conflict(vault: String, key: String) -> Result<serde_json::Value, String> {
+    let ok = !key.is_empty() && key.len() <= 200 && !key.starts_with('-') && key.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '_' | '|' | '.' | '-'));
+    if !ok { return Err(format!("invalid conflict key: {key}")); }
+    blocking(vec!["--vault".into(), vault, "decide".into(), "from-conflict".into(), key]).await
+}
+
+/// Open a decision record (the Yes on a decision offer in chat).
+#[tauri::command]
+pub(crate) async fn engine_decision_open(vault: String, question: String, domain: String, due: Option<String>) -> Result<serde_json::Value, String> {
+    let q: String = question.replace(['\n', '\r'], " ").trim().chars().take(200).collect();
+    if q.is_empty() || q.starts_with('-') { return Err("invalid question".into()); }
+    let mut a = vec!["--vault".into(), vault, "decide".into(), "open".into(), q, "--domain".into(), ok_id(&domain)?.to_string()];
+    if let Some(d) = due.filter(|d| !d.is_empty()) {
+        if !(d.len() == 10 && d.chars().all(|c| c.is_ascii_digit() || c == '-')) { return Err("due is YYYY-MM-DD".into()); }
+        a.push("--due".into()); a.push(d);
+    }
+    blocking(a).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

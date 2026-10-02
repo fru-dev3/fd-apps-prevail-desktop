@@ -24,6 +24,7 @@ import { IdealsSection } from "./idealspage";
 import { useChiefOfStaff } from "./chiefofstaff";
 import { MattersLived } from "./livedbars";
 import { AlignNeedsYou, AlignRules, SaidVsDid } from "./alignpanel";
+import { openMission } from "./missions";
 
 type View = "compass" | "goals" | "ideals";
 type Sel = "overview" | "mission" | "values" | "roles" | "goals" | "rules" | "routines" | "history";
@@ -157,6 +158,11 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     : x.tokens.status === "confirmed" ? <span className={chip} data-testid="compass-needs-plan" title="It goes active once it has an outcome, an obstacle and an if-then plan">Yours, needs its plan</span>
     : x.tokens.status === "prototyping" ? <span className={chip}>Small trial</span> : null;
 
+  const startMission = async (pathId: string) => {
+    setBusy(`m:${pathId}`);
+    try { const m = await invoke<{ slug?: string }>("engine_missions_from_path", { vault: vaultPath, path: pathId }); await load(); if (m?.slug) openMission(m.slug); }
+    catch (e) { setErr(String(e)); } finally { setBusy(null); }
+  };
   const itemRow = (it: CompassItem, lead?: string) => {
     const words = fieldOf(it, "words");
     const from = fieldOf(it, "from");
@@ -184,6 +190,23 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
             </div>
           )}
           {from && <p className={`${META} mt-1`}>From {from}</p>}
+          {it.paths.length > 0 && (
+            <ul className="mt-2 border-l-2 border-border-subtle pl-3" data-testid="compass-paths">
+              {it.paths.map((p) => {
+                const mission = p.fields.find((f) => f.key === "mission")?.value;
+                const pst = p.tokens.status ?? "proposed";
+                return (
+                  <li key={p.id} className="flex flex-wrap items-center gap-2 py-1">
+                    <span className="min-w-0 break-words text-[14px] text-text-secondary">{p.title}</span>
+                    <span className={chip}>{titleCase(pst)}</span>
+                    {mission ? <button onClick={() => openMission(mission)} className={`${chip} hover:text-accent`} data-testid="compass-path-mission">Mission {titleCase(mission)}</button>
+                      : pst === "chosen" ? <button onClick={() => void startMission(p.id)} disabled={!!busy} title="Start a mission for this path" aria-label={`Start a mission for ${p.title}`} data-testid="compass-path-start"
+                        className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] text-text-muted hover:bg-surface-warm hover:text-accent disabled:opacity-40">{busy === `m:${p.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}Start a mission</button> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
         {actions(it)}
       </li>

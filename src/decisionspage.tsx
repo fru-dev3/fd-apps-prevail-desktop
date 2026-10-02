@@ -2,8 +2,8 @@
 // its owner domain (memory/decisions/<slug>.md). The gut call is asked in one
 // line before the recommendation shows; deciding logs it; 90 days later the
 // retro asks which call was right, and calibration keeps the score per domain.
-import { useMemo, useState } from "react";
-import { Check, Gavel, History, Loader2, Target } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, Gavel, History, ListChecks, Loader2, Sparkles, Target } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { Markdown } from "./Markdown";
@@ -11,7 +11,7 @@ import { SettingsHeader } from "./sectionutil";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
-import { fmtDue, label, type DecisionRecord } from "./plansmodel";
+import { DECISIONS_FOCUS_KEY, decisionStatus, fmtDue, label, type DecisionRecord } from "./plansmodel";
 
 const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
 const input = "h-9 w-full rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary";
@@ -38,8 +38,20 @@ export function DecisionsPage({ vaultPath }: { vaultPath: string }) {
   const all = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
   const open = all.filter((r) => r.status !== "decided");
   const decided = all.filter((r) => r.status === "decided");
-  const [sel, setSel] = useState<string>("calibration");
-  const [picked, setPicked] = useState(false);
+  const readFocus = () => { try { const f = localStorage.getItem(DECISIONS_FOCUS_KEY); localStorage.removeItem(DECISIONS_FOCUS_KEY); return f; } catch { return null; } };
+  const [sel, setSel] = useState<string>(() => readFocus() ?? "calibration");
+  const [picked, setPicked] = useState(() => sel !== "calibration");
+  useEffect(() => {
+    const on = (e: Event) => { const t = (e as CustomEvent<string>).detail ?? readFocus(); if (t) { setSel(t); setPicked(true); } };
+    window.addEventListener("prevail:decisions-focus", on);
+    return () => window.removeEventListener("prevail:decisions-focus", on);
+  }, []);
+  const [scan, setScan] = useState<string | null>(null);
+  const scanTasks = async () => {
+    setScan("busy");
+    try { const r = await invoke<{ opened?: unknown[] }>("engine_decisions_scan", { vault: vaultPath }); const n = Array.isArray(r?.opened) ? r.opened.length : 0; setScan(n ? `Opened ${n} from your tasks.` : "No task reads as a decision."); invalidateQueries("engine_decisions"); void q.refresh(); }
+    catch (e) { setScan(`Not scanned: ${String(e)}`); }
+  };
   const key = (r: DecisionRecord) => `${r.domain}/${r.slug}`;
   const current = all.find((r) => key(r) === sel) ?? null;
   const choose = (s: string) => { setSel(s); setPicked(true); };
@@ -50,7 +62,7 @@ export function DecisionsPage({ vaultPath }: { vaultPath: string }) {
       <Gavel className={`h-4 w-4 shrink-0 ${isOn(key(r)) ? "text-accent" : "text-text-muted"}`} />
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-[14px] ${isOn(key(r)) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{r.question}</span>
-        <span className="block truncate text-[12px] text-text-muted">{label(r.domain)}{r.due && r.status !== "decided" ? `, ${fmtDue(r.due)}` : r.decided ? `, decided ${r.decided}` : ""}</span>
+        <span className="block truncate text-[12px] text-text-muted">{label(r.domain)}{decisionStatus(r) ? `, ${decisionStatus(r)}` : ""}</span>
       </span>
     </button>
   );
@@ -61,6 +73,11 @@ export function DecisionsPage({ vaultPath }: { vaultPath: string }) {
         className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left ${isOn("calibration") ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
         <Target className={`h-4 w-4 ${isOn("calibration") ? "text-accent" : "text-text-muted"}`} /><span className="text-[14px] text-text-secondary">Calibration</span>
       </button>
+      <button onClick={() => void scanTasks()} disabled={scan === "busy"} data-testid="decisions-scan"
+        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] text-text-secondary hover:bg-surface-warm/50 disabled:opacity-50">
+        {scan === "busy" ? <Loader2 className="h-4 w-4 animate-spin text-text-muted" /> : <ListChecks className="h-4 w-4 text-text-muted" />}Scan my tasks
+      </button>
+      {scan && scan !== "busy" && <p className="px-2.5 text-[12px] text-text-muted" data-testid="decisions-scan-note">{scan}</p>}
       {head("Open", open.length)}
       {open.map(row)}
       {head("Decided", decided.length)}
@@ -104,6 +121,13 @@ function DecisionDetail({ r, vaultPath, onChanged }: { r: DecisionRecord; vaultP
     catch (e) { setErr(String(e)); } finally { setBusy(false); }
   };
   const retroDue = r.status === "decided" && !r.retroRight && r.retroDue && r.retroDue <= new Date().toISOString().slice(0, 10);
+  const [recBusy, setRecBusy] = useState(false);
+  const recommend = async () => {
+    setRecBusy(true); setErr(null);
+    try { await invoke("engine_decision_recommend", { vault: vaultPath, target: `${r.domain}/${r.slug}` }); onChanged(); }
+    catch (e) { setErr(`No recommendation yet: ${String(e)}`); } finally { setRecBusy(false); }
+  };
+  const missing = (r.missing ?? []).filter((m) => m !== "recommendation" || !r.recommendationReady);
   return (
     <section data-testid="decision-detail" className="max-w-3xl">
       <h2 className={DETAIL_TITLE}>{r.question}</h2>
@@ -112,10 +136,18 @@ function DecisionDetail({ r, vaultPath, onChanged }: { r: DecisionRecord; vaultP
         {r.due && r.status !== "decided" && <span className={chip}>Due {fmtDue(r.due)}</span>}
         {r.consulted.map((d) => <span key={d} className={chip}>Reads {label(d)}</span>)}
         {r.status === "decided" && <span className={`${chip} border-accent-border text-accent`}>Decided {r.decided}</span>}
+        {retroDue && <span className={`${chip} border-accent-border text-accent`} data-testid="decision-retro-owed">Retro owed</span>}
       </div>
+      {r.status !== "decided" && missing.length > 0 && <p className={`${META} mt-2`} data-testid="decision-missing">Still missing: {missing.join(", ")}.</p>}
+      {r.status !== "decided" && !r.recommendationReady && (
+        <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="decision-recommend">
+          <button onClick={() => void recommend()} disabled={recBusy} className={smallBtn} title="Get a recommendation">{recBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}Get a recommendation</button>
+          <span className={META}>{recBusy ? `${r.big ? "The council is" : "The Steward is"} weighing the options against your Compass. This takes a few minutes.` : r.big ? "A big decision: the council weighs it." : "The Steward weighs the options against your Compass."}</span>
+        </div>
+      )}
       {r.status !== "decided" && !r.gut && (
         <div className="mt-5 rounded-lg border border-accent-border bg-accent-soft/40 p-3" data-testid="decision-gut">
-          <p className={`${BODY} text-text-primary`}>Before the recommendation: what does your gut say, in one line?</p>
+          <p className={`${BODY} text-text-primary`}>{r.recommendationReady ? "A recommendation is ready. Your gut call first, in one line:" : "Before the recommendation: what does your gut say, in one line?"}</p>
           <div className="mt-2 flex gap-2"><input value={text} onChange={(e) => setText(e.target.value)} aria-label="Your gut call" className={input} /><button onClick={() => void act("gut", text)} disabled={busy || !text.trim()} className={smallBtn}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}Save</button></div>
         </div>
       )}

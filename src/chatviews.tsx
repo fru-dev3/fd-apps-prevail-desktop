@@ -3,7 +3,7 @@
 import { JobCard } from "./jobcard";
 import { BringInCard, DomainMissions, MissionStartCard } from "./missioncards";
 import { filedIdOf, jobIdOf } from "./plansmodel";
-import { FiledCard } from "./filedcard";
+import { DecisionOfferCard, FiledCard } from "./filedcard";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ReplyApps } from "./chatrefs";
 import { AcrossCard, TouchedLine } from "./linking";
@@ -460,6 +460,7 @@ export function ChatBubble({
                   {answer ? (msg.streaming ? <StreamingPlain source={answer} /> : <Markdown source={answer} />) : (!thinking && msg.streaming ? <ThinkingDots /> : null)}
                   {jid && <JobCard id={jid} />}
                   {fid && <FiledCard id={fid} filed={msg.filed} />}
+                  {msg.decisionOffer && <DecisionOfferCard offer={msg.decisionOffer} />}
                 </>
               );
             })() : (

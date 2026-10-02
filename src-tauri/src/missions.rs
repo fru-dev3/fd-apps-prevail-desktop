@@ -179,6 +179,67 @@ pub(crate) async fn engine_missions_undo(vault: String, slug: String, n: u32) ->
     blocking(v(&["--vault", &vault, "missions", "undo", ok_slug(&slug)?, &n])).await
 }
 
+// ── MS4: progress without data entry ──
+
+/// Read a mission's metric proposals, its pending events, the mission radar, or run the match now (sync writes, so desktop only via webui).
+#[tauri::command]
+pub(crate) async fn engine_missions_progress(vault: String, sub: String, slug: Option<String>) -> Result<serde_json::Value, String> {
+    let s = one_of(&sub, &["metrics", "events-pending", "radar", "sync"])?.to_string();
+    let mut a = base(&vault, &s);
+    if s == "metrics" || s == "events-pending" { a.push(ok_slug(slug.as_deref().unwrap_or(""))?.into()); }
+    blocking(a).await
+}
+
+/// Track one of a mission's metric proposals.
+#[tauri::command]
+pub(crate) async fn engine_missions_track(vault: String, slug: String, key: String) -> Result<serde_json::Value, String> {
+    let mut a = base(&vault, "track");
+    a.push(ok_slug(&slug)?.into());
+    a.push(ok_ref(&key)?.into());
+    blocking(a).await
+}
+
+/// Draft a hold (asks first) or, with attendees, a draft invite (never sent).
+#[tauri::command]
+pub(crate) async fn engine_missions_event_create(vault: String, slug: String, title: String, start: String, end: Option<String>, attendees: Option<Vec<String>>) -> Result<serde_json::Value, String> {
+    let mut a = base(&vault, "event-create");
+    a.push(ok_slug(&slug)?.into());
+    a.push("--title".into()); a.push(text(&title, 120)?);
+    a.push("--start".into()); a.push(ok_ref(&start)?.into());
+    if let Some(e) = end.filter(|e| !e.is_empty()) { a.push("--end".into()); a.push(ok_ref(&e)?.into()); }
+    if let Some(list) = attendees.filter(|l| !l.is_empty()) {
+        for x in &list { if x.starts_with('-') || x.len() > 120 || !x.contains('@') || x.contains(',') { return Err(format!("invalid attendee: {x}")); } }
+        a.push("--attendees".into()); a.push(list.join(","));
+    }
+    blocking(a).await
+}
+
+/// The user's yes on a pending hold.
+#[tauri::command]
+pub(crate) async fn engine_missions_event_approve(vault: String, slug: String, id: String) -> Result<serde_json::Value, String> {
+    let mut a = base(&vault, "event-approve");
+    a.push(ok_slug(&slug)?.into());
+    a.push(ok_ref(&id)?.into());
+    blocking(a).await
+}
+
+/// Link a mission to a Compass path (writes mission: under the path line).
+#[tauri::command]
+pub(crate) async fn engine_missions_link_path(vault: String, slug: String, path: String) -> Result<serde_json::Value, String> {
+    let mut a = base(&vault, "link-path");
+    a.push(ok_slug(&slug)?.into());
+    a.push(ok_ref(&path)?.into());
+    blocking(a).await
+}
+
+/// Start a mission from a chosen Compass path.
+#[tauri::command]
+pub(crate) async fn engine_missions_from_path(vault: String, path: String) -> Result<serde_json::Value, String> {
+    let mut a = base(&vault, "from-path");
+    a.push(ok_ref(&path)?.into());
+    blocking(a).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

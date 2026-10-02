@@ -153,7 +153,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_today", "engine_today_tap", "engine_review", "engine_review_checkin",
     "engine_jobs", "engine_job_show", "engine_specialists", "engine_decisions", "engine_metric_proposals",
     // Missions are read on the phone; starting, changing and closing one stay on the Mac.
-    "engine_missions_list", "engine_missions_show",
+    "engine_missions_list", "engine_missions_show", "engine_missions_progress",
     // Playbooks are read on the phone; running, saving and adopting stay on the Mac.
     "engine_playbook_rows", "engine_playbook_show",
     // The stack and the sources are read on the phone; probes, answers,
@@ -1298,6 +1298,8 @@ fn check_pair(held: Option<PairCode>, offered: &str) -> (Option<PairCode>, bool)
 fn web_args_desktop_only(cmd: &str, args: &serde_json::Value) -> bool {
     let on = |k: &str| args.get(k).and_then(|x| x.as_bool()) == Some(true);
     (cmd == "engine_compass_align" && on("model")) || (cmd == "engine_radar" && on("refresh"))
+        // A mission's match pass writes links and ledger lines: the Mac only.
+        || (cmd == "engine_missions_progress" && args.get("sub").and_then(|x| x.as_str()) == Some("sync"))
 }
 
 fn host_allowed(hostname: &str, allow_remote: bool, advertised_hosts: &[String; 2], tunnel_host: &str) -> bool {
@@ -1541,6 +1543,8 @@ mod tests {
         assert!(!web_args_desktop_only("engine_compass_align", &serde_json::json!({ "vault": "/v", "model": null })));
         assert!(web_args_desktop_only("engine_radar", &serde_json::json!({ "refresh": true })));
         assert!(!web_args_desktop_only("engine_radar", &serde_json::json!({})));
+        assert!(web_args_desktop_only("engine_missions_progress", &serde_json::json!({ "sub": "sync" })));
+        assert!(!web_args_desktop_only("engine_missions_progress", &serde_json::json!({ "sub": "metrics", "slug": "x" })));
     }
 
     #[test]

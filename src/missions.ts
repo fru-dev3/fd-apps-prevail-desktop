@@ -47,6 +47,8 @@ export interface Mission {
   goal?: string;
   path?: string;
   serves: string[];
+  metrics?: string[];
+  match?: { calendar?: string[]; email_from?: string[]; merchants?: string[] };
   prompt_projects: string[];
   ceiling: Ceiling;
   nudges: { per_week: number; muted: boolean };
@@ -116,6 +118,22 @@ export const missionLog = (vaultPath: string, slug: string, line: string) => wri
 export const closeoutPlan = (vaultPath: string, slug: string, result?: string, note?: string) => invoke<CloseoutPlan>("engine_missions_closeout_plan", { vault: vaultPath, slug, result: result ?? null, note: note ?? null });
 export const closeoutApply = (vaultPath: string, plan: CloseoutPlan) => write<{ ok: boolean; receipts: Receipt[] }>("engine_missions_closeout_apply", { vault: vaultPath, slug: plan.slug, plan });
 export const closeoutUndo = (vaultPath: string, slug: string, n: number) => write("engine_missions_undo", { vault: vaultPath, slug, n });
+
+// MS4: progress without data entry.
+export interface MetricProposalM { key: string; id: string; title: string; line: string; why: string }
+export interface PendingEvent { id: string; title: string; start: string; end?: string; attendees: string[]; status: "ask" | "draft" | "created" | "declined"; note?: string; ts: number }
+export const trackMissionMetric = (vaultPath: string, slug: string, key: string) => write("engine_missions_track", { vault: vaultPath, slug, key });
+export const createMissionEvent = (vaultPath: string, slug: string, e: { title: string; start: string; end?: string; attendees?: string[] }) =>
+  write<PendingEvent>("engine_missions_event_create", { vault: vaultPath, slug, title: e.title, start: e.start, end: e.end ?? null, attendees: e.attendees?.length ? e.attendees : null });
+export const approveMissionEvent = (vaultPath: string, slug: string, id: string) => write<PendingEvent>("engine_missions_event_approve", { vault: vaultPath, slug, id });
+export const linkMissionPath = (vaultPath: string, slug: string, path: string) => write("engine_missions_link_path", { vault: vaultPath, slug, path });
+/** A pending event, as the Calendar tab says it: a hold waits for a yes, a draft is the user's to send. */
+export function pendingLabel(e: Pick<PendingEvent, "status" | "note">): string {
+  if (e.status === "draft") return "draft, you send it";
+  if (e.status === "created") return "on your calendar";
+  if (e.status === "declined") return "declined";
+  return e.note ? `hold waiting for your yes (${e.note})` : "hold waiting for your yes";
+}
 
 // Opening a mission from anywhere: the Missions page selects it on mount, or
 // in place when it is already on screen.
