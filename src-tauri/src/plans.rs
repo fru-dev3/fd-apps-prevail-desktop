@@ -421,3 +421,43 @@ mod g3_tests {
         assert!(one_of("delete", &["accept", "resolved", "reopen"]).is_err());
     }
 }
+
+// ── Today T2 and T3: commitments, the radar, routines ──
+
+/// Open commitments and waiting-fors (list), or the promises waiting for the review (proposals).
+#[tauri::command]
+pub(crate) async fn engine_commitments(vault: String, view: Option<String>) -> Result<serde_json::Value, String> {
+    let sub = one_of(view.as_deref().unwrap_or("list"), &["list", "proposals"])?.to_string();
+    blocking(v(&["--vault", &vault, "commitments", &sub])).await
+}
+
+/// Yes (files it) or Not now on a promise found in mail or notes.
+#[tauri::command]
+pub(crate) async fn engine_commitment_answer(vault: String, src: String, yes: bool, domain: Option<String>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "commitments", "answer", ok_id(&src)?, if yes { "yes" } else { "no" }]);
+    if let Some(d) = domain.filter(|d| !d.is_empty()) { a.push("--domain".into()); a.push(ok_id(&d)?.to_string()); }
+    blocking(a).await
+}
+
+/// Undo a commitment or waiting-for that was filed (takes out exactly its line).
+#[tauri::command]
+pub(crate) async fn engine_commitment_undo(vault: String, id: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "commitments", "undo", ok_id(&id)?])).await
+}
+
+/// The radar: everything falling behind, with evidence (refresh recomputes).
+#[tauri::command]
+pub(crate) async fn engine_radar(vault: String, refresh: Option<bool>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "radar", "show"]);
+    if refresh == Some(true) { a.push("--refresh".into()); }
+    blocking(a).await
+}
+
+/// Routine candidates from the domains (bootstrap: add them to the Compass as proposed lines).
+#[tauri::command]
+pub(crate) async fn engine_routines(vault: String, bootstrap: Option<bool>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "radar", "routines"]);
+    if bootstrap == Some(true) { a.push("bootstrap".into()); }
+    blocking(a).await
+}
+

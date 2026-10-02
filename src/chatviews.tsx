@@ -2,7 +2,8 @@
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
 import { JobCard } from "./jobcard";
 import { BringInCard, DomainMissions, MissionStartCard } from "./missioncards";
-import { jobIdOf } from "./plansmodel";
+import { filedIdOf, jobIdOf } from "./plansmodel";
+import { FiledCard } from "./filedcard";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ReplyApps } from "./chatrefs";
 import { AcrossCard, TouchedLine } from "./linking";
@@ -449,13 +450,16 @@ export function ChatBubble({
             msg.role === "assistant" ? (() => {
               const showThinking = getPref(PREF.showThinking, "1") === "1";
               // The gate's approval marker is for the app, not the reader.
-              const jid = msg.jobId ?? jobIdOf(msg.content);
-              const { thinking, answer } = splitThinking(stripActMarkers(jid ? msg.content.replace(/\s*\[job:[A-Za-z0-9_-]+\]\s*$/, "") : msg.content));
+              const fid = msg.filed?.id ?? filedIdOf(msg.content);
+              const body0 = fid ? msg.content.replace(/\s*\[filed:[A-Za-z0-9_-]+\]\s*$/, "") : msg.content;
+              const jid = msg.jobId ?? jobIdOf(body0);
+              const { thinking, answer } = splitThinking(stripActMarkers(jid ? body0.replace(/\s*\[job:[A-Za-z0-9_-]+\]\s*$/, "") : body0));
               return (
                 <>
                   {showThinking && thinking && <ThinkingDisclosure text={thinking} open={!answer} />}
                   {answer ? (msg.streaming ? <StreamingPlain source={answer} /> : <Markdown source={answer} />) : (!thinking && msg.streaming ? <ThinkingDots /> : null)}
                   {jid && <JobCard id={jid} />}
+                  {fid && <FiledCard id={fid} filed={msg.filed} />}
                 </>
               );
             })() : (

@@ -1667,7 +1667,8 @@ export function ChatPanel({
                   // so we don't truncate a stream that already arrived.
                   const content = last.content.length >= full.length ? last.content : full;
                   // A job turn ends with its marker, so the saved thread keeps the card.
-                  const withJob = last.jobId && !content.includes(`[job:${last.jobId}]`) ? `${content}\n\n[job:${last.jobId}]` : content;
+                  const withJob0 = last.jobId && !content.includes(`[job:${last.jobId}]`) ? `${content}\n\n[job:${last.jobId}]` : content;
+                  const withJob = last.filed && !withJob0.includes(`[filed:${last.filed.id}]`) ? `${withJob0}\n\n[filed:${last.filed.id}]` : withJob0;
                   return [...m.slice(0, -1), { ...last, content: withJob }];
                 }
                 return m;
@@ -1805,6 +1806,17 @@ export function ChatPanel({
                 const last = m[m.length - 1];
                 if (!last || !last.streaming || last.role !== "assistant") return m;
                 return [...m.slice(0, -1), { ...last, ...card }];
+              });
+              break;
+            }
+            case "filed": {
+              // A promise told to the chief of staff was filed on a board: a receipt with Undo.
+              const f = (ev as { filed?: { id?: string } }).filed;
+              if (!f?.id || !/^[A-Za-z0-9_-]+$/.test(f.id)) break;
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || !last.streaming || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, filed: f as NonNullable<typeof last.filed> }];
               });
               break;
             }

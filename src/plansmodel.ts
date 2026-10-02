@@ -9,12 +9,29 @@ export interface TodayItem {
 }
 export interface TodayCard {
   date: string; generated: number; calm: number | null; items: TodayItem[];
-  fallingBehind: { text: string } | null;
+  fallingBehind: { text: string; key?: string; kind?: string; count?: number } | null;
   decisionDue: { question: string; due?: string; domain: string; slug: string; recommendation?: string } | null;
   yourDay: { connected: boolean; note: string };
   alsoDue: TodayItem[];
   feedback: { ts: number; key: string; action: string }[];
+  /** Today T2: every promise due this week not among the three (none is missing from Today). */
+  promises?: { key: string; title: string; kind: "commitment" | "waiting"; domain: string; due?: string; person?: string; why: string; slipping: boolean }[];
+  /** Commitments added on their own from mail or meeting notes, each with Undo. */
+  added?: { id: string; text: string; domain: string; src: string }[];
 }
+
+/** Today T3: one thing the radar holds. */
+export interface RadarItem { key: string; kind: string; domain: string; mission?: string; text: string; evidence: string; due?: string; severity: number; interrupt?: string }
+export interface Radar { computed: number; items: RadarItem[] }
+export const RADAR_KIND_LABEL: Record<string, string> = { commitment: "Promises", waiting: "Waiting for", routine: "Routines", relationship: "People", goal: "Goals", path: "Paths", admin: "Deadlines", domain: "Domains gone cold", decision: "Decisions", mission: "Missions", rule: "Non-negotiables" };
+/** Radar items grouped by kind, most severe group first. */
+export function radarGroups(items: RadarItem[]): { kind: string; label: string; items: RadarItem[] }[] {
+  const by = new Map<string, RadarItem[]>();
+  for (const x of items) (by.get(x.kind) ?? by.set(x.kind, []).get(x.kind)!).push(x);
+  return [...by.entries()].map(([kind, xs]) => ({ kind, label: RADAR_KIND_LABEL[kind] ?? label(kind), items: xs })).sort((a, b) => Math.max(...b.items.map((x) => x.severity)) - Math.max(...a.items.map((x) => x.severity)));
+}
+/** A person id (person/sam-rivera) as a name. */
+export const personName = (id?: string) => (id ? label(id.replace(/^person\//, "")) : "");
 
 export interface GlanceRowLite { id: string; title: string; unit: string; value: number; documentary: boolean; record?: string; normal: { lo: number; hi: number; learning: boolean }; paused?: string | null }
 export interface ReviewCard {
@@ -36,6 +53,10 @@ export interface ReviewCard {
   asked?: { ladder: boolean; who5: boolean };
   hypothesis?: { key: string; text: string } | null;
   guardrails?: string[];
+  /** Today T2: promises found in mail or notes, not sure enough to file alone. */
+  commitments?: { src: string; text: string; due?: string; person?: string; quote: string }[];
+  /** Today T3: everything falling behind. */
+  radar?: { key: string; kind: string; text: string; evidence: string; due?: string }[];
 }
 
 export interface MetricProposal {
@@ -118,6 +139,11 @@ export function fmtDue(due?: string, today = new Date().toISOString().slice(0, 1
   if (d === 1) return "tomorrow";
   if (d < 7) return new Date(`${due}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" });
   return new Date(`${due}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** The commitment a turn filed ("[filed:<id>]" at its end), if any. */
+export function filedIdOf(text: string): string | null {
+  return /\[filed:([A-Za-z0-9_-]+)\]\s*$/.exec(text ?? "")?.[1] ?? null;
 }
 
 /** The job id an assistant turn points to ("[job:<id>]" at its end), if any. */

@@ -3,11 +3,11 @@
 // card when the week wants its check-in. Both come from the engine
 // (`prevail today`, `prevail review week`); every tap goes back to it.
 import { useState } from "react";
-import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleOff, Gavel, Handshake, Loader2, MessageSquare, RefreshCw, Scale, ThumbsUp, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleOff, Gavel, Handshake, Hourglass, Loader2, Mail, MessageSquare, RefreshCw, Scale, ThumbsUp, Undo2, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { BODY, META, SECTION_TITLE } from "./typescale";
-import { fmtDue, label, type ReviewCard, type TodayCard, type TodayItem } from "./plansmodel";
+import { fmtDue, label, personName, radarGroups, type Radar, type ReviewCard, type TodayCard, type TodayItem } from "./plansmodel";
 import { WHO5_ITEMS, WHO5_SCALE } from "./qualmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -34,9 +34,9 @@ export function TodayHome({ vaultPath, phone, onAsk, fallback }: { vaultPath: st
 function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string | null; tap: (key: string, a: string) => void }) {
   const open = x.kind === "decision" ? () => openSection("decisions") : x.kind === "job" ? () => openSection("specialists") : null;
   return (
-    <li data-testid="today-item" data-kind={x.kind} className="flex items-start gap-3 border-b border-border-subtle py-3 last:border-b-0">
+    <li data-testid="today-item" data-kind={x.kind} className="flex flex-wrap items-start gap-x-3 gap-y-1 border-b border-border-subtle py-3 last:border-b-0">
       {n !== undefined && <span className="w-5 shrink-0 pt-0.5 text-right text-[16px] font-semibold tabular-nums text-accent">{n}</span>}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[9rem] flex-1 basis-40">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="min-w-0 break-words text-[16px] font-semibold text-text-primary">{x.title}</span>
           {x.due && <span className={META}>{fmtDue(x.due)}</span>}
@@ -45,7 +45,7 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
         </div>
         <p className={`${META} mt-0.5`} data-testid="today-thread">{x.thread.join(" > ")}{x.unlinked ? ", unlinked to your Compass" : ""}</p>
       </div>
-      <span className="flex shrink-0 items-center gap-0.5">
+      <span className="ml-auto flex shrink-0 items-center gap-0.5">
         {open && <button onClick={open} title="Open" aria-label={`Open ${x.title}`} className={iconBtn}><ArrowRight className="h-4 w-4" /></button>}
         {x.ref.id || x.ref.text ? (
           <>
@@ -62,6 +62,7 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
 export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard; vaultPath: string; onChanged: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [more, setMore] = useState(false);
+  const [radarOpen, setRadarOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const tap = async (key: string, action: string) => {
     setBusy(`${key}:${action}`); setErr(null);
@@ -70,13 +71,19 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
     finally { setBusy(null); }
   };
   const refresh = async () => { setBusy("refresh"); try { await invoke("engine_today", { vault: vaultPath, refresh: true }); invalidateQueries("engine_today"); onChanged(); } finally { setBusy(null); } };
+  const undoAdded = async (id: string) => {
+    setBusy(`undo:${id}`); setErr(null);
+    try { await invoke("engine_commitment_undo", { vault: vaultPath, id }); await invoke("engine_today", { vault: vaultPath, refresh: true }); invalidateQueries("engine_today"); onChanged(); }
+    catch (e) { setErr(`Could not undo that: ${String(e)}`); }
+    finally { setBusy(null); }
+  };
   const handled = new Set(card.feedback.filter((f) => f.action !== "right" && f.action !== "right-list").map((f) => f.key));
   const items = card.items.filter((x) => !handled.has(x.key));
   const day = new Date(`${card.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
   return (
     <section data-testid="today-card">
       <div className="flex items-start gap-3">
-        <h2 className="min-w-0 flex-1 font-display text-[28px] font-semibold leading-tight tracking-tight text-text-primary">Today, {day}</h2>
+        <h2 className="min-w-0 flex-1 break-words font-display text-[28px] font-semibold leading-tight tracking-tight text-text-primary">Today, {day}</h2>
         {card.calm !== null && <span className={`${chip} mt-2`}>calm {card.calm}</span>}
         <button onClick={() => void refresh()} disabled={!!busy} title="Look again" aria-label="Look again" className={`${iconBtn} mt-1`}>{busy === "refresh" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</button>
       </div>
@@ -88,10 +95,42 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
       {items.length > 0 && !card.feedback.some((f) => f.action === "right-list") && (
         <button onClick={() => void tap("list", "right-list")} disabled={!!busy} data-testid="today-right-list" className={`${smallBtn} mt-2`}><ThumbsUp className="h-3.5 w-3.5" /> The right three</button>
       )}
+      {card.promises && card.promises.length > 0 && (
+        <div className="mt-6" data-testid="today-promises">
+          <h3 className={SECTION_TITLE}>Promises this week</h3>
+          <ul className="mt-1">{card.promises.map((p) => (
+            <li key={p.key} data-testid="today-promise" data-slipping={p.slipping ? "true" : undefined} className="flex items-start gap-2.5 border-b border-border-subtle py-2 last:border-b-0">
+              {p.kind === "waiting" ? <Hourglass className="mt-1 h-4 w-4 shrink-0 text-text-muted" /> : <Handshake className={`mt-1 h-4 w-4 shrink-0 ${p.slipping ? "text-warn" : "text-text-muted"}`} />}
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-[15px] text-text-primary">{p.title}</p>
+                <p className={`${META} ${p.slipping ? "text-warn" : ""}`}>{p.kind === "waiting" ? `Waiting on ${personName(p.person) || "someone"}` : `To ${personName(p.person) || "someone"}`}, {p.why}</p>
+              </div>
+            </li>
+          ))}</ul>
+        </div>
+      )}
+      {card.added && card.added.length > 0 && (
+        <div className="mt-6" data-testid="today-added">
+          <h3 className={SECTION_TITLE}>Added from your mail and notes</h3>
+          <ul className="mt-1">{card.added.map((a) => (
+            <li key={a.id} className="flex items-start gap-2.5 py-1.5">
+              <Mail className="mt-1 h-4 w-4 shrink-0 text-text-muted" />
+              <p className={`${BODY} min-w-0 flex-1 break-words text-text-secondary`}>{a.text} <span className={META}>on {label(a.domain)}'s board, from {a.src === "meeting" ? "meeting notes" : "sent mail"}</span></p>
+              <button onClick={() => void undoAdded(a.id)} disabled={!!busy} title="Undo" aria-label={`Undo: ${a.text}`} data-testid="today-added-undo" className={iconBtn}>{busy === `undo:${a.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}</button>
+            </li>
+          ))}</ul>
+        </div>
+      )}
       {card.fallingBehind && (
         <div className="mt-6" data-testid="today-falling-behind">
           <h3 className={SECTION_TITLE}>Falling behind</h3>
           <p className={`${BODY} mt-1 flex items-start gap-2 text-text-secondary`}><AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-warn" /><span className="min-w-0 break-words">{card.fallingBehind.text}</span></p>
+          {(card.fallingBehind.count ?? 0) > 1 && (
+            <button onClick={() => setRadarOpen((v) => !v)} aria-expanded={radarOpen} data-testid="today-radar-more" className={`${smallBtn} mt-2`}>
+              {radarOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />} And {(card.fallingBehind.count ?? 1) - 1} more
+            </button>
+          )}
+          {radarOpen && <RadarList vaultPath={vaultPath} />}
         </div>
       )}
       {card.decisionDue && (
@@ -117,6 +156,34 @@ export function TodayCardView({ card, vaultPath, onChanged }: { card: TodayCard;
         </div>
       )}
     </section>
+  );
+}
+
+/** Everything the radar holds, grouped by kind, each with its evidence (the Sentinel's one list). */
+export function RadarList({ vaultPath }: { vaultPath: string }) {
+  const q = useInvokeQuery<Radar>("engine_radar", { vault: vaultPath, refresh: null }, { staleMs: 5 * 60_000 });
+  const [busy, setBusy] = useState(false);
+  const refresh = async () => { setBusy(true); try { await invoke("engine_radar", { vault: vaultPath, refresh: true }); invalidateQueries("engine_radar"); await q.refresh(); } finally { setBusy(false); } };
+  const items = q.data && Array.isArray(q.data.items) ? q.data.items : [];
+  return (
+    <div data-testid="radar-list" className="mt-3">
+      <div className="flex items-center gap-2">
+        <span className={`${META} min-w-0 flex-1`}>{q.data?.computed ? `Checked ${new Date(q.data.computed).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : q.loading ? "Looking..." : ""}</span>
+        <button onClick={() => void refresh()} disabled={busy} title="Look again" aria-label="Look again at what is falling behind" data-testid="radar-refresh" className={iconBtn}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</button>
+      </div>
+      {!items.length && !q.loading && <p className={`${BODY} text-text-muted`}>Nothing is falling behind.</p>}
+      {radarGroups(items).map((g) => (
+        <div key={g.kind} className="mt-3" data-testid="radar-group" data-kind={g.kind}>
+          <h4 className="text-[15px] font-semibold text-text-primary">{g.label}</h4>
+          <ul>{g.items.map((x) => (
+            <li key={x.key} className="border-b border-border-subtle py-1.5 last:border-b-0">
+              <p className="break-words text-[15px] text-text-secondary">{x.text}</p>
+              <p className={`${META} break-words`}>{x.evidence}{x.domain && x.domain !== "general" ? `, ${label(x.domain)}` : ""}</p>
+            </li>
+          ))}</ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -190,6 +257,32 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
               <div className="min-w-0 flex-1"><p className="break-words text-[15px] text-text-primary">{p.title}</p><p className={`${META} mt-0.5 break-words`}>{p.why}</p></div>
               <button onClick={() => void run(p.key, "engine_metric_answer", { key: p.key, answer: "track" })} disabled={!!busy} title="Track" aria-label={`Track ${p.title}`} className={iconBtn}><Check className="h-4 w-4" /></button>
               <button onClick={() => void run(p.key, "engine_metric_answer", { key: p.key, answer: "dismiss" })} disabled={!!busy} title="Not useful" aria-label={`Not useful: ${p.title}`} className={iconBtn}><X className="h-4 w-4" /></button>
+            </li>
+          ))}</ul>
+        </div>
+      )}
+      {card.commitments && card.commitments.length > 0 && (
+        <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-commitments">
+          <h3 className="text-[15px] font-semibold text-text-primary">A promise?</h3>
+          <ul>{card.commitments.map((c) => (
+            <li key={c.src} data-testid="review-commitment" className="flex items-start gap-3 py-2">
+              <div className="min-w-0 flex-1">
+                <p className={`${BODY} break-words text-text-secondary`}>"{c.quote}"</p>
+                <p className={`${META} mt-0.5 break-words`}>Track "{c.text}"{c.person ? ` for ${personName(c.person)}` : ""}{c.due ? `, due ${fmtDue(c.due)}` : ""}?</p>
+              </div>
+              <button onClick={() => void run(c.src, "engine_commitment_answer", { src: c.src, yes: true, domain: null })} disabled={!!busy} title="Yes" aria-label={`Yes: ${c.text}`} data-testid="review-commitment-yes" className={iconBtn}><Check className="h-4 w-4" /></button>
+              <button onClick={() => void run(c.src, "engine_commitment_answer", { src: c.src, yes: false, domain: null })} disabled={!!busy} title="Not now" aria-label={`Not now: ${c.text}`} className={iconBtn}><X className="h-4 w-4" /></button>
+            </li>
+          ))}</ul>
+        </div>
+      )}
+      {card.radar && card.radar.length > 0 && (
+        <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-radar">
+          <h3 className="text-[15px] font-semibold text-text-primary">Falling behind</h3>
+          <ul>{card.radar.map((x) => (
+            <li key={x.key} className="py-1">
+              <p className="break-words text-[15px] text-text-secondary">{x.text}</p>
+              <p className={`${META} break-words`}>{x.evidence}</p>
             </li>
           ))}</ul>
         </div>

@@ -143,6 +143,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     "compass_read", "compass_versions", "compass_version_read", "compass_ledger",
     // The Compass roll-up and the rules' states (read); answering a conflict stays on the Mac.
     "engine_compass_align", "engine_compass_rules",
+    // Commitments and the radar are read on the phone; filing, answering,
+    // Undo, refreshing and drafting routines stay on the Mac.
+    "engine_commitments", "engine_radar",
     // Today and the weekly review on the phone: the cards, plus the two taps
     // the plans put on the phone (a Today tap and the weekly 1-5). Jobs,
     // specialists, decisions and metric proposals are read here; starting,
@@ -1127,6 +1130,7 @@ fn handle(
         } else {
             WEBUI_ALLOWED.contains(&r.cmd.as_str())
                 && web_args_pinned_to_vault(&r.cmd, &r.args, active_vault_root().as_deref())
+                && !web_args_desktop_only(&r.cmd, &r.args)
         };
         if !allowed {
             let _ = req.respond(json_response(403, &serde_json::json!({ "error": format!("command '{}' is not permitted over the WebUI", r.cmd) })));
@@ -1288,6 +1292,14 @@ fn check_pair(held: Option<PairCode>, offered: &str) -> (Option<PairCode>, bool)
 /// remote mode the advertised addresses plus any Tailscale / RFC 1918 address
 /// and *.ts.net names; the tunnel hostname (exact match) whenever one is up,
 /// independent of remote mode, since the tunnel arrives on loopback.
+/// Some reads are allowed from the phone only without their costly or writing
+/// option: the Compass roll-up with the model pass spends model calls, and a
+/// radar refresh rewrites its file.
+fn web_args_desktop_only(cmd: &str, args: &serde_json::Value) -> bool {
+    let on = |k: &str| args.get(k).and_then(|x| x.as_bool()) == Some(true);
+    (cmd == "engine_compass_align" && on("model")) || (cmd == "engine_radar" && on("refresh"))
+}
+
 fn host_allowed(hostname: &str, allow_remote: bool, advertised_hosts: &[String; 2], tunnel_host: &str) -> bool {
     let ok_local = hostname == "127.0.0.1" || hostname == "localhost" || hostname == "[::1]" || hostname == "::1";
     let ok_remote = allow_remote
@@ -1521,6 +1533,14 @@ mod tests {
         assert!(!vault_scoped_read_ok(&serde_json::json!({ "path": 7 })));
         assert!(!vault_scoped_read_ok(&serde_json::json!({ "path": "relative/path.md" })));
         assert!(!vault_scoped_read_ok(&serde_json::json!({ "path": "/etc/../etc/passwd" })));
+    }
+
+    #[test]
+    fn costly_options_stay_on_the_desktop() {
+        assert!(web_args_desktop_only("engine_compass_align", &serde_json::json!({ "vault": "/v", "model": true })));
+        assert!(!web_args_desktop_only("engine_compass_align", &serde_json::json!({ "vault": "/v", "model": null })));
+        assert!(web_args_desktop_only("engine_radar", &serde_json::json!({ "refresh": true })));
+        assert!(!web_args_desktop_only("engine_radar", &serde_json::json!({})));
     }
 
     #[test]

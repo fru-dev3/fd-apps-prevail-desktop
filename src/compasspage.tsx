@@ -8,7 +8,7 @@
 //   Goals    each domain's goals (source/goals.md), as the Goals page had them.
 //   Ideals   the constitution, Omega and every domain's ideal state.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, CheckCheck, Compass, Flag, History, LayoutList, Loader2, MessageSquare, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
+import { Check, CheckCheck, Compass, Flag, History, LayoutList, Loader2, MessageSquare, Repeat, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
@@ -26,7 +26,7 @@ import { MattersLived } from "./livedbars";
 import { AlignNeedsYou, AlignRules, SaidVsDid } from "./alignpanel";
 
 type View = "compass" | "goals" | "ideals";
-type Sel = "overview" | "mission" | "values" | "roles" | "goals" | "rules" | "history";
+type Sel = "overview" | "mission" | "values" | "roles" | "goals" | "rules" | "routines" | "history";
 export const COMPASS_FOCUS_KEY = "prevail.compass.focus";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -40,6 +40,15 @@ function readFocus(): { view: View; row: string | null } {
     if (v === "goals" || v === "ideals" || v === "compass") return { view: v, row: row || null };
   } catch { /* storage off */ }
   return { view: "compass", row: null };
+}
+
+/** A routine's cadence in words (weekly, 3x-week, 5d...). */
+export function cadenceLabel(c: string): string {
+  const m = /^(\d+)x-?week$/.exec(c);
+  if (m) return `${m[1]} times a week`;
+  const d = /^(\d+)d$/.exec(c);
+  if (d) return `Every ${d[1]} days`;
+  return c === "daily" ? "Every day" : c === "weekly" ? "Every week" : c === "monthly" ? "Every month" : c;
 }
 
 export function CompassPage({ vaultPath }: { vaultPath: string }) {
@@ -75,6 +84,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const goals = items(doc, "goal");
   const rules = items(doc, "rule");
   const negotiables = items(doc, "negotiable");
+  const routines = items(doc, "routine");
   const proposed = proposedCount(doc);
   const empty = !mission?.text && !items(doc).length;
   const valueTitle = new Map(values.map((v) => [v.id, v.title]));
@@ -95,6 +105,13 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     setErr(null); setBusy("draft");
     try { await invoke("engine_compass_bootstrap", { vault: vaultPath }); await load(); }
     catch (e) { setErr(`Could not draft: ${String(e)}`); }
+    finally { setBusy(null); }
+  };
+  // Routines drafted from each domain's Habits and routines, as proposed lines.
+  const draftRoutines = async () => {
+    setErr(null); setBusy("routines");
+    try { await invoke("engine_routines", { vault: vaultPath, bootstrap: true }); await load(); }
+    catch (e) { setErr(`Could not draft routines: ${String(e)}`); }
     finally { setBusy(null); }
   };
   // Talk it through: Home, with the Compass conversation ready to start.
@@ -124,6 +141,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       {row("roles", "Roles", Users, roles.length)}
       {row("goals", "Life goals", Target, goals.length)}
       {row("rules", "Rules", Scale, rules.length + negotiables.length)}
+      {row("routines", "Routines", Repeat, routines.length)}
       {row("history", "History", History)}
     </nav>
   );
@@ -156,8 +174,10 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
           </div>
           {words && <p className={`${BODY} mt-1 text-text-secondary`}>"{words}"</p>}
           {extra.map(([k, v]) => <p key={k} className={`${BODY} mt-0.5 text-text-secondary`}><span className="text-text-muted">{titleCase(k)}: </span>{v}</p>)}
-          {(serves.length > 0 || it.tokens.due || it.tokens.domain) && (
+          {(serves.length > 0 || it.tokens.due || it.tokens.domain || it.tokens.cadence || it.tokens.metric) && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {it.tokens.cadence && <span className={chip} data-testid="compass-cadence">{cadenceLabel(it.tokens.cadence)}</span>}
+              {it.tokens.metric && <span className={chip}>Measured by {it.tokens.metric}</span>}
               {serves.map((s) => <span key={s} className={chip}>Serves {s}</span>)}
               {it.tokens.due && <span className={chip}>By {it.tokens.due}</span>}
               {it.tokens.domain && <span className={chip}>{titleCase(it.tokens.domain)}</span>}
@@ -276,6 +296,16 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       {sel === "values" && <section data-testid="compass-detail-values"><h2 className={DETAIL_TITLE}>Values</h2><p className={`${META} mt-1 mb-4`}>Directions, never done. Each may say what is enough.</p>{section("Most important first", values, true, "No values yet.")}<MattersLived vaultPath={vaultPath} /><SaidVsDid vaultPath={vaultPath} /></section>}
       {sel === "roles" && <section data-testid="compass-detail-roles"><h2 className={DETAIL_TITLE}>Roles</h2><p className={`${META} mt-1 mb-4`}>Who you are to the people in your life.</p>{section("Roles", roles, false, "No roles yet.")}</section>}
       {sel === "goals" && <section data-testid="compass-detail-goals"><h2 className={DETAIL_TITLE}>Life goals</h2><p className={`${META} mt-1 mb-4`}>Destinations with a done, each serving values. Domain goals are under Goals.</p>{section("Goals", goals, false, "No life goals yet.")}</section>}
+      {sel === "routines" && (
+        <section data-testid="compass-detail-routines">
+          <div className="flex items-start gap-3">
+            <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>Routines</h2>
+            <button onClick={() => void draftRoutines()} disabled={!!busy} title="Draft from your domains" aria-label="Draft routines from your domains" data-testid="compass-draft-routines" className={iconBtn}>{busy === "routines" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}</button>
+          </div>
+          <p className={`${BODY} mt-1 text-text-secondary`}>What you do again and again, measured as a rolling rate (never a streak). The radar says when one slips two times running.</p>
+          {section("Your routines", routines, false, "None yet. Draft them from the Habits and routines in your domains; each keeps your words and waits for your yes.")}
+        </section>
+      )}
       {sel === "rules" && <section data-testid="compass-detail-rules"><h2 className={DETAIL_TITLE}>Rules</h2>{section("Non-negotiables", rules, false, "None yet.")}{section("Negotiables", negotiables, false, "None yet.")}<AlignRules vaultPath={vaultPath} /></section>}
       {sel === "history" && historyView}
     </div>
