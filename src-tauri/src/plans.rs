@@ -213,6 +213,43 @@ pub(crate) async fn engine_playbook_run(vault: String, id: String, domain: Optio
     blocking(a).await
 }
 
+// ── Specialists Phase 3: standing work ──
+
+/// Answer one action the Operator named, from the job card: allow (runs in
+/// its own process, behind the broker again) or deny. The same queue the
+/// Inbox reads.
+#[tauri::command]
+pub(crate) async fn engine_job_act(vault: String, id: String, n: u32, answer: String) -> Result<serde_json::Value, String> {
+    let flag = match one_of(&answer, &["allow", "deny"])? { "allow" => "--approve", _ => "--deny" };
+    let n = n.to_string();
+    blocking(v(&["--vault", &vault, "job", "act", ok_id(&id)?, &n, flag, "--json"])).await
+}
+
+/// Playbook runs the user did not start (a loop's clock, a radar event), until seen.
+#[tauri::command]
+pub(crate) async fn engine_playbook_inbox(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "playbook", "inbox", "--json"])).await
+}
+
+#[tauri::command]
+pub(crate) async fn engine_playbook_seen(vault: String, run_id: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "playbook", "seen", ok_playbook(&run_id)?, "--json"])).await
+}
+
+/// Put a playbook on a schedule (daily, weekly, monthly) or a radar event in a domain or mission.
+#[tauri::command]
+pub(crate) async fn engine_playbook_trigger(vault: String, id: String, domain: String, cadence: Option<String>, on: Option<String>, off: Option<bool>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "playbook", "trigger", ok_playbook(&id)?, "--domain", ok_id(&domain)?, "--json"]);
+    if let Some(c) = cadence.filter(|c| !c.is_empty()) { a.push("--cadence".into()); a.push(one_of(&c, &["daily", "weekly", "monthly"])?.to_string()); }
+    if let Some(o) = on.filter(|o| !o.is_empty()) {
+        let ok = o.len() <= 80 && !o.starts_with('-') && o.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | ' ' | '-' | '.'));
+        if !ok { return Err("invalid event".into()); }
+        a.push("--on".into()); a.push(o);
+    }
+    if off == Some(true) { a.push("--off".into()); }
+    blocking(a).await
+}
+
 /// Playbook ids and domain slugs: a plain slug, nothing else.
 fn ok_playbook(s: &str) -> Result<&str, String> {
     let mut c = s.chars();

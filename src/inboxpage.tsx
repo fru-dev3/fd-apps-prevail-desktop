@@ -4,31 +4,42 @@
 // item's full card in the detail pane. The approval logic (Allow / Always /
 // Deny, the sensitive release, the single-use token spine) is DecisionInbox's;
 // this page only frames it. On a phone: tabs, then the list, then the item.
+// Results (Specialists Phase 3): playbook runs the user did not start (a
+// loop's clock, a radar event) wait here until marked seen.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, Inbox, Mail, Play, Repeat, ShieldAlert, type LucideIcon } from "lucide-react";
+import { Bot, CheckCheck, Inbox, Mail, Play, Repeat, ShieldAlert, Workflow, type LucideIcon } from "lucide-react";
 import { DecisionInbox, type InboxCategory, type InboxRow } from "./decisioninbox";
+import { invoke } from "./bridge";
+import { invalidateQueries, useInvokeQuery } from "./query";
+import { label, openPlaybook, type InboxResult } from "./plansmodel";
 import { relTime, titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { useWaiting, type WaitingKind } from "./waiting";
 
-const TABS: { key: InboxCategory; label: string }[] = [
+type Tab = InboxCategory | "results";
+const TABS: { key: Tab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "actions", label: "Actions" },
   { key: "google", label: "Google" },
   { key: "automations", label: "Automations" },
   { key: "tasks", label: "Tasks" },
+  { key: "results", label: "Results" },
 ];
-const ICON: Record<InboxRow["category"], LucideIcon> = { actions: Play, google: Mail, automations: Repeat, tasks: Bot };
+type Row = InboxRow | (Omit<InboxRow, "category"> & { category: "results" });
+const ICON: Record<Row["category"], LucideIcon> = { actions: Play, google: Mail, automations: Repeat, tasks: Bot, results: Workflow };
 const KIND_CATEGORY: Record<WaitingKind, InboxRow["category"]> = { act: "actions", gws: "google", loop: "automations", task: "tasks" };
 const CAT_KEY = "prevail.inbox.category";
 
 export function InboxPage({ vaultPath }: { vaultPath: string }) {
   const phone = useIsPhone();
-  const [tab, setTab] = useState<InboxCategory>(() => {
-    try { const v = localStorage.getItem(CAT_KEY); return (TABS.some((c) => c.key === v) ? v : "all") as InboxCategory; } catch { return "all"; }
+  const [tab, setTab] = useState<Tab>(() => {
+    try { const v = localStorage.getItem(CAT_KEY); return (TABS.some((c) => c.key === v) ? v : "all") as Tab; } catch { return "all"; }
   });
+  const resQ = useInvokeQuery<InboxResult[]>("engine_playbook_inbox", { vault: vaultPath }, { staleMs: 30_000 });
+  const results = useMemo(() => (Array.isArray(resQ.data) ? resQ.data : []), [resQ.data]);
+  const resultRows: Row[] = results.map((r) => ({ id: `result:${r.runId}`, category: "results" as const, title: `${r.name}: ${r.ok ? (r.waiting ? `${r.waiting} step${r.waiting === 1 ? "" : "s"} wait for you` : "done") : "did not finish"}`, domain: r.domain ?? "general", ts: r.ts }));
   const [rows, setRows] = useState<InboxRow[] | null>(null);
   const onRows = useCallback((r: InboxRow[]) => setRows(r), []);
   const [sel, setSel] = useState<string | null>(null);
@@ -38,14 +49,16 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
   // store before that.
   const waiting = useWaiting(vaultPath);
   const counts = useMemo(() => {
-    const c: Record<InboxCategory, number> = { all: 0, actions: 0, google: 0, automations: 0, tasks: 0 };
+    const c: Record<Tab, number> = { all: 0, actions: 0, google: 0, automations: 0, tasks: 0, results: resultRows.length };
     if (rows) for (const r of rows) { c[r.category]++; c.all++; }
     else for (const it of waiting.items) { c[KIND_CATEGORY[it.kind] ?? "actions"]++; c.all++; }
+    c.all += resultRows.length;
     return c;
-  }, [rows, waiting]);
+  }, [rows, waiting, resultRows.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = TABS.filter((t) => t.key === "all" || t.key === tab || counts[t.key] > 0).map((t) => ({ id: t.key, label: t.label, count: counts[t.key] }));
-  const shown = (rows ?? []).filter((r) => tab === "all" || r.category === tab);
-  const pickTab = (k: InboxCategory) => {
+  const shown: Row[] = [...(rows ?? []), ...(rows ? resultRows : [])].filter((r) => tab === "all" || r.category === tab);
+  const pickedResult = sel?.startsWith("result:") ? results.find((r) => `result:${r.runId}` === sel) ?? null : null;
+  const pickTab = (k: Tab) => {
     setTab(k); setSel(null); setPicked(false);
     try { localStorage.setItem(CAT_KEY, k); } catch { /* storage off */ }
   };
@@ -87,13 +100,48 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
         phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All items"
         detail={
           <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>
-            <DecisionInbox vaultPath={vaultPath} category={tab} selected={sel} onRows={onRows} />
+            {pickedResult
+              ? <><ResultDetail r={pickedResult} vaultPath={vaultPath} onSeen={() => { setSel(null); void resQ.refresh(); }} /><div hidden><DecisionInbox vaultPath={vaultPath} category="all" selected={null} onRows={onRows} /></div></>
+              : <DecisionInbox vaultPath={vaultPath} category={tab === "results" ? "all" : tab} selected={tab === "results" ? null : sel} onRows={onRows} />}
           </div>
         }>
         {list}
       </SideSpine>
       {/* On a phone's list the detail is not mounted, so this keeps the column fed. */}
-      {phone && !picked && <div hidden><DecisionInbox vaultPath={vaultPath} category={tab} selected={null} onRows={onRows} /></div>}
+      {phone && !picked && <div hidden><DecisionInbox vaultPath={vaultPath} category={tab === "results" ? "all" : tab} selected={null} onRows={onRows} /></div>}
     </div>
+  );
+}
+
+/** A scheduled or event playbook run: what started it, each step, and Seen. */
+function ResultDetail({ r, vaultPath, onSeen }: { r: InboxResult; vaultPath: string; onSeen: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const seen = async () => {
+    setBusy(true);
+    try { await invoke("engine_playbook_seen", { vault: vaultPath, runId: r.runId }); invalidateQueries("engine_playbook_inbox"); onSeen(); } finally { setBusy(false); }
+  };
+  return (
+    <section data-testid="inbox-result" className="max-w-3xl">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="break-words text-[20px] font-semibold text-text-primary">{r.name}</h2>
+          <p className="text-[13px] text-text-muted">{r.trigger === "event" && r.event ? `Ran when the radar flagged: ${r.event}` : "Ran on its schedule"}{r.domain ? ` · ${label(r.domain.replace(/^mission\//, ""))}` : ""} · {new Date(r.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+        </div>
+        <button onClick={() => openPlaybook(r.playbook)} title="Open the playbook" aria-label="Open the playbook" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent"><Workflow className="h-4 w-4" /></button>
+        <button onClick={() => void seen()} disabled={busy} title="Seen" aria-label="Mark as seen" data-testid="inbox-result-seen" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent disabled:opacity-40"><CheckCheck className="h-4 w-4" /></button>
+      </div>
+      <p className="mt-3 text-[15px] text-text-primary">{r.note}</p>
+      <ol className="mt-3">
+        {r.steps.map((x, i) => (
+          <li key={i} className="flex items-start gap-3 border-b border-border-subtle py-2 last:border-b-0">
+            <span className="w-5 shrink-0 text-right text-[13px] tabular-nums text-text-muted">{i + 1}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block break-words text-[14px] text-text-primary">{x.label}</span>
+              <span className="block break-words text-[12px] text-text-muted">{x.decision === "ask" ? "Waits for your yes: " : x.ok ? "" : "Did not run: "}{x.note}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

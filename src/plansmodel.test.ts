@@ -65,6 +65,7 @@ describe("playbooks", () => {
     expect(triggerLine([{ domain: "foo", loop: "x", cadence: "weekly", enabled: false }])).toBe("By hand");
     expect(triggerLine([{ domain: "foo", loop: "x", cadence: "weekly", enabled: true }])).toBe("Weekly in Foo");
     expect(triggerLine([{ domain: "foo", loop: "x", cadence: "daily", enabled: true }, { domain: "bar-baz", loop: "y", cadence: "daily", enabled: true }])).toBe("Daily in Foo and Bar Baz");
+    expect(triggerLine([{ domain: "foo", loop: "x", cadence: "on admin:renew", on: "admin:renew", enabled: true }])).toBe('When the radar flags an admin deadline that says "renew" in Foo');
   });
 });
 

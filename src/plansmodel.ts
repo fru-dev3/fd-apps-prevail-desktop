@@ -79,6 +79,21 @@ export interface Job {
   note?: string;
   /** Goals G3: what it serves, what it may cost, the non-negotiables it touches. */
   compass?: JobCompass;
+  /** Specialists Phase 3: the Operator's actions, each with the broker's answer. */
+  actions?: OperatorAction[];
+}
+export interface OperatorAction {
+  n: number; text: string; why?: string; undo?: string; cls: string;
+  status: "blocked" | "asks" | "running" | "done" | "failed" | "declined";
+  reason?: string; act?: string; report?: string; ts: number; carries?: string[];
+}
+export const ACTION_STATUS_LABEL: Record<OperatorAction["status"], string> = {
+  blocked: "Blocked", asks: "Waiting for your yes", running: "Running", done: "Done", failed: "Failed", declined: "Declined",
+};
+/** Scheduled and event playbook runs waiting in the Inbox. */
+export interface InboxResult {
+  runId: string; playbook: string; name: string; trigger: "schedule" | "event"; event?: string; domain?: string;
+  ok: boolean; note: string; ts: number; waiting: number; steps: { label: string; ok: boolean; decision: string; note: string }[];
 }
 export interface Receipt { n: number; ts: number; domain: string; kind: string; file: string; ref: string; text: string; undone?: number }
 export interface StepRecord { id: string; specialist: string; status: string; passes: { n: number; check: { ok: boolean; missing: string[] } }[]; cost: { usd: number; minutes: number } }
@@ -176,7 +191,7 @@ export interface PlaybookRow { id: string; name: string; goal: string; domain?: 
 export interface PlaybookStepRow { n: number; kind: string; label: string; specialists: string[]; returns: string[]; gate: boolean; ask: boolean; domain?: string }
 export interface PlaybookView extends PlaybookRow {
   rows: PlaybookStepRow[];
-  triggers: { domain: string; loop: string; cadence: string; enabled: boolean }[];
+  triggers: { domain: string; loop: string; cadence: string; enabled: boolean; on?: string }[];
   runs: { id: string; status: string; ts: number; summary?: string }[];
   from?: string;
 }
@@ -193,12 +208,25 @@ export function playbookGroups(rows: PlaybookRow[]): Record<PlaybookGroup, Playb
 }
 
 /** "Weekly in Foo", "Daily in Foo and Bar", or "By hand". */
+/** A radar event a playbook waits for, in words: "admin:renew" is "an admin deadline that says renew". */
+export const RADAR_EVENT_LABEL: Record<string, string> = {
+  commitment: "a promise slipping", waiting: "a waiting-for overdue", routine: "a routine slipping", relationship: "someone gone quiet",
+  goal: "a goal gone quiet", path: "a path missing its expectations", admin: "an admin deadline", domain: "a domain gone cold",
+  decision: "a decision due", mission: "a mission falling behind", rule: "a non-negotiable at risk",
+};
+export function eventLabel(on: string): string {
+  const [k, ...w] = on.split(":");
+  const words = w.join(":").trim();
+  return `when the radar flags ${RADAR_EVENT_LABEL[k ?? ""] ?? k}${words ? ` that says "${words}"` : ""}`;
+}
+
 export function triggerLine(t: PlaybookView["triggers"]): string {
   const on = t.filter((x) => x.enabled);
   if (!on.length) return "By hand";
-  const cad = [...new Set(on.map((x) => x.cadence).filter(Boolean))];
+  const cad = [...new Set(on.map((x) => (x.on ? eventLabel(x.on) : label(x.cadence))).filter(Boolean))];
   const doms = [...new Set(on.map((x) => label(x.domain)))];
-  return `${cad.length ? label(cad.join(", ")) : "On a loop"} in ${doms.length > 1 ? `${doms.slice(0, -1).join(", ")} and ${doms[doms.length - 1]}` : doms[0]}`;
+  const what = cad.length ? cad.join(", ") : "On a loop";
+  return `${what.charAt(0).toUpperCase()}${what.slice(1)} in ${doms.length > 1 ? `${doms.slice(0, -1).join(", ")} and ${doms[doms.length - 1]}` : doms[0]}`;
 }
 
 export const PLAYBOOKS_FOCUS_KEY = "prevail.playbooks.focus";

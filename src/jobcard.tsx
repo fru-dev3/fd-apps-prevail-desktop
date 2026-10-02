@@ -10,7 +10,7 @@ import { invoke } from "./bridge";
 import { useInvokeQuery, invalidateQueries } from "./query";
 import { Markdown } from "./Markdown";
 import { LS, lsGet } from "./storage";
-import { compassChips, elapsed, jobStatusLabel, label, openPlaybook, RULE_STATE_LABEL, stepState, type Job, type JobView } from "./plansmodel";
+import { ACTION_STATUS_LABEL, compassChips, elapsed, jobStatusLabel, label, openPlaybook, RULE_STATE_LABEL, stepState, type Job, type JobView, type OperatorAction } from "./plansmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
@@ -120,6 +120,7 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
           {showPage && <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-lg border border-border-subtle bg-surface p-3 text-[14px]"><Markdown source={v.body} /></div>}
         </div>
       )}
+      {job.actions && job.actions.length > 0 && <OperatorActions job={job} vault={vault} onChanged={() => void q.refresh()} />}
       {v.filed.length > 0 && (
         <div className="mt-3 border-t border-border-subtle pt-2" data-testid="job-filed">
           <p className="text-[13px] font-medium text-text-muted">Filed</p>
@@ -134,6 +135,44 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
         </div>
       )}
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
+    </div>
+  );
+}
+
+/**
+ * Specialists Phase 3: what the Operator named. Each action went through the
+ * broker (pause, your policy, the Compass rules, a mission's ceiling): a
+ * blocked one says why; one that asks waits here and in the Inbox for Allow
+ * or Deny. Allow names what the action carries (a money amount...).
+ */
+function OperatorActions({ job, vault, onChanged }: { job: Job; vault: string; onChanged: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const answer = async (x: OperatorAction, a: "allow" | "deny") => {
+    setBusy(`${a}${x.n}`); setErr(null);
+    try { await invoke("engine_job_act", { vault, id: job.id, n: x.n, answer: a }); invalidateQueries("engine_acts_pending"); onChanged(); }
+    catch (e) { setErr(String(e)); } finally { setBusy(null); }
+  };
+  const tone: Record<OperatorAction["status"], string> = { blocked: "border-err/50 text-err", asks: "border-warn/50 text-warn", running: "border-accent text-accent", done: "border-accent-border bg-accent-soft text-accent", failed: "border-err/50 text-err", declined: "border-border text-text-muted" };
+  return (
+    <div className="mt-3 border-t border-border-subtle pt-2" data-testid="job-actions">
+      <p className="text-[13px] font-medium text-text-muted">Actions, each checked against your policy</p>
+      <ul>{job.actions!.map((x) => (
+        <li key={x.n} data-testid="job-action" data-status={x.status} className="py-1.5">
+          <div className="flex flex-wrap items-start gap-2">
+            <span className="min-w-0 flex-1 break-words text-[14px] text-text-primary">{x.text}</span>
+            <span className={`${chipBase} ${tone[x.status]}`}>{x.status === "running" && <Loader2 className="h-3 w-3 animate-spin" />}{ACTION_STATUS_LABEL[x.status]}</span>
+          </div>
+          <p className="break-words text-[12px] text-text-muted">{x.status === "done" || x.status === "failed" ? x.report : x.reason}{x.undo ? ` · Undo: ${x.undo}` : ""}</p>
+          {x.status === "asks" && (
+            <div className="mt-1 flex flex-wrap gap-2">
+              <button onClick={() => void answer(x, "allow")} disabled={!!busy} data-testid="job-action-allow" className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">{busy === `allow${x.n}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Allow{x.carries?.length ? `, it carries ${x.carries.join(" and ")}` : ""}</button>
+              <button onClick={() => void answer(x, "deny")} disabled={!!busy} data-testid="job-action-deny" className={smallBtn}><X className="h-3.5 w-3.5" /> Deny</button>
+            </div>
+          )}
+        </li>
+      ))}</ul>
+      {err && <p className="mt-1 text-[13px] text-err">{err}</p>}
     </div>
   );
 }

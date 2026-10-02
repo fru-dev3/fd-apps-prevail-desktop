@@ -14,7 +14,7 @@ import { SideSpine } from "./sidespine";
 import { useIsPhone, useStacked } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import { JobCard } from "./jobcard";
-import { label, PLAYBOOKS_FOCUS_KEY, PLAYBOOK_GROUPS, playbookGroups, triggerLine, type PlaybookGroup, type PlaybookRow, type PlaybookView } from "./plansmodel";
+import { label, PLAYBOOKS_FOCUS_KEY, PLAYBOOK_GROUPS, playbookGroups, RADAR_EVENT_LABEL, triggerLine, type PlaybookGroup, type PlaybookRow, type PlaybookView } from "./plansmodel";
 
 const GROUP_ICON: Record<PlaybookGroup, typeof Workflow> = { running: CircleDot, yours: Workflow, drafts: FilePen, "built-in": Library };
 const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
@@ -134,6 +134,7 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
         </button>
         {pb.draft && <button onClick={() => void adopt()} disabled={!!busy} data-testid="playbook-adopt" className={smallBtn}>{busy === "adopt" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Adopt</button>}
       </div>
+      <ScheduleRow id={pb.id} home={pb.domain} domains={domains} vaultPath={vaultPath} onSaved={() => { void q.refresh(); onChanged(); }} />
       {busy === "run" && <p className={`${META} mt-1`}>Running each step in turn. A specialist step can take a few minutes.</p>}
       {msg && <p className={`${META} mt-1`} data-testid="playbook-msg">{msg}</p>}
 
@@ -172,5 +173,59 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
         ))}</ul>
       ) : <p className={`${BODY} mt-1 text-text-muted`}>Not run yet.</p>}
     </section>
+  );
+}
+
+/**
+ * Standing work (Specialists Phase 3): run this playbook on a clock (daily,
+ * weekly, monthly) or when the radar flags something (the Sentinel's
+ * events), in a domain. A loop in that domain's _loops.json; results land in
+ * the Inbox.
+ */
+function ScheduleRow({ id, home, domains, vaultPath, onSaved }: { id: string; home?: string; domains: string[]; vaultPath: string; onSaved: () => void }) {
+  const [when, setWhen] = useState("");
+  const [kind, setKind] = useState("admin");
+  const [words, setWords] = useState("");
+  const [where, setWhere] = useState(home ?? "general");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const sel = "h-8 rounded-md border border-border bg-background px-2 text-[13px] text-text-primary";
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const on = when === "event" ? `${kind}${words.trim() ? `:${words.trim()}` : ""}` : null;
+      await invoke("engine_playbook_trigger", { vault: vaultPath, id, domain: where, cadence: when === "event" ? null : when, on, off: null });
+      setMsg(when === "event" ? "It runs when the radar flags that; the results land in your Inbox." : `It runs ${when}; the results land in your Inbox.`);
+      onSaved();
+    } catch (e) { setMsg(`Not saved: ${String(e)}`); } finally { setBusy(false); }
+  };
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="playbook-schedule">
+      <select value={when} onChange={(e) => setWhen(e.target.value)} aria-label="When it runs" data-testid="playbook-when" className={sel}>
+        <option value="">Schedule it...</option>
+        <option value="daily">Every day</option>
+        <option value="weekly">Every week</option>
+        <option value="monthly">Every month</option>
+        <option value="event">When the radar flags...</option>
+      </select>
+      {when === "event" && (
+        <>
+          <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Which event" data-testid="playbook-event" className={sel}>
+            {Object.entries(RADAR_EVENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <input value={words} onChange={(e) => setWords(e.target.value.slice(0, 40))} placeholder="that says (optional)" aria-label="Words the item must say" className={`${sel} w-40`} />
+        </>
+      )}
+      {when && (
+        <>
+          <select value={where} onChange={(e) => setWhere(e.target.value)} aria-label="In which domain" data-testid="playbook-where" className={sel}>
+            <option value="general">in General</option>
+            {domains.filter((d) => d !== "general").map((d) => <option key={d} value={d}>in {label(d)}</option>)}
+          </select>
+          <button onClick={() => void save()} disabled={busy} data-testid="playbook-schedule-save" className={smallBtn}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save</button>
+        </>
+      )}
+      {msg && <p className={`${META} w-full`} data-testid="playbook-schedule-msg">{msg}</p>}
+    </div>
   );
 }
