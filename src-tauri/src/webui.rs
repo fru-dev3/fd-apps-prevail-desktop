@@ -1579,7 +1579,7 @@ mod tests {
             "engine_projects_create", "engine_projects_set", "engine_suggest_accept", "engine_suggest_dismiss",
             "engine_missions_create", "engine_missions_set", "engine_missions_attach", "engine_missions_milestone",
             "engine_missions_budget", "engine_missions_state", "engine_missions_log", "engine_missions_closeout_plan",
-            "engine_missions_closeout_apply", "engine_missions_undo",
+            "engine_missions_closeout_apply", "engine_missions_undo", "engine_missions_draft", "engine_missions_create_from_draft",
             "engine_playbook_save", "engine_playbook_adopt", "engine_playbook_run",
             "engine_job_act", "engine_playbook_seen", "engine_playbook_trigger",
             "engine_initiatives_generate", "engine_initiative_choose", "engine_initiative_retire", "engine_initiatives_review",

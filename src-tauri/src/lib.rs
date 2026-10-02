@@ -632,6 +632,8 @@ pub fn run() {
             missions::engine_missions_list,
             missions::engine_missions_show,
             missions::engine_missions_create,
+            missions::engine_missions_draft,
+            missions::engine_missions_create_from_draft,
             missions::engine_missions_set,
             missions::engine_missions_attach,
             missions::engine_missions_milestone,
