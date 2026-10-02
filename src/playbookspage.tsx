@@ -12,14 +12,13 @@ import { invalidateQueries, useInvokeQuery } from "./query";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine } from "./sidespine";
 import { useIsPhone, useStacked } from "./useisphone";
-import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
+import { StatusDot } from "./ui";
 import { JobCard } from "./jobcard";
-import { label, PLAYBOOKS_FOCUS_KEY, PLAYBOOK_GROUPS, playbookGroups, RADAR_EVENT_LABEL, triggerLine, type PlaybookGroup, type PlaybookRow, type PlaybookView } from "./plansmodel";
+import { label, scopeLabel, PLAYBOOKS_FOCUS_KEY, PLAYBOOK_GROUPS, playbookGroups, RADAR_EVENT_LABEL, triggerLine, type PlaybookGroup, type PlaybookRow, type PlaybookView } from "./plansmodel";
 
 const GROUP_ICON: Record<PlaybookGroup, typeof Workflow> = { running: CircleDot, yours: Workflow, drafts: FilePen, "built-in": Library };
-const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
-const mark = "inline-flex items-center rounded border px-1.5 py-0 text-[11px] font-semibold tracking-wide";
-const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
+const textLink = "inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-50 disabled:no-underline";
 
 function takeFocus(): string | null {
   try { const f = localStorage.getItem(PLAYBOOKS_FOCUS_KEY); localStorage.removeItem(PLAYBOOKS_FOCUS_KEY); return f; } catch { return null; }
@@ -56,7 +55,7 @@ export function PlaybooksPage({ vaultPath }: { vaultPath: string }) {
                 className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${isOn(r.id) ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
                 <span className="min-w-0 flex-1">
                   <span className={`block truncate text-[14px] ${isOn(r.id) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{r.name}</span>
-                  <span className="block truncate text-[12px] text-text-muted">{r.steps} step{r.steps === 1 ? "" : "s"}{r.domain ? ` · ${label(r.domain)}` : ""}</span>
+                  <span className="block truncate text-[12px] text-text-muted">{r.steps} step{r.steps === 1 ? "" : "s"}{r.domain ? ` · ${scopeLabel(r.domain)}` : ""}</span>
                 </span>
                 {r.running && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />}
               </button>
@@ -110,17 +109,12 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
   const needsDomain = !pb.domain;
   return (
     <section data-testid="playbook-detail" data-id={pb.id} className="max-w-3xl">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className={`${DETAIL_TITLE} break-words`}>{pb.name}</h2>
-        {pb.draft && <span className={chip}>Draft</span>}
-        {pb.source === "built-in" && <span className={chip}>Built in</span>}
-      </div>
-      <p className={`${BODY} mt-2 break-words text-text-secondary`}>{pb.goal}</p>
-      <dl className={`${BODY} mt-3 grid grid-cols-[6rem_minmax(0,1fr)] gap-y-1 text-text-secondary`}>
-        <dt className="text-text-muted">Domain</dt><dd>{pb.domain ? label(pb.domain) : "The one you run it in"}</dd>
-        <dt className="text-text-muted">Runs</dt><dd data-testid="playbook-triggers">{triggerLine(pb.triggers)}</dd>
-        {pb.from && (<><dt className="text-text-muted">From</dt><dd className="break-all">job {pb.from}</dd></>)}
-      </dl>
+      <h2 className={`${DETAIL_TITLE} break-words`}>{pb.name}</h2>
+      <p className={`${META} mt-1`} title={pb.from ? `Saved from job ${pb.from}` : undefined}>
+        {[pb.draft ? "Draft" : "", pb.source === "built-in" ? "Built in" : "", pb.domain ? scopeLabel(pb.domain) : "Runs in the domain you pick"].filter(Boolean).join(" · ")}
+        {" · "}<span data-testid="playbook-triggers">{triggerLine(pb.triggers)}</span>
+      </p>
+      {pb.goal && <p className={`${BODY} mt-3 break-words text-text-secondary`}>{pb.goal}</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {needsDomain && (
@@ -129,33 +123,33 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
             {domains.map((d) => <option key={d} value={d}>Run in {label(d)}</option>)}
           </select>
         )}
-        <button onClick={() => void run()} disabled={!!busy} data-testid="playbook-run" className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">
+        <button onClick={() => void run()} disabled={!!busy} data-testid="playbook-run" className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50">
           {busy === "run" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Run
         </button>
-        {pb.draft && <button onClick={() => void adopt()} disabled={!!busy} data-testid="playbook-adopt" className={smallBtn}>{busy === "adopt" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Adopt</button>}
+        {pb.draft && <button onClick={() => void adopt()} disabled={!!busy} data-testid="playbook-adopt" className={textLink}>{busy === "adopt" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Adopt</button>}
       </div>
       <ScheduleRow id={pb.id} home={pb.domain} domains={domains} vaultPath={vaultPath} onSaved={() => { void q.refresh(); onChanged(); }} />
       {busy === "run" && <p className={`${META} mt-1`}>Running each step in turn. A specialist step can take a few minutes.</p>}
       {msg && <p className={`${META} mt-1`} data-testid="playbook-msg">{msg}</p>}
 
       <h3 className={`${SECTION_TITLE} mt-6`}>Steps</h3>
-      <ol className="mt-2" data-testid="playbook-steps">
+      <ol className="mt-1" data-testid="playbook-steps">
         {pb.rows.map((r) => (
-          <li key={r.n} data-testid="playbook-step" className="flex items-start gap-3 border-b border-border-subtle py-2 last:border-b-0">
-            <span className="w-5 shrink-0 pt-0.5 text-right text-[13px] tabular-nums text-text-muted">{r.n}</span>
+          <li key={r.n} data-testid="playbook-step" className="flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
+            <span className={`${META} w-5 shrink-0 pt-0.5 text-right tabular-nums`}>{r.n}</span>
             <span className="min-w-0 flex-1">
-              <span className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[14px] font-semibold text-text-primary">{r.specialists.length ? r.specialists.map(label).join(" + ") : r.kind === "task" ? "For you" : label(r.kind)}</span>
-                {r.gate && <span className={`${mark} border-accent-border text-accent`}>GATE</span>}
-                {r.ask && <span className={`${mark} border-warn/50 text-warn`}>ASK</span>}
+              <span className={`${ROW_TITLE} block`}>{r.specialists.length ? r.specialists.map(label).join(" + ") : r.kind === "task" ? "For you" : label(r.kind)}</span>
+              <span className={`${META} mt-0.5 block break-words`}>
+                {r.label}
+                {r.kind !== "task" && r.returns.length > 0 && ` · returns ${r.returns.join(", ")}`}
+                {r.gate && <> · <span className="text-accent" title="Stops the playbook when the check says it does not fit">Gate</span></>}
+                {r.ask && <> · <span className="text-warn" title="Waits for your yes">Asks first</span></>}
               </span>
-              <span className="block break-words text-[13px] text-text-secondary">{r.label}</span>
             </span>
-            <span className="shrink-0 pt-0.5 text-right text-[12px] text-text-muted">{r.kind === "task" ? <Hand className="inline h-3.5 w-3.5" aria-label="task" /> : label(r.returns.join(", "))}</span>
+            {r.kind === "task" && <Hand className="mt-1 h-3.5 w-3.5 shrink-0 text-text-muted" aria-label="task" />}
           </li>
         ))}
       </ol>
-      <p className={`${META} mt-1`}>GATE stops the playbook when the check says it does not fit. ASK waits for your yes.</p>
 
       <h3 className={`${SECTION_TITLE} mt-6`}>Runs</h3>
       {pb.runs.length ? (
@@ -163,15 +157,15 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
           <li key={r.id} className="border-b border-border-subtle py-2 last:border-b-0">
             <button onClick={() => setOpenRun(openRun === r.id ? null : r.id)} aria-expanded={openRun === r.id} className="flex w-full items-start gap-3 text-left">
               <span className="min-w-0 flex-1">
-                <span className="block break-words text-[14px] text-text-primary">{r.summary ?? r.id}</span>
-                <span className={META}>{isRunRecord(r.id) ? "Whole run" : "Step"} · {new Date(r.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                <span className={`${ROW_TITLE} line-clamp-2 break-words`} title={r.summary ?? r.id}>{r.summary ?? r.id}</span>
+                <span className={`${META} mt-0.5 block`}>{isRunRecord(r.id) ? "Whole run" : "Step"} · {new Date(r.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
               </span>
-              <span className={chip}>{label(r.status)}</span>
+              <StatusDot tone={r.status === "done" ? "ok" : r.status === "failed" ? "err" : r.status === "running" ? "accent" : "muted"} label={label(r.status)} className="mt-1" />
             </button>
             {openRun === r.id && !isRunRecord(r.id) && <JobCard id={r.id} vaultPath={vaultPath} />}
           </li>
         ))}</ul>
-      ) : <p className={`${BODY} mt-1 text-text-muted`}>Not run yet.</p>}
+      ) : <p className={`${META} mt-1`}>Not run yet.</p>}
     </section>
   );
 }
@@ -222,7 +216,7 @@ function ScheduleRow({ id, home, domains, vaultPath, onSaved }: { id: string; ho
             <option value="general">in General</option>
             {domains.filter((d) => d !== "general").map((d) => <option key={d} value={d}>in {label(d)}</option>)}
           </select>
-          <button onClick={() => void save()} disabled={busy} data-testid="playbook-schedule-save" className={smallBtn}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save</button>
+          <button onClick={() => void save()} disabled={busy} data-testid="playbook-schedule-save" className={textLink}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save</button>
         </>
       )}
       {msg && <p className={`${META} w-full`} data-testid="playbook-schedule-msg">{msg}</p>}

@@ -136,18 +136,18 @@ export function ConnectorRunPanel({
   const title = mode === "replay" ? "Syncing" : mode === "relearn" ? "Re-learning" : "Learning";
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+    <div className="flex flex-col gap-3 border-t border-border-subtle pt-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+        <div className="flex items-center gap-2 text-[14px] font-medium text-text-primary">
           {running ? <Loader2 className="h-4 w-4 animate-spin text-accent" /> : final?.ok ? <Check className="h-4 w-4 text-ok" /> : <X className="h-4 w-4 text-err" />}
           {title} {appId}
         </div>
         {running ? (
-          <button onClick={stop} className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-surface-warm">
+          <button onClick={stop} className="text-[13px] text-text-muted hover:text-err">
             Stop
           </button>
         ) : (
-          <button onClick={() => onClose?.()} className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-surface-warm">
+          <button onClick={() => onClose?.()} className="text-[13px] text-text-muted hover:text-text-primary">
             Close
           </button>
         )}
@@ -155,18 +155,18 @@ export function ConnectorRunPanel({
 
       {/* Sign-in / 2FA gate — surfaces the agent's actual ask + points at Chrome. */}
       {awaiting && (
-        <div className="flex items-start gap-2 rounded-md border border-accent/40 bg-accent/10 px-3 py-2">
+        <div className="flex items-start gap-2">
           <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-          <div className="text-sm text-text-primary">
+          <div className="text-[14px] text-text-primary">
             {[...events].reverse().find((e) => e.phase === "await_user")?.message
               || `Complete your ${awaiting === "twofa" ? "sign-in / 2FA" : awaiting} in the Chrome window, then the agent continues.`}
-            <div className="mt-0.5 text-xs text-text-muted">Look for the Chrome window that opened, sign in there, then come back.</div>
+            <div className="mt-0.5 text-[12px] text-text-muted">Look for the Chrome window that opened, sign in there, then come back.</div>
           </div>
         </div>
       )}
 
       {/* Step timeline */}
-      <div ref={logRef} className="max-h-64 overflow-y-auto rounded-md border border-border-subtle bg-surface-warm/40 p-2 font-mono text-[11px] leading-relaxed">
+      <div ref={logRef} className="max-h-64 overflow-y-auto rounded-md border border-border-subtle bg-surface-warm/40 p-2 font-mono text-[12px] leading-relaxed">
         {events.length === 0 ? (
           <div className="flex items-center gap-1.5 text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> launching the agent, your Chrome will open…</div>
         ) : (
@@ -179,7 +179,7 @@ export function ConnectorRunPanel({
                   {ev.phase === "step" && <span>{ev.action}{ev.target ? ` · ${ev.target}` : ""}{ev.thought ? <span className="text-text-muted">: {ev.thought}</span> : ""}</span>}
                   {ev.phase === "nav" && <span className="text-text-muted">→ {ev.url}</span>}
                   {ev.phase === "download" && <span className="text-ok">downloaded {ev.name}</span>}
-                  {ev.phase === "blocked" && <span className="text-warning">blocked: {ev.reason}</span>}
+                  {ev.phase === "blocked" && <span className="text-warn">blocked: {ev.reason}</span>}
                   {ev.phase === "await_user" && <span className="text-accent">waiting for you ({ev.reason})</span>}
                   {ev.phase === "user_resumed" && <span className="text-text-muted">Resumed</span>}
                   {ev.phase === "started" && <span className="text-text-muted">starting…</span>}
@@ -198,14 +198,14 @@ export function ConnectorRunPanel({
       </div>
 
       {downloads.length > 0 && (
-        <div className="text-xs text-text-secondary">
+        <div className="text-[12px] text-text-secondary">
           <span className="font-medium">{downloads.length}</span> file{downloads.length === 1 ? "" : "s"} captured into the vault.
         </div>
       )}
 
       {final && !running && (
-        <div className={`rounded-md px-3 py-2 text-sm ${final.ok ? "border border-ok/40 bg-ok/10 text-ok" : "border border-err/40 bg-err/10 text-err"}`}>
-          {final.ok ? "✓ " : "✗ "}
+        <div className={`flex items-center gap-1.5 text-[14px] ${final.ok ? "text-ok" : "text-err"}`}>
+          {final.ok ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
           {final.message || (final.ok ? "Done" : "Failed")}
         </div>
       )}

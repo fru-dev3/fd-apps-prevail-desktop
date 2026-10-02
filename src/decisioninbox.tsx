@@ -4,7 +4,9 @@
 // AI's; the decision is yours. The Inbox page (inboxpage.tsx) shows it one
 // category at a time. Every approval mints a single-use token first.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Ban, Bot, Check, Loader2, ListPlus, Play, RotateCcw, ShieldCheck, Clock, X } from "lucide-react";
+import { ChevronRight, Clock, Loader2, Play, ShieldAlert, X } from "lucide-react";
+import { RowMenu, type RowMenuItem } from "./ui";
+import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import { invoke } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
 
@@ -59,7 +61,6 @@ export function DecisionInbox({ vaultPath, category = "all", onCounts, selected,
   const [busy, setBusy] = useState<string | null>(null);
   const [report, setReport] = useState<{ text: string; report: string } | null>(null);
   const [snoozed, setSnoozed] = useState<Record<string, number>>(() => readSnoozed());
-  const [showSnoozed, setShowSnoozed] = useState(false);
   // Queued Google Workspace writes awaiting approval, plus ids dismissed locally
   // (v1 has no CLI drop command, so a dismiss just hides the card; the item stays
   // in pending_gws.json until run).
@@ -96,7 +97,7 @@ export function DecisionInbox({ vaultPath, category = "all", onCounts, selected,
   }, [reload]);
 
   const now = Date.now();
-  const { active, sleeping } = useMemo(() => {
+  const { active } = useMemo(() => {
     const a: DecisionItem[] = []; const s: DecisionItem[] = [];
     for (const it of items) ((snoozed[it.id] ?? 0) > now ? s : a).push(it);
     return { active: a, sleeping: s };
@@ -272,188 +273,124 @@ export function DecisionInbox({ vaultPath, category = "all", onCounts, selected,
     } catch (e) { console.error("acts deny", e); } finally { setBusy(null); }
   };
 
-  const actCard = (a: PendingAct) => {
-    const running = busy === a.id;
-    const sensitive = (a.categories?.length ?? 0) > 0;
-    return (
-      <div key={a.id} className="rounded-xl border border-border bg-surface px-3.5 py-3">
-        <div className="mb-1 flex items-center gap-2 text-[11px] text-text-muted">
-          <span className="text-warn"><Play className="h-3 w-3" /></span>
-          {titleCase(a.domain || "general")}
-          <span className="text-text-muted/50">· connector</span>
-          {a.ts ? <span className="text-text-muted/50">· queued {relTime(a.ts)}</span> : null}
-        </div>
-        <div className="text-[13px] leading-snug text-text-primary">{a.summary}</div>
-        {a.argsJson && <div className="mt-0.5 break-all text-[11px] text-text-muted">{a.argsJson.slice(0, 400)}</div>}
-        {sensitive && (
-          <div className="mt-1.5 rounded-md border border-warn/40 bg-warn/5 px-2 py-1.5 text-[11px] leading-snug text-text-secondary">
-            Carries {a.categories!.join("; ")}. Nothing has been sent. Release it only if you are sure.
-          </div>
+  // One unboxed detail for every kind: a title, one meta line, what it will
+  // do in words, the raw call folded away, one primary action and the rest
+  // as quiet links or the menu.
+  const detail = (o: {
+    id: string; title: string; meta: string[]; says?: string; raw?: string; warn?: string; working: boolean;
+    primary: { label: string; onClick: () => void; warn?: boolean }; links?: { label: string; onClick: () => void; title?: string; danger?: boolean }[]; menu?: RowMenuItem[];
+  }) => (
+    <section key={o.id} className="max-w-3xl">
+      <h2 className={`${DETAIL_TITLE} break-words`}>{o.title}</h2>
+      <p className={`${META} mt-1`}>{o.meta.filter(Boolean).join(" · ")}</p>
+      {o.says && <p className={`${BODY} mt-3 break-words text-text-secondary`}>{o.says}</p>}
+      {o.warn && <p className={`${BODY} mt-3 flex items-start gap-2 text-warn`}><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /><span className="text-text-secondary">{o.warn}</span></p>}
+      {o.raw && (
+        <details className="group mt-3">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[12px] text-text-muted hover:text-text-primary [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />Exact request
+          </summary>
+          <pre className="mt-1.5 whitespace-pre-wrap break-all font-mono text-[12px] text-text-muted">{o.raw}</pre>
+        </details>
+      )}
+      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {o.working ? <span className={`${META} inline-flex items-center gap-1.5`}><Loader2 className="h-3.5 w-3.5 animate-spin" /> Working</span> : (
+          <>
+            <button onClick={o.primary.onClick} className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium ${o.primary.warn ? "border border-warn/60 text-text-primary hover:bg-warn/10" : "bg-accent text-on-accent hover:bg-accent-hover"}`}>
+              <Play className="h-3.5 w-3.5" /> {o.primary.label}
+            </button>
+            {(o.links ?? []).map((l) => (
+              <button key={l.label} onClick={l.onClick} title={l.title} className={`text-[13px] ${l.danger ? "text-text-muted hover:text-err" : "text-text-secondary hover:text-accent"}`}>{l.label}</button>
+            ))}
+            {o.menu && o.menu.length > 0 && <RowMenu items={o.menu} />}
+          </>
         )}
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          {running && <span className="inline-flex items-center gap-1 text-[11px] text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> working…</span>}
-          {!running && (
-            <>
-              <button onClick={() => actApprove(a, sensitive)} className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold ${sensitive ? "border border-warn/60 bg-warn/10 text-text-primary hover:bg-warn/20" : "bg-accent text-background hover:bg-accent-hover"}`}>
-                <Play className="h-3 w-3" /> {sensitive ? "Approve including sensitive info" : "Approve"}
-              </button>
-              {a.alwaysEligible === true && !sensitive && (
-                <button onClick={() => actApprove(a, false, true)} title="Approve, and always allow this tool in this domain" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary hover:border-accent-border hover:text-accent">
-                  <ShieldCheck className="h-3 w-3" /> Always
-                </button>
-              )}
-              <button onClick={() => actDeny(a)} title="Decline and tell the agent not to retry" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:!text-err">
-                <Ban className="h-3 w-3" /> Deny
-              </button>
-              <button onClick={() => actDismiss(a)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:!text-err">
-                <X className="h-3 w-3" /> Dismiss
-              </button>
-            </>
-          )}
-        </div>
       </div>
-    );
+    </section>
+  );
+
+  const actCard = (a: PendingAct) => {
+    const sensitive = (a.categories?.length ?? 0) > 0;
+    return detail({
+      id: a.id, title: a.summary, working: busy === a.id,
+      meta: [titleCase(a.domain || "general"), "Connector action", a.ts ? `queued ${relTime(a.ts)}` : ""],
+      says: argsInWords(a.argsJson), raw: [a.tool, a.argsJson?.slice(0, 2000)].filter(Boolean).join("\n"),
+      warn: sensitive ? `Carries ${a.categories!.join("; ")}. Nothing has been sent. Release it only if you are sure.` : undefined,
+      primary: { label: sensitive ? "Approve including sensitive info" : "Approve", warn: sensitive, onClick: () => void actApprove(a, sensitive) },
+      links: [
+        ...(a.alwaysEligible === true && !sensitive ? [{ label: "Always allow", title: "Approve, and always allow this tool in this domain", onClick: () => void actApprove(a, false, true) }] : []),
+        { label: "Deny", title: "Decline and tell the agent not to retry", danger: true, onClick: () => void actDeny(a) },
+      ],
+      menu: [{ icon: X, label: "Dismiss", hint: "Clear it without an answer", onClick: () => void actDismiss(a) }],
+    });
   };
 
   const gwsCard = (g: GwsPending) => {
-    const running = busy === g.id;
-    const cmd = Array.isArray(g.args) ? g.args.join(" ") : "";
-    return (
-      <div key={g.id} className="rounded-xl border border-border bg-surface px-3.5 py-3">
-        <div className="mb-1 flex items-center gap-2 text-[11px] text-text-muted">
-          <span className="text-warn"><Play className="h-3 w-3" /></span>
-          {titleCase(g.domain || "google")}
-          <span className="text-text-muted/50">· google</span>
-          {g.ts ? <span className="text-text-muted/50">· queued {relTime(g.ts)}</span> : null}
-        </div>
-        <div className="text-[13px] leading-snug text-text-primary">{g.summary}</div>
-        {cmd && <div className="mt-0.5 break-all font-mono text-[11px] text-text-muted">{cmd}</div>}
-        {gwsHeld[g.id] && (
-          <div className="mt-1.5 rounded-md border border-warn/40 bg-warn/5 px-2 py-1.5 text-[11px] leading-snug text-text-secondary">
-            Held by your sensitive-information guardrail: the outbound content contains {gwsHeld[g.id]!.join("; ") || "sensitive information"}. Nothing was sent. Release it only if you are sure.
-          </div>
-        )}
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          {running && <span className="inline-flex items-center gap-1 text-[11px] text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> working…</span>}
-          {!running && gwsHeld[g.id] && (
-            <>
-              <button onClick={() => gwsApprove(g, true)} className="inline-flex items-center gap-1 rounded-md border border-warn/60 bg-warn/10 px-2.5 py-1 text-xs font-semibold text-text-primary hover:bg-warn/20">
-                <Play className="h-3 w-3" /> Approve including sensitive info
-              </button>
-              <button onClick={() => gwsDismiss(g)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:!text-err">
-                <X className="h-3 w-3" /> Dismiss
-              </button>
-            </>
-          )}
-          {!running && !gwsHeld[g.id] && (
-            <>
-              <button onClick={() => gwsApprove(g)} className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-background hover:bg-accent-hover">
-                <Play className="h-3 w-3" /> Approve &amp; run
-              </button>
-              <button onClick={() => gwsDismiss(g)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:!text-err">
-                <X className="h-3 w-3" /> Dismiss
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    );
+    const held = gwsHeld[g.id];
+    return detail({
+      id: g.id, title: g.summary, working: busy === g.id,
+      meta: [titleCase(g.domain || "google"), "Google", g.ts ? `queued ${relTime(g.ts)}` : ""],
+      says: gwsInWords(g.args), raw: Array.isArray(g.args) ? g.args.join(" ") : undefined,
+      warn: held ? `Held by your sensitive-information guardrail: it contains ${held.join("; ") || "sensitive information"}. Nothing was sent. Release it only if you are sure.` : undefined,
+      primary: held ? { label: "Approve including sensitive info", warn: true, onClick: () => void gwsApprove(g, true) } : { label: "Approve & run", onClick: () => void gwsApprove(g) },
+      links: [{ label: "Dismiss", danger: true, onClick: () => gwsDismiss(g) }],
+    });
   };
 
   const card = (it: DecisionItem) => {
     const isReview = it.kind === "review";
-    const running = busy === it.id;
     const asleep = (snoozed[it.id] ?? 0) > now;
-    return (
-      <div key={it.id} className="rounded-xl border border-border bg-surface px-3.5 py-3">
-        <div className="mb-1 flex items-center gap-2 text-[11px] text-text-muted">
-          <span className={isReview ? "text-accent" : "text-warn"}>{isReview ? <Bot className="h-3 w-3" /> : <Play className="h-3 w-3" />}</span>
-          {titleCase(it.domain)}
-          <span className="text-text-muted/50">· {isReview ? "review" : "approval"}</span>
-          {it.ts ? <span className="text-text-muted/50">· queued {relTime(it.ts)}</span> : null}
-        </div>
-        <div className="text-[13px] leading-snug text-text-primary">{it.text}</div>
-        {it.why && <div className="mt-0.5 text-[11px] text-text-muted">{it.why}</div>}
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          {running && <span className="inline-flex items-center gap-1 text-[11px] text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> working…</span>}
-          {!running && isReview && (
-            <>
-              <button onClick={() => reviewSet(it, "done")} className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-background hover:bg-accent-hover">
-                <Check className="h-3 w-3" /> Accept
-              </button>
-              <button onClick={() => reviewSet(it, "doing")} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary hover:border-accent-border hover:text-accent">
-                <RotateCcw className="h-3 w-3" /> Re-run
-              </button>
-            </>
-          )}
-          {!running && !isReview && (
-            <>
-              <button onClick={() => approveRun(it)} className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-background hover:bg-accent-hover">
-                <Play className="h-3 w-3" /> Approve &amp; run
-              </button>
-              <button onClick={() => makeTask(it)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary hover:border-accent-border hover:text-accent">
-                <ListPlus className="h-3 w-3" /> {it.source === "task" ? "Hand to me" : "Make a task"}
-              </button>
-              {asleep
-                ? <button onClick={() => unsnooze(it)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:text-text-secondary"><Clock className="h-3 w-3" /> Unsnooze</button>
-                : <button onClick={() => snooze(it)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:text-text-secondary"><Clock className="h-3 w-3" /> Snooze</button>}
-              {it.source === "loop" && (
-                <button onClick={() => dismiss(it)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:!text-err"><X className="h-3 w-3" /> Dismiss</button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    );
+    return detail({
+      id: it.id, title: it.text, working: busy === it.id,
+      meta: [titleCase(it.domain), isReview ? "Ready for review" : "Wants your approval", it.ts ? `queued ${relTime(it.ts)}` : "", asleep ? "snoozed" : ""],
+      says: it.why ?? undefined,
+      primary: isReview ? { label: "Accept", onClick: () => void reviewSet(it, "done") } : { label: "Approve & run", onClick: () => void approveRun(it) },
+      links: isReview ? [{ label: "Run again", onClick: () => void reviewSet(it, "doing") }] : [{ label: it.source === "task" ? "Hand to me" : "Make a task", onClick: () => void makeTask(it) }],
+      menu: isReview ? undefined : [
+        asleep ? { icon: Clock, label: "Unsnooze", onClick: () => unsnooze(it) } : { icon: Clock, label: "Snooze a day", onClick: () => snooze(it) },
+        ...(it.source === "loop" ? [{ icon: X, label: "Dismiss", danger: true, onClick: () => void dismiss(it) }] : []),
+      ],
+    });
   };
 
-  const shownActs = want("actions") ? acts : [];
-  const shownGws = want("google") ? gwsVisible : [];
-  const shownActive = active.filter(showItem);
-  const shownSleeping = sleeping.filter(showItem);
-  const empty = shownActs.length + shownGws.length + shownActive.length === 0;
-
-  if (selected !== undefined) {
-    const g = gwsVisible.find((x) => x.id === selected);
-    const a = acts.find((x) => x.id === selected);
-    const it = items.find((x) => x.id === selected);
-    return (
-      <div className="w-full" data-testid="decision-inbox">
-        {g ? gwsCard(g) : a ? actCard(a) : it ? card(it) : <p data-testid="inbox-empty" className="py-2 text-[15px] text-text-muted">{empty ? "Nothing is waiting on you." : "Pick an item on the left."}</p>}
-        {report && (
-          <div className="mt-5 rounded-xl border border-border bg-surface/60 px-3.5 py-3">
-            <div className="mb-1 text-[13px] font-medium text-text-secondary">Result: {report.text}</div>
-            <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-text-secondary">{report.report}</div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
+  const empty = (want("actions") ? acts.length : 0) + (want("google") ? gwsVisible.length : 0) + active.filter(showItem).length === 0;
+  const g = gwsVisible.find((x) => x.id === selected);
+  const a = acts.find((x) => x.id === selected);
+  const it = items.find((x) => x.id === selected);
   return (
     <div className="w-full" data-testid="decision-inbox">
-      <div className="flex flex-col gap-2.5">
-        {empty && <p data-testid="inbox-empty" className="py-6 text-[15px] text-text-muted">Nothing is waiting on you.</p>}
-        {shownGws.map(gwsCard)}
-        {shownActs.map(actCard)}
-        {shownActive.map(card)}
-      </div>
-
-      {shownSleeping.length > 0 && (
-        <button onClick={() => setShowSnoozed((s) => !s)} className="mt-4 text-[13px] text-text-muted hover:text-text-secondary">
-          {showSnoozed ? "Hide" : "Show"} snoozed ({shownSleeping.length})
-        </button>
-      )}
-      {showSnoozed && shownSleeping.length > 0 && (
-        <div className="mt-3 flex flex-col gap-2.5 opacity-70">{shownSleeping.map(card)}</div>
-      )}
-
+      {g ? gwsCard(g) : a ? actCard(a) : it ? card(it) : <p data-testid="inbox-empty" className={`${BODY} py-2 text-text-muted`}>{empty ? "Nothing is waiting on you." : "Pick an item on the left."}</p>}
       {report && (
-        <div className="mt-5 rounded-xl border border-border bg-surface/60 px-3.5 py-3">
-          <div className="mb-1 text-[13px] font-medium text-text-secondary">Result: {report.text}</div>
-          <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-text-secondary">{report.report}</div>
+        <div className="mt-6 max-w-3xl border-t border-border-subtle pt-4">
+          <h3 className={SECTION_TITLE}>Result</h3>
+          <p className={`${META} mt-0.5 truncate`} title={report.text}>{report.text}</p>
+          <div className={`${BODY} mt-2 whitespace-pre-wrap text-text-secondary`}>{report.report}</div>
         </div>
       )}
     </div>
   );
+}
+
+/** A queued Google call in words: "Gmail send, to x@y.com". */
+export function gwsInWords(args?: string[]): string | undefined {
+  if (!Array.isArray(args) || !args.length) return undefined;
+  const [svc = "", ...rest] = args;
+  const verbs: string[] = []; const flags: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    const x = rest[i]!;
+    if (x.startsWith("--")) { const v = rest[i + 1] && !rest[i + 1]!.startsWith("--") ? rest[++i]! : ""; flags.push(`${x.slice(2).replace(/[-_]/g, " ")}${v ? ` ${v.length > 80 ? `${v.slice(0, 80)}...` : v}` : ""}`); }
+    else verbs.push(x.replace(/^\+/, "").replace(/[-_]/g, " "));
+  }
+  return `${titleCase(svc)} ${verbs.join(" ")}${flags.length ? `, ${flags.join(", ")}` : ""}`.trim();
+}
+
+/** A connector call's arguments in words: "recipient email: client@corp.com". */
+export function argsInWords(json?: string): string | undefined {
+  if (!json) return undefined;
+  try {
+    const o = JSON.parse(json) as Record<string, unknown>;
+    const parts = Object.entries(o).filter(([, v]) => v !== null && v !== "" && typeof v !== "object").slice(0, 4)
+      .map(([k, v]) => { const t = String(v); return `${k.replace(/[_-]/g, " ")}: ${t.length > 80 ? `${t.slice(0, 80)}...` : t}`; });
+    return parts.length ? parts.join(", ") : undefined;
+  } catch { return undefined; }
 }

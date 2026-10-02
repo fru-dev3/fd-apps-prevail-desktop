@@ -75,9 +75,9 @@ test("Playbooks: groups, steps with GATE, ASK and typed results, what runs it, R
   await expect(d.getByTestId("playbook-triggers")).toHaveText("Weekly in Foo");
   const steps = d.getByTestId("playbook-step");
   await expect(steps).toHaveCount(4);
-  await expect(steps.nth(1)).toContainText("GATE");
-  await expect(steps.nth(1)).toContainText("Verdict");
-  await expect(steps.nth(2)).toContainText("ASK");
+  await expect(steps.nth(1)).toContainText("Gate");
+  await expect(steps.nth(1)).toContainText("returns verdict");
+  await expect(steps.nth(2)).toContainText("Asks first");
   await expect(steps.nth(3)).toContainText("For you");
   await d.getByTestId("playbook-domain").selectOption("bar");
   await d.getByTestId("playbook-run").click();

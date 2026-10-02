@@ -12,6 +12,8 @@ import { VENDOR_BRAND } from "./constants";
 import { HarnessPicker } from "./harnesspicker";
 import type { BoardTask, CliInfo } from "./types";
 
+const control = "w-full rounded-md border border-border bg-background px-2 py-1 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
+
 type Detail = { description?: string; comments?: { ts: number; text: string; author?: string }[] };
 
 // Rendered IN the Tasks detail pane (never a pop-up). `actions` are the tiny
@@ -121,56 +123,55 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
               className={`${DETAIL_TITLE} w-full rounded-md bg-transparent outline-none focus:bg-background focus:px-1`}
             />
-            <div className={`${META} mt-1 flex items-center gap-2`}>
-              <span>{titleCase(task.domain)}</span>
-              {task.trashed && <span className="text-warn">In Trash</span>}
-            </div>
+            <p className={`${META} mt-1`}>{titleCase(task.domain)}{task.trashed && <span className="text-warn"> · In Trash</span>}</p>
           </div>
           {actions && <div className="flex shrink-0 items-center gap-0.5">{actions}</div>}
         </div>
 
         <div className="mt-5 max-w-3xl">
 
-          {/* Meta controls */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <label className="block">
-              <div className="mb-1 text-[13px] text-text-muted">Status</div>
-              <select value={task.status} onChange={(e) => patchTask({ status: e.target.value })} disabled={busy} className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+          {/* Meta: four quiet controls, one line on a wide pane */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+            <label className="block min-w-0">
+              <span className={`${META} block`}>Status</span>
+              <select value={task.status} onChange={(e) => patchTask({ status: e.target.value })} disabled={busy} className={`${control} mt-0.5`}>
                 {["todo", "doing", "review", "blocked", "done", "icebox"].map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
               </select>
             </label>
-            <label className="block">
-              <div className="mb-1 text-[13px] text-text-muted">Due</div>
-              <input type="date" value={task.due ?? ""} onChange={(e) => patchTask({ due: e.target.value || null })} disabled={busy} className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-text-secondary" />
+            <label className="block min-w-0">
+              <span className={`${META} block`}>Due</span>
+              <input type="date" value={task.due ?? ""} onChange={(e) => patchTask({ due: e.target.value || null })} disabled={busy} className={`${control} mt-0.5`} />
             </label>
-            <button onClick={cyclePriority} disabled={busy} className="flex items-center justify-between rounded-md border border-border bg-background px-2 py-1.5 text-left">
-              <span className="text-[13px] text-text-muted">Priority</span>
-              <span className={`inline-flex items-center gap-1 text-xs ${task.priority === "critical" ? "text-err" : task.priority === "high" ? "text-warn" : "text-text-muted"}`}>
-                <Flag className="h-3 w-3" fill={task.priority ? "currentColor" : "none"} /> {task.priority ?? "normal"}
-              </span>
-            </button>
-            <button onClick={() => patchTask({ owner: task.owner === "ai" ? "me" : "ai" })} disabled={busy} className="flex items-center justify-between rounded-md border border-border bg-background px-2 py-1.5 text-left">
-              <span className="text-[13px] text-text-muted">Owner</span>
-              <span className="inline-flex items-center gap-1 text-xs text-text-secondary">{task.owner === "ai" ? <><Bot className="h-3 w-3" /> AI</> : <><User className="h-3 w-3" /> Me</>}</span>
-            </button>
+            <div className="min-w-0">
+              <span className={`${META} block`}>Priority</span>
+              <button onClick={cyclePriority} disabled={busy} title="Change priority" className={`mt-1 inline-flex items-center gap-1.5 text-[14px] hover:underline ${task.priority === "critical" ? "text-err" : task.priority === "high" ? "text-warn" : "text-text-primary"}`}>
+                <Flag className="h-3.5 w-3.5" fill={task.priority ? "currentColor" : "none"} /> {titleCase(task.priority ?? "normal")}
+              </button>
+            </div>
+            <div className="min-w-0">
+              <span className={`${META} block`}>Owner</span>
+              <button onClick={() => patchTask({ owner: task.owner === "ai" ? "me" : "ai" })} disabled={busy} title={task.owner === "ai" ? "Take it back" : "Hand to AI"} className="mt-1 inline-flex items-center gap-1.5 text-[14px] text-text-primary hover:underline">
+                {task.owner === "ai" ? <><Bot className="h-3.5 w-3.5 text-accent" /> AI</> : <><User className="h-3.5 w-3.5" /> Me</>}
+              </button>
+            </div>
           </div>
 
           {/* Description */}
-          <div className="mt-4">
-            <div className="mb-1 text-[13px] text-text-muted">Description</div>
+          <label className="mt-5 block">
+            <span className={`${META} block`}>Description</span>
             <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               onBlur={saveDesc}
-              placeholder="Add details, links, acceptance criteria…"
+              placeholder="Add details, links, what done looks like"
               rows={4}
-              className="w-full resize-y rounded-md border border-border bg-background px-2.5 py-2 text-[13px] leading-relaxed text-text-primary outline-none focus:border-accent-border"
+              className="mt-1 w-full resize-y rounded-md border border-border bg-background px-2.5 py-2 text-[14px] text-text-primary outline-none focus:border-accent-border"
             />
-          </div>
+          </label>
 
           {/* Discuss with AI + Delegate to an agent oracle */}
-          <div className="relative mt-3 flex flex-wrap items-center gap-2">
-            <button onClick={discuss} className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background">
+          <div className="relative mt-2 flex flex-wrap items-center gap-x-5 gap-y-2">
+            <button onClick={discuss} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline">
               <Sparkles className="h-3.5 w-3.5" /> Discuss with AI
             </button>
             {onDelegate && (
@@ -178,9 +179,9 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
                 onClick={() => setPickerOpen((v) => !v)}
                 disabled={delegating}
                 title="Hand this task to an agent (Prevail, or a connected oracle like Hermes, Pi, OpenClaw). It runs the task and posts the result here."
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 text-[13px] text-text-secondary hover:text-accent disabled:opacity-60"
               >
-                {delegating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />} {delegating ? "Running…" : "Delegate to agent"}
+                {delegating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />} {delegating ? "Running" : "Delegate to agent"}
               </button>
             )}
             {pickerOpen && onDelegate && (
@@ -189,43 +190,37 @@ export function TaskDetailPanel({ task, vaultPath, onClose, onChanged, harnesses
           </div>
 
           {/* Comments / activity */}
-          <div className="mt-5">
-            <h3 className={`${SECTION_TITLE} mb-2`}>Comments <span className="text-[14px] font-normal text-text-muted">{comments.length}</span></h3>
-            <div className="space-y-2">
-              {comments.map((c, i) => (
-                <div key={i} className="rounded-lg border border-border-subtle bg-background px-3 py-2">
-                  <div className="mb-0.5 flex items-center gap-2 text-[11px] text-text-muted">
-                    {(() => {
-                      // author is "me"/"you" (the user), "ai" (generic), or an
-                      // agent id like "pi"/"hermes"/"opencode"/"Prevail" when a
-                      // task was handed to an agent. Show who actually wrote it.
-                      const a = c.author;
-                      const isUser = !a || a === "me" || a === "you";
-                      const label = isUser ? "You" : a === "ai" ? "AI" : (VENDOR_BRAND[a]?.name ?? a);
-                      return (
-                        <>
-                          {isUser ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3 text-accent" />}
-                          {label} · {relTime(c.ts)}
-                        </>
-                      );
-                    })()}
-                  </div>
-                  <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-text-secondary">{c.text}</div>
-                </div>
-              ))}
-              {comments.length === 0 && <div className="text-xs text-text-muted">No comments yet.</div>}
-            </div>
+          <div className="mt-7">
+            <h3 className={SECTION_TITLE}>Comments{comments.length > 0 && <span className="ml-1.5 text-[13px] font-normal text-text-muted">{comments.length}</span>}</h3>
+            {comments.length > 0 && (
+              <ul className="mt-1">
+                {comments.map((c, i) => {
+                  // author is "me"/"you" (the user), "ai" (generic), or an
+                  // agent id like "pi"/"hermes"/"opencode"/"Prevail" when a
+                  // task was handed to an agent. Show who actually wrote it.
+                  const a = c.author;
+                  const isUser = !a || a === "me" || a === "you";
+                  const who = isUser ? "You" : a === "ai" ? "AI" : (VENDOR_BRAND[a]?.name ?? a);
+                  return (
+                    <li key={i} className="border-b border-border-subtle py-2.5 last:border-b-0">
+                      <p className={`${META} flex items-center gap-1.5`}>{isUser ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3 text-accent" />}{who} · {relTime(c.ts)}</p>
+                      <p className="mt-0.5 whitespace-pre-wrap text-[14px] text-text-secondary">{c.text}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
             <div className="mt-2 flex items-end gap-2">
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addComment(); }}
-                placeholder="Add a comment… (⌘↵)"
+                placeholder="Add a comment (⌘↵)"
                 rows={2}
-                className="min-w-0 flex-1 resize-y rounded-md border border-border bg-background px-2.5 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent-border"
+                className="min-w-0 flex-1 resize-y rounded-md border border-border bg-background px-2.5 py-1.5 text-[14px] text-text-primary outline-none focus:border-accent-border"
               />
-              <button onClick={addComment} disabled={!comment.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent px-2.5 py-2 text-xs font-semibold text-background hover:bg-accent-hover disabled:opacity-40">
-                <MessageSquarePlus className="h-3.5 w-3.5" />
+              <button onClick={addComment} disabled={!comment.trim()} title="Add comment" aria-label="Add comment" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-on-accent hover:bg-accent-hover disabled:opacity-40">
+                <MessageSquarePlus className="h-4 w-4" />
               </button>
             </div>
           </div>
