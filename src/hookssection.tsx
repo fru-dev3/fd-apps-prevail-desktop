@@ -109,26 +109,26 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
           </div>
           <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Name</label>
+              <label className="mb-1 block text-[12px] text-text-muted">Name</label>
               <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Notify on new task" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">When</label>
+              <label className="mb-1 block text-[12px] text-text-muted">When</label>
               <select value={draft.event} onChange={(e) => setDraft({ ...draft, event: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none">
                 {EVENTS.map((ev) => <option key={ev.id} value={ev.id}>{ev.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Domain <span className="text-text-muted/60">(optional, all if blank)</span></label>
+              <label className="mb-1 block text-[12px] text-text-muted">Domain <span className="text-text-muted/60">(optional, all if blank)</span></label>
               <select value={draft.domain ?? ""} onChange={(e) => setDraft({ ...draft, domain: e.target.value || null })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none">
                 <option value="">All domains</option>
                 {domains.map((d) => <option key={d.name} value={d.name}>{titleCase(d.name)}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Command</label>
+              <label className="mb-1 block text-[12px] text-text-muted">Command</label>
               <textarea value={draft.command} onChange={(e) => setDraft({ ...draft, command: e.target.value })} placeholder={'e.g. echo "$PREVAIL_HOOK_EVENT in $PREVAIL_HOOK_DOMAIN" >> ~/prevail-hooks.log'} rows={2} className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-accent-border focus:outline-none" />
-              <p className="mt-1 text-[11px] text-text-muted">{eventEnv}</p>
+              <p className="mt-1 text-[12px] text-text-muted">{eventEnv}</p>
             </div>
             {err && <div className="text-xs text-err">{err}</div>}
             <div className="flex justify-end gap-2">
@@ -155,10 +155,10 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
               <Webhook className={`mt-0.5 h-4 w-4 shrink-0 ${h.enabled ? "text-accent" : "text-text-muted"}`} />
               <div className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-sm font-semibold text-text-primary">{h.name}</span>
-                <span className="truncate text-[11px] text-text-muted">
+                <span className="truncate text-[12px] text-text-muted">
                   {eventLabel(h.event)}{h.domain ? ` · ${titleCase(h.domain)}` : ""}
                 </span>
-                <code className="mt-1 truncate rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[11px] text-text-secondary" title={h.command}>{h.command}</code>
+                <code className="mt-1 truncate rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[12px] text-text-secondary" title={h.command}>{h.command}</code>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <button onClick={() => void runNow(h)} disabled={running === h.id} title="Run now" className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent disabled:opacity-50"><Play className="h-3.5 w-3.5" /></button>
@@ -168,7 +168,7 @@ export function HooksSection({ vaultPath }: { vaultPath: string }) {
               </div>
             </div>
             {runOut && runOut.id === h.id && (
-              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border-subtle bg-background p-2 font-mono text-[11px] text-text-secondary">{runOut.text}</pre>
+              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border-subtle bg-background p-2 font-mono text-[12px] text-text-secondary">{runOut.text}</pre>
             )}
           </li>
         ))}

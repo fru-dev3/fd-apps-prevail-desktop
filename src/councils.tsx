@@ -11,7 +11,7 @@ import { DISCOVERED_MODELS, isHarnessRuntime } from "./constants";
 import { isLocalCli } from "./helpers";
 import { prettyModelId } from "./helpers2";
 import { isBunkerOn } from "./storage";
-import { Toggle } from "./ui";
+import { REVEAL, Toggle } from "./ui";
 import {
   councilModelsFor, councilSlotKey, fmtUsd, newCouncilId, readCouncils, requestCouncilInChat, seatCostUsd, seatIsLocal, useCouncils, writeCouncils,
   type Council,
@@ -26,8 +26,9 @@ import type { CliInfo } from "./types";
 type CatalogModel = { key: string; cli: string; runtime: string; label: string; blurb: string };
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-muted";
-const primaryBtn = "inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-50";
-const secondaryBtn = "inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3.5 text-sm font-medium text-text-primary transition-colors hover:border-accent-border hover:text-accent";
+const primaryBtn = "inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-background transition-colors hover:bg-accent-hover disabled:opacity-50";
+// Secondary actions are quiet text links, never bordered buttons.
+const secondaryBtn = "inline-flex items-center gap-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-accent";
 const AGGREGATORS = new Set(["openrouter", "bedrock"]);
 
 // Label a seat for display, falling back to a tidy id when the model is not in
@@ -75,7 +76,7 @@ function CostInsight({ seats }: { seats: string[] }) {
   const cloud = seats.length - local;
   return (
     <div data-testid="council-cost" title="Rough estimate: about 6K tokens a seat at blended cloud rates. Local models are free. Actual prices vary."
-      className="grid grid-cols-2 gap-3 rounded-xl border border-border-subtle bg-surface p-4 sm:grid-cols-4">
+      className="grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:flex-wrap sm:gap-x-10">
       <div><div className={META}>Per question</div><div data-testid="council-cost-per" className="mt-0.5 text-[15px] font-semibold text-text-primary">{per > 0 ? `about ${fmtUsd(per)}` : "Free"}</div></div>
       <div><div className={META}>Per 10 questions</div><div className="mt-0.5 text-[15px] font-semibold text-text-primary">{per > 0 ? `about ${fmtUsd(per * 10)}` : "Free"}</div></div>
       <div><div className={META}>Models</div><div data-testid="council-cost-seats" className="mt-0.5 text-[15px] font-semibold text-text-primary">{seats.length}</div></div>
@@ -220,7 +221,7 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
   }
 
   const perQuestion = (seats: string[]) => seats.reduce((s, k) => s + seatCost(k), 0);
-  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2.5 text-left transition-colors ${on ? "border-l-accent bg-accent-soft shadow-sm ring-1 ring-accent-border" : "border-l-transparent ring-1 ring-transparent hover:bg-surface-warm"}`;
+  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`;
   const listEl = (
     <div className="space-y-1 p-2">
       {councils.map((c) => {
@@ -230,7 +231,7 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
           <button key={c.id} data-testid={`council-row-${c.id}`} data-council-name={c.name} aria-current={on ? "true" : undefined} onClick={() => select(c.id)} className={rowCls(on)}>
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5">
-                <span className={`truncate text-sm font-semibold ${on ? "text-accent" : "text-text-primary"}`}>{c.name}</span>
+                <span className={`truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{c.name}</span>
                 {c.id === defaultId && <span data-testid="council-default-mark" className="inline-flex shrink-0 items-center gap-0.5 text-[12px] font-medium text-accent"><Star className="h-3 w-3" /> Default</span>}
               </span>
               <span className="mt-1 flex items-center gap-2">
@@ -336,11 +337,11 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
                 className={`${iconBtn} ${armedDelete ? "bg-accent-soft text-accent" : ""}`}><Trash2 className="h-4 w-4" /></button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <LogoStack seats={c.seats} size={26} />
-            {isDefault && <span className="inline-flex items-center gap-1 text-[13px] font-medium text-accent"><Star className="h-3.5 w-3.5" /> Default council</span>}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <LogoStack seats={c.seats} size={22} />
+            <span className={META}>{[`${c.seats.length} model${c.seats.length === 1 ? "" : "s"}`, isDefault ? "Default" : ""].filter(Boolean).join(" · ")}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-4">
             <button data-testid="council-use-in-chat" onClick={() => requestCouncilInChat(c.id)} disabled={c.seats.length === 0} className={primaryBtn}>
               <MessageSquare className="h-4 w-4" /> Use in chat
             </button>
@@ -351,22 +352,21 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
         <section className="space-y-3">
           <div className="flex items-center gap-3">
             <h3 className={SECTION_TITLE}>Members</h3>
-            <span className={META}>{c.seats.length}</span>
             <button data-testid="council-add-models" onClick={() => setAdding((v) => !v)} className={`${secondaryBtn} ml-auto`}>
               {adding ? <><Check className="h-4 w-4" /> Done</> : <><Plus className="h-4 w-4" /> Add models</>}
             </button>
           </div>
           {adding && <ModelChecklist catalog={catalog} picked={new Set(c.seats)} onToggle={toggleSeat} clis={available} />}
           {c.seats.length === 0 ? (
-            <p className={`${META} rounded-xl border border-dashed border-border px-4 py-4`}>No models on this council yet. Add some to use it.</p>
+            <p className={META}>No models on this council yet. Add some to use it.</p>
           ) : (
-            <div data-testid="council-members" className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+            <div data-testid="council-members" className="divide-y divide-border-subtle">
               {c.seats.map((k) => {
                 const isChair = k === c.chair;
                 const cost = seatCost(k);
                 const ready = available.some((x) => x.id === k.split("::")[0]);
                 return (
-                  <div key={k} data-council-member={k} className="flex items-center gap-3 px-4 py-2.5">
+                  <div key={k} data-council-member={k} className="group flex items-center gap-3 py-2.5">
                     <ProviderMark vendor={k.split("::")[0]} size={26} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -376,11 +376,13 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
                       <div className="truncate text-[12px] text-text-muted">{runtimeLabel(k, clis)}{ready ? "" : " · not set up on this Mac"}</div>
                     </div>
                     <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{cost > 0 ? fmtUsd(cost) : "Free"}</span>
+                    <span className={`flex items-center ${REVEAL}`}>
                     <button onClick={() => update(c.id, { chair: k })} disabled={isChair} title={isChair ? "Chairs the council" : "Make chair"}
                       aria-label={isChair ? `${modelLabel(k)} is the chair` : `Make ${modelLabel(k)} the chair`} className={`${iconBtn} ${isChair ? "text-accent" : ""}`}>
                       <Crown className="h-4 w-4" />
                     </button>
                     <button onClick={() => toggleSeat(k)} title="Remove" aria-label={`Remove ${modelLabel(k)}`} className={iconBtn}><X className="h-4 w-4" /></button>
+                    </span>
                   </div>
                 );
               })}
@@ -389,11 +391,11 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
         </section>
 
         <section className="space-y-3">
-          <h3 className={SECTION_TITLE}>Cost insight</h3>
+          <h3 className={SECTION_TITLE}>Cost</h3>
           <CostInsight seats={c.seats} />
         </section>
 
-        <section data-testid="council-auto" className="flex items-center gap-3 rounded-xl border border-border-subtle bg-surface px-4 py-3">
+        <section data-testid="council-auto" className="flex items-center gap-3 border-t border-border-subtle pt-5">
           <Scale className={`h-4 w-4 shrink-0 ${autoCouncil ? "text-accent" : "text-text-muted"}`} />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-text-primary">Auto-convene the Default council on high-stakes questions</div>
@@ -407,10 +409,9 @@ export function CouncilSettingsSection({ clis }: { clis: CliInfo[] }) {
 
   return (
     <>
-      <SettingsHeader title="Councils" icon={Scale} subtitle="Groups of models that answer together. A chair writes the verdict."
-        right={<button data-testid="council-new" onClick={startNew} className={primaryBtn}><Plus className="h-4 w-4" /> New council</button>} />
+      <SettingsHeader title="Councils" icon={Scale} subtitle="Groups of models that answer together. A chair writes the verdict." />
       <SideSpine storageKey="prevail.council.spine" title="Councils" label="councils" testId="council-list"
-        actions={<button onClick={startNew} title="New council" aria-label="New council" className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"><Plus className="h-4 w-4" /></button>}
+        actions={<button data-testid="council-new" onClick={startNew} title="New council" aria-label="New council" className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"><Plus className="h-4 w-4" /></button>}
         phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All councils"
         detail={<div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{sel === "new" || !open ? builder : detail(open)}</div>}>
         {listEl}

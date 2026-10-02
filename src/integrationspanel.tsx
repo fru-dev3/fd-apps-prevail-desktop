@@ -101,7 +101,7 @@ export function IntegrationsPanel({ vaultPath }: { vaultPath: string; clis: CliI
       />
 
       {/* USE PREVAIL FROM YOUR TOOLS (MCP) - one-click OR manual, tabbed ------ */}
-      <div className="rounded-lg border border-border bg-surface p-5">
+      <div className="border-t border-border-subtle pt-4">
         <h2 className="mb-1 text-[15px] font-semibold text-text-primary">Use Prevail from your AI tools</h2>
         <div className="mb-4 text-sm text-text-secondary">
           MCP (Model Context Protocol) lets the AI CLIs you already use call into Prevail - run a council across your models, read a life domain's state, or list your domains - right inside the tool. Register Prevail once and it shows up as tools in Claude Code, Codex, Gemini and more. Uses a local stdio connection; nothing leaves your machine.
@@ -144,16 +144,16 @@ export function IntegrationsPanel({ vaultPath }: { vaultPath: string; clis: CliI
                   <span className={`inline-block h-1.5 w-1.5 rounded-full ${present ? "bg-ok" : "bg-border"}`} />
                   <span>{LABELS[id] ?? id}</span>
                   {registered && (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-ok">
+                    <span className="inline-flex items-center gap-1 text-[12px] text-ok">
                       <Check className="h-3 w-3" /> registered
                     </span>
                   )}
-                  {!present && <span className="text-[10px] text-text-muted">Not installed</span>}
+                  {!present && <span className="text-[12px] text-text-muted">Not installed</span>}
                 </div>
                 <button
                   onClick={() => installClientMcp(id)}
                   disabled={busyThis || mcpBusyClient !== ""}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[12px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
                 >
                   {busyThis ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                   {registered ? "Re-install" : "Install"}
@@ -166,12 +166,12 @@ export function IntegrationsPanel({ vaultPath }: { vaultPath: string; clis: CliI
           <button
             onClick={testMcp}
             disabled={mcpBusy}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
           >
             {mcpBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Test handshake
           </button>
           {mcpMsg && (
-            <span className={`font-mono text-[11px] ${mcpMsg.ok ? "text-ok" : "text-warn"}`}>
+            <span className={`font-mono text-[12px] ${mcpMsg.ok ? "text-ok" : "text-warn"}`}>
               {mcpMsg.ok ? "OK " : "x "}{mcpMsg.text}
             </span>
           )}

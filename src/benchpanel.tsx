@@ -25,7 +25,7 @@ import { ProviderMark } from "./marks";
 import type { BenchBatch, BenchJob, BenchJobStatus, BenchQuestion, BenchmarkRun, Domain, EngineApp, MatrixRow, RunDetail } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
-import { DETAIL_TITLE } from "./typescale";
+import { DETAIL_TITLE, META } from "./typescale";
 
 // --- 3D Arena formatting (intelligence · speed · cost) --------------------
 // Latency: show ms under a second, else seconds.
@@ -50,7 +50,7 @@ export function fmtCost(usd: number | null | undefined, basis?: string | null): 
 export function RunDims({ run, judge }: { run: BenchmarkRun; judge?: number | null }) {
   const j = judge !== undefined ? judge : run.judge_avg;
   return (
-    <span className="flex shrink-0 items-center gap-2.5 text-[11px]">
+    <span className="flex shrink-0 items-center gap-2.5 text-[12px]">
       <span className="inline-flex items-center gap-1 text-accent" title="Intelligence: judge score /10">
         <BrainCircuit className="h-3 w-3" />
         <span className="font-semibold">{j !== null && j !== undefined ? j.toFixed(1) : "-"}</span>
@@ -172,7 +172,7 @@ export function BenchMatrix({
     <div>
       {/* Filter bar: top models + top dimensions shown; multi-select to refine. */}
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] text-text-muted">
+        <span className="text-[12px] text-text-muted">
           {visibleRows.length}/{rows.length} models · {visibleDomains.length}/{orderedDomains.length} dimensions
         </span>
         <div className="flex flex-wrap items-center gap-2">
@@ -188,8 +188,8 @@ export function BenchMatrix({
             {dimPickerOpen && (
               <div className="absolute right-0 z-20 mt-1 max-h-72 w-60 overflow-auto rounded-xl border border-border bg-surface p-1.5 shadow-xl">
                 <div className="flex items-center justify-between px-1.5 py-1">
-                  <span className="text-[11px] text-text-muted">Show dimensions</span>
-                  <button onClick={() => setDimSelPersist(null)} className="text-[10px] text-text-muted hover:text-accent">Top {TOP_DIMS}</button>
+                  <span className="text-[12px] text-text-muted">Show dimensions</span>
+                  <button onClick={() => setDimSelPersist(null)} className="text-[12px] text-text-muted hover:text-accent">Top {TOP_DIMS}</button>
                 </div>
                 {orderedDomains.map((d) => {
                   const on = visibleDomains.includes(d);
@@ -197,7 +197,7 @@ export function BenchMatrix({
                     <button key={d} onClick={() => toggleDim(d)} className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-xs hover:bg-surface-warm">
                       <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${on ? "border-accent bg-accent text-background" : "border-border"}`}>{on && <Check className="h-2.5 w-2.5" />}</span>
                       <span className="min-w-0 flex-1 truncate text-text-primary">{titleCase(d)}</span>
-                      <span className="shrink-0 text-[10px] text-text-muted">{(bestPerDomain[d] ?? -1) >= 0 ? (bestPerDomain[d]).toFixed(1) : "·"}</span>
+                      <span className="shrink-0 text-[12px] text-text-muted">{(bestPerDomain[d] ?? -1) >= 0 ? (bestPerDomain[d]).toFixed(1) : "·"}</span>
                     </button>
                   );
                 })}
@@ -217,8 +217,8 @@ export function BenchMatrix({
             {pickerOpen && (
               <div className="absolute right-0 z-20 mt-1 max-h-72 w-72 overflow-auto rounded-xl border border-border bg-surface p-1.5 shadow-xl">
                 <div className="flex items-center justify-between px-1.5 py-1">
-                  <span className="text-[11px] text-text-muted">Add more models</span>
-                  {extra.size > 0 && <button onClick={() => setExtraPersist(new Set())} className="text-[10px] text-text-muted hover:text-accent">Clear</button>}
+                  <span className="text-[12px] text-text-muted">Add more models</span>
+                  {extra.size > 0 && <button onClick={() => setExtraPersist(new Set())} className="text-[12px] text-text-muted hover:text-accent">Clear</button>}
                 </div>
                 {extraModels.map((m) => {
                   const p = parseRunLabel(m.label);
@@ -232,7 +232,7 @@ export function BenchMatrix({
                       <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${on ? "border-accent bg-accent text-background" : "border-border"}`}>{on && <Check className="h-2.5 w-2.5" />}</span>
                       <ProviderMark vendor={p.vendor} size={14} />
                       <span className="min-w-0 flex-1 truncate text-text-primary" title={p.model || m.label}>{p.model || m.label}</span>
-                      <span className="shrink-0 text-[11px] text-text-muted">{m.judge_avg?.toFixed(1) ?? "-"}</span>
+                      <span className="shrink-0 text-[12px] text-text-muted">{m.judge_avg?.toFixed(1) ?? "-"}</span>
                     </button>
                   );
                 })}
@@ -246,13 +246,13 @@ export function BenchMatrix({
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-border bg-surface">
-            <th className="sticky left-0 bg-surface px-3 py-2 text-left text-[11px] text-text-muted">Model</th>
+            <th className="sticky left-0 bg-surface px-3 py-2 text-left text-[12px] text-text-muted">Model</th>
             {visibleDomains.map((d) => (
-              <th key={d} className={`px-3 py-2 text-center text-[11px] ${d === cur ? "bg-accent font-bold text-background" : "text-text-muted"}`}>{titleCase(d)}</th>
+              <th key={d} className={`px-3 py-2 text-center text-[12px] ${d === cur ? "bg-accent font-bold text-background" : "text-text-muted"}`}>{titleCase(d)}</th>
             ))}
-            <th className="border-l border-border px-3 py-2 text-center text-[11px] text-accent">Avg score</th>
-            <th className="px-3 py-2 text-center text-[11px] text-text-muted">Cost</th>
-            <th className="px-3 py-2 text-center text-[11px] text-text-muted">Speed</th>
+            <th className="border-l border-border px-3 py-2 text-center text-[12px] text-accent">Avg score</th>
+            <th className="px-3 py-2 text-center text-[12px] text-text-muted">Cost</th>
+            <th className="px-3 py-2 text-center text-[12px] text-text-muted">Speed</th>
           </tr>
         </thead>
         <tbody>
@@ -283,8 +283,8 @@ export function BenchMatrix({
                   );
                 })}
                 <td className="border-l border-border px-3 py-2 text-center text-xs font-semibold text-accent">{m.judge_avg?.toFixed(1) ?? "-"}</td>
-                <td className="px-3 py-2 text-center text-[11px] text-text-muted">{(() => { const r = runByDir.get(m.run_dir); return r ? fmtCost(r.cost_usd_est, r.cost_basis) : "-"; })()}</td>
-                <td className="px-3 py-2 text-center text-[11px] text-text-muted">{(() => { const r = runByDir.get(m.run_dir); return r ? fmtLatency(r.ms_avg) : "-"; })()}</td>
+                <td className="px-3 py-2 text-center text-[12px] text-text-muted">{(() => { const r = runByDir.get(m.run_dir); return r ? fmtCost(r.cost_usd_est, r.cost_basis) : "-"; })()}</td>
+                <td className="px-3 py-2 text-center text-[12px] text-text-muted">{(() => { const r = runByDir.get(m.run_dir); return r ? fmtLatency(r.ms_avg) : "-"; })()}</td>
               </tr>
             );
           })}
@@ -321,17 +321,17 @@ function MatrixInsights({ matrix, allDomains }: { matrix: MatrixRow[]; allDomain
   return (
     <ArenaRightRail>
       <div className="rounded-2xl border border-border bg-surface p-4">
-        <div className="text-[11px] text-text-muted">Strongest overall</div>
+        <div className="text-[12px] text-text-muted">Strongest overall</div>
         <div className="mt-1.5 flex items-center gap-2">
           <Award className="h-4 w-4 shrink-0 text-accent" />
           <span className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">{parseRunLabel(insights.overall.label).model || insights.overall.label}</span>
           <span className="text-lg font-bold text-accent">{insights.overall.judge_avg?.toFixed(1)}</span>
         </div>
-        <div className="mt-0.5 text-[11px] text-text-muted">avg judge score across {insights.perDomain.length} domain{insights.perDomain.length === 1 ? "" : "s"}</div>
+        <div className="mt-0.5 text-[12px] text-text-muted">avg judge score across {insights.perDomain.length} domain{insights.perDomain.length === 1 ? "" : "s"}</div>
       </div>
       {insights.perDomain.length > 0 && (
         <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="mb-2 text-[11px] text-text-muted">Strongest by domain</div>
+          <div className="mb-2 text-[12px] text-text-muted">Strongest by domain</div>
           <div className="space-y-1.5">
             {insights.perDomain.map((p) => {
               const Icon = domainIcon(p.domain) ?? Circle;
@@ -340,7 +340,7 @@ function MatrixInsights({ matrix, allDomains }: { matrix: MatrixRow[]; allDomain
                   <Icon className="h-3 w-3 shrink-0 text-text-muted" />
                   <span className="w-20 shrink-0 truncate text-text-secondary">{titleCase(p.domain)}</span>
                   <span className="min-w-0 flex-1 truncate text-text-primary">{p.top.model}</span>
-                  <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold" style={{ background: heatBg(p.top.v), color: "var(--color-text-primary)" }}>{p.top.v.toFixed(1)}</span>
+                  <span className="shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold" style={{ background: heatBg(p.top.v), color: "var(--color-text-primary)" }}>{p.top.v.toFixed(1)}</span>
                 </div>
               );
             })}
@@ -349,7 +349,7 @@ function MatrixInsights({ matrix, allDomains }: { matrix: MatrixRow[]; allDomain
       )}
       {insights.byGap.length > 0 && insights.byGap[0].gap > 0 && (
         <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="mb-2 text-[11px] text-text-muted">Biggest gaps (top vs bottom)</div>
+          <div className="mb-2 text-[12px] text-text-muted">Biggest gaps (top vs bottom)</div>
           <div className="space-y-2">
             {insights.byGap.filter((g) => g.gap > 0).map((g) => {
               const Icon = domainIcon(g.domain) ?? Circle;
@@ -357,13 +357,13 @@ function MatrixInsights({ matrix, allDomains }: { matrix: MatrixRow[]; allDomain
                 <div key={g.domain} className="flex items-center gap-2">
                   <Icon className="h-3 w-3 shrink-0 text-text-muted" />
                   <span className="w-20 shrink-0 truncate text-[12px] text-text-secondary">{titleCase(g.domain)}</span>
-                  <span className="text-[11px] tabular-nums text-text-primary">{g.gap.toFixed(2)}</span>
+                  <span className="text-[12px] tabular-nums text-text-primary">{g.gap.toFixed(2)}</span>
                   <div className="min-w-0 flex-1"><div className="h-1.5 rounded-full bg-accent" style={{ width: `${(g.gap / maxGap) * 100}%` }} /></div>
                 </div>
               );
             })}
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-text-muted">A wide gap means the model you pick matters here.</p>
+          <p className="mt-2 text-[12px] leading-relaxed text-text-muted">A wide gap means the model you pick matters here.</p>
         </div>
       )}
     </ArenaRightRail>
@@ -595,21 +595,21 @@ export function BenchQuestions({
   return (
     <div className="w-full px-8 pb-6 max-md:px-4">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-text-secondary">
+        <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-[12px] text-text-secondary">
           <option value="all">All domains</option>
           {allDomains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
         </select>
         <div className="flex-1" />
-        <button onClick={importQuestions} title="Import a prevail.bench/v1 JSON file (existing ids are skipped)" className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
+        <button onClick={importQuestions} title="Import a prevail.bench/v1 JSON file (existing ids are skipped)" className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent">
           <Download className="h-3 w-3" /> Import
         </button>
-        <button onClick={exportQuestions} disabled={questions.length === 0} title="Export every question as one portable JSON file" className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-40">
+        <button onClick={exportQuestions} disabled={questions.length === 0} title="Export every question as one portable JSON file" className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-40">
           <Upload className="h-3 w-3" /> Export
         </button>
-        <button onClick={() => { setSuggestOpen((v) => !v); if (!suggestDomain && filter !== "all") setSuggestDomain(filter); }} title="AI-draft questions from a domain's recorded context" className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] ${suggestOpen ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}>
+        <button onClick={() => { setSuggestOpen((v) => !v); if (!suggestDomain && filter !== "all") setSuggestDomain(filter); }} title="AI-draft questions from a domain's recorded context" className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[12px] ${suggestOpen ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}>
           <Sparkles className="h-3 w-3" /> Suggest with AI
         </button>
-        <button onClick={() => openEditor("new")} className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-[11px] text-background hover:bg-accent-hover">
+        <button onClick={() => openEditor("new")} className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-[12px] text-background hover:bg-accent-hover">
           <Plus className="h-3 w-3" /> New question
         </button>
       </div>
@@ -622,7 +622,7 @@ export function BenchQuestions({
           {/* Labeled controls, not a cramped row of bare selects. */}
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-text-muted">Domain</span>
+              <span className="text-[12px] text-text-muted">Domain</span>
               <select value={suggestDomain} onChange={(e) => setSuggestDomain(e.target.value)} className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-text-secondary focus:border-accent-border focus:outline-none">
                 <option value="">pick a domain…</option>
                 <option value="all">All domains</option>
@@ -630,13 +630,13 @@ export function BenchQuestions({
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-text-muted">How many{suggestDomain === "all" ? " per domain" : ""}</span>
+              <span className="text-[12px] text-text-muted">How many{suggestDomain === "all" ? " per domain" : ""}</span>
               <select value={suggestCount} onChange={(e) => setSuggestCount(Number(e.target.value))} className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-text-secondary focus:border-accent-border focus:outline-none">
                 {[1, 2, 3, 5, 8].map((n) => <option key={n} value={n}>{n} question{n === 1 ? "" : "s"}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-text-muted">Drafting model</span>
+              <span className="text-[12px] text-text-muted">Drafting model</span>
               <select value={suggestModel} onChange={(e) => setSuggestModel(e.target.value)} className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-text-secondary focus:border-accent-border focus:outline-none">
                 {Object.entries(MODELS)
                   .filter(([cli]) => !isBunkerOn() || isLocalCli(cli))
@@ -697,16 +697,16 @@ export function BenchQuestions({
           {shown.map((q) => (
             <div key={q.id} className="flex w-full items-start gap-3 border-b border-border-subtle px-4 py-3 text-left last:border-0 hover:bg-surface-warm">
               <button onClick={() => openEditor(q)} className="flex min-w-0 flex-1 items-start gap-3 text-left">
-                <span className="mt-0.5 rounded bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{q.domain}</span>
+                <span className="mt-0.5 rounded bg-surface-warm px-1.5 py-0.5 text-[12px] text-text-muted">{q.domain}</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     {q.source === "ai" && (
-                      <span className="shrink-0 rounded-full border border-accent-border bg-accent-soft px-1.5 py-px text-[11px] text-accent">Draft · review</span>
+                      <span className="shrink-0 rounded-full border border-accent-border bg-accent-soft px-1.5 py-px text-[12px] text-accent">Draft · review</span>
                     )}
                     <span className="truncate text-sm text-text-primary">{q.prompt || <span className="text-text-muted">(empty prompt)</span>}</span>
                   </div>
-                  {q.expected_decision && <div className="mt-0.5 truncate text-[11px] text-ok">→ {q.expected_decision}</div>}
-                  <div className="mt-0.5 text-[11px] text-text-muted">
+                  {q.expected_decision && <div className="mt-0.5 truncate text-[12px] text-ok">→ {q.expected_decision}</div>}
+                  <div className="mt-0.5 text-[12px] text-text-muted">
                     {q.source === "ai" ? "AI-drafted - click to review and confirm the ground truth" : "written by you"}{q.created ? ` · added ${q.created}` : ""}{q.edited ? ` · edited ${q.edited} (prior version kept)` : ""}
                   </div>
                 </div>
@@ -716,7 +716,7 @@ export function BenchQuestions({
               <button
                 onClick={() => void setArchived(q, true)}
                 title="Archive: kept for past runs, excluded from new ones"
-                className="mt-0.5 shrink-0 rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                className="mt-0.5 shrink-0 rounded-md border border-border px-2 py-0.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent"
               >
                 <Archive className="h-3 w-3" />
               </button>
@@ -726,29 +726,29 @@ export function BenchQuestions({
       )}
       {archivedShown.length > 0 && (
         <details className="mt-3 rounded-xl border border-border-subtle bg-surface px-3 py-2">
-          <summary className="cursor-pointer text-[11px] text-text-muted">
+          <summary className="cursor-pointer text-[12px] text-text-muted">
             Archived · {archivedShown.length}: kept so past benchmark runs stay interpretable
           </summary>
           <div className="mt-2 flex flex-col">
             {archivedShown.map((q) => (
               <div key={q.id} className="flex items-start gap-3 border-b border-border-subtle px-1 py-2 last:border-0">
-                <span className="mt-0.5 rounded bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{q.domain}</span>
+                <span className="mt-0.5 rounded bg-surface-warm px-1.5 py-0.5 text-[12px] text-text-muted">{q.domain}</span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm text-text-muted">{q.prompt}</div>
-                  <div className="mt-0.5 text-[11px] text-text-muted">
+                  <div className="mt-0.5 text-[12px] text-text-muted">
                     {q.source === "ai" ? "AI-suggested" : "written by you"}{q.created ? ` · added ${q.created}` : ""}
                   </div>
                 </div>
                 <button
                   onClick={() => void setArchived(q, false)}
-                  className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                  className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent"
                 >
                   Restore
                 </button>
                 <button
                   onClick={async () => { try { await invoke("benchmark_delete_question", { path: q.path }); onChanged(); } catch (e) { setInfo(`Delete failed: ${e}`); } }}
                   title="Delete permanently (past runs lose this question's text)"
-                  className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[11px] text-text-muted hover:border-warn hover:text-warn"
+                  className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[12px] text-text-muted hover:border-warn hover:text-warn"
                 >
                   Delete
                 </button>
@@ -826,10 +826,10 @@ function RunningBatchCard({
               : errCount > 0 ? "Finished with errors"
               : "Benchmark complete"}
           </h2>
-          <div className="mt-0.5 truncate text-[11px] text-text-muted">
+          <div className="mt-0.5 truncate text-[12px] text-text-muted">
             {batch.label}
           </div>
-          <div className="mt-0.5 text-[11px] text-text-muted">
+          <div className="mt-0.5 text-[12px] text-text-muted">
             {scopeLine}{" · "}{jobs.length} model{jobs.length === 1 ? "" : "s"}{" · "}{jobs[0]?.total ?? 0} q each{" · auto-scored"}
           </div>
         </div>
@@ -837,7 +837,7 @@ function RunningBatchCard({
           <button
             onClick={(e) => { e.stopPropagation(); onDismiss(); }}
             title="Dismiss this run from the monitor"
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[10px] text-text-secondary transition-colors hover:bg-surface-warm"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-surface-warm"
           >
             <Trash2 className="h-3 w-3" /> Dismiss
           </button>
@@ -849,7 +849,7 @@ function RunningBatchCard({
         const pct = overallTotal > 0 ? Math.round((overallDone / overallTotal) * 100) : 0;
         return (
           <div>
-            <div className="mb-1.5 flex items-baseline justify-between text-[11px]">
+            <div className="mb-1.5 flex items-baseline justify-between text-[12px]">
               <span className="text-text-muted">{scoringPhase || allDone ? "answers" : "answering"}</span>
               <span className="tabular-nums text-text-secondary">{overallDone}/{overallTotal} · <span className="font-semibold text-text-primary">{pct}%</span></span>
             </div>
@@ -857,7 +857,7 @@ function RunningBatchCard({
               <div className={`h-full rounded-full transition-all duration-500 ${scoringPhase ? "bg-text-primary/70" : "bg-accent"}`} style={{ width: `${pct}%` }} />
             </div>
             {scoringPhase && (
-              <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-accent">
+              <div className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-accent">
                 <Loader2 className="h-3 w-3 animate-spin" /> answers in · scoring with the judge, almost done
               </div>
             )}
@@ -868,7 +868,7 @@ function RunningBatchCard({
         <div className="flex justify-center">
           <button
             onClick={onCancel}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-1.5 text-[11px] text-text-secondary transition-colors hover:border-err hover:text-err"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-err hover:text-err"
           >
             <X className="h-3.5 w-3.5" /> Cancel run
           </button>
@@ -891,12 +891,12 @@ function RunningBatchCard({
                   {j.cli ? <ProviderMark vendor={j.cli} size={20} /> : <Scale className="h-5 w-5 text-accent" />}
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{j.label}</span>
                   {j.status === "running" && j.qcur && (
-                    <span className="hidden min-w-0 max-w-[220px] truncate text-[10px] text-text-muted md:inline">{j.qcur}…</span>
+                    <span className="hidden min-w-0 max-w-[220px] truncate text-[12px] text-text-muted md:inline">{j.qcur}…</span>
                   )}
-                  <span className="text-[11px] tabular-nums text-text-muted">
+                  <span className="text-[12px] tabular-nums text-text-muted">
                     {j.status === "queued" ? "queued" : `${j.done}/${j.total}`}
                   </span>
-                  <span className={`w-16 text-right text-[11px] ${
+                  <span className={`w-16 text-right text-[12px] ${
                     j.status === "error" ? "text-err" : j.status === "cancelled" ? "text-text-muted" : j.status === "done" ? "text-ok" : "text-accent"
                   }`}>
                     {j.status === "error" ? "error" : j.status === "cancelled" ? "cancelled" : j.status === "done" ? "done" : j.status === "scoring" ? "scoring" : j.status === "running" ? `${pct}%` : "queued"}
@@ -910,7 +910,7 @@ function RunningBatchCard({
                     style={{ width: `${j.status === "done" || j.status === "scoring" ? 100 : pct}%` }}
                   />
                 </div>
-                {j.note && <div className="mt-1.5 text-[10px] text-err">{j.note}</div>}
+                {j.note && <div className="mt-1.5 text-[12px] text-err">{j.note}</div>}
               </button>
               {expanded && j.qids.length > 0 && (
                 <div className="max-h-64 overflow-y-auto border-t border-border-subtle bg-background/40 px-4 py-2">
@@ -931,11 +931,11 @@ function RunningBatchCard({
                             <Circle className="h-2.5 w-2.5 text-text-muted/40" />
                           )}
                         </span>
-                        <span className={`min-w-0 flex-1 truncate text-[11px] ${info ? "text-text-primary" : isCur ? "text-accent" : "text-text-muted/60"}`}>
+                        <span className={`min-w-0 flex-1 truncate text-[12px] ${info ? "text-text-primary" : isCur ? "text-accent" : "text-text-muted/60"}`}>
                           {q}
                         </span>
-                        {info && !failed && <span className="max-w-[200px] truncate text-[11px] text-text-muted">{info}</span>}
-                        {failed && <span className="max-w-[260px] truncate text-[11px] text-err" title={info}>{info}</span>}
+                        {info && !failed && <span className="max-w-[200px] truncate text-[12px] text-text-muted">{info}</span>}
+                        {failed && <span className="max-w-[260px] truncate text-[12px] text-err" title={info}>{info}</span>}
                       </div>
                     );
                   })}
@@ -957,12 +957,12 @@ function RunningBatchCard({
         </div>
       )}
       {allDone && doneCount > 0 && errCount > 0 && (
-        <p className="text-center text-[11px] text-text-muted">Failed jobs can be rerun individually from a new run.</p>
+        <p className="text-center text-[12px] text-text-muted">Failed jobs can be rerun individually from a new run.</p>
       )}
       {log && (
         <details className="rounded-lg border border-border-subtle bg-surface px-3 py-2">
-          <summary className="cursor-pointer text-[11px] text-text-muted">Engine log</summary>
-          <pre ref={logRef} className="mt-2 max-h-48 overflow-y-auto text-[11px] leading-relaxed text-text-muted">{log}</pre>
+          <summary className="cursor-pointer text-[12px] text-text-muted">Engine log</summary>
+          <pre ref={logRef} className="mt-2 max-h-48 overflow-y-auto text-[12px] leading-relaxed text-text-muted">{log}</pre>
         </details>
       )}
     </div>
@@ -1049,11 +1049,11 @@ function LeaderboardRail({ rows }: { rows: BoardRow[] }) {
       {stats.cheapest && <ArenaStatCard icon={Coins} label="Lowest cost / run" value={fmtCost(stats.cheapest.latestRun?.cost_usd_est, stats.cheapest.latestRun?.cost_basis)} badge="Lowest" badgeTone="ok" sub={stats.cheapest.parsed.model} />}
       {stats.bestValue && <ArenaStatCard icon={Award} label="Highest value" value={stats.bestValue.value!.toFixed(1)} badge="Best value" badgeTone="accent" sub={stats.bestValue.parsed.model} />}
       <div className="rounded-2xl border border-border bg-surface p-4">
-        <div className="mb-3 text-[11px] text-text-muted">Score distribution</div>
+        <div className="mb-3 text-[12px] text-text-muted">Score distribution</div>
         <ArenaBars buckets={stats.buckets} labels={["0-2", "2-4", "4-6", "6-8", "8-10"]} />
       </div>
       <div className="rounded-2xl border border-border bg-surface p-4">
-        <div className="mb-3 text-[11px] text-text-muted">Leaderboard insights</div>
+        <div className="mb-3 text-[12px] text-text-muted">Leaderboard insights</div>
         <div className="space-y-2.5">
           {stats.leader && <ArenaInsight icon={Crown} tone="accent">{stats.leader.parsed.model} leads with an arena score of {stats.leader.best?.toFixed(2)}.</ArenaInsight>}
           {stats.fastest && <ArenaInsight icon={Gauge} tone="ok">{stats.fastest.parsed.model} is the fastest on average ({fmtLatency(stats.fastest.latestRun?.ms_avg)} per question), ideal for low-latency use.</ArenaInsight>}
@@ -1190,7 +1190,7 @@ export function BenchResults({
   // the visible models. Default sort stays Intelligence.
   const [boardSort, setBoardSort] = useState<"intel" | "value" | "speed" | "cost">("intel");
   const { rankedRows, unrankedRows } = useMemo(() => {
-    // A model is "rankable" only if it produced a real judged score — meaning a
+    // A model is "rankable" only if it produced a real judged score, meaning a
     // score that is BOTH present and > 0. A model that errored/never ran shows up
     // with a null OR a 0 score, and its speed ($0) and latency (~0ms) are equally
     // bogus. Excluding it from the rankable set here keeps it off the top of
@@ -1228,7 +1228,7 @@ export function BenchResults({
   }, [modelAgg, boardSort]);
 
   // One leaderboard row. rank === null means the model produced no judged score
-  // (errored / unscored) — it renders muted, parked below the standings, and its
+  // (errored / unscored), it renders muted, parked below the standings, and its
   // speed/cost are hidden so a $0/0ms error can't masquerade as a great result.
   const renderBoardRow = (m: (typeof rankedRows)[number] | (typeof unrankedRows)[number], rank: number | null) => {
     const total = rankedRows.length;
@@ -1254,12 +1254,12 @@ export function BenchResults({
           {/* Rank */}
           <span className={`flex shrink-0 items-center justify-center rounded-full font-bold ${
             rank === null
-              ? "h-6 w-6 text-[11px] text-text-muted/50"
+              ? "h-6 w-6 text-[12px] text-text-muted/50"
               : leader
                 ? "h-8 w-8 bg-accent text-background"
                 : podium
-                  ? "h-6 w-6 border border-accent-border bg-accent-soft text-[11px] text-accent"
-                  : "h-6 w-6 text-[11px] text-text-muted"
+                  ? "h-6 w-6 border border-accent-border bg-accent-soft text-[12px] text-accent"
+                  : "h-6 w-6 text-[12px] text-text-muted"
           }`}>
             {rank === null ? "–" : leader ? <Crown className="h-4 w-4" /> : rank + 1}
           </span>
@@ -1279,15 +1279,15 @@ export function BenchResults({
               ) : null}
             </span>
           </span>
-          {/* Numeric columns — fixed widths + always rendered so every row lines
+          {/* Numeric columns, fixed widths + always rendered so every row lines
               up. Speed/cost are dashed for unranked models (can't be trusted). */}
-          <span className={`hidden w-16 shrink-0 text-right text-[11px] tabular-nums sm:block ${boardSort === "speed" && rank !== null ? "text-text-primary" : "text-text-muted"}`} title="Speed: avg latency per question (latest run)">
+          <span className={`hidden w-16 shrink-0 text-right text-[12px] tabular-nums sm:block ${boardSort === "speed" && rank !== null ? "text-text-primary" : "text-text-muted"}`} title="Speed: avg latency per question (latest run)">
             {rank !== null && m.latestRun?.ms_avg != null ? fmtLatency(m.latestRun.ms_avg) : "–"}
           </span>
-          <span className={`hidden w-20 shrink-0 text-right text-[11px] tabular-nums sm:block ${boardSort === "cost" && rank !== null ? "text-text-primary" : "text-text-muted"}`} title="Cost: est. per run (latest run)">
+          <span className={`hidden w-20 shrink-0 text-right text-[12px] tabular-nums sm:block ${boardSort === "cost" && rank !== null ? "text-text-primary" : "text-text-muted"}`} title="Cost: est. per run (latest run)">
             {rank !== null && m.latestRun?.cost_usd_est != null ? fmtCost(m.latestRun.cost_usd_est, m.latestRun.cost_basis) : "–"}
           </span>
-          <span className={`hidden w-12 shrink-0 text-right text-[11px] tabular-nums md:block ${boardSort === "value" && rank !== null ? "text-accent" : "text-text-muted"}`} title="Value: 50% intelligence · 25% speed · 25% cost">
+          <span className={`hidden w-12 shrink-0 text-right text-[12px] tabular-nums md:block ${boardSort === "value" && rank !== null ? "text-accent" : "text-text-muted"}`} title="Value: 50% intelligence · 25% speed · 25% cost">
             {m.value != null ? m.value.toFixed(1) : "–"}
           </span>
           <div className="hidden w-24 shrink-0 lg:block"><ScoreBar value={m.best} max={10} color={scoreColor((m.best ?? 0) * 10)} /></div>
@@ -1304,18 +1304,18 @@ export function BenchResults({
                   disabled={!r.scored}
                   className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
                 >
-                  <span className="w-20 shrink-0 text-[11px] text-text-muted">{r.date || "undated"}</span>
+                  <span className="w-20 shrink-0 text-[12px] text-text-muted">{r.date || "undated"}</span>
                   <span className="flex min-w-0 flex-1 items-center gap-1">
                     {r.domains.slice(0, 6).map((d) => (
-                      <span key={d} className="rounded bg-surface-warm px-1.5 py-0 text-[11px] text-text-muted">{d}</span>
+                      <span key={d} className="rounded bg-surface-warm px-1.5 py-0 text-[12px] text-text-muted">{d}</span>
                     ))}
-                    {r.domains.length > 6 && <span className="text-[11px] text-text-muted">+{r.domains.length - 6}</span>}
+                    {r.domains.length > 6 && <span className="text-[12px] text-text-muted">+{r.domains.length - 6}</span>}
                   </span>
-                  <span className="text-[11px] text-text-muted">{r.questions} q</span>
+                  <span className="text-[12px] text-text-muted">{r.questions} q</span>
                   {r.scored ? (
                     <RunDims run={r} />
                   ) : (
-                    <span className="text-[11px] text-warn">Unscored</span>
+                    <span className="text-[12px] text-warn">Unscored</span>
                   )}
                 </button>
                 {!r.scored && (
@@ -1323,7 +1323,7 @@ export function BenchResults({
                     onClick={() => void scoreNow(r)}
                     disabled={scoringRuns.has(r.run_dir)}
                     title="Score: run only the judge on the existing answers. No answers regenerated, no generation tokens spent."
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] text-background hover:bg-accent-hover disabled:opacity-50"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent px-2 py-1 text-[12px] text-background hover:bg-accent-hover disabled:opacity-50"
                   >
                     {scoringRuns.has(r.run_dir) ? <Loader2 className="h-3 w-3 animate-spin" /> : "Score"}
                   </button>
@@ -1381,7 +1381,7 @@ export function BenchResults({
             {(selectedRun?.domains.length ?? 0) > 6 && <span className="text-[12px] text-text-muted">+{(selectedRun?.domains.length ?? 0) - 6}</span>}
           </span>
           <div className="ml-auto flex items-center gap-5 text-sm">
-            <span title="Intelligence: judge score /10"><span className="font-display text-2xl font-bold text-accent">{selected.score.judge_avg?.toFixed(1) ?? "-"}</span><span className="text-[11px] text-text-muted"> /10</span></span>
+            <span title="Intelligence: judge score /10"><span className="font-display text-2xl font-bold text-accent">{selected.score.judge_avg?.toFixed(1) ?? "-"}</span><span className="text-[12px] text-text-muted"> /10</span></span>
             <span className="text-text-secondary">{selected.score.keyword_avg !== null ? Math.round(selected.score.keyword_avg) + "% kw" : ""}</span>
             <span className="inline-flex items-center gap-1 text-text-muted" title="Speed: average latency per question"><Zap className="h-3.5 w-3.5" />{fmtLatency(selectedRun?.ms_avg ?? selected.score.ms_avg)}</span>
             <span className={`inline-flex items-center gap-1 ${(selectedRun?.cost_basis ?? selected.score.cost_basis) === "local" ? "text-ok" : "text-text-muted"}`} title="Cost: estimated from token usage (free for local models)"><DollarSign className="h-3.5 w-3.5" />{fmtCost(selectedRun?.cost_usd_est ?? selected.score.cost_usd_est, selectedRun?.cost_basis ?? selected.score.cost_basis)}</span>
@@ -1390,7 +1390,7 @@ export function BenchResults({
               <button
                 onClick={() => onRerun(selectedRun)}
                 title="Rerun: same model, same domains, as a fresh run"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] text-text-muted hover:border-accent-border hover:text-accent"
               >
                 <RotateCw className="h-3 w-3" /> rerun
               </button>
@@ -1406,7 +1406,7 @@ export function BenchResults({
                 <button onClick={() => setExpandedQ(expanded ? null : q.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-warm">
                   <span className="text-text-muted">{expanded ? "▾" : "▸"}</span>
                   <span className="w-44 shrink-0 truncate text-sm text-text-primary" title={q.id}>{q.id}</span>
-                  <span className="rounded bg-surface-warm px-1.5 py-0 text-[11px] text-text-muted">{q.domain}</span>
+                  <span className="rounded bg-surface-warm px-1.5 py-0 text-[12px] text-text-muted">{q.domain}</span>
                   <div className="min-w-0 flex-1"><ScoreBar value={q.judge_score} max={10} /></div>
                   <span className="flex shrink-0 items-center gap-3 text-xs">
                     <span className="text-text-muted">{q.keyword_score !== null ? Math.round(q.keyword_score) + "%" : "-"}</span>
@@ -1471,17 +1471,17 @@ export function BenchResults({
             return (
               <div className="mb-4 overflow-hidden rounded-2xl border border-accent bg-gradient-to-br from-accent-soft/70 via-surface to-surface p-5">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-background">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-[12px] font-semibold text-background">
                     <Crown className="h-3 w-3" /> #1 Top performer
                   </span>
                   <ProviderMark vendor={top.parsed.vendor} size={26} />
                   <span className="text-[15px] font-semibold leading-snug text-text-primary">{top.parsed.model}</span>
-                  <span className="text-[11px] text-text-muted">{top.runs.length} run{top.runs.length === 1 ? "" : "s"} · {top.domains.length} domain{top.domains.length === 1 ? "" : "s"}{top.latestDate ? ` · last ${top.latestDate}` : ""}</span>
+                  <span className="text-[12px] text-text-muted">{top.runs.length} run{top.runs.length === 1 ? "" : "s"} · {top.domains.length} domain{top.domains.length === 1 ? "" : "s"}{top.latestDate ? ` · last ${top.latestDate}` : ""}</span>
                   {top.history.length >= 2 && <span className="ml-auto"><Sparkline values={top.history} width={120} height={32} /></span>}
                 </div>
                 <div className="mt-4 flex flex-wrap items-end gap-6">
                   <div>
-                    <div className="text-[11px] text-text-muted">Arena score</div>
+                    <div className="text-[12px] text-text-muted">Arena score</div>
                     <div className="flex items-baseline gap-2">
                       <span className="font-display text-[24px] font-bold leading-none text-accent">{top.best?.toFixed(2) ?? "-"}</span>
                       <span className="text-sm text-text-muted">/10</span>
@@ -1513,19 +1513,19 @@ export function BenchResults({
             return (
               <div className="mb-2 px-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] text-text-muted">Sort by</span>
+                  <span className="text-[12px] text-text-muted">Sort by</span>
                   <div className="inline-flex items-center rounded-lg border border-border-subtle bg-surface p-0.5">
                     {([["intel", "Intelligence"], ["value", "Value"], ["speed", "Speed"], ["cost", "Cost"]] as const).map(([k, label]) => (
-                      <button key={k} onClick={() => setBoardSort(k)} title={SORT_META[k].tip} className={`rounded-md px-2.5 py-1 text-[11px] transition-colors ${boardSort === k ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-text-primary"}`}>{label}</button>
+                      <button key={k} onClick={() => setBoardSort(k)} title={SORT_META[k].tip} className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${boardSort === k ? "bg-accent text-background shadow-sm" : "text-text-muted hover:bg-surface-warm hover:text-text-primary"}`}>{label}</button>
                     ))}
                   </div>
                 </div>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-text-muted">{SORT_META[boardSort].legend}</p>
+                <p className="mt-1.5 text-[12px] leading-relaxed text-text-muted">{SORT_META[boardSort].legend}</p>
               </div>
             );
           })()}
           {/* Column header - aligns with the fixed-width columns below. */}
-          <div className="mb-1 hidden items-center gap-3 px-4 text-[11px] text-text-muted/70 sm:flex">
+          <div className="mb-1 hidden items-center gap-3 px-4 text-[12px] text-text-muted/70 sm:flex">
             <span className="min-w-0 flex-1" />
             <span className="w-16 text-right">Speed</span>
             <span className="w-20 text-right">Cost</span>
@@ -1538,7 +1538,7 @@ export function BenchResults({
           </div>
           {unrankedRows.length > 0 && (
             <div className="mt-4">
-              <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] text-text-muted">
+              <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[12px] text-text-muted">
                 <AlertTriangle className="h-3 w-3 text-warn" /> Not ranked: no judged score (errored or unscored)
               </div>
               <div className="flex flex-col gap-2">
@@ -1769,7 +1769,7 @@ export function BenchmarkPanel({
 
   // ── Column ─────────────────────────────────────────────────────
   const isSel = (s: ArenaSel) => JSON.stringify(s) === JSON.stringify(sel) && (!phone || picked);
-  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft shadow-sm ring-1 ring-accent-border" : "border-l-transparent ring-1 ring-transparent hover:bg-surface-warm"}`;
+  const rowCls = (on: boolean) => `flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`;
   const groupHead = (label: string, count: number, action?: React.ReactNode) => (
     <div data-sticky-head className={`flex items-center gap-2 px-2.5 pb-1 pt-4 ${STICKY_GROUP_HEAD} ${phone ? "bg-background" : "spine-sticky-head"}`}>
       <span className="text-[15px] font-semibold text-text-primary">{label}</span>
@@ -1848,13 +1848,13 @@ export function BenchmarkPanel({
       {right && <span className="ml-auto">{right}</span>}
     </div>
   );
-  const chip = (on: boolean) => `inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[14px] transition-colors ${on ? "border-accent bg-accent-soft font-medium text-accent" : "border-border bg-surface text-text-secondary hover:border-accent-border hover:text-text-primary"}`;
+  const chip = (on: boolean) => `inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] transition-colors ${on ? "border-accent bg-accent-soft font-medium text-accent" : "border-border bg-surface text-text-secondary hover:border-accent-border hover:text-text-primary"}`;
 
   const runDetail = (
     <div data-testid="arena-run" className={`${pad} space-y-8`}>
       <div>
         <h2 className={DETAIL_TITLE}>Run a benchmark</h2>
-        <p className="mt-1 text-[15px] text-text-muted">Your questions go to each model; a judge scores every answer.</p>
+        <p className={`${META} mt-1`}>Your questions go to each model; a judge scores every answer.</p>
       </div>
 
       <section>
@@ -1871,18 +1871,18 @@ export function BenchmarkPanel({
           presets.length === 0 ? (
             <p className="text-[14px] text-text-muted">No presets yet. Choose models instead, or add a preset from the column.</p>
           ) : (
-            <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-surface">
+            <div className="divide-y divide-border-subtle">
               {presets.map((p) => {
                 const on = runPreset === p.id;
                 return (
                   <button key={p.id} type="button" role="radio" aria-checked={on} data-testid={`arena-pick-preset-${p.name}`} onClick={() => setRunPreset(p.id)}
-                    className={`flex w-full items-start gap-3 px-4 py-3 text-left ${on ? "bg-accent-soft/60" : "hover:bg-surface-warm"}`}>
+                    className={`flex w-full items-start gap-3 py-2.5 text-left ${on ? "" : "hover:bg-surface-warm/40"}`}>
                     <span className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border ${on ? "border-accent" : "border-border"}`}>
                       {on && <span className="h-2.5 w-2.5 rounded-full bg-accent" />}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-medium text-text-primary">{p.name}</span>
-                      <span className="mt-0.5 block truncate text-[13px] text-text-muted">{p.models.length === 0 ? "No models yet" : p.models.map(keyLabel).join(", ")}</span>
+                      <span className="block text-[15px] font-medium leading-snug text-text-primary">{p.name}</span>
+                      <span className="mt-0.5 block truncate text-[12px] text-text-muted" title={p.models.map(keyLabel).join(", ")}>{p.models.length === 0 ? "No models yet" : p.models.map(keyLabel).join(", ")}</span>
                     </span>
                     <span className="flex shrink-0 -space-x-1.5 pt-0.5">
                       {Array.from(new Set(p.models.map((k) => k.split(MODEL_SEP)[0]))).slice(0, 4).map((cli) => <ProviderMark key={cli} vendor={cli} size={20} />)}
@@ -1921,8 +1921,8 @@ export function BenchmarkPanel({
 
       <section>
         {stepHead(3, "Run")}
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-4 py-4">
-          <p data-testid="arena-estimate" className="min-w-0 flex-1 basis-60 text-[15px] text-text-secondary">
+        <div className="flex flex-wrap items-center gap-4">
+          <p data-testid="arena-estimate" className="min-w-0 flex-1 basis-60 text-[14px] text-text-secondary">
             {runModels.length === 0
               ? "Pick at least one model."
               : scopedQuestions.length === 0
@@ -1932,12 +1932,12 @@ export function BenchmarkPanel({
           {modelMode === "preset" && presetForRun && !initialDomain && (
             // One click from a preset: every domain, without picking any.
             <button data-testid="arena-run-all-domains" onClick={startRunAllDomains} disabled={runModels.length === 0 || activeQuestions.length === 0}
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-border px-4 text-[14px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:cursor-not-allowed disabled:opacity-40">
+              className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-text-secondary hover:text-accent disabled:cursor-not-allowed disabled:opacity-40">
               <Play className="h-4 w-4" /> Run with all domains
             </button>
           )}
           <button data-testid="arena-run-button" onClick={startRun} disabled={runModels.length === 0 || scopedQuestions.length === 0}
-            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-accent px-5 text-[14px] font-semibold text-background hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40">
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md bg-accent px-4 text-[13px] font-medium text-background hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40">
             <Play className="h-4 w-4" /> Run
           </button>
         </div>

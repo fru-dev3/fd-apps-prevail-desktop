@@ -49,8 +49,8 @@ export function VaultEncryptionCard({ vaultPath }: { vaultPath: string }) {
   if (!status) return null;
   return (
     <DesktopOnly feature="Vault encryption">
-    <div className="mb-4 rounded-lg border border-border bg-surface p-5">
-      <div className="flex items-center gap-2 text-[11px] font-bold text-text-primary">
+    <div className="mb-4 border-t border-border-subtle pt-4">
+      <div className="flex items-center gap-2 text-[14px] font-semibold text-text-primary">
         <Shield className="h-3.5 w-3.5" /> Vault encryption {status.encrypted ? "· on" : "· off"}
       </div>
       <p className="mt-2 text-xs text-text-muted">
@@ -78,16 +78,16 @@ export function VaultEncryptionCard({ vaultPath }: { vaultPath: string }) {
       </div>
       {recovery && (
         <div className="mt-3 rounded-lg border border-accent-border bg-accent-soft p-3">
-          <div className="text-[11px] font-bold text-accent">Recovery code: save this now</div>
+          <div className="text-[12px] font-bold text-accent">Recovery code: save this now</div>
           <div className="mt-1 select-all font-mono text-sm text-text-primary">{recovery}</div>
-          <div className="mt-1 text-[11px] text-text-muted">If you forget your passcode, this is the only other way to unlock your vault. It won't be shown again.</div>
+          <div className="mt-1 text-[12px] text-text-muted">If you forget your passcode, this is the only other way to unlock your vault. It won't be shown again.</div>
           <button
             onClick={() => window.location.reload()}
             className="mt-2 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-background hover:bg-accent-hover"
           >
             I saved it · Restart Prevail
           </button>
-          <span className="ml-2 text-[11px] text-text-muted">Restarting re-opens the vault through the unlock screen so every view reads it correctly.</span>
+          <span className="ml-2 text-[12px] text-text-muted">Restarting re-opens the vault through the unlock screen so every view reads it correctly.</span>
         </div>
       )}
       {note && <div className="mt-2 text-xs text-text-secondary">{note}</div>}

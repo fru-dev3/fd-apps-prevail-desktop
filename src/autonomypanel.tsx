@@ -1,4 +1,4 @@
-// Autonomy — the user-facing control surface for the autonomous-agent engine.
+// Autonomy, the user-facing control surface for the autonomous-agent engine.
 // Its whole job is "complete transparency + the ability to stop": a global
 // pause/kill brake, a pre-emptive action-policy editor (what classes of action
 // the agent may take on its own), runnable playbooks with a live, stoppable
@@ -213,7 +213,7 @@ function PlaybookRun({ playbook, onClose }: { playbook: Playbook; onClose: () =>
         )}
       </div>
 
-      <div ref={logRef} className="max-h-64 overflow-y-auto rounded-md border border-border-subtle bg-surface-warm/40 p-2 text-[11px] leading-relaxed">
+      <div ref={logRef} className="max-h-64 overflow-y-auto rounded-md border border-border-subtle bg-surface-warm/40 p-2 text-[12px] leading-relaxed">
         {steps.length === 0 ? (
           <div className="flex items-center gap-1.5 text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> starting the playbook…</div>
         ) : (
@@ -226,8 +226,8 @@ function PlaybookRun({ playbook, onClose }: { playbook: Playbook; onClose: () =>
                 </span>
                 <span className="min-w-0 flex-1 break-words text-text-secondary">
                   <span className="text-text-primary">{s.label}</span>
-                  {badge && <span className={`ml-1.5 rounded border px-1 py-px text-[11px] ${badge.cls}`}>{badge.label}</span>}
-                  {s.note && <span className="block text-[11px] text-text-muted">{s.note}</span>}
+                  {badge && <span className={`ml-1.5 rounded border px-1 py-px text-[12px] ${badge.cls}`}>{badge.label}</span>}
+                  {s.note && <span className="block text-[12px] text-text-muted">{s.note}</span>}
                 </span>
               </div>
             );
@@ -274,10 +274,10 @@ function RecentActivity({ vaultPath }: { vaultPath: string }) {
   return (
     <section>
       <div className="mb-1.5 flex items-center justify-between">
-        <div className="font-mono text-[11px] font-semibold text-text-muted">Recent agent activity</div>
+        <div className="font-mono text-[12px] font-semibold text-text-muted">Recent agent activity</div>
         <button
           onClick={() => setOnlyPlaybooks((v) => !v)}
-          className={`rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${onlyPlaybooks ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}
+          className={`rounded-md border px-2 py-0.5 text-[12px] font-medium transition-colors ${onlyPlaybooks ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}
         >
           Playbooks only
         </button>
@@ -299,13 +299,13 @@ function RecentActivity({ vaultPath }: { vaultPath: string }) {
                   {pb ? <BookText className="h-3 w-3" /> : <Activity className="h-3 w-3" />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
+                  <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
                     {e.type && <span className={pb ? "text-accent" : ""}>{titleCase(e.type.replace(/_/g, " "))}</span>}
                     <span>{relTime(e.ts)}</span>
                     {err && <span className="text-err">Failed</span>}
                   </div>
                   <div className="mt-0.5 text-[13px] leading-snug text-text-primary">{e.title}</div>
-                  {e.detail && <div className="mt-0.5 text-[11px] leading-relaxed text-text-muted">{e.detail}</div>}
+                  {e.detail && <div className="mt-0.5 text-[12px] leading-relaxed text-text-muted">{e.detail}</div>}
                 </div>
               </li>
             );
@@ -427,7 +427,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
         </div>
       )}
 
-      {/* Global brake — one master mode */}
+      {/* Global brake, one master mode */}
       <section className={`rounded-xl border p-4 ${paused ? "border-err/40 bg-err/5" : mode === "auto" ? "border-accent-border bg-accent-soft/15" : "border-border bg-surface"}`}>
         <div className="mb-3 flex items-center gap-3">
           <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${paused ? "bg-err/10 text-err" : mode === "auto" ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}>
@@ -449,7 +449,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
             <button key={m.k} onClick={() => void setMode(m.k)} disabled={busy || !status}
               className={`flex flex-col items-center rounded-md px-2 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${mode === m.k ? (m.k === "paused" ? "bg-err text-background shadow-sm" : m.k === "auto" ? "bg-accent text-background shadow-sm" : "bg-warn text-background shadow-sm") : "text-text-muted hover:text-text-secondary"}`}>
               {m.label}
-              <span className="mt-0.5 text-[11px] font-normal opacity-80">{m.hint}</span>
+              <span className="mt-0.5 text-[12px] font-normal opacity-80">{m.hint}</span>
             </button>
           ))}
         </div>
@@ -457,8 +457,8 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
 
       {/* Action policy */}
       <section>
-        <div className="mb-2 text-[11px] font-semibold text-text-muted">Action policy</div>
-        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+        <div className="mb-2 text-[12px] font-semibold text-text-muted">Action policy</div>
+        <div>
           {POLICY_ROWS.map((row, i) => {
             const Icon = row.icon;
             const value = status?.policy[row.key];
@@ -470,7 +470,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
                   <div className="text-xs text-text-muted">{row.desc}</div>
                 </div>
                 {(() => { const t = tierFor(row.key, value ?? "ask"); return (
-                  <span title="What actually happens with this setting (graduated brake)" className={`shrink-0 text-[11px] ${TIER_META[t].cls}`}>{TIER_META[t].label}</span>
+                  <span title="What actually happens with this setting (graduated brake)" className={`shrink-0 text-[12px] ${TIER_META[t].cls}`}>{TIER_META[t].label}</span>
                 ); })()}
                 <PolicySegmented value={value ?? "ask"} disabled={!status} onChange={(d) => void setPolicy(row.key, d)} />
               </div>
@@ -487,7 +487,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
           const over = spentUsd !== null && cap !== null && cap > 0 && spentUsd >= cap;
           const warn = spentUsd !== null && cap !== null && cap > 0 && spentUsd >= cap * 0.8;
           return (
-            <div className="mt-3 rounded-xl border border-border bg-surface p-4">
+            <div className="mt-3 border-t border-border-subtle pt-4">
               <div className="flex items-start gap-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-warm text-text-muted"><DollarSign className="h-4 w-4" /></span>
                 <div className="min-w-0 flex-1">
@@ -505,7 +505,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
                   type="button"
                   onClick={() => toggleNoCap(!noCap)}
                   disabled={!status}
-                  className={`shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 ${noCap ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}
+                  className={`shrink-0 rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors disabled:opacity-50 ${noCap ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:text-text-secondary"}`}
                 >
                   No cap
                 </button>
@@ -540,7 +540,7 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
                   />
                 </div>
               </div>
-              <div className="mt-1.5 text-[11px] text-text-muted">
+              <div className="mt-1.5 text-[12px] text-text-muted">
                 {noCap ? "No monthly limit. Each auto-approved spend still follows the policy above." : `Asks for approval above $${sliderVal} per month. Slider tops out at $${CAP_MAX}.`}
               </div>
             </div>
@@ -555,13 +555,13 @@ export function AutonomyPanel({ vaultPath }: { vaultPath: string }) {
           exist; the engine still runs them (and Loops can invoke one). */}
       {playbooks.length > 0 && (
       <section>
-        <div className="mb-2 text-[11px] font-semibold text-text-muted">Playbooks</div>
+        <div className="mb-2 text-[12px] font-semibold text-text-muted">Playbooks</div>
         {(
           <div className="space-y-2">
             {playbooks.map((pb) => {
               const isRunning = running?.id === pb.id;
               return (
-                <div key={pb.id} className="rounded-xl border border-border bg-surface p-3">
+                <div key={pb.id} className="border-t border-border-subtle pt-4">
                   <div className="flex items-start gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><BookText className="h-4 w-4" /></span>
                     <div className="min-w-0 flex-1">

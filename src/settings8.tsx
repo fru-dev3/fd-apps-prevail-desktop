@@ -22,7 +22,7 @@ export function AppearanceSection({ appearance }: { appearance: ReturnType<typeo
       <SettingsHeader title="Appearance" subtitle="Mode controls brightness; theme controls the accent palette and surface styling." />
 
       {/* Color Mode segmented control */}
-      <div className="mt-6 rounded-xl border border-border bg-surface p-5">
+      <div className="mt-6 border-t border-border-subtle pt-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="font-medium">Color Mode</div>
@@ -160,14 +160,14 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
     backupOn ? (
       // Schedule on the left; actions as right-aligned icon buttons (with tooltips)
       // that match the path row's icon-button style for an even, clean layout.
-      <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[10px] text-text-muted">
+      <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[12px] text-text-muted">
         {/* Editable schedule, right here: daily / weekly / monthly / every N days
             (every other day = 2, every other week = 14). */}
         <select
           value={/^custom:/.test(backupFreq) ? "custom" : backupFreq}
           onChange={(e) => setBackupFreq(e.target.value === "custom" ? `custom:${customDays}` : e.target.value)}
           title="How often automatic backups run"
-          className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-text-secondary focus:border-accent-border focus:outline-none"
+          className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[12px] text-text-secondary focus:border-accent-border focus:outline-none"
         >
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
@@ -178,7 +178,7 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
           <span className="inline-flex items-center gap-1">
             <input type="number" min={1} max={365} value={customDays}
               onChange={(e) => setBackupFreq(`custom:${Math.max(1, Math.min(365, parseInt(e.target.value, 10) || 1))}`)}
-              className="w-12 rounded border border-border bg-background px-1.5 py-0.5 text-right font-mono text-[10px] text-text-secondary focus:border-accent-border focus:outline-none" />
+              className="w-12 rounded border border-border bg-background px-1.5 py-0.5 text-right font-mono text-[12px] text-text-secondary focus:border-accent-border focus:outline-none" />
             <span>Days</span>
           </span>
         )}
@@ -194,9 +194,9 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
             <Archive className="h-3.5 w-3.5" />
           </button>
         </div>
-        {/* Where backups land — visible + changeable right here. Kept OUTSIDE the
+        {/* Where backups land, visible + changeable right here. Kept OUTSIDE the
             vault (a backup inside what it backs up is circular). */}
-        <div className="flex w-full items-center gap-1.5 text-[11px] text-text-muted">
+        <div className="flex w-full items-center gap-1.5 text-[12px] text-text-muted">
           <FolderOpen className="h-3 w-3 shrink-0" />
           <span className="min-w-0 flex-1 truncate" title={backupDir}>{backupDir || "default location"}{backupDirCustom ? "" : " · default"}</span>
           <button onClick={changeBackupDir} className="shrink-0 hover:text-accent">Change</button>
@@ -280,7 +280,7 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
       setSwitchingMode(false);
     }
   }
-  // B2-15: change the vault folder from the card icon — pick a new directory and
+  // B2-15: change the vault folder from the card icon, pick a new directory and
   // point the app at it (same path the 3-step setup uses).
   async function changeVaultPath() {
     const picked = await open({ directory: true, multiple: false, title: "Choose your vault folder" });
@@ -329,12 +329,12 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
           <div className="flex items-center gap-2">
             <ShieldCheck className={`h-4 w-4 shrink-0 ${!isDemo ? "text-warn" : "text-text-muted"}`} />
             <span className="text-sm font-semibold text-text-primary">Your vault</span>
-            {!isDemo && <span className="rounded-full bg-warn px-1.5 py-0.5 text-[11px] font-bold text-background">Active</span>}
+            {!isDemo && <span className="rounded-full bg-warn px-1.5 py-0.5 text-[12px] font-bold text-background">Active</span>}
             <span className="ml-auto"><Toggle on={!isDemo} disabled={switchingMode} onChange={(v) => { if (v) void switchToProduction(); else void switchToDemo(); }} label="Use my own vault" /></span>
           </div>
           {/* Path + an even, aligned row of icon actions: rescan, change folder, open. */}
           <div className="mt-2 flex items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-[11px] text-text-secondary" title={prodVault || "not set up yet"}>{prodVault || (isDemo ? "not set up yet - toggle on to set up" : vaultPath)}</span>
+            <span className="min-w-0 flex-1 truncate text-[12px] text-text-secondary" title={prodVault || "not set up yet"}>{prodVault || (isDemo ? "not set up yet - toggle on to set up" : vaultPath)}</span>
             <div className="flex shrink-0 items-center gap-0.5">
               <button onClick={rescanVault} disabled={rescanning} title="Rescan the workspace for the canonical structure" className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40"><RotateCw className={`h-3.5 w-3.5 ${rescanning ? "animate-spin" : ""}`} /></button>
               <button onClick={changeVaultPath} disabled={switchingMode} title="Change vault folder" className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40"><FolderOpen className="h-3.5 w-3.5" /></button>
@@ -343,13 +343,13 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
               )}
             </div>
           </div>
-          <div className="mt-1 text-[11px] leading-relaxed text-text-muted">Real data, backed up. {isDemo && !prodVault ? "Toggling on walks you through a quick 3-step setup." : "Switching to demo never touches it."}</div>
-          {rescanNote && <div className="mt-1.5 font-mono text-[10px] text-accent">{rescanNote}</div>}
+          <div className="mt-1 text-[12px] leading-relaxed text-text-muted">Real data, backed up. {isDemo && !prodVault ? "Toggling on walks you through a quick 3-step setup." : "Switching to demo never touches it."}</div>
+          {rescanNote && <div className="mt-1.5 font-mono text-[12px] text-accent">{rescanNote}</div>}
           {/* Per-vault backup toggle (active vault only). */}
           {!isDemo && (
             <div className="mt-3 border-t border-border-subtle/60 pt-2.5">
               <div className="flex items-center gap-2">
-                <span className="flex-1 text-[11px] text-text-secondary">Automatic backups</span>
+                <span className="flex-1 text-[12px] text-text-secondary">Automatic backups</span>
                 <Toggle on={backupOn} onChange={toggleBackup} label="Back up your vault" />
               </div>
               <BackupStatusLine />
@@ -360,20 +360,20 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
           <div className="flex items-center gap-2">
             <Sparkles className={`h-4 w-4 ${isDemo ? "text-accent" : "text-text-muted"}`} />
             <span className="text-sm font-semibold text-text-primary">Demo vault</span>
-            {isDemo && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-bold text-background">Active</span>}
+            {isDemo && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[12px] font-bold text-background">Active</span>}
             <span className="ml-auto"><Toggle on={isDemo} disabled={switchingMode} onChange={(v) => { if (v) void switchToDemo(); else void switchToProduction(); }} label="Explore the demo sandbox" /></span>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="min-w-0 flex-1 truncate text-[11px] text-text-secondary" title={isDemo ? vaultPath : "sample data"}>{isDemo ? vaultPath : "throwaway sample data"}</span>
+            <span className="min-w-0 flex-1 truncate text-[12px] text-text-secondary" title={isDemo ? vaultPath : "sample data"}>{isDemo ? vaultPath : "throwaway sample data"}</span>
             {isDemo && (
               <button onClick={() => void invoke("open_in_finder", { path: vaultPath }).catch(() => {})} title="Open in Finder" className="shrink-0 rounded p-1 text-text-muted hover:text-accent"><ExternalLink className="h-3.5 w-3.5" /></button>
             )}
           </div>
-          <div className="mt-0.5 text-[11px] text-text-muted">Sample data, re-seeded. Safe to explore; nothing here is your real data.</div>
+          <div className="mt-0.5 text-[12px] text-text-muted">Sample data, re-seeded. Safe to explore; nothing here is your real data.</div>
           {isDemo && (
             <div className="mt-2 border-t border-border-subtle/60 pt-2">
               <div className="flex items-center gap-2">
-                <span className="flex-1 text-[11px] text-text-muted">Automatic backups</span>
+                <span className="flex-1 text-[12px] text-text-muted">Automatic backups</span>
                 <Toggle on={backupOn} onChange={toggleBackup} label="Back up demo vault" />
               </div>
               <BackupStatusLine />
@@ -401,7 +401,7 @@ function WorkspaceSubLabel({ icon: Icon, label, desc }: { icon: LucideIcon; labe
     <div className="mb-2 mt-1 flex items-center gap-2 px-1">
       <Icon className="h-3.5 w-3.5 text-accent" />
       <h3 className="text-sm font-semibold text-text-primary">{label}</h3>
-      <span className="ml-auto text-[11px] text-text-muted">{desc}</span>
+      <span className="ml-auto text-[12px] text-text-muted">{desc}</span>
     </div>
   );
 }

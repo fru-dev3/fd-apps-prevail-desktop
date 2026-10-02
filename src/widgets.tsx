@@ -119,7 +119,7 @@ export function BridgeStatusChips() {
   const Chip = ({ Icon, label, title }: { Icon: LucideIcon; label: string; title: string }) => (
     <span
       title={title}
-      className="inline-flex items-center gap-1.5 rounded-full border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] text-ok"
+      className="inline-flex items-center gap-1.5 rounded-full border border-ok/30 bg-ok/10 px-2 py-0.5 text-[12px] text-ok"
     >
       <span className="pulse-soft inline-block h-1.5 w-1.5 rounded-full bg-ok" />
       <Icon className="h-3 w-3" />
@@ -143,9 +143,9 @@ export function InsightsDisclosure({
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 text-left">
         <span className="text-accent">{open ? "▾" : "▸"}</span>
         <Icon className="h-3 w-3 text-text-muted" />
-        <span className="text-[11px] text-text-secondary">{title}</span>
-        <span className="font-mono text-[10px] text-text-muted">· {count}</span>
-        {meta && <span className="ml-auto font-mono text-[10px] text-text-muted">{meta}</span>}
+        <span className="text-[12px] text-text-secondary">{title}</span>
+        <span className="font-mono text-[12px] text-text-muted">· {count}</span>
+        {meta && <span className="ml-auto font-mono text-[12px] text-text-muted">{meta}</span>}
       </button>
       {open && <div className="mt-2 border-l border-border-subtle/70 pl-4">{children}</div>}
     </div>
