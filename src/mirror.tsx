@@ -191,6 +191,13 @@ export function MirrorPanel({ vaultPath, title = "Insights" }: { vaultPath: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const openProject = (slug: string) => { setProjectSlug((p) => ({ slug, n: (p?.n ?? 0) + 1 })); setView("projects"); };
+  // Another page asks for one view (For You opens Metrics > Your year).
+  useEffect(() => {
+    const take = (e: Event) => { const v = (e as CustomEvent<string>).detail; if (v === "metrics" || v === "history" || v === "projects" || v === "entities" || v === "capture" || v === "noticed") setView(v); };
+    window.addEventListener("prevail:insights-view", take);
+    return () => window.removeEventListener("prevail:insights-view", take);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const take = (e: Event) => {
       const slug = (e as CustomEvent<string>).detail;

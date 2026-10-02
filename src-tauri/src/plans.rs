@@ -250,6 +250,91 @@ pub(crate) async fn engine_playbook_trigger(vault: String, id: String, domain: S
     blocking(a).await
 }
 
+// ── Goals G4: initiatives (the plan's paths) ──
+
+/// A goal's initiatives: the Compass lines, the weekly check and what was left out.
+#[tauri::command]
+pub(crate) async fn engine_initiatives(vault: String, goal: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "paths", ok_playbook(&goal)?, "--json"])).await
+}
+
+/// Propose initiatives for a goal (one model call, then the code screen). Takes a minute or two.
+#[tauri::command]
+pub(crate) async fn engine_initiatives_generate(vault: String, goal: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "paths", ok_playbook(&goal)?, "--generate", "--json"])).await
+}
+
+/// Choose an initiative (or try it as a trial): commit date, expectations, its playbooks installed.
+#[tauri::command]
+pub(crate) async fn engine_initiative_choose(vault: String, id: String, until: Option<String>, trial: Option<bool>) -> Result<serde_json::Value, String> {
+    let act = if trial == Some(true) { "trial" } else { "choose" };
+    let mut a = v(&["--vault", &vault, "compass", "path", act, ok_playbook(&id)?, "--json"]);
+    if let Some(u) = until.filter(|u| !u.is_empty()) {
+        if u.len() != 10 || !u.chars().all(|c| c.is_ascii_digit() || c == '-') { return Err("until is YYYY-MM-DD".into()); }
+        a.push("--until".into()); a.push(u);
+    }
+    blocking(a).await
+}
+
+/// Retire (or turn down) an initiative, with the reason; its loops stop.
+#[tauri::command]
+pub(crate) async fn engine_initiative_retire(vault: String, id: String, because: String) -> Result<serde_json::Value, String> {
+    let b: String = because.chars().filter(|c| !c.is_control()).take(200).collect();
+    if b.trim().is_empty() || b.starts_with('-') { return Err("a reason is needed".into()); }
+    blocking(vec!["--vault".into(), vault, "compass".into(), "path".into(), "retire".into(), ok_playbook(&id)?.to_string(), "--because".into(), b, "--json".into()]).await
+}
+
+/// The quarterly initiative review (keep, switch or drop), written as a page in General.
+#[tauri::command]
+pub(crate) async fn engine_initiatives_review(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "paths", "review", "--json"])).await
+}
+
+// ── Metrics M5: stories and experiments ──
+
+fn ok_period(p: &str, len: usize) -> Result<&str, String> {
+    if p.len() == len && p.chars().all(|c| c.is_ascii_digit() || c == '-') { Ok(p) } else { Err(format!("invalid period: {p}")) }
+}
+
+/// Your Year, a month's recap, the patterns across metrics, or the experiments.
+#[tauri::command]
+pub(crate) async fn engine_story(vault: String, kind: String, period: Option<String>) -> Result<serde_json::Value, String> {
+    let k = one_of(&kind, &["year", "recap", "patterns", "experiments"])?.to_string();
+    let mut a = v(&["--vault", &vault, "metrics", &k, "--json"]);
+    if let Some(p) = period.filter(|p| !p.is_empty()) {
+        if k == "year" { a.push("--year".into()); a.push(ok_period(&p, 4)?.to_string()); }
+        if k == "recap" { a.push("--month".into()); a.push(ok_period(&p, 7)?.to_string()); }
+    }
+    blocking(a).await
+}
+
+/// Write Your Year (one self-contained page) or a month's recap into General's reviews.
+#[tauri::command]
+pub(crate) async fn engine_story_write(vault: String, kind: String, period: Option<String>) -> Result<serde_json::Value, String> {
+    let k = one_of(&kind, &["year", "recap"])?.to_string();
+    let mut a = v(&["--vault", &vault, "metrics", &k, "--write", "--json"]);
+    if let Some(p) = period.filter(|p| !p.is_empty()) {
+        if k == "year" { a.push("--year".into()); a.push(ok_period(&p, 4)?.to_string()); } else { a.push("--month".into()); a.push(ok_period(&p, 7)?.to_string()); }
+    }
+    blocking(a).await
+}
+
+/// An n-of-1 experiment: propose one from a pattern, start, stop or score it.
+#[tauri::command]
+pub(crate) async fn engine_experiment(vault: String, action: String, id: Option<String>, key: Option<String>) -> Result<serde_json::Value, String> {
+    let act = one_of(&action, &["propose", "start", "stop", "score"])?.to_string();
+    let mut a = v(&["--vault", &vault, "metrics", "experiment", &act]);
+    if act == "propose" {
+        let k = key.unwrap_or_default();
+        if k.is_empty() || k.len() > 120 || !k.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '>' | '@')) { return Err("invalid pattern key".into()); }
+        a.push(k);
+    } else {
+        a.push(ok_playbook(&id.unwrap_or_default())?.to_string());
+    }
+    a.push("--json".into());
+    blocking(a).await
+}
+
 /// Playbook ids and domain slugs: a plain slug, nothing else.
 fn ok_playbook(s: &str) -> Result<&str, String> {
     let mut c = s.chars();

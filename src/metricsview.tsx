@@ -6,14 +6,22 @@
 //   families   small multiples with 12-week sparklines and the normal band
 //   Rhythm     one dot per prompt or commit, time of day by date
 //   Sources    what each number is read from, and its caveats
-import { useMemo, useState } from "react";
-import { Activity, BookOpen, CalendarRange, Check, Cpu, Database, Lightbulb, Map as MapIcon, Pencil, Sparkles, TrendingUp, Wallet, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Activity, BookOpen, CalendarDays, CalendarRange, Check, PartyPopper, Cpu, Database, Lightbulb, Map as MapIcon, Pencil, Sparkles, TrendingUp, Wallet, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import type { MetricProposal } from "./plansmodel";
 import { SideSpine } from "./sidespine";
 import { SourcesConsent } from "./sourcesview";
 import { PatternsView } from "./patternsview";
+import { MonthRecapView, YourYearView } from "./storiesview";
+
+/** Open Insights > Metrics on one view ("year", "month"...). */
+export const METRICS_FOCUS_KEY = "prevail.metrics.focus";
+export const METRICS_FOCUS_EVENT = "prevail:metrics-focus";
+function takeMetricsFocus(): "year" | "month" | null {
+  try { const f = localStorage.getItem(METRICS_FOCUS_KEY); localStorage.removeItem(METRICS_FOCUS_KEY); return f === "year" || f === "month" ? f : null; } catch { return null; }
+}
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 
 export interface Normal { median: number; lo: number; hi: number; weeks: number; learning: boolean; learningWeeksLeft: number }
@@ -147,7 +155,7 @@ export function RhythmPlot({ dots, days = 30, end }: { dots: Dot[]; days?: numbe
   );
 }
 
-type Sel = "week" | "rhythm" | "sources" | "proposals" | "changes" | "patterns" | `family:${string}`;
+type Sel = "week" | "rhythm" | "sources" | "proposals" | "changes" | "patterns" | `family:${string}` | "year" | "month";
 interface Insight { key: string; week: string; metric: string; title: string; text: string; direction: "up" | "down"; files: string[] }
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -194,8 +202,14 @@ export function ProposalCard({ p, vaultPath, onAnswered }: { p: MetricProposal; 
 }
 
 export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: boolean }) {
-  const [sel, setSel] = useState<Sel>("week");
+  const [sel, setSel] = useState<Sel>(() => takeMetricsFocus() ?? "week");
   const [picked, setPicked] = useState(false);
+  // Another page (For You, the weekly card) can open Your year or a month here.
+  useEffect(() => {
+    const on = () => { const f = takeMetricsFocus(); if (f) { setSel(f); setPicked(true); } };
+    window.addEventListener(METRICS_FOCUS_EVENT, on);
+    return () => window.removeEventListener(METRICS_FOCUS_EVENT, on);
+  }, []);
   const glanceQ = useInvokeQuery<Glance>("engine_metrics", { vault: vaultPath, view: "glance", week: null }, { staleMs: 10 * 60_000 });
   const listQ = useInvokeQuery<MetricItem[]>("engine_metrics", { vault: vaultPath, view: "list", week: null }, { staleMs: 10 * 60_000 });
   const rhythmQ = useInvokeQuery<Dot[]>("engine_metrics", sel === "rhythm" ? { vault: vaultPath, view: "rhythm", week: null } : null, { staleMs: 10 * 60_000 });
@@ -222,6 +236,8 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
   const column = (
     <nav className="space-y-0.5 p-2" aria-label="Metrics">
       {row("week", "This week", CalendarRange, g ? `Week of ${weekLabel(g.week)}` : undefined)}
+      {row("month", "This month", CalendarDays, "The month in short")}
+      {row("year", "Your year", PartyPopper, "The year as a story")}
       <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Families</div>
       {families.map((f) => row(`family:${f}`, f, FAMILY_ICON[f] ?? Activity, undefined, list.filter((m) => m.family === f).length))}
       {row("proposals", "Proposals", Lightbulb, "Metrics to track, from what you said", props.length)}
@@ -285,6 +301,10 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
     );
   } else if (sel === "patterns") {
     detail = <PatternsView vaultPath={vaultPath} />;
+  } else if (sel === "year") {
+    detail = <YourYearView vaultPath={vaultPath} />;
+  } else if (sel === "month") {
+    detail = <MonthRecapView vaultPath={vaultPath} />;
   } else if (sel === "rhythm") {
     const dots = Array.isArray(rhythmQ.data) ? rhythmQ.data : [];
     const end = g?.through ?? new Date().toISOString().slice(0, 10);

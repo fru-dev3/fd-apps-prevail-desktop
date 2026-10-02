@@ -9,6 +9,7 @@ import { invalidateQueries, useInvokeQuery } from "./query";
 import { toast } from "./toast";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import { seasonLine, type LagTest, type Proxy, type Season, type ThemeTrend } from "./qualmodel";
+import { PatternsAndExperiments } from "./storiesview";
 
 const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
 
@@ -44,6 +45,8 @@ export function PatternsView({ vaultPath }: { vaultPath: string }) {
         </li>
       ))}</ul>
       {!arr(lags.data).length && <p className={`${BODY} mt-2 text-text-muted`}>No pairs to test yet.</p>}
+
+      <PatternsAndExperiments vaultPath={vaultPath} />
 
       <h3 className={`${SECTION_TITLE} mt-6`}>Signals for how you feel</h3>
       <p className={`${META} mt-1`}>A passive signal is shown only once it predicts your own weekly check-ins.</p>

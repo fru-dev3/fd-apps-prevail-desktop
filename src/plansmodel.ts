@@ -59,6 +59,11 @@ export interface ReviewCard {
   radar?: { key: string; kind: string; text: string; evidence: string; due?: string }[];
   /** Missions MS4: one line per active mission. */
   missions?: string[];
+  /** Goals G4: each chosen initiative against its expectations; the quarterly review when owed. */
+  initiatives?: { id: string; title: string; state: string; explanation: string; proposal: string }[];
+  quarterly?: boolean;
+  /** Metrics M5: the running experiment's arm this week. */
+  experiment?: { id: string; arm: "A" | "B"; text: string } | null;
 }
 
 export interface MetricProposal {

@@ -298,6 +298,21 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
           <ul>{card.missions.map((m) => <li key={m} className="break-words py-1 text-[15px] text-text-secondary">{m}</li>)}</ul>
         </div>
       )}
+      {((card.initiatives ?? []).some((x) => x.state === "missing" || x.state === "stop") || card.quarterly || card.experiment) && (
+        <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-initiatives">
+          <h3 className="text-[15px] font-semibold text-text-primary">Initiatives</h3>
+          <ul>
+            {(card.initiatives ?? []).filter((x) => x.state === "missing" || x.state === "stop").map((x) => (
+              <li key={x.id} className="py-1">
+                <p className="line-clamp-2 text-[15px] font-medium text-text-primary" title={x.explanation}>{x.title}</p>
+                <p className={`${META} mt-0.5 line-clamp-2`}>{x.proposal}</p>
+              </li>
+            ))}
+            {card.quarterly && <li className={`${META} py-1`}>The quarterly review is due: keep, switch or drop each initiative.</li>}
+            {card.experiment && <li className="py-1 text-[15px] text-text-secondary" data-testid="review-experiment">Experiment: {card.experiment.text}</li>}
+          </ul>
+        </div>
+      )}
       {card.radar && card.radar.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-radar">
           <h3 className="text-[15px] font-semibold text-text-primary">Falling behind</h3>

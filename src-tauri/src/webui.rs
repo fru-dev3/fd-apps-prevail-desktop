@@ -156,6 +156,10 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_missions_list", "engine_missions_show", "engine_missions_progress",
     // Playbooks are read on the phone; running, saving and adopting stay on the Mac.
     "engine_playbook_rows", "engine_playbook_show", "engine_playbook_inbox",
+    // A goal's initiatives are read on the phone; proposing, choosing and retiring stay on the Mac.
+    "engine_initiatives",
+    // Stories (Your Year, a month's recap, patterns, experiments) are read on the phone; writing pages and experiments stay on the Mac.
+    "engine_story",
     // The stack and the sources are read on the phone; probes, answers,
     // mapping, consent and syncs stay on the Mac.
     "engine_apps_stack", "engine_apps_unknown", "engine_sources",
@@ -1571,6 +1575,8 @@ mod tests {
             "engine_missions_closeout_apply", "engine_missions_undo",
             "engine_playbook_save", "engine_playbook_adopt", "engine_playbook_run",
             "engine_job_act", "engine_playbook_seen", "engine_playbook_trigger",
+            "engine_initiatives_generate", "engine_initiative_choose", "engine_initiative_retire", "engine_initiatives_review",
+            "engine_story_write", "engine_experiment",
             "engine_schedule_thread_add", "engine_schedule_set_enabled", "engine_schedule_remove",
             "engine_schedule_run",
             "engine_agent_run", "read_file", "read_text_file",

@@ -6,6 +6,7 @@
 // column. "Start here" is the top five.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FilingCard } from "./filingplan";
+import { YearLine } from "./yearline";
 import {
   ArrowRight, ArrowUpRight, BarChart3, Bookmark, Check, ChevronDown, ClipboardCopy, Compass, Flag, FolderKanban,
   EyeOff, Gauge, LayoutList, Shapes, Lightbulb, ListTodo, Loader2, Play, Plug, RotateCcw, RotateCw, ScrollText, Sparkles, Users, X,
@@ -317,7 +318,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
       </span>
     </div>
   );
-  const detail = <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}><FilingCard vaultPath={vaultPath} />{toolbar}{body}</div>;
+  const detail = <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{sel === "all" && <YearLine vaultPath={vaultPath} />}<FilingCard vaultPath={vaultPath} />{toolbar}{body}</div>;
   // When it last learned, and Learn now: under the column title, never a
   // lone button in the page header.
   const learned = isLearning ? "Learning now" : daemon?.last_run_ts ? `Learned ${relTime(daemon.last_run_ts * 1000)}` : "Not learned yet";

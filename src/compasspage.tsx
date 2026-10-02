@@ -24,14 +24,13 @@ import { IdealsSection } from "./idealspage";
 import { useChiefOfStaff } from "./chiefofstaff";
 import { MattersLived } from "./livedbars";
 import { AlignNeedsYou, AlignRules, SaidVsDid } from "./alignpanel";
-import { openMission } from "./missions";
+import { Initiatives } from "./initiatives";
 
 type View = "compass" | "goals" | "ideals";
 type Sel = "overview" | "mission" | "values" | "roles" | "goals" | "rules" | "routines" | "history";
 export const COMPASS_FOCUS_KEY = "prevail.compass.focus";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
-const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
 
 function readFocus(): { view: View; row: string | null } {
   try {
@@ -148,7 +147,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   );
 
   const actions = (x: { id: string; title: string; tokens: Record<string, string> }) => isProposed(x) ? (
-    <span className="flex shrink-0 items-center gap-0.5">
+    <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
       <button onClick={() => void confirmIds([x.id])} disabled={!!busy} title="Confirm" aria-label={`Confirm ${x.title}`} data-testid="compass-confirm" className={iconBtn}><Check className="h-4 w-4" /></button>
       <button onClick={() => void dropIds([x.id])} disabled={!!busy} title="Not mine" aria-label={`Drop ${x.title}`} data-testid="compass-drop" className={`${iconBtn} hover:text-warn`}><X className="h-4 w-4" /></button>
     </span>
@@ -168,11 +167,6 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   };
   const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9$%+]+/g, " ").trim();
 
-  const startMission = async (pathId: string) => {
-    setBusy(`m:${pathId}`);
-    try { const m = await invoke<{ slug?: string }>("engine_missions_from_path", { vault: vaultPath, path: pathId }); await load(); if (m?.slug) openMission(m.slug); }
-    catch (e) { setErr(String(e)); } finally { setBusy(null); }
-  };
   const itemRow = (it: CompassItem, lead?: string) => {
     const words = fieldOf(it, "words");
     const from = fieldOf(it, "from");
@@ -180,12 +174,12 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     for (const k of ["enough", "hope", "fear", "why", "trade", "outcome", "obstacle", "plan"]) { const v = fieldOf(it, k); if (v) extra.push([k, v]); }
     const serves = (it.tokens.serves ?? "").split(",").map((id) => valueTitle.get(id)).filter(Boolean) as string[];
     return (
-      <li key={it.id} data-testid="compass-item" data-id={it.id} className="flex items-start gap-3 border-b border-border-subtle py-3 last:border-b-0">
-        {lead && <span className="w-6 shrink-0 pt-0.5 text-right text-[15px] font-semibold tabular-nums text-accent">{lead}</span>}
+      <li key={it.id} data-testid="compass-item" data-id={it.id} className="group flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
+        {lead && <span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-text-muted">{lead}</span>}
         <div className="min-w-0 flex-1">
-          <p className="text-[16px] font-semibold leading-snug text-text-primary">{it.title}</p>
+          <p className="text-[15px] font-medium leading-snug text-text-primary">{it.title}</p>
           {words && norm(words) !== norm(it.title) && (
-            <p className={`${BODY} mt-1 border-l-2 border-border pl-3 italic text-text-secondary`}>{words}</p>
+            <p className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-text-secondary">{words}</p>
           )}
           {extra.map(([k, v]) => <p key={k} className={`${BODY} mt-0.5 text-text-secondary`}><span className="text-text-muted">{titleCase(k)}: </span>{v}</p>)}
           {(() => {
@@ -205,21 +199,9 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
               </p>
             ) : null;
           })()}
-          {it.paths.length > 0 && (
+          {it.kind === "goal" && !isProposed(it) ? <Initiatives goalId={it.id} vaultPath={vaultPath} values={valueTitle} /> : it.paths.length > 0 && (
             <ul className="mt-2 border-l-2 border-border-subtle pl-3" data-testid="compass-paths">
-              {it.paths.map((p) => {
-                const mission = p.fields.find((f) => f.key === "mission")?.value;
-                const pst = p.tokens.status ?? "proposed";
-                return (
-                  <li key={p.id} className="flex flex-wrap items-center gap-2 py-1">
-                    <span className="min-w-0 break-words text-[14px] text-text-secondary">{p.title}</span>
-                    <span className={chip}>{titleCase(pst)}</span>
-                    {mission ? <button onClick={() => openMission(mission)} className={`${chip} hover:text-accent`} data-testid="compass-path-mission">Mission {titleCase(mission)}</button>
-                      : pst === "chosen" ? <button onClick={() => void startMission(p.id)} disabled={!!busy} title="Start a mission for this path" aria-label={`Start a mission for ${p.title}`} data-testid="compass-path-start"
-                        className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] text-text-muted hover:bg-surface-warm hover:text-accent disabled:opacity-40">{busy === `m:${p.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}Start a mission</button> : null}
-                  </li>
-                );
-              })}
+              {it.paths.map((p) => <li key={p.id} className="py-1 text-[14px] text-text-secondary">{p.title}</li>)}
             </ul>
           )}
         </div>
@@ -256,13 +238,12 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
         </div>
       )}
       {proposed > 0 && (
-        <div className="mt-6 max-w-2xl rounded-lg border border-accent-border bg-accent-soft/40 p-4" data-testid="compass-needs-you">
-          <h3 className={SECTION_TITLE}>Needs you</h3>
-          <p className={`${BODY} mt-1 text-text-secondary`}>{proposed} {proposed === 1 ? "line was" : "lines were"} drafted from your notes. Each keeps your words and where they came from. Confirm the ones that are yours; drop the rest.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-border-subtle py-3" data-testid="compass-needs-you">
+          <p className="min-w-0 flex-1 text-[14px] text-text-secondary"><span className="font-medium text-text-primary">{proposed} {proposed === 1 ? "line" : "lines"} drafted from your notes</span> wait for you. Confirm what is yours, drop the rest.</p>
+          <span className="flex shrink-0 items-center gap-2">
             {confirmAll}
-            <button onClick={() => choose("values")} className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:text-accent">Review one by one</button>
-          </div>
+            <button onClick={() => choose("values")} className="inline-flex h-8 items-center rounded-md px-2.5 text-[13px] text-text-secondary hover:bg-surface-warm hover:text-accent">Review one by one</button>
+          </span>
         </div>
       )}
       {!empty && text !== null && <AlignNeedsYou vaultPath={vaultPath} />}
