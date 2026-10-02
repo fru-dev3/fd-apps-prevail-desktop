@@ -12,6 +12,7 @@ import { Markdown } from "./Markdown";
 import { REVEAL, RowMenu } from "./ui";
 import { ROW_TITLE } from "./typescale";
 import { LS, lsGet } from "./storage";
+import { SpecialistAvatar } from "./specialistavatar";
 import { ACTION_STATUS_LABEL, compassChips, elapsed, jobStatusLabel, label, openPlaybook, RULE_STATE_LABEL, scopeLabel, stepState, type Job, type JobView, type OperatorAction } from "./plansmodel";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -78,7 +79,7 @@ export function JobCard({ id, vaultPath, embedded = false }: { id: string; vault
           <Row k="Team">
             <span className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">{job.team.flatMap((s) => s.specialists.map((sp) => {
               const st = stepState(job, sp, v.steps);
-              return <span key={`${s.step}-${sp}`} data-testid="job-team-chip" data-state={st} title={s.gate ? "A gate: the job stops here if it does not pass" : undefined} className={`inline-flex items-center gap-1 ${STATE_TEXT[st]}`}>{st === "now" && <Loader2 className="h-3 w-3 animate-spin" />}{st === "done" && <Check className="h-3 w-3 text-text-muted" />}{label(sp)}{s.gate ? " (gate)" : ""}</span>;
+              return <span key={`${s.step}-${sp}`} data-testid="job-team-chip" data-state={st} title={s.gate ? "A gate: the job stops here if it does not pass" : undefined} className={`inline-flex items-center gap-1.5 ${STATE_TEXT[st]}`}><SpecialistAvatar id={sp} size={20} state={st === "now" ? "working" : st === "next" ? "off" : "idle"} />{label(sp)}{s.gate ? " (gate)" : ""}{st === "done" && <Check className="h-3 w-3 text-text-muted" aria-label="done" />}</span>;
             }))}</span>
           </Row>
           <Row k="Effort">{label(job.effort)}, up to ${job.budget.usd} and {job.budget.minutes} minutes</Row>
@@ -256,7 +257,7 @@ function AdjustPanel({ job, vault, onSaved }: { job: Job; vault: string; onSaved
       <Row k="Team">
         <span className="flex flex-wrap items-center gap-1.5">
           {team.flatMap((s, i) => s.map((sp) => (
-            <span key={`${i}-${sp}`} className={`${chipBase} border-border text-text-secondary`}>{label(sp)}
+            <span key={`${i}-${sp}`} className={`${chipBase} border-border pl-1 text-text-secondary`}><SpecialistAvatar id={sp} size={16} />{label(sp)}
               <button onClick={() => setTeam((t) => t.map((x, j) => (j === i ? x.filter((y) => y !== sp) : x)))} aria-label={`Remove ${label(sp)}`}><X className="h-3 w-3" /></button>
             </span>
           )))}

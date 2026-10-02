@@ -6,13 +6,14 @@
 // this page only frames it. On a phone: tabs, then the list, then the item.
 // Results (Specialists Phase 3): playbook runs the user did not start (a
 // loop's clock, a radar event) wait here until marked seen.
+import { SpecialistAvatar } from "./specialistavatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bot, CalendarDays, CheckCheck, Inbox, Mail, Play, Repeat, ShieldAlert, Sun, Workflow, type LucideIcon } from "lucide-react";
 import { Briefing } from "./todaycard";
 import { DecisionInbox, type InboxCategory, type InboxRow } from "./decisioninbox";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
-import { openPlaybook, scopeLabel, type InboxResult } from "./plansmodel";
+import { label, openPlaybook, scopeLabel, type InboxResult } from "./plansmodel";
 import { BODY, DETAIL_TITLE, META } from "./typescale";
 import { relTime } from "./format";
 import { SettingsHeader } from "./sectionutil";
@@ -154,6 +155,7 @@ function ResultDetail({ r, vaultPath, onSeen }: { r: InboxResult; vaultPath: str
         {r.steps.map((x, i) => (
           <li key={i} className="flex items-start gap-3 border-b border-border-subtle py-2 last:border-b-0">
             <span className={`${META} w-5 shrink-0 pt-px text-right tabular-nums`}>{i + 1}</span>
+            {x.specialists?.length ? <span className="flex shrink-0 -space-x-1.5" data-testid="inbox-step-team" title={x.specialists.map(label).join(", ")}>{x.specialists.map((id) => <SpecialistAvatar key={id} id={id} size={22} className="rounded-full ring-2 ring-background" />)}</span> : null}
             <span className="min-w-0 flex-1">
               <span className={`${BODY} block break-words text-text-primary`}>{x.label}</span>
               <span className={`${META} block break-words`}>{x.decision === "ask" ? "Waits for your yes: " : x.ok ? "" : "Did not run: "}{x.note}</span>

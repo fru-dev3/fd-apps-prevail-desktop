@@ -6,8 +6,10 @@
 //   Off         the rest of the roster, coming in later phases
 // A specialist's detail: what it is for, how it works, its ceiling, budget
 // and tools, its notebooks per domain, and the jobs it worked on.
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Archive, BadgeCheck, BookOpen, Briefcase, Check, ChevronRight, ChartColumn, CircleDashed, Clock, Compass, FileText, FolderInput, Globe, Hammer, Hand, History, Hourglass, ListOrdered, Loader2, MessagesSquare, PenLine, Pencil, Plus, Radar, RotateCcw, Scale, Search, Settings2, ShieldQuestion, Sprout, UserCog, Wrench } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ChiefAvatar, SpecialistAvatar, useWorkingSpecialists } from "./specialistavatar";
+import { dropSpecialist, startPillDrag } from "./dragref";
+import { AlertTriangle, Archive, BookOpen, Briefcase, Check, ChevronRight, Clock, Globe, Hourglass, Loader2, Pencil, Plus, RotateCcw, Search, UserCog } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { SettingsHeader } from "./sectionutil";
@@ -21,7 +23,6 @@ import { useChiefOfStaff } from "./chiefofstaff";
 import { CEILINGS, CEILING_LABEL, CEILING_SAYS, FAMILY_LABEL, HANDOFF_LABEL, RUNTIME_LABEL, SPECIALIST_TOOLS, ceilingRank, draftOf, editOf, jobGroups, jobStatusLabel, jobTone, label, loosens, scopeLabel, toolLabel, type Job, type Specialist, type SpecialistDraft } from "./plansmodel";
 
 export const SPECIALISTS_FOCUS_KEY = "prevail.specialists.focus";
-const ICON: Record<string, typeof Search> = { search: Search, compass: Compass, "list-ordered": ListOrdered, scale: Scale, "file-text": FileText, "pen-line": PenLine, "chart-column": ChartColumn, history: History, radar: Radar, "badge-check": BadgeCheck, hammer: Hammer, "folder-input": FolderInput, hand: Hand, sprout: Sprout, "shield-question": ShieldQuestion, "messages-square": MessagesSquare, wrench: Wrench };
 const input = "h-9 w-full max-w-sm rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary";
 
 type Sel = "jobs:running" | "jobs:waiting" | "jobs:done" | "setup" | `spec:${string}`;
@@ -46,14 +47,19 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   const jobs = useMemo(() => (Array.isArray(jobsQ.data) ? jobsQ.data : []), [jobsQ.data]);
   const groups = jobGroups(jobs);
   const on = specs.filter((s) => s.on);
+  const working = useWorkingSpecialists(vaultPath);
+  const chief = useChiefOfStaff(vaultPath);
   const off = specs.filter((s) => !s.on);
   const [offOpen, setOffOpen] = useState(false);
   const choose = (s: Sel) => { setSel(s); setPicked(true); };
   const isOn = (s: Sel) => sel === s && (!phone || picked);
-  const row = (s: Sel, text: string, Icon: typeof Search, count?: number, sub?: string) => (
+  const icon = (s: Sel, I: typeof Search) => <I className={`h-4 w-4 shrink-0 ${isOn(s) ? "text-accent" : "text-text-muted"}`} />;
+  const row = (s: Sel, text: string, lead: ReactNode, count?: number, sub?: string, drag?: string) => (
     <button key={s} data-testid={`specialists-row-${s}`} aria-current={isOn(s) ? "true" : undefined} onClick={() => choose(s)}
+      onMouseDown={drag ? (e) => startPillDrag(e, `@${drag}`, (ev) => { dropSpecialist(ev, drag); }) : undefined}
+      title={drag ? `${text}: drag into a chat, or onto Home, a domain or a mission in the sidebar, to hand it a message` : undefined}
       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${isOn(s) ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-      <Icon className={`h-4 w-4 shrink-0 ${isOn(s) ? "text-accent" : "text-text-muted"}`} />
+      {lead}
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-[14px] ${isOn(s) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{text}</span>
         {sub && <span className="block truncate text-[12px] text-text-muted">{sub}</span>}
@@ -66,20 +72,20 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   const column = (
     <nav className="space-y-0.5 p-2" aria-label="Specialists">
       {head("Jobs")}
-      {row("jobs:running", "Running", Clock, groups.running.length)}
-      {row("jobs:waiting", "Waiting on you", Hourglass, groups.waiting.length)}
-      {row("jobs:done", "Done", Briefcase, groups.done.length)}
-      {row("setup", "Chief of staff", Settings2, undefined, "Name, limits, handoff")}
+      {row("jobs:running", "Running", icon("jobs:running", Clock), groups.running.length)}
+      {row("jobs:waiting", "Waiting on you", icon("jobs:waiting", Hourglass), groups.waiting.length)}
+      {row("jobs:done", "Done", icon("jobs:done", Briefcase), groups.done.length)}
+      {row("setup", chief ?? "Chief of staff", <ChiefAvatar size={24} />, undefined, chief ? "Your chief of staff" : "Name, limits, handoff")}
       {families.map((f) => (
         <div key={f}>
           {head(FAMILY_LABEL[f])}
-          {on.filter((s) => s.family === f).map((s) => row(`spec:${s.id}`, s.name, ICON[s.icon] ?? UserCog, undefined, `Returns ${s.returns}`))}
+          {on.filter((s) => s.family === f).map((s) => row(`spec:${s.id}`, s.name, <SpecialistAvatar id={s.id} size={24} state={working.has(s.id) ? "working" : "idle"} />, undefined, `Returns ${s.returns}`, s.name))}
         </div>
       ))}
       {off.length > 0 && (
         <>
           <button onClick={() => setOffOpen((v) => !v)} aria-expanded={offOpen} className="w-full px-2.5 pb-1 pt-3 text-left text-[13px] font-semibold text-text-secondary hover:text-accent">Off ({off.length})</button>
-          {offOpen && off.map((s) => row(`spec:${s.id}`, s.name, CircleDashed, undefined, "Coming later"))}
+          {offOpen && off.map((s) => row(`spec:${s.id}`, s.name, <SpecialistAvatar id={s.id} size={24} state="off" />, undefined, "Coming later"))}
         </>
       )}
     </nav>
@@ -160,7 +166,6 @@ function SpecialistDetail({ s, vaultPath, jobs }: { s: Specialist; vaultPath: st
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => { setEditing(false); setMsg(null); }, [s.id]);
-  const Icon = ICON[s.icon] ?? UserCog;
   const refresh = async () => { invalidateQueries("engine_specialists"); invalidateQueries("engine_specialist_show"); await show.refresh(); };
   const reset = async () => {
     setMsg(null);
@@ -180,7 +185,7 @@ function SpecialistDetail({ s, vaultPath, jobs }: { s: Specialist; vaultPath: st
   return (
     <section data-testid="specialist-detail" data-id={s.id} className="max-w-3xl">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon className="h-[18px] w-[18px]" /></span>
+        <SpecialistAvatar id={s.id} size={52} state={!s.on ? "off" : jobs.some((j) => j.status === "running") ? "working" : "idle"} label={s.name} className="-mt-1" />
         <div className="min-w-0 flex-1">
           <h2 className={DETAIL_TITLE}>{s.name}</h2>
           <p className={`${META} mt-0.5`}>{FAMILY_LABEL[s.family]} · Returns {s.returns}{s.source ? " · Your version" : ""}{!s.on ? " · Off, coming later" : ""}</p>
@@ -453,7 +458,10 @@ function ChiefSetup({ vaultPath }: { vaultPath: string }) {
   );
   return (
     <section data-testid="chief-setup" className="max-w-3xl">
-      <h2 className={DETAIL_TITLE}>{name ?? "Your chief of staff"}</h2>
+      <div className="flex items-center gap-3">
+        <ChiefAvatar size={52} label={name ?? "Your chief of staff"} />
+        <h2 className={DETAIL_TITLE}>{name ?? "Your chief of staff"}</h2>
+      </div>
       <p className={`${BODY} mt-2 text-text-secondary`}>The one you talk to. They answer, or staff a job with specialists and run it within your limits.</p>
       {field("name", "Name", doc.name ?? "", "Shown on the Home row and in every chat.")}
       <div className="mt-4">

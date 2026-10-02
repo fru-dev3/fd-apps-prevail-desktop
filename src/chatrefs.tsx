@@ -6,8 +6,9 @@
 // Activity; engine notes about apps (routed, needs sign-in, unavailable) are
 // drawn in the flow of the reply.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Boxes, Building2, ExternalLink, KeyRound, Layers, MapPin, Route, Target, User, UserCog, X } from "lucide-react";
+import { AlertTriangle, Boxes, Building2, ExternalLink, KeyRound, Layers, MapPin, Route, Target, User, X } from "lucide-react";
 import { useInvokeQuery } from "./query";
+import { SpecialistAvatar } from "./specialistavatar";
 import { titleCase } from "./format";
 import { lsGet, LS } from "./storage";
 import { isUserDomain } from "./helpers";
@@ -72,7 +73,7 @@ function RefIcon({ r, size = 16 }: { r: RefCandidate | ChatRef; size?: number })
   if (r.kind === "app") return <AppLogo name={r.label} url={(r as RefCandidate).url} size={size} />;
   if (r.kind === "domain") { const D = domainIcon(r.id) ?? Layers; return <D className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />; }
   if (r.kind === "mission") return <Target className="shrink-0 text-accent" style={{ width: size - 2, height: size - 2 }} />;
-  if (r.kind === "specialist") return <UserCog className="shrink-0 text-accent" style={{ width: size - 2, height: size - 2 }} />;
+  if (r.kind === "specialist") return <SpecialistAvatar id={r.id} size={size + 2} />;
   const k = (r as RefCandidate).entityKind ?? r.id.split("/")[0];
   const I = k === "person" ? User : k === "place" ? MapPin : k === "org" ? Building2 : Boxes;
   return <I className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />;
