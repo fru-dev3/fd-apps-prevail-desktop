@@ -46,7 +46,7 @@ test("the list follows the chain; Not linked is counted, never blocked", async (
   const nav = page.getByTestId("compass-list");
   await expect(nav.getByTestId("compass-row-objectives")).toBeVisible({ timeout: 15_000 });
   const order = await nav.locator("[data-testid^=compass-row-]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid!.replace("compass-row-", "")));
-  expect(order).toEqual(["overview", "chain", "mission", "values", "statement", "vision", "objectives", "goals", "roles", "rules", "routines", "history"]);
+  expect(order).toEqual(["overview", "chain", "mission", "values", "statement", "vision", "objectives", "goals", "roles", "rules", "routines", "history", "yearly", "household", "packs"]);
   await expect(nav.getByTestId("compass-row-goals")).toContainText("1 not linked");
   await expect(nav.getByTestId("compass-row-chain")).toContainText("Not linked: 1 goal · 1 task");
 });
