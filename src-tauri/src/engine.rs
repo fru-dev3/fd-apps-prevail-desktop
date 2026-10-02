@@ -1492,8 +1492,10 @@ pub fn engine_apps_sync_due(vault: String) -> Result<serde_json::Value, String> 
     run_engine_json(&["connectors", "sync-due", "--vault", &vault, "--json"])
 }
 
-/// Ideal-state alignment report: per-pillar fit score + rationale + actions.
-/// Signal mode (no model) by default; fast + side-effect-light.
+/// Ideal-state alignment report: per-domain fit score + rationale + actions.
+/// The engine scores with a model by default (domains, their goals and
+/// ideals) and reuses a recent report, so asking on every open costs at most
+/// one model call a day.
 #[tauri::command(async)]
 pub fn engine_alignment(vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["--vault", &vault, "alignment", "--json"])

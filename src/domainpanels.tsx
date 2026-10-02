@@ -958,9 +958,12 @@ export function DomainPrefsPanel({
             // B5 (Monday feedback): routing keywords weren't populating because
             // this only read the LEGACY path; v3 vaults keep domains under
             // domains/<d>/. Try the v3 path first, then legacy.
+            // v4 (data/domains/<d>, goals and config under source/) first,
+            // then v3 and the legacy flat layout.
+            const bases = [`${vaultPath}/data/domains/${domain}`, `${vaultPath}/domains/${domain}`, `${vaultPath}/${domain}`];
             const texts = await Promise.all(
-              ["goals.md", "soul.md", "config.md"].map(async (f) => {
-                for (const base of [`${vaultPath}/domains/${domain}`, `${vaultPath}/${domain}`]) {
+              [["source/goals.md", "goals.md"], ["ideal-state.md", "soul.md"], ["source/config.md", "config.md"]].map(async (names) => {
+                for (const base of bases) for (const f of names) {
                   const t = await invoke<string>("read_text_file", { path: `${base}/${f}` }).catch(() => "");
                   if (t && t.trim()) return t;
                 }
@@ -969,7 +972,7 @@ export function DomainPrefsPanel({
             );
             const STOP = new Set("the and for with that this from your you are was have has not but they them then than when what where which while will would could should about into over under each every some most more very just also like been being our their his her its only own same can may might must a an of to in on at by it is as or be do if no so we i me my".split(" "));
             const freq = new Map<string, number>();
-            for (const w of texts.join(" ").toLowerCase().split(/[^a-z][^a-z]*/)) {
+            for (const w of texts.join(" ").replace(/~[a-z_]+:\S+/gi, " ").toLowerCase().split(/[^a-z][^a-z]*/)) {
               if (w.length < 4 || STOP.has(w) || w === domain.toLowerCase()) continue;
               freq.set(w, (freq.get(w) ?? 0) + 1);
             }

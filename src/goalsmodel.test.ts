@@ -12,6 +12,16 @@ describe("goals.md", () => {
     expect(serializeGoals(doc)).toContain("# Goals\n\n- [ ] Run a foo marathon ~id:g-1 ~status:active ~due:2026-12-31 ~progress:40\n  why: Feel strong again.\n- [x] Ship the bar ~id:g-2 ~status:done\nA loose note.\n");
   });
 
+  it("reads a file the engine's groom wrote from the old memory/goals.md list", () => {
+    const groomed = "# wealth goals\n\n- [ ] Reach $2M net worth by 2030, en route to more ~id:g-3fa21b ~status:active\n- [ ] Confirm the real foo number ~id:g-09cd4e ~status:active\n";
+    const goals = goalsOf(parseGoals("wealth", groomed));
+    expect(goals.map((g) => [g.id, g.title, g.status])).toEqual([
+      ["g-3fa21b", "Reach $2M net worth by 2030, en route to more", "active"],
+      ["g-09cd4e", "Confirm the real foo number", "active"],
+    ]);
+    expect(serializeGoals(parseGoals("wealth", groomed))).toBe(groomed);
+  });
+
   it("appends a new goal and round-trips it", () => {
     const id = newGoalId();
     const doc = upsertGoal(parseGoals("general", ""), { id, domain: "general", title: "New foo", status: "active", due: null, progress: null, why: "" });

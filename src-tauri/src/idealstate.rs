@@ -29,10 +29,11 @@ pub(crate) fn config_write_path(vault: &str, f: &str) -> PathBuf {
 // OpenClaw / Hermes user-profile pattern. Read/write via these calls.
 #[tauri::command(async)]
 pub(crate) fn read_user_md(vault: String) -> Result<String, String> {
-    // The canonical user-profile file is `_profile.md`, which config_read_path
-    // routes into build/ (build/_profile.md). profile.md / user.md are honored
-    // only as legacy read fallbacks for older vaults.
-    for name in ["_profile.md", "profile.md", "user.md"] {
+    // The ONE profile file is build/user.md (what VAULT.md names and every
+    // engine chat path injects). _profile.md, which this app wrote until
+    // 2026-10, and profile.md are read only as fallbacks; groom folds
+    // _profile.md into user.md.
+    for name in ["user.md", "_profile.md", "profile.md"] {
         let p = config_read_path(&vault, name);
         if p.exists() {
             return read_to_string_retry(&p).map_err(|e| e.to_string());
@@ -43,10 +44,10 @@ pub(crate) fn read_user_md(vault: String) -> Result<String, String> {
 #[tauri::command(async)]
 pub(crate) fn write_user_md(vault: String, body: String) -> Result<(), String> {
     let _serial = crate::vaultio::serial();
-    // Write the canonical build/_profile.md (config_write_path is build-rooted).
-    let p = config_write_path(&vault, "_profile.md");
+    // Write the canonical build/user.md (config_write_path is build-rooted).
+    let p = config_write_path(&vault, "user.md");
     if let Some(parent) = p.parent() { let _ = fs::create_dir_all(parent); }
-    crate::vaultio::write_atomic(&p, &body).map_err(|e| format!("write _profile.md: {e}"))
+    crate::vaultio::write_atomic(&p, &body).map_err(|e| format!("write user.md: {e}"))
 }
 
 // The user's Ideal State — their constitution. A single `<vault>/ideal-state.md`
@@ -87,24 +88,31 @@ pub(crate) fn write_ideal_state(vault: String, body: String) -> Result<(), Strin
     // it first keeps the prior full text as a dated version, so nothing is
     // ever lost. A restore is just another save.
     if let Ok(existing) = read_to_string_retry(config_read_path(&vault, "ideal-state.md")) {
-        if existing.trim() != body.trim() && !existing.trim().is_empty() {
-            let vdir = ideal_versions_dir(&vault);
-            fs::create_dir_all(&vdir).map_err(|e| format!("mkdir versions: {e}"))?;
-            let secs = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0);
-            let (y, mo, d, h, mi, s) = secs_to_ymdhms(secs);
-            let mut vp = vdir.join(format!("{y:04}-{mo:02}-{d:02}T{h:02}-{mi:02}-{s:02}Z.md"));
-            let mut n = 1;
-            while vp.exists() {
-                vp = vdir.join(format!("{y:04}-{mo:02}-{d:02}T{h:02}-{mi:02}-{s:02}Z-{n}.md"));
-                n += 1;
-            }
-            crate::vaultio::write_atomic(&vp, &existing).map_err(|e| format!("write version: {e}"))?;
-        }
+        keep_version(&ideal_versions_dir(&vault), &existing, &body)?;
     }
     crate::vaultio::write_atomic(&p, &body).map_err(|e| format!("write ideal-state.md: {e}"))
+}
+
+/// Keep `existing` as <vdir>/<ISO time>.md when it is not empty and `body`
+/// changes it. The engine (goals.ts writeVersioned) uses the same folder and
+/// naming, so either side lists the other's versions.
+pub(crate) fn keep_version(vdir: &std::path::Path, existing: &str, body: &str) -> Result<(), String> {
+    if existing.trim() == body.trim() || existing.trim().is_empty() {
+        return Ok(());
+    }
+    fs::create_dir_all(vdir).map_err(|e| format!("mkdir versions: {e}"))?;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let (y, mo, d, h, mi, s) = secs_to_ymdhms(secs);
+    let mut vp = vdir.join(format!("{y:04}-{mo:02}-{d:02}T{h:02}-{mi:02}-{s:02}Z.md"));
+    let mut n = 1;
+    while vp.exists() {
+        vp = vdir.join(format!("{y:04}-{mo:02}-{d:02}T{h:02}-{mi:02}-{s:02}Z-{n}.md"));
+        n += 1;
+    }
+    crate::vaultio::write_atomic(&vp, existing).map_err(|e| format!("write version: {e}"))
 }
 
 /// Dated versions of the constitution, newest first: { name, path, ts }.
@@ -167,6 +175,34 @@ mod version_tests {
     }
 }
 
+#[cfg(test)]
+mod profile_and_domain_version_tests {
+    use super::*;
+
+    #[test]
+    fn profile_is_build_user_md_and_domain_ideals_keep_versions() {
+        let v = std::env::temp_dir().join(format!("prevail-profile-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&v);
+        fs::create_dir_all(v.join("build")).unwrap();
+        fs::create_dir_all(v.join("data/domains/health")).unwrap();
+        let vs = v.to_string_lossy().to_string();
+        // An old _profile.md is still read until user.md exists; writes go to user.md.
+        fs::write(v.join("build/_profile.md"), "old").unwrap();
+        assert_eq!(read_user_md(vs.clone()).unwrap(), "old");
+        write_user_md(vs.clone(), "Name: Sam".into()).unwrap();
+        assert_eq!(fs::read_to_string(v.join("build/user.md")).unwrap(), "Name: Sam");
+        assert_eq!(read_user_md(vs.clone()).unwrap(), "Name: Sam");
+        let d = Some("health".to_string());
+        write_domain_ideal(vs.clone(), d.clone(), "# One\n".into()).unwrap();
+        write_domain_ideal(vs.clone(), d.clone(), "# Two\n".into()).unwrap();
+        let vdir = domain_dir(&vs, &d).join("ideal-state.versions");
+        let kept: Vec<_> = fs::read_dir(&vdir).unwrap().flatten().collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(fs::read_to_string(kept[0].path()).unwrap(), "# One\n");
+        let _ = fs::remove_dir_all(&v);
+    }
+}
+
 // M6: per-domain Ideal State — a `<domain>/ideal-state.md` that targets ONE
 // domain, layered under the global ideal-state.md (which still wins conflicts).
 // The engine injects it whenever the chat's cwd is that domain (cli-bridge
@@ -186,6 +222,12 @@ pub(crate) fn write_domain_ideal(vault: String, domain: Option<String>, body: St
     let dir = domain_dir(&vault, &domain);
     let _ = fs::create_dir_all(&dir);
     let p = dir.join("ideal-state.md");
+    // A domain's ideal is versioned like the global one, beside it in
+    // <domain>/ideal-state.versions/.
+    if let Ok(raw) = read_to_string_retry(&p) {
+        let existing = engine::maybe_decrypt(&p, raw);
+        keep_version(&dir.join("ideal-state.versions"), &existing, &body)?;
+    }
     crate::vaultio::write_atomic(&p, &body).map_err(|e| format!("write domain ideal: {e}"))
 }
 
