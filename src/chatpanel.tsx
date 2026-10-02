@@ -2654,7 +2654,7 @@ export function ChatPanel({
           <button
             onClick={() => setDomainTab("chat")}
             title="Back to the conversation"
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-background hover:bg-accent-hover"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-on-accent hover:bg-accent-hover"
           >
             <MessageSquare className="h-4 w-4" />
           </button>

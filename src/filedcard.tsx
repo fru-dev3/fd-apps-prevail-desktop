@@ -6,7 +6,7 @@ import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { LS, lsGet } from "./storage";
 import { META } from "./typescale";
-import { fmtDue, label, openDecision, personName } from "./plansmodel";
+import { fmtDue, openDecision, personName, scopeLabel } from "./plansmodel";
 
 interface Filed { id: string; kind: "commitment" | "waiting"; domain: string; text: string; due?: string; person?: string }
 interface Open { id?: string; kind: "commitment" | "waiting"; domain: string; text: string; due?: string; person?: string }
@@ -30,7 +30,7 @@ export function FiledCard({ id, filed, vaultPath }: { id: string; filed?: Filed;
         {state === "undone" ? <p className="text-[14px] text-text-muted">Undone. The line is off the board.</p> : f ? (
           <>
             <p className="break-words text-[14px] font-medium text-text-primary">{f.text}</p>
-            <p className={META}>{f.kind === "waiting" ? `Waiting on ${personName(f.person) || "someone"}` : `A promise${f.person ? ` to ${personName(f.person)}` : ""}`}{f.due ? `, due ${fmtDue(f.due)}` : ""}, on {label(f.domain.replace(/^_mission-/, ""))}'s board</p>
+            <p className={META}>{f.kind === "waiting" ? `Waiting on ${personName(f.person) || "someone"}` : `A promise${f.person ? ` to ${personName(f.person)}` : ""}`}{f.due ? `, due ${fmtDue(f.due)}` : ""}, on {scopeLabel(f.domain.replace(/^_mission-/, "mission/"))}'s board</p>
           </>
         ) : <p className="text-[14px] text-text-muted">Filed on a board (done or undone since).</p>}
         {state === "error" && <p className="text-[12px] text-err">Could not undo it.</p>}
@@ -65,7 +65,7 @@ export function DecisionOfferCard({ offer, vaultPath }: { offer: { question: str
       <Gavel className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
       <div className="min-w-[10rem] flex-1">
         <p className="break-words text-[14px] font-medium text-text-primary">Track this decision?</p>
-        <p className={`${META} break-words`}>{offer.question}{offer.due ? ` Due ${fmtDue(offer.due)}.` : ""} In {label(offer.domain)}.</p>
+        <p className={`${META} break-words`}>{offer.question}{offer.due ? ` Due ${fmtDue(offer.due)}.` : ""} In {scopeLabel(offer.domain)}.</p>
         {state === "error" && <p className="text-[12px] text-err">Could not open it.</p>}
       </div>
       <span className="flex shrink-0 items-center gap-0.5">
