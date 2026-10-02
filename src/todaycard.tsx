@@ -42,7 +42,7 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
           {x.kind === "commitment" && <span className={chip}>Promise{x.person ? ` to ${label(x.person.split("/").pop() ?? "")}` : ""}</span>}
           {x.kind === "waiting" && <span className={chip}>Waiting{x.person ? ` on ${label(x.person.split("/").pop() ?? "")}` : ""}</span>}
         </div>
-        <p className={`${META} mt-0.5`} data-testid="today-thread">{x.unlinked ? `${label(x.domain)}, unlinked to your Compass` : x.thread.join(" > ")}</p>
+        <p className={`${META} mt-0.5`} data-testid="today-thread">{x.thread.join(" > ")}{x.unlinked ? ", unlinked to your Compass" : ""}</p>
       </div>
       <span className="flex shrink-0 items-center gap-0.5">
         {open && <button onClick={open} title="Open" aria-label={`Open ${x.title}`} className={iconBtn}><ArrowRight className="h-4 w-4" /></button>}
