@@ -76,10 +76,12 @@ test("the Operator's actions: done alone, waiting for a yes (naming the money), 
   await expect(acts.nth(0)).toContainText("Reminder added");
   await expect(acts.nth(2)).toContainText("never allowed");
   await expect(acts.nth(2).getByTestId("job-action-allow")).toHaveCount(0);
-  await expect(acts.nth(1).getByTestId("job-action-allow")).toContainText("it carries a money amount");
+  await expect(acts.nth(1).getByTestId("job-action-meta")).toContainText("carries a money amount");
   await acts.nth(1).getByTestId("job-action-allow").click();
   await expect.poll(async () => (await calls(page, "engine_job_act"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: JOB.id, n: 2, answer: "allow" });
-  await acts.nth(1).getByTestId("job-action-deny").click();
+  await acts.nth(1).hover();
+  await acts.nth(1).getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Deny" }).click();
   await expect.poll(async () => (await calls(page, "engine_job_act"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: JOB.id, n: 2, answer: "deny" });
 });
 
