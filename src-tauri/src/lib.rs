@@ -18,6 +18,7 @@ mod linking;
 mod structure;
 mod appscope;
 mod goals;
+mod compass;
 mod appcmds;
 mod bunker;
 mod vault_lock;
@@ -620,6 +621,7 @@ pub fn run() {
             appscope::apps_untrusted_sources,
             goals::goals_files_read,
             goals::goals_file_write,
+            compass::chief_of_staff_read,
             entities_bridge::engine_entity_note_append,
             entities_bridge::entities_refresh,
             entities_bridge::engine_entities_duplicates,

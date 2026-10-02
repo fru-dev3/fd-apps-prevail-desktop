@@ -137,6 +137,8 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_suggest_structure",
     // Goals: every domain's goals file (read). Writing one stays on the Mac.
     "goals_files_read",
+    // The chief of staff's name (build/chief-of-staff.md, read).
+    "chief_of_staff_read",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.

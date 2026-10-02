@@ -493,7 +493,8 @@ pub(crate) fn scan_vault_impl(path: String) -> Result<Vec<Domain>, String> {
                 let name = entry.file_name().to_string_lossy().to_string();
                 // "general" has its own dedicated top-level entry in the UI, so it
                 // is not listed again among the domains.
-                if name.starts_with('.') || name == "general" {
+                // "_" folders (_archive holds archived domains) are never domains.
+                if name.starts_with('.') || name.starts_with('_') || name == "general" {
                     continue;
                 }
                 let p = entry.path();

@@ -9,7 +9,8 @@
 // nav, with a way back to Home at the top.
 import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
-import { Activity, Archive, ArrowLeft, ChevronRight, Folder, Hourglass, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
+import { useChiefOfStaff } from "./chiefofstaff";
+import { Activity, Archive, ArrowLeft, ChevronRight, Folder, Hourglass, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, UserRound, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
 import { openStructure, statusOf, useStructureSuggestions, useTrackedProjects } from "./trackedprojects";
@@ -61,15 +62,15 @@ function CountPill({ n, active, loud = false }: { n: number; active: boolean; lo
 // One nav row. Collapsed, it is an icon button with the label as its tooltip.
 // `loud`: the count is something to act on (the Inbox), so it is always in
 // the accent colour rather than muted.
-function NavRow({ icon: Icon, label, active, count = 0, loud = false, collapsed, onClick, onPrefetch, testId }: {
-  icon: typeof House; label: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; onPrefetch?: () => void; testId?: string;
+function NavRow({ icon: Icon, label, title, active, count = 0, loud = false, collapsed, onClick, onPrefetch, testId }: {
+  icon: typeof House; label: string; title?: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; onPrefetch?: () => void; testId?: string;
 }) {
   return (
     <button
       onClick={onClick}
       onPointerEnter={onPrefetch}
       onFocus={onPrefetch}
-      title={collapsed ? (count > 0 ? `${label} (${count})` : label) : undefined}
+      title={collapsed ? (count > 0 ? `${label} (${count})` : label) : title}
       aria-current={active ? "page" : undefined}
       data-testid={testId}
       className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${
@@ -286,6 +287,8 @@ export function Sidebar({
   const today = new Date().toISOString().slice(0, 10);
   const workCount = useInvokeQuery<{ open?: number }>("work_count", vaultPath ? { vault: vaultPath, today, domain: null } : null, { invalidateOn: TASKS_CHANGED });
   const tracked = useTrackedProjects(vaultPath || null);
+  // Named chief of staff: the General row (Home) carries their name.
+  const chief = useChiefOfStaff(vaultPath || null);
   const openTasks = workCount.data?.open ?? 0;
   const projectCount = tracked.projects.filter((p) => statusOf(p) === "active").length;
   // A pending "new domain" suggestion shows as a dot on the Domains header.
@@ -723,7 +726,7 @@ export function Sidebar({
         ) : (
           <>
             <nav aria-label="Home" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
-              <NavRow icon={House} label="Home" active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
+              <NavRow icon={chief ? UserRound : House} label={chief ?? "Home"} title={chief ? `${chief}, your chief of staff` : undefined} active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
               <NavRow icon={Inbox} label="Inbox" count={waiting.total} loud active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} onPrefetch={() => prefetchSection("work", "inbox", vaultPath)} testId="nav-inbox" />
               {WORK_NAV[0].items.map((it) => (
                 <NavRow key={it.id} icon={it.icon} label={it.label} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />

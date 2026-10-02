@@ -83,3 +83,15 @@ test.describe("sidebar · sticky section headers", () => {
     await expect(head.getByRole("button", { name: /Domains/ })).toHaveAttribute("aria-expanded", "false");
   });
 });
+
+test("sidebar · a named chief of staff takes the General row", async ({ page }) => {
+  await mockTauri(page, { chief_of_staff_read: "---\nname: Foo\nvoice: plain\n---\n" });
+  await page.goto("/");
+  const row = page.getByTestId("app-sidebar").getByTestId("nav-home");
+  await expect(row).toContainText("Foo", { timeout: 15_000 });
+  await expect(row).toHaveAttribute("title", "Foo, your chief of staff");
+});
+
+test("sidebar · with no name the General row stays Home", async ({ page }) => {
+  await expect(page.getByTestId("app-sidebar").getByTestId("nav-home")).toContainText("Home");
+});

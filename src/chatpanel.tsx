@@ -44,6 +44,7 @@ import { HomeBriefing } from "./recommendationspanel";
 import type { AppNotice, ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { savePastedImages } from "./paste";
+import { useChiefOfStaff } from "./chiefofstaff";
 
 // Per-domain cache of the cheap (no-audit) context score. engine_score spawns the
 // engine binary; users switch domains often, so re-opening a domain within the TTL
@@ -208,6 +209,8 @@ export function ChatPanel({
   // When it's absent we fall back to the native chat_send path below.
   // This is purely additive - neither path is removed.
   const [engineAvailable, setEngineAvailable] = useState(false);
+  // General is the chief of staff's home: it carries their name once named.
+  const chief = useChiefOfStaff(vaultPath);
   useEffect(() => {
     let alive = true;
     // Probe once: if `prevail domains` answers, the CLI is installed and
@@ -2500,7 +2503,7 @@ export function ChatPanel({
   // shell treats it as a domain. `dkey`/`dlabel`/`dblurb` give every tab body a
   // safe key + display name whether or not a real domain slug is present.
   const dkey = domain || "general";
-  const dlabel = domain ? titleCase(domain) : "General";
+  const dlabel = domain ? titleCase(domain) : (chief ?? "General");
   const dblurb = domain ? domainBlurb(domain) : "Your catch-all workspace for anything not tied to a specific domain.";
   // Active for any domain including General (no app, and we're off the plain
   // conversation). General has no `domain` slug but is still a domain.
