@@ -20,6 +20,7 @@ mod appscope;
 mod goals;
 mod compass;
 mod plans;
+mod step6;
 mod missions;
 mod appcmds;
 mod bunker;
@@ -680,6 +681,11 @@ pub fn run() {
             plans::engine_specialist_save,
             plans::engine_specialist_domain_save,
             plans::engine_specialist_reset,
+            step6::engine_specialist_draft,
+            step6::engine_specialist_create,
+            step6::engine_packs,
+            step6::engine_pack_install,
+            step6::engine_pack_uninstall,
             plans::engine_compass_align,
             plans::engine_compass_rules,
             plans::engine_commitments,

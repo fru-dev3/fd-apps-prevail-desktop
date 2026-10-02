@@ -5,7 +5,7 @@
 
 use crate::engine::run_engine_json;
 
-fn ok_id(s: &str) -> Result<&str, String> {
+pub(crate) fn ok_id(s: &str) -> Result<&str, String> {
     if !s.is_empty() && s.len() <= 160 && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':' | '.' | '/')) && !s.contains("..") {
         Ok(s)
     } else {
@@ -13,11 +13,11 @@ fn ok_id(s: &str) -> Result<&str, String> {
     }
 }
 
-fn one_of<'a>(s: &'a str, allowed: &[&str]) -> Result<&'a str, String> {
+pub(crate) fn one_of<'a>(s: &'a str, allowed: &[&str]) -> Result<&'a str, String> {
     if allowed.contains(&s) { Ok(s) } else { Err(format!("unknown action: {s}")) }
 }
 
-async fn blocking(args: Vec<String>) -> Result<serde_json::Value, String> {
+pub(crate) async fn blocking(args: Vec<String>) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         let a: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         run_engine_json(&a)
@@ -26,7 +26,7 @@ async fn blocking(args: Vec<String>) -> Result<serde_json::Value, String> {
     .map_err(|e| format!("engine task failed: {e}"))?
 }
 
-fn v(xs: &[&str]) -> Vec<String> { xs.iter().map(|s| s.to_string()).collect() }
+pub(crate) fn v(xs: &[&str]) -> Vec<String> { xs.iter().map(|s| s.to_string()).collect() }
 
 /// The Today card (composed once a day; refresh recomposes, keeping the taps).
 #[tauri::command]
@@ -81,7 +81,7 @@ pub(crate) async fn engine_specialist_show(vault: String, id: String, domain: Op
     blocking(a).await
 }
 
-async fn blocking_stdin(args: Vec<String>, body: String) -> Result<serde_json::Value, String> {
+pub(crate) async fn blocking_stdin(args: Vec<String>, body: String) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         let a: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         crate::engine::run_engine_json_stdin(&a, &body)

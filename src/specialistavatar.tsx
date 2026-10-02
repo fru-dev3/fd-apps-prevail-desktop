@@ -12,7 +12,7 @@ import { useInvokeQuery } from "./query";
 
 export type AvatarState = "idle" | "working" | "off";
 type Eyes = "dots" | "ovals" | "happy" | "visor" | "cyclops" | "glasses" | "wink" | "sleepy" | "wide" | "monocle";
-type Extra = "antenna" | "sprout" | "spark" | "brow" | "browR" | "smile" | "flat" | "o" | "grin";
+type Extra = "antenna" | "sprout" | "spark" | "brow" | "browR" | "smile" | "flat" | "o" | "grin" | "cap" | "moon" | "bow" | "blush";
 interface Look { hue: number; eyes: Eyes; extra?: Extra[]; chroma?: number }
 
 // Hues skip yellow and amber (about 70 to 115 in OKLCH): no gold, ever.
@@ -34,10 +34,11 @@ export const LOOKS: Record<string, Look> = {
   skeptic: { hue: 312, eyes: "dots", extra: ["browR", "flat"] },
   interviewer: { hue: 328, eyes: "wide", extra: ["o"] },
   mechanic: { hue: 190, eyes: "cyclops", extra: ["flat"], chroma: 0.09 },
-  negotiator: { hue: 280, eyes: "dots", extra: ["smile"] },
-  liaison: { hue: 165, eyes: "ovals", extra: ["grin"] },
-  tutor: { hue: 240, eyes: "glasses", extra: ["grin"] },
-  confidant: { hue: 338, eyes: "sleepy", extra: ["smile"] },
+  // Phase 4: each with a mark of its own (a bow tie, blush, a cap, a moon).
+  negotiator: { hue: 282, eyes: "dots", extra: ["brow", "flat", "bow"], chroma: 0.16 },
+  liaison: { hue: 145, eyes: "ovals", extra: ["grin", "blush"], chroma: 0.13 },
+  tutor: { hue: 241, eyes: "wide", extra: ["cap", "smile"] },
+  confidant: { hue: 340, eyes: "happy", extra: ["moon", "smile"], chroma: 0.12 },
 };
 const EYES: Eyes[] = ["dots", "ovals", "happy", "cyclops", "wide", "wink"];
 
@@ -90,6 +91,12 @@ function extra(kind: Extra): ReactNode {
     // Above the head: drawn outside the orb, inside the box.
     case "antenna": return <g key={kind} className="sa-antenna"><path d="M16 3.4 V0.9" stroke={`oklch(0.5 0.14 var(--sa-h, 260))`} strokeWidth="1.3" strokeLinecap="round" /><circle cx="16" cy="1.2" r="1.15" fill={`oklch(0.72 0.17 var(--sa-h, 260))`} /></g>;
     case "sprout": return <g key={kind} className="sa-antenna"><path d="M16 3.6 Q16 1.6 17.6 0.7 Q18.2 2.6 16 3.6Z" fill="oklch(0.62 0.17 145)" /><path d="M16 3.6 Q16 2.2 14.6 1.6 Q14.3 3 16 3.6Z" fill="oklch(0.7 0.16 145)" /></g>;
+    // A mortarboard above the head (the Tutor) and a crescent moon (the Confidant).
+    case "cap": return <g key={kind} className="sa-antenna"><path d="M9.8 3.4 L16 0.6 L22.2 3.4 L16 6.2 Z" fill={INK} /><path d="M19.6 4.5 V7.4" stroke={INK} strokeWidth="1" strokeLinecap="round" /></g>;
+    case "moon": return <path key={kind} className="sa-antenna" d="M18.4 0.4 A3.2 3.2 0 1 0 21 5.2 A2.5 2.5 0 1 1 18.4 0.4 Z" fill="oklch(0.86 0.05 280)" />;
+    // On the face: a bow tie under the chin (the Negotiator), cheeks (the Liaison).
+    case "bow": return <path key={kind} d="M13.2 24.2 L16 25.6 L18.8 24.2 L18.8 27.2 L16 25.8 L13.2 27.2 Z" fill={INK} />;
+    case "blush": return <g key={kind}><ellipse cx="9.6" cy="18.8" rx="1.6" ry="1" fill="oklch(0.72 0.14 15)" opacity="0.7" /><ellipse cx="22.4" cy="18.8" rx="1.6" ry="1" fill="oklch(0.72 0.14 15)" opacity="0.7" /></g>;
     // A small sparkle on the orb, top right: the chief's mark on any background.
     case "spark": return <path key={kind} className="sa-spark" d="M22.6 6.4 L23.5 8.7 L25.8 9.6 L23.5 10.5 L22.6 12.8 L21.7 10.5 L19.4 9.6 L21.7 8.7 Z" fill="#fff" />;
   }
@@ -129,13 +136,13 @@ export function SpecialistAvatar({ id, size = 22, state = "idle", label, classNa
         {state === "working" && <circle cx="16" cy="17" r="15.6" fill="none" stroke="var(--sa-ring)" strokeOpacity="0.22" strokeWidth="2" />}
         {state === "working" && <circle className="sa-ring" cx="16" cy="17" r="15.6" fill="none" stroke="var(--sa-ring)" strokeWidth="2" strokeLinecap="round" strokeDasharray="26 72" />}
         <g className="sa-body">
-          {(look.extra ?? []).filter((x) => x === "antenna" || x === "sprout").map(extra)}
+          {(look.extra ?? []).filter((x) => x === "antenna" || x === "sprout" || x === "cap" || x === "moon").map(extra)}
           <circle cx="16" cy="17" r="13.4" fill={`url(#${gid})`} />
           <ellipse cx="11.8" cy="10.2" rx="3.8" ry="2" fill="#fff" opacity="0.2" transform="rotate(-28 11.8 10.2)" />
           {(look.extra ?? []).includes("spark") && extra("spark")}
           <g className="sa-face" transform="translate(0 2)">
             <g className="sa-eyes">{eyes(look.eyes)}</g>
-            {(look.extra ?? []).filter((x) => x !== "antenna" && x !== "sprout" && x !== "spark").map(extra)}
+            {(look.extra ?? []).filter((x) => x !== "antenna" && x !== "sprout" && x !== "spark" && x !== "cap" && x !== "moon").map(extra)}
           </g>
         </g>
       </svg>

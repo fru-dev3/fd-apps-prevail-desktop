@@ -2,14 +2,17 @@
 //   Jobs        Running, Waiting on you, Done (each job opens as its card)
 //   Setup       the chief of staff: name, handoff, limits, never pull in, what
 //               they learned
-//   families    Know, Decide, Do, Deliver (the specialists that are on)
-//   Off         the rest of the roster, coming in later phases
+//   families    Know, Decide, Do, Grow, Deliver (the built-in specialists)
+//   Yours       the user's own: made by talking, presets from a pack, outside agents
+//   Packs       starting sets per vertical
+//   Off         any specialist turned off
 // A specialist's detail: what it is for, how it works, its ceiling, budget
 // and tools, its notebooks per domain, and the jobs it worked on.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChiefAvatar, SpecialistAvatar, useWorkingSpecialists } from "./specialistavatar";
 import { dropSpecialist, startPillDrag } from "./dragref";
-import { AlertTriangle, Archive, BookOpen, Briefcase, Check, ChevronRight, Clock, Globe, Hourglass, Loader2, Pencil, Plus, RotateCcw, Search, UserCog } from "lucide-react";
+import { AlertTriangle, Archive, BookOpen, Briefcase, Check, ChevronRight, Clock, Globe, Hourglass, Loader2, Package, Pencil, Plus, RotateCcw, Search, UserCog } from "lucide-react";
+import { NewSpecialist, PacksView, originLine } from "./specialistnew";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { SettingsHeader } from "./sectionutil";
@@ -25,7 +28,7 @@ import { CEILINGS, CEILING_LABEL, CEILING_SAYS, FAMILY_LABEL, HANDOFF_LABEL, RUN
 export const SPECIALISTS_FOCUS_KEY = "prevail.specialists.focus";
 const input = "h-9 w-full max-w-sm rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary";
 
-type Sel = "jobs:running" | "jobs:waiting" | "jobs:done" | "setup" | `spec:${string}`;
+type Sel = "jobs:running" | "jobs:waiting" | "jobs:done" | "setup" | "packs" | "new" | `spec:${string}`;
 
 function readFocus(): Sel {
   try { const f = localStorage.getItem(SPECIALISTS_FOCUS_KEY); localStorage.removeItem(SPECIALISTS_FOCUS_KEY); if (f) return f as Sel; } catch { /* storage off */ }
@@ -68,7 +71,9 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
     </button>
   );
   const head = (t: string) => <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">{t}</div>;
-  const families = (["know", "decide", "do", "grow", "deliver"] as const).filter((f) => on.some((s) => s.family === f));
+  const builtOn = on.filter((s) => s.builtIn);
+  const yours = on.filter((s) => !s.builtIn);
+  const families = (["know", "decide", "do", "grow", "deliver"] as const).filter((f) => builtOn.some((s) => s.family === f));
   const column = (
     <nav className="space-y-0.5 p-2" aria-label="Specialists">
       {head("Jobs")}
@@ -79,13 +84,21 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
       {families.map((f) => (
         <div key={f}>
           {head(FAMILY_LABEL[f])}
-          {on.filter((s) => s.family === f).map((s) => row(`spec:${s.id}`, s.name, <SpecialistAvatar id={s.id} size={24} state={working.has(s.id) ? "working" : "idle"} />, undefined, `Returns ${s.returns}`, s.name))}
+          {builtOn.filter((s) => s.family === f).map((s) => row(`spec:${s.id}`, s.name, <SpecialistAvatar id={s.id} size={24} state={working.has(s.id) ? "working" : "idle"} />, undefined, `Returns ${s.returns}`, s.name))}
         </div>
       ))}
+      {yours.length > 0 && (
+        <div>
+          {head("Yours")}
+          {yours.map((s) => row(`spec:${s.id}`, s.name, <SpecialistAvatar id={s.id} size={24} state={working.has(s.id) ? "working" : "idle"} />, undefined, s.outside ? "Outside agent, asks first" : s.base ? `Built on the ${label(s.base)}` : `Returns ${s.returns}`, s.name))}
+        </div>
+      )}
+      {head("More")}
+      {row("packs", "Packs", icon("packs", Package), undefined, "Starting sets for your kind of life")}
       {off.length > 0 && (
         <>
           <button onClick={() => setOffOpen((v) => !v)} aria-expanded={offOpen} className="w-full px-2.5 pb-1 pt-3 text-left text-[13px] font-semibold text-text-secondary hover:text-accent">Off ({off.length})</button>
-          {offOpen && off.map((s) => row(`spec:${s.id}`, s.name, <SpecialistAvatar id={s.id} size={24} state="off" />, undefined, "Coming later"))}
+          {offOpen && off.map((s) => row(`spec:${s.id}`, s.name, <SpecialistAvatar id={s.id} size={24} state="off" />, undefined, "Off"))}
         </>
       )}
     </nav>
@@ -105,6 +118,10 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
     );
   } else if (sel === "setup") {
     detail = <ChiefSetup vaultPath={vaultPath} />;
+  } else if (sel === "packs") {
+    detail = <PacksView vaultPath={vaultPath} />;
+  } else if (sel === "new") {
+    detail = <NewSpecialist vaultPath={vaultPath} onCancel={() => choose("jobs:running")} onMade={(id) => { void specsQ.refresh(); choose(`spec:${id}`); }} />;
   } else {
     const s = specs.find((x) => `spec:${x.id}` === sel);
     detail = s ? <SpecialistDetail s={s} vaultPath={vaultPath} jobs={jobs.filter((j) => j.team.some((t) => t.specialists.includes(s.id)))} /> : <p className={`${BODY} text-text-muted`}>Pick a specialist.</p>;
@@ -114,7 +131,8 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
     <div className="flex h-full min-h-0 flex-col" data-testid="specialists-page">
       <SettingsHeader title="Specialists" icon={UserCog} subtitle="The team your chief of staff staffs jobs with." />
       <SideSpine storageKey="prevail.specialists.spine" title="Specialists" label="specialists" testId="specialists-list"
-        meta={<span>{on.length} on</span>} phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Specialists"
+        meta={<span>{on.length} on</span>} phone={phone}
+        actions={<button onClick={() => choose("new")} title="New specialist" aria-label="New specialist" data-testid="specialist-new-open" className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent"><Plus className="h-4 w-4" /></button>} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Specialists"
         detail={<div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{detail}</div>}>
         {column}
       </SideSpine>
@@ -188,7 +206,8 @@ function SpecialistDetail({ s, vaultPath, jobs }: { s: Specialist; vaultPath: st
         <SpecialistAvatar id={s.id} size={52} state={!s.on ? "off" : jobs.some((j) => j.status === "running") ? "working" : "idle"} label={s.name} className="-mt-1" />
         <div className="min-w-0 flex-1">
           <h2 className={DETAIL_TITLE}>{s.name}</h2>
-          <p className={`${META} mt-0.5`}>{FAMILY_LABEL[s.family]} · Returns {s.returns}{s.source ? " · Your version" : ""}{!s.on ? " · Off, coming later" : ""}</p>
+          <p className={`${META} mt-0.5`}>{FAMILY_LABEL[s.family]} · Returns {s.returns}{s.source && s.builtIn ? " · Your version" : ""}{!s.builtIn ? " · Yours" : ""}{!s.on ? " · Off" : ""}</p>
+          {originLine(s) && <p className={`${META} mt-0.5`} data-testid="specialist-origin" title={s.outside?.endpoint}>{originLine(s)}</p>}
         </div>
         {s.on && !editing && (
           <span className="flex shrink-0 items-center gap-0.5">
