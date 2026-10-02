@@ -65,6 +65,7 @@ mod surface;
 mod skillgen;
 mod taskgen;
 mod tasks;
+mod focus;
 mod telegram;
 mod discord_bridge;
 mod email_bridge;
@@ -250,6 +251,9 @@ pub fn run() {
             if let Some(v) = engine::engine_config_vault() {
                 engine::set_vault_root(Some(v));
             }
+            // Live app focus for the stack view (apps plan A2): frontmost app
+            // and idle time, no permission needed, off when the user says so.
+            focus::start();
             // Start on boot bakes this binary's path into a LaunchAgent. Opened
             // from a download, macOS runs the app from a temporary translocated
             // copy, and the agent kept pointing there after the copy was gone.
