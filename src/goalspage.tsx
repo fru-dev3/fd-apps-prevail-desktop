@@ -1,68 +1,33 @@
-// Goals, laid out like Intent > Projects: the page header, tabs (All, Active,
-// Done), a column (Overview, then Mission and Vision from the constitution,
-// then every domain's goals), and the picked one in the detail pane. Goals
-// live in each domain's source/goals.md (goalsmodel.ts has the format); the
-// Mission and Vision are sections of ideal-state.md. Everything edits in place.
+// Domain goals, the Goals view of the Compass page: a column (Overview, then
+// every domain's goals, filtered All / Active / Done) and the picked one in
+// the detail pane. Goals live in each domain's source/goals.md (goalsmodel.ts
+// has the format). Everything edits in place. The mission moved to the
+// Compass itself; the constitution is under the Ideals view.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Check, Circle, CircleCheck, Compass, Eye, LayoutList, Pencil, Plus, Target, X } from "lucide-react";
+import { Archive, Check, Circle, CircleCheck, LayoutList, Plus, Target } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { isUserDomain } from "./helpers";
-import { Markdown } from "./Markdown";
-import { SettingsHeader } from "./sectionutil";
-import { MissionEditor } from "./missioneditor";
 import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import {
-  goalsOf, idealSection, newGoalId, parseGoals, removeGoal, serializeGoals, setIdealSection, upsertGoal,
+  goalsOf, newGoalId, parseGoals, removeGoal, serializeGoals, upsertGoal,
   type Goal, type GoalsDoc,
 } from "./goalsmodel";
 import type { BoardTask } from "./types";
 import { openTrackedProject, slugOf, useTrackedProjects } from "./trackedprojects";
 
 type Tab = "all" | "active" | "done";
-type Sel = "overview" | "mission" | "vision" | `goal:${string}`;
+type Sel = "overview" | `goal:${string}`;
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
 const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2 text-[15px] text-text-primary focus:border-accent-border focus:outline-none";
 const DAY = 86_400_000;
 
-function IdealPart({ vaultPath, name, md, onSaved }: { vaultPath: string; name: "Mission" | "Vision"; md: string; onSaved: (next: string) => void }) {
-  const text = idealSection(md, name);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(text);
-  useEffect(() => { setDraft(text); setEditing(false); }, [text]);
-  const save = async () => {
-    const next = setIdealSection(md, name, draft);
-    await invoke("write_ideal_state", { vault: vaultPath, body: next });
-    onSaved(next);
-    setEditing(false);
-  };
-  return (
-    <section data-testid={`goal-detail-${name.toLowerCase()}`}>
-      <div className="mb-3 flex items-start gap-3">
-        <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>{name}</h2>
-        {editing ? (
-          <>
-            <button onClick={() => void save()} title="Save" aria-label={`Save the ${name.toLowerCase()}`} className={iconBtn}><Check className="h-4 w-4" /></button>
-            <button onClick={() => { setDraft(text); setEditing(false); }} title="Cancel" aria-label="Cancel editing" className={iconBtn}><X className="h-4 w-4" /></button>
-          </>
-        ) : <button onClick={() => setEditing(true)} title="Edit" aria-label={`Edit the ${name.toLowerCase()}`} className={iconBtn}><Pencil className="h-4 w-4" /></button>}
-      </div>
-      <p className={`${META} mb-4`}>From your constitution, ideal-state.md.</p>
-      {editing
-        ? <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={8} aria-label={name} className={inputCls} />
-        : text ? <div className={`${BODY} max-w-3xl text-text-primary`}><Markdown source={text} /></div>
-          : <p className={`${BODY} text-text-muted`}>No {name.toLowerCase()} yet. Use the edit icon to write one.</p>}
-    </section>
-  );
-}
-
-export function GoalsPage({ vaultPath }: { vaultPath: string }) {
+export function DomainGoals({ vaultPath }: { vaultPath: string }) {
   const phone = useIsPhone();
   const [docs, setDocs] = useState<Record<string, GoalsDoc>>({});
   const [domains, setDomains] = useState<string[]>(["general"]);
-  const [ideal, setIdeal] = useState("");
   const [tab, setTab] = useState<Tab>("active");
   const [sel, setSel] = useState<Sel>("overview");
   const [picked, setPicked] = useState(false);
@@ -82,7 +47,6 @@ export function GoalsPage({ vaultPath }: { vaultPath: string }) {
     invoke<{ name: string }[]>("scan_vault", { path: vaultPath })
       .then((ds) => setDomains(["general", ...(Array.isArray(ds) ? ds.map((d) => d.name).filter((n) => isUserDomain(n) && n !== "general") : [])]))
       .catch(() => {});
-    invoke<string>("read_ideal_state", { vault: vaultPath }).then((s) => setIdeal(s || "")).catch(() => setIdeal(""));
     invoke<BoardTask[]>("tasks_read_all", { vault: vaultPath, limit: 500 }).then((t) => setTasks(Array.isArray(t) ? t : [])).catch(() => {});
     invoke<{ projects?: { slug: string; title: string; domain: string }[] }>("projects_index", { vault: vaultPath })
       .then((r) => setProjects(Array.isArray(r?.projects) ? r!.projects! : [])).catch(() => {});
@@ -131,8 +95,6 @@ export function GoalsPage({ vaultPath }: { vaultPath: string }) {
   const list = (
     <nav className="space-y-0.5 p-2" aria-label="Goals">
       {fixedRow("overview", "Overview", LayoutList)}
-      {fixedRow("mission", "Mission", Compass, idealSection(ideal, "Mission").split("\n")[0] || "Not written yet")}
-      {fixedRow("vision", "Vision", Eye, idealSection(ideal, "Vision").split("\n")[0] || "Not written yet")}
       <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Goals</div>
       {shown.length === 0 && <p className="px-2.5 py-1 text-[13px] text-text-muted">{tab === "done" ? "Nothing done yet." : "No goals yet."}</p>}
       {shown.map((g) => {
@@ -245,28 +207,25 @@ export function GoalsPage({ vaultPath }: { vaultPath: string }) {
     </section>
   );
 
+  const statusTabs = (
+    <SpineTabs label="Goals" value={tab} onChange={setTab} tabs={[
+      { id: "all", label: "All", count: live.length },
+      { id: "active", label: "Active", count: live.filter((g) => g.status === "active").length },
+      { id: "done", label: "Done", count: live.filter((g) => g.status === "done").length },
+    ]} />
+  );
   return (
-    <div className="flex h-full min-h-0 flex-col" data-testid="goals-page">
-      <SettingsHeader title="Goals" icon={Target} subtitle="What you are working toward, domain by domain."
-        right={<SpineTabs label="Goals" value={tab} onChange={setTab} tabs={[
-          { id: "all", label: "All", count: live.length },
-          { id: "active", label: "Active", count: live.filter((g) => g.status === "active").length },
-          { id: "done", label: "Done", count: live.filter((g) => g.status === "done").length },
-        ]} />} />
-      <SideSpine storageKey="prevail.goals.spine" title="Goals" label="goals" testId="goals-list"
-        actions={<button onClick={() => void addGoal()} title="New goal" aria-label="New goal" data-testid="goal-new" className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"><Plus className="h-4 w-4" /></button>}
-        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All goals"
-        detail={
-          <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>
-            {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
-            {sel === "overview" && overview}
-            {sel === "mission" && <div data-testid="goal-detail-mission"><MissionEditor vaultPath={vaultPath} title="Mission" /></div>}
-            {sel === "vision" && <IdealPart vaultPath={vaultPath} name="Vision" md={ideal} onSaved={setIdeal} />}
-            {current && goalDetail(current)}
-          </div>
-        }>
-        {list}
-      </SideSpine>
-    </div>
+    <SideSpine storageKey="prevail.goals.spine" title="Domain goals" label="goals" testId="goals-list" toolbar={statusTabs}
+      actions={<button onClick={() => void addGoal()} title="New goal" aria-label="New goal" data-testid="goal-new" className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"><Plus className="h-4 w-4" /></button>}
+      phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All goals"
+      detail={
+        <div data-testid="goals-page" className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>
+          {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
+          {sel === "overview" && overview}
+          {current && goalDetail(current)}
+        </div>
+      }>
+      {list}
+    </SideSpine>
   );
 }

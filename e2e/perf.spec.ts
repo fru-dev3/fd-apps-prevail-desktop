@@ -12,8 +12,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
 const LATENCY = 150;
-const HOME = ["inbox", "insights", "recommendations", "projects", "task-list", "goals", "apps"];
-const SETTINGS = ["models", "council", "toolkit", "benchmark", "intent", "entities", "ideal-state", "activity", "connections", "privacy-safety", "settings"];
+const HOME = ["inbox", "insights", "recommendations", "projects", "task-list", "compass", "apps"];
+const SETTINGS = ["models", "council", "toolkit", "benchmark", "intent", "entities", "activity", "connections", "privacy-safety", "settings"];
 const PAGES: Array<[string, string]> = [
   ...HOME.map((id) => ["prevail:work-section", id] as [string, string]),
   ...SETTINGS.map((id) => ["prevail:open-settings", id] as [string, string]),
@@ -113,14 +113,14 @@ test("perf · a sidebar click never blocks the main thread for more than 50 ms",
     }
   };
   // Warm pass (chunks load, caches fill), then the measured pass.
-  await clicks(["Tasks", "Projects", "Goals", "Insights"]);
+  await clicks(["Tasks", "Projects", "Compass", "Insights"]);
   await nav.getByRole("button", { name: "Settings", exact: true }).click();
   await clicks(["Models", "Toolkit", "Entities", "Activity", "Intent"]);
   await page.evaluate(() => { (window as unknown as { __longTasks: number[] }).__longTasks = []; });
   await clicks(["Models", "Toolkit", "Entities", "Activity", "Intent"]);
   await nav.getByTestId("settings-back").click();
   await page.waitForTimeout(400);
-  await clicks(["Tasks", "Projects", "Goals", "Insights"]);
+  await clicks(["Tasks", "Projects", "Compass", "Insights"]);
   const longest = await page.evaluate(() => Math.max(0, ...(window as unknown as { __longTasks: number[] }).__longTasks));
   if (process.env.PERF_REPORT) console.log(`longest main-thread task during sidebar clicks: ${longest.toFixed(0)} ms`);
   expect(longest).toBeLessThanOrEqual(50);

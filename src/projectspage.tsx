@@ -5,6 +5,7 @@
 // and the picked project in the detail pane, drawn by the entity detail with
 // a project Overview and, for one made from Intent, its restart Brief.
 // Intent > Projects stays the inferred view (projectsview.tsx).
+import { noteCompassFocus } from "./navdefs";
 import { useEffect, useMemo, useState } from "react";
 import { Check, FolderKanban, FolderPlus, Loader2, Plus, Target, X } from "lucide-react";
 import { useInvokeQuery } from "./query";
@@ -102,7 +103,7 @@ function ProjectOverview({ vaultPath, d, reload, summary }: { vaultPath: string;
       <h3 className={`${SECTION_TITLE} mt-8 mb-2`}>Goals</h3>
       {d.goals?.length ? (
         <ul className="space-y-1" data-testid="project-goals">{d.goals.map((g, i) => (
-          <li key={i}><button onClick={() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "goals" }))}
+          <li key={i}><button onClick={() => { noteCompassFocus("goals"); window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "compass" })); }}
             className={`${BODY} text-left text-text-primary hover:text-accent ${g.status === "done" ? "text-text-muted line-through" : ""}`}>
             {g.title}<span className={`${META} ml-2`}>{titleCase(g.domain)}</span>
           </button></li>

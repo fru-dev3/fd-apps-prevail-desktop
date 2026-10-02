@@ -14,7 +14,6 @@ import { MirrorPanel } from "./mirror";
 import { EntitiesView } from "./entitiesview";
 import { editorRow, navSection, noteToolkitGroup } from "./navdefs";
 import { ToolkitSection } from "./toolkit";
-import { IdealsSection } from "./idealspage";
 import { AutonomyPanel } from "./autonomypanel";
 import { GeneralSection, SafetySection } from "./settings4";
 import { AboutSection, GatewayLogsCard, GatewaySection } from "./settings5";
@@ -31,7 +30,7 @@ import type { CliInfo } from "./types";
 
 // Sections that are a SideSpine screen: they fill the pane edge to edge and
 // scroll their column and detail on their own.
-const FLUSH_SECTIONS = new Set<string>(["intent", "entities", "models", "benchmark", "council", "toolkit", "ideal-state", "activity", "connections", "privacy-safety", "settings"]);
+const FLUSH_SECTIONS = new Set<string>(["intent", "entities", "models", "benchmark", "council", "toolkit", "activity", "connections", "privacy-safety", "settings"]);
 
 export function SettingsPanel({
   appearance,
@@ -154,7 +153,6 @@ export function SettingsPanel({
           {section === "toolkit" && <ToolkitSection vaultPath={vaultPath} />}
           {section === "intent" && <MirrorPanel vaultPath={vaultPath} title="Intent" />}
           {section === "entities" && <EntitiesView vaultPath={vaultPath} />}
-          {section === "ideal-state" && <IdealsSection vaultPath={vaultPath} initial={row} />}
           {/* Activity gathers what Prevail did (by kind) and Usage. */}
           {section === "activity" && <SystemActivity vaultPath={vaultPath} initial={row ?? undefined} />}
           {section === "connections" && <SettingsHub id="connections" title="Connections" icon={Network}

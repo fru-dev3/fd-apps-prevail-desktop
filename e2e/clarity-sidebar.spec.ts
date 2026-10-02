@@ -48,10 +48,10 @@ test("sidebar · typing in Search settings filters the rows; Enter opens the fir
   // Side rows are searchable too.
   await search.fill("phone");
   await expect(nav.getByTestId("settings-sub-matches")).toContainText("Phone in Connections");
-  await search.fill("ideal");
+  await search.fill("entit");
   await search.press("Enter");
   await expect(search).toHaveValue("");
-  await expect(page.getByTestId("settings-page").getByTestId("page-header").filter({ hasText: "Ideals" }).first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("settings-page").getByTestId("page-header").filter({ hasText: "Entities" }).first()).toBeVisible({ timeout: 10_000 });
   // Esc inside the field does not leave Settings.
   await search.press("Escape");
   await expect(nav.getByTestId("settings-back")).toBeVisible();

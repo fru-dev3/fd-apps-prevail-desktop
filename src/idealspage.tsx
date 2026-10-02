@@ -1,7 +1,7 @@
-// Ideals, laid out like Models: the page header first, then a side column of
-// ideals and the chosen one on the right. Your mission (the global
-// ideal-state) leads, then Omega, then every domain, with a quiet marker on the
-// domains that have no ideal yet. A domain's ideal edits in place.
+// Ideals, the third view of the Compass page: a side column of ideals and the
+// chosen one on the right. The constitution (the global ideal-state) leads,
+// then Omega, then every domain, with a quiet marker on the domains that have
+// no ideal yet. A domain's ideal edits in place.
 import { useEffect, useState } from "react";
 import { Check, Circle, CircleDot, Compass, Pencil, Sigma, X, type LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
@@ -11,7 +11,6 @@ import { isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { OmegaSection } from "./omega";
-import { SettingsHeader } from "./sectionutil";
 import { MissionEditor } from "./missioneditor";
 import { AlignmentCard } from "./panels";
 import { SideSpine } from "./sidespine";
@@ -101,7 +100,7 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
   };
   const list = (
     <nav className="space-y-0.5 p-2" aria-label="Ideals">
-      {row("mission", "Your mission", Compass, "Highest precedence everywhere")}
+      {row("mission", "Your constitution", Compass, "Highest precedence everywhere")}
       {row("omega", "Omega", Sigma, "Shared context that travels with you")}
       {domains.length > 0 && <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Domains</div>}
       {domains.map((d) => row(`domain:${d}`, titleCase(d), domainIcon(d) ?? null, undefined, !ideals[d]?.trim()))}
@@ -126,13 +125,10 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
     </div>
   );
   return (
-    <>
-      <SettingsHeader title="Ideals" icon={Compass} subtitle="The vision everything here optimizes for." />
-      <SideSpine storageKey="prevail.ideals.spine" title="Ideals" label="ideals" testId="ideals-list"
-        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All ideals"
-        detail={detail}>
-        {list}
-      </SideSpine>
-    </>
+    <SideSpine storageKey="prevail.ideals.spine" title="Ideals" label="ideals" testId="ideals-list"
+      phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All ideals"
+      detail={detail}>
+      {list}
+    </SideSpine>
   );
 }

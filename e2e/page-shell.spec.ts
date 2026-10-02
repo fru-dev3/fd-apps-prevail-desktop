@@ -5,8 +5,8 @@
 import { test, expect } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
-const HOME = ["inbox", "insights", "recommendations", "projects", "task-list", "goals", "apps"];
-const SETTINGS = ["models", "council", "toolkit", "benchmark", "intent", "entities", "ideal-state", "activity", "connections", "privacy-safety", "settings"];
+const HOME = ["inbox", "insights", "recommendations", "projects", "task-list", "compass", "apps"];
+const SETTINGS = ["models", "council", "toolkit", "benchmark", "intent", "entities", "activity", "connections", "privacy-safety", "settings"];
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });

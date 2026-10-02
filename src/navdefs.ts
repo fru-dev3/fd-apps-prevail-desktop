@@ -6,7 +6,7 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, Blocks, BookUser, Compass, Database, FolderKanban, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Target } from "lucide-react";
+import { Activity, Blocks, BookUser, Compass, Database, FolderKanban, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
@@ -18,7 +18,8 @@ export type NavGroup = { heading: string; items: NavItem[] };
 //   insights  -> Intent (what your prompts say about you)
 //   projects  -> Intent's Projects view
 //   task-list -> Tasks, a plain list
-//   goals     -> the ideal-state constitution
+//   compass   -> the Compass: mission, values, roles, life goals, rules;
+//                domain goals and the ideals are its other two views
 export const WORK_NAV: NavGroup[] = [
   { heading: "Home", items: [
     { id: "insights", label: "Insights", icon: ScanFace },
@@ -27,7 +28,7 @@ export const WORK_NAV: NavGroup[] = [
   { heading: "Work", items: [
     { id: "projects", label: "Projects", icon: FolderKanban },
     { id: "task-list", label: "Tasks", icon: ListChecks },
-    { id: "goals", label: "Goals", icon: Target },
+    { id: "compass", label: "Compass", icon: Compass },
   ]},
 ];
 
@@ -37,7 +38,17 @@ export const WORK_SECTION_IDS: string[] = ["inbox", "apps", ...WORK_NAV.flatMap(
 // Old ids that still arrive from deep links and saved state. The Work board
 // ("tasks") is the Tasks list now; the Settings Apps page ("connectors") is
 // the Home Apps page.
-const WORK_ALIASES: Record<string, string> = { tasks: "task-list", connectors: "apps" };
+// Goals and Ideals are views of the Compass page now.
+const WORK_ALIASES: Record<string, string> = { tasks: "task-list", connectors: "apps", goals: "compass", "ideal-state": "compass", ideals: "compass", omega: "compass" };
+// Which Compass view an old id asks for (read by the page on open).
+const COMPASS_FOCUS: Record<string, string> = { goals: "goals", "ideal-state": "ideals", ideals: "ideals", omega: "ideals:omega" };
+/** Remember the Compass view an old Goals or Ideals link asked for. */
+export function noteCompassFocus(id: string): void {
+  const f = COMPASS_FOCUS[id];
+  if (!f) return;
+  try { localStorage.setItem("prevail.compass.focus", f); } catch { /* storage off */ }
+  window.dispatchEvent(new Event("prevail:compass-focus"));
+}
 // Screens that were removed. Links saved before that land on Home.
 export const REMOVED_SECTIONS = new Set(["map", "source-map", "source", "spark", "automations", "loopboard", "calendar", "notes"]);
 /** The WorkPanel section an id opens (aliases resolved), or null if it is not one. */
@@ -57,7 +68,6 @@ export const EDITOR_NAV: NavGroup[] = [
   { heading: "Context & Memory", items: [
     { id: "intent", label: "Intent", icon: ScanFace },
     { id: "entities", label: "Entities", icon: BookUser },
-    { id: "ideal-state", label: "Ideals", icon: Compass },
     { id: "activity", label: "Activity", icon: Activity },
   ]},
   // Each of these is one page whose side column lists what used to be
@@ -94,7 +104,6 @@ export const EDITOR_SUBS: Record<string, [page: string, row: string]> = {
   daemons: ["settings", "daemon:distill"],
   memory: ["settings", "daemon:memory"],
   usage: ["activity", "usage:overview"],
-  omega: ["ideal-state", "omega"],
   // Arena sections before 0.4.1. Scout and Schedule are gone; they land on Run.
   arena: ["benchmark", "run"],
   leaderboard: ["benchmark", "leaderboard"],

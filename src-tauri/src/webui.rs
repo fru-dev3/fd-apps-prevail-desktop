@@ -139,6 +139,8 @@ const WEBUI_ALLOWED: &[&str] = &[
     "goals_files_read",
     // The chief of staff's name (build/chief-of-staff.md, read).
     "chief_of_staff_read",
+    // The Compass, its versions and ledger (read). Writing and drafting stay on the Mac.
+    "compass_read", "compass_versions", "compass_version_read", "compass_ledger",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.

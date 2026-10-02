@@ -785,9 +785,11 @@ async function openSettings(page: import("@playwright/test").Page, section: stri
   await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), section);
 }
 
-test("28 · Ideals: mission first, then domains; picking a domain shows its ideal", async ({ page }) => {
+test("28 · Ideals live in the Compass: an old Ideals link opens its Ideals view; picking a domain shows its ideal", async ({ page }) => {
   await openSettings(page, "ideal-state");
-  const col = await headerAboveColumn(page, "Ideals", "ideals-list");
+  await expect(page.getByTestId("work-page").getByTestId("page-header").first()).toContainText("Compass", { timeout: 10_000 });
+  await expect(page.getByTestId("tab-ideals")).toHaveAttribute("aria-selected", "true");
+  const col = page.getByTestId("ideals-list");
   await expect(col.getByTestId("ideal-row-mission")).toHaveAttribute("aria-current", "true");
   await expect(page.getByTestId("ideal-detail-mission")).toBeVisible();
   await col.getByTestId("ideal-row-domain:career").click();
@@ -857,9 +859,10 @@ test("31b · Usage leads with every AI tool's own records: API price, paid, and 
   expect(await invokeArgs(page, "engine_ai_usage")).toContainEqual({ vault: "/tmp/smoke-vault", month: null });
 });
 
-const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Entities", "Ideals", "Activity", "Connections", "Privacy & Safety", "Settings"];
+// Ideals moved into the Compass (a Home page) in Goals G1.
+const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Entities", "Activity", "Connections", "Privacy & Safety", "Settings"];
 
-test("32 · the Settings nav is 11 rows, and each opens a header above a side column", async ({ page }) => {
+test("32 · the Settings nav is 10 rows, and each opens a header above a side column", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Settings" }).click();
   const nav = page.getByTestId("app-sidebar");
@@ -867,7 +870,7 @@ test("32 · the Settings nav is 11 rows, and each opens a header above a side co
   const labels = await nav.locator("button[aria-current], button").evaluateAll((els) =>
     els.map((e) => (e as HTMLElement).innerText.trim()));
   for (const l of EDITOR_ROWS) expect(labels).toContain(l);
-  for (const gone of ["Phone", "Gateway", "MCP", "Hooks", "Network", "Autonomy", "Privacy", "Safety", "Profiles", "Vault", "General", "About", "Daemons", "Usage"]) {
+  for (const gone of ["Phone", "Gateway", "MCP", "Hooks", "Network", "Autonomy", "Privacy", "Safety", "Profiles", "Vault", "General", "About", "Daemons", "Usage", "Ideals"]) {
     expect(labels, `${gone} should be a side row now, not a nav row`).not.toContain(gone);
   }
   for (const l of EDITOR_ROWS) {
@@ -986,22 +989,18 @@ test("36 · Your conversations lists the entity's threads and opens one; the Gen
 });
 
 // ── Goals and Tasks, laid out like Intent > Projects ────────────────────────
-test("37 · Goals: Mission row, a new goal writes source/goals.md, a goal opens its detail", async ({ page }) => {
+test("37 · Compass > Goals: domain goals, a new goal writes source/goals.md, a goal opens its detail", async ({ page }) => {
   await mockTauri(page, {
-    read_ideal_state: "# Ideal\n\n## Mission\n\nLive a calm foo life.\n\n## Vision\n\nA quiet bar by the sea.\n",
     goals_files_read: [{ domain: "health", path: "/tmp/smoke-vault/data/domains/health/source/goals.md", body: "- [ ] Run a foo marathon ~id:g-1 ~status:active ~due:2026-12-31 ~progress:40\n  why: Feel strong again.\n" }],
     goals_file_write: "/tmp/smoke-vault/data/domains/general/source/goals.md",
   });
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Goals" }).click();
-  const page_ = page.getByTestId("goals-page");
-  await expect(page.getByTestId("work-page").getByTestId("page-header").first()).toContainText("Goals", { timeout: 10_000 });
+  await page.getByRole("button", { name: "Compass" }).click();
+  await expect(page.getByTestId("work-page").getByTestId("page-header").first()).toContainText("Compass", { timeout: 10_000 });
+  await page.getByTestId("tab-goals").click();
   await expect(page.getByTestId("tab-active")).toHaveAttribute("aria-selected", "true");
-  const col = page_.getByTestId("goals-list");
-  await expect(col.getByTestId("goal-row-mission")).toContainText("Live a calm foo life.");
-  await col.getByTestId("goal-row-mission").click();
-  await expect(page.getByTestId("goal-detail-mission")).toContainText("Live a calm foo life.");
+  const col = page.getByTestId("goals-list");
   // A goal row opens its detail.
   await col.getByTestId("goal-row").filter({ hasText: "Run a foo marathon" }).click();
   const detail = page.getByTestId("goal-detail");
@@ -1110,4 +1109,79 @@ test("40 · Mission versions: newest first with Latest on top; Restore saves a n
   await expect.poll(() => writes(page)).toHaveLength(1);
   expect((await writes(page))[0]).toContain("Slow mornings.");
   await expect(rows.first()).toHaveAttribute("aria-current", "true");
+});
+
+// ── The Compass: drafted lines wait as Proposed until the user confirms ─────
+const COMPASS = `# Compass
+
+## Mission
+
+Live a calm foo life.
+~status:proposed
+  words: "Live a calm foo life."
+  from: build/ideal-state.md
+
+## Values
+
+- Peace of mind ~id:v-peace ~rank:1 ~status:proposed
+  words: "Grow foo while preserving peace of mind."
+  from: build/ideal-state.md
+- Freedom ~id:v-free ~rank:2
+  words: "So work becomes a choice."
+  enough: two foo days a week
+
+## Non-negotiables
+
+- Home for dinner ~id:nn-dinner ~status:proposed
+  words: "Home for dinner five nights."
+  from: data/domains/general/memory/memory.md
+`;
+const compassWrites = (page: import("@playwright/test").Page) => page.evaluate(() =>
+  ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+    .filter((e) => e.cmd === "compass_write").map((e) => e.args as { body: string; changes: Array<{ id: string; to: string }> }));
+
+test("41 · Compass: proposed lines show their words and source; confirm one, drop one, then confirm all", async ({ page }) => {
+  await mockTauri(page, { compass_read: COMPASS, compass_write: null, compass_versions: [], compass_ledger: [] });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Compass" }).click();
+  const header = page.getByTestId("work-page").getByTestId("page-header").first();
+  await expect(header).toContainText("Compass", { timeout: 10_000 });
+  await expect(page.getByTestId("tab-compass")).toHaveAttribute("aria-selected", "true");
+  // Overview: the mission, the ranked values, and what waits.
+  await expect(page.getByTestId("compass-needs-you")).toContainText("3 lines were drafted from your notes");
+  await expect(page.getByTestId("compass-detail-overview")).toContainText("Live a calm foo life.");
+  // Values: words, enough and the source file on each line.
+  await page.getByTestId("compass-row-values").click();
+  const peace = page.locator("[data-testid=compass-item][data-id=v-peace]");
+  await expect(peace).toContainText("\"Grow foo while preserving peace of mind.\"");
+  await expect(peace).toContainText("From build/ideal-state.md");
+  await expect(peace.getByTestId("compass-proposed")).toBeVisible();
+  await expect(page.locator("[data-testid=compass-item][data-id=v-free]")).toContainText("Enough: two foo days a week");
+  await peace.getByRole("button", { name: "Confirm Peace of mind" }).click();
+  await expect.poll(async () => (await compassWrites(page)).length).toBe(1);
+  const first = (await compassWrites(page))[0];
+  expect(first.changes).toEqual([{ id: "v-peace", from: "proposed", to: "confirmed", reason: "confirmed", by: "user" }]);
+  expect(first.body).toContain("- Peace of mind ~id:v-peace ~rank:1\n  words:");
+  expect(first.body).toContain("- Freedom ~id:v-free ~rank:2\n  words: \"So work becomes a choice.\"\n  enough: two foo days a week\n");
+  await expect(peace.getByTestId("compass-proposed")).toHaveCount(0);
+  // Drop the rule: it leaves the file; the backend keeps a version and the ledger.
+  await page.getByTestId("compass-row-rules").click();
+  await page.getByRole("button", { name: "Drop Home for dinner" }).click();
+  await expect.poll(async () => (await compassWrites(page)).length).toBe(2);
+  expect((await compassWrites(page))[1].body).not.toContain("Home for dinner");
+  // Confirm all takes what is left (the mission).
+  await header.getByTestId("compass-confirm-all").click();
+  await expect.poll(async () => (await compassWrites(page)).length).toBe(3);
+  expect((await compassWrites(page))[2].changes.map((c) => c.id)).toEqual(["mission"]);
+  await expect(header.getByTestId("compass-confirm-all")).toHaveCount(0);
+});
+
+test("42 · Compass: with nothing yet, one button drafts it from the vault", async ({ page }) => {
+  await mockTauri(page, { compass_read: "", engine_compass_bootstrap: { added: [], rejected: [], method: "model" } });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Compass" }).click();
+  await page.getByTestId("compass-draft").click();
+  await expect.poll(async () => (await invokedCommands(page)).includes("engine_compass_bootstrap")).toBe(true);
 });

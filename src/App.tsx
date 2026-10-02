@@ -44,7 +44,7 @@ import { VaultEncryptPrompt, vaultEncryptOffered } from "./vault-encrypt-prompt"
 import { migrateModelPrefs } from "./helpers2";
 import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin, WebVaultLinking } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
-import { EDITOR_NAV, REMOVED_SECTIONS, WORK_NAV, noteToolkitGroup, workSection } from "./navdefs";
+import { EDITOR_NAV, REMOVED_SECTIONS, WORK_NAV, noteCompassFocus, noteToolkitGroup, workSection } from "./navdefs";
 import { setEntityVault } from "./entitystore";
 
 // Single source of truth for the version chip in title bar.
@@ -1170,6 +1170,7 @@ export default function App() {
   // deep links to them route here.
   const [workJump, setWorkJump] = useState<{ section: string; n: number } | null>(null);
   const openWorkAt = (raw: string) => {
+    noteCompassFocus(raw);
     const section = workSection(raw) ?? raw;
     setWorkJump((j) => ({ section, n: (j?.n ?? 0) + 1 }));
     setTab("work");
