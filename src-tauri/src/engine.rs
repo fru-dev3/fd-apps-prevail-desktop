@@ -1648,6 +1648,12 @@ pub(crate) fn app_secret_index_path() -> Option<std::path::PathBuf> {
 /// lockstep with this file (read on boot, written on vault switch) so the UI,
 /// the engine, and the daemons never diverge onto different vault folders.
 fn engine_config_path() -> Option<std::path::PathBuf> {
+    // PREVAIL_CONFIG_DIR is the engine's own seam (config.ts configDir): a dev
+    // run against a vault copy points both sides at a throwaway config, so the
+    // real ~/.prevail/config.json is never read or written.
+    if let Ok(d) = std::env::var("PREVAIL_CONFIG_DIR") {
+        if !d.trim().is_empty() { return Some(std::path::Path::new(&d).join("config.json")); }
+    }
     let home = std::env::var("HOME").ok()?;
     Some(std::path::Path::new(&home).join(".prevail").join("config.json"))
 }
