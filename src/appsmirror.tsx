@@ -179,7 +179,7 @@ function ArchivePanel({ vaultPath, onClose }: { vaultPath: string; onClose: () =
   );
 }
 
-export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
+export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?: React.ReactNode }) {
   // Seeded from the shared cache (the sidebar reads the same list).
   const [list, setList] = useState<MirrorList | null>(() => peekInvoke<MirrorList>("apps_mirror_list", { vault: vaultPath }) ?? null);
   const [err, setErr] = useState<string | null>(null);
@@ -268,6 +268,7 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
       title="Apps"
       icon={Plug}
       subtitle="The connectors you already use in Claude, Codex, Gemini and Antigravity, feeding your domains."
+      tabs={tabs}
     />
   );
 

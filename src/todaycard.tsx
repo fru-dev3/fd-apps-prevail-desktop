@@ -192,6 +192,7 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
           <button onClick={() => onAsk("Let's continue my Compass")} className={`${smallBtn} mt-2`} data-testid="review-continue"><MessageSquare className="h-3.5 w-3.5" /> Answer in chat</button>
         </div>
       )}
+      {card.apps && <p className={`${BODY} mt-3 break-words text-text-secondary`} data-testid="review-apps">{card.apps}</p>}
       {card.waited.length > 0 && <p className={`${META} mt-3`}>Waited for this review: {card.waited.map((w) => w.text).join("; ")}</p>}
       <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-checkin">
         {card.checkin ? (

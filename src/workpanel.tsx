@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import { BoardPanel } from "./boardpanel";
 import { InboxPage } from "./inboxpage";
-import { AppsMirrorPanel } from "./appsmirror";
+import { AppsPage } from "./appstack";
 import { RecommendationsPanel } from "./recommendationspanel";
 import { ScrollPage } from "./sectionutil";
 import { MirrorPanel } from "./mirror";
@@ -63,7 +63,7 @@ export function WorkPanel({
     <ScrollPage key={section} testId="work-page" flush={FLUSH.includes(section)}>
         {section === "task-list" && <BoardPanel vaultPath={vaultPath} clis={clis} />}
         {section === "inbox" && <InboxPage vaultPath={vaultPath} />}
-        {section === "apps" && <AppsMirrorPanel vaultPath={vaultPath} />}
+        {section === "apps" && <AppsPage vaultPath={vaultPath} />}
         {section === "recommendations" && <RecommendationsPanel vaultPath={vaultPath} />}
         {intentView && <MirrorPanel key={`${section}:${jumpTo?.n ?? 0}`} vaultPath={vaultPath} />}
         {section === "compass" && <CompassPage vaultPath={vaultPath} />}

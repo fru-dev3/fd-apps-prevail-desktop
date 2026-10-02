@@ -149,6 +149,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_jobs", "engine_job_show", "engine_specialists", "engine_decisions", "engine_metric_proposals",
     // Missions are read on the phone; starting, changing and closing one stay on the Mac.
     "engine_missions_list", "engine_missions_show",
+    // The stack and the sources are read on the phone; probes, answers,
+    // mapping, consent and syncs stay on the Mac.
+    "engine_apps_stack", "engine_apps_unknown", "engine_sources",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.

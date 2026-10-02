@@ -64,6 +64,8 @@ async function openApps(page: Page) {
   await home(page);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "apps" })));
   await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
+  // The page opens on the stack; the connectors mirror is the second tab.
+  await page.getByTestId("tab-connectors").click();
 }
 async function openGmail(page: Page) {
   await openApps(page);

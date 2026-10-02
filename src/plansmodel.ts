@@ -28,6 +28,8 @@ export interface ReviewCard {
   woop: { id: string; title: string }[];
   waited: { kind: string; text: string }[];
   interruptions: { used: number; budget: number };
+  /** One line about the stack (apps plan A4); null when there is nothing to say. */
+  apps?: string | null;
 }
 
 export interface MetricProposal {

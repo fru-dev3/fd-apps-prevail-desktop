@@ -189,3 +189,65 @@ mod tests {
         assert!(one_of("rm", &["start", "stop"]).is_err());
     }
 }
+
+// ── Step 4: the stack (apps plan A2 to A4) and the sources (metrics plan M3) ──
+
+/// The stack view: every app with usage, cost, value, health, verdict, and the cards.
+#[tauri::command]
+pub(crate) async fn engine_apps_stack(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "apps", "stack"])).await
+}
+
+/// Answer a stack card: keep, snooze, done, review, fix, archive (moves the folder) or cancel-steps (drafts a checklist).
+#[tauri::command]
+pub(crate) async fn engine_apps_card(vault: String, key: String, answer: String) -> Result<serde_json::Value, String> {
+    if !(key.len() == 12 && key.chars().all(|c| c.is_ascii_hexdigit())) { return Err(format!("invalid card key: {key}")); }
+    let ans = one_of(&answer, &["keep", "snooze", "done", "review", "fix", "archive", "cancel-steps"])?.to_string();
+    blocking(vec!["--vault".into(), vault, "apps".into(), "card".into(), key, ans]).await
+}
+
+/// A signal that matched no app: map it to an app (a rule on the record) or ignore it.
+#[tauri::command]
+pub(crate) async fn engine_apps_map(vault: String, kind: String, value: String, target: String) -> Result<serde_json::Value, String> {
+    let k = one_of(&kind, &["bundle", "domain", "merchant", "sender", "binary"])?.to_string();
+    let ok_value = !value.trim().is_empty() && value.len() <= 200 && !value.starts_with('-') && value.chars().all(|c| !c.is_control());
+    if !ok_value { return Err("invalid signal value".into()); }
+    let t = if target == "ignore" { "ignore".to_string() } else { ok_id(&target)?.to_string() };
+    blocking(vec!["--vault".into(), vault, "apps".into(), "map".into(), k, value, t]).await
+}
+
+/// Signals that matched no app (domains, apps, recurring merchants).
+#[tauri::command]
+pub(crate) async fn engine_apps_unknown(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "apps", "unknown"])).await
+}
+
+/// Run every connection probe on this Mac now.
+#[tauri::command]
+pub(crate) async fn engine_apps_doctor(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "apps", "doctor"])).await
+}
+
+/// Draft an offboarding checklist for one app (nothing is cancelled or sent).
+#[tauri::command]
+pub(crate) async fn engine_apps_offboard(vault: String, id: String) -> Result<serde_json::Value, String> {
+    blocking(vec!["--vault".into(), vault, "apps".into(), "offboard".into(), ok_id(&id)?.to_string()]).await
+}
+
+/// Every source with this Mac's consent and its last sync.
+#[tauri::command]
+pub(crate) async fn engine_sources(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "sources", "list"])).await
+}
+
+/// Turn one source on or off on this Mac.
+#[tauri::command]
+pub(crate) async fn engine_source_consent(vault: String, id: String, on: bool) -> Result<serde_json::Value, String> {
+    blocking(vec!["--vault".into(), vault, "sources".into(), "consent".into(), ok_id(&id)?.to_string(), if on { "on" } else { "off" }.into()]).await
+}
+
+/// Read one source now (it still checks consent).
+#[tauri::command]
+pub(crate) async fn engine_source_sync(vault: String, id: String) -> Result<serde_json::Value, String> {
+    blocking(vec!["--vault".into(), vault, "sources".into(), "sync".into(), ok_id(&id)?.to_string()]).await
+}

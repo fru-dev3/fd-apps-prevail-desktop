@@ -12,6 +12,7 @@ import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import type { MetricProposal } from "./plansmodel";
 import { SideSpine } from "./sidespine";
+import { SourcesConsent } from "./sourcesview";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 
 export interface Normal { median: number; lo: number; hi: number; weeks: number; learning: boolean; learningWeeksLeft: number }
@@ -297,12 +298,14 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
     detail = (
       <section data-testid="metrics-sources">
         <h2 className={DETAIL_TITLE}>Sources</h2>
-        <p className={`${META} mt-1`}>Read from what is already on your Macs and in your vault. No new connections.</p>
+        <p className={`${META} mt-1`}>What Prevail may read on this Mac. Connections and sensitive sources stay off until you turn them on; counts only, never content.</p>
+        <SourcesConsent vaultPath={vaultPath} />
+        <h3 className={`${SECTION_TITLE} mt-8`}>What each number read</h3>
         {err(sourcesQ)}
         <ul className="mt-3 max-w-4xl">{ss.map((s) => (
           <li key={s.id} data-testid="source-row" className="border-b border-border-subtle py-3 last:border-b-0">
             <div className="flex flex-wrap items-baseline gap-x-3">
-              <h3 className={SECTION_TITLE}>{s.id === "ai" ? "AI tools" : s.id.charAt(0).toUpperCase() + s.id.slice(1)}</h3>
+              <h4 className="text-[16px] font-semibold text-text-primary">{s.id === "ai" ? "AI tools" : s.id.charAt(0).toUpperCase() + s.id.slice(1)}</h4>
               <span className={META}>{s.events.toLocaleString("en-US")} records{s.first ? `, ${s.first} to ${s.last}` : ""}</span>
             </div>
             <p className={`${BODY} text-text-secondary`}>{s.kind === "machine" ? `On ${s.hosts?.length ? s.hosts.join(", ") : "no Mac yet"}` : "Your vault, read in place"}{s.note ? `. ${s.note}` : ""}</p>
