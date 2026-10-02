@@ -152,6 +152,8 @@ export function AttachRow({ items }: { items: AttachItem[] }) {
     if (typeof ResizeObserver === "undefined" || !wrap.current) return;
     const ro = new ResizeObserver(measure);
     ro.observe(wrap.current);
+    // The chips change width when a web font lands after the first measure.
+    if (probe.current) ro.observe(probe.current);
     return () => ro.disconnect();
   }, [items]);
   useEffect(() => { if (items.length <= fit) setOpen(false); }, [items.length, fit]);

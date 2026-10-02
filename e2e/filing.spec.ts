@@ -209,6 +209,11 @@ for (const width of [1440, 390]) {
 for (const width of [1440, 390]) {
   test(`the composer keeps context and @refs in one row; overflow folds into +N that expands in place (${width})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
+    // A slow machine (the CI runner): frames land late, after the next keys.
+    await page.addInitScript(() => {
+      const raf = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) => { setTimeout(() => raf(cb), 120); return 0; };
+    });
     await mockTauri(page, {
       scan_vault: DOMAINS,
       apps_mirror_list: {

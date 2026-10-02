@@ -894,6 +894,18 @@ export function ChatPanel({
   const [refIdx, setRefIdx] = useState(0);
   useEffect(() => { setRefIdx(0); }, [atMatch?.token]);
   useEffect(() => { if (!atMatch) setRefOnly(null); }, [atMatch]);
+  // After a picker rewrites the box, put focus and the caret back on the next
+  // frame. Only move the caret while the box still holds what the picker
+  // wrote: on a slow machine the frame lands after the next keystrokes, and
+  // yanking the caret then scatters them ("@hea" typed as "ea@h").
+  function restoreCaret(written: string, pos: number) {
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      if (document.activeElement !== ta) ta.focus();
+      if (ta.value === written) ta.setSelectionRange(pos, pos);
+    });
+  }
   function applyRef(item: RefCandidate | undefined) {
     if (!atMatch || !item) return;
     const head = input.slice(0, atMatch.start).replace(/\s$/, "");
@@ -902,12 +914,7 @@ export function ChatPanel({
     setInput(next);
     setCaretPos(head.length);
     setRefs((cur) => addRef(cur, { kind: item.kind, id: item.id, label: item.label }));
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(head.length, head.length);
-    });
+    restoreCaret(next, head.length);
   }
   function startRef(kind: RefKind) {
     const next = `${input}${input && !/\s$/.test(input) ? " " : ""}@`;
@@ -915,7 +922,7 @@ export function ChatPanel({
     setCaretPos(next.length);
     setRefOnly(kind);
     setPlusOpen(false);
-    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(next.length, next.length); } });
+    restoreCaret(next, next.length);
   }
   const syncCaret = useCallback((el: HTMLTextAreaElement | null) => {
     if (el) setCaretPos(el.selectionStart ?? el.value.length);
@@ -969,12 +976,7 @@ export function ChatPanel({
     setInput(next);
     setCaretPos(head.length); // collapse the match so the popover closes
     insertSkillSlash(name);
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(head.length, head.length);
-    });
+    restoreCaret(next, head.length);
   }
   // `$<word>` context mention - the mirror of `/` for skills. Detect a
   // trailing `$word` at the caret and offer matching domains + apps; picking
@@ -1013,12 +1015,7 @@ export function ChatPanel({
     setCaretPos(head.length); // collapse the match so the popover closes
     if (item.kind === "domain") void attachDomainAsContext(item.id, "light");
     else void attachAppAsContext(item.id);
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(head.length, head.length);
-    });
+    restoreCaret(next, head.length);
   }
   function attachDomainState() {
     if (!domain || !domainPath) return;
