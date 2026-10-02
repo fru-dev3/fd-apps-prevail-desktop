@@ -331,14 +331,15 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
       {phone ? (
         <>
           <div className="flex items-center justify-between gap-2 px-4 pt-2 text-[13px] text-text-muted"><span>{learned}</span>{learnBtn}</div>
-          <div className="flex gap-1.5 overflow-x-auto border-b border-border-subtle px-4 py-2" role="tablist" aria-label="Recommendation categories">
-            {SPINE.map(({ key, label }) => (
+          {/* Categories with nothing in them are not offered; with nothing at all, no tab row. */}
+          {SPINE.some(({ key }) => key !== "all" && counts[key]) && <div className="flex gap-1.5 overflow-x-auto border-b border-border-subtle px-4 py-2" role="tablist" aria-label="Recommendation categories">
+            {SPINE.filter(({ key }) => key === "all" || counts[key] || sel === key).map(({ key, label }) => (
               <button key={key} role="tab" aria-selected={sel === key} onClick={() => select(key)}
                 className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[13px] ${sel === key ? "bg-surface-warm font-semibold text-text-primary" : "text-text-muted"}`}>
                 {label}<span className="tabular-nums text-text-muted">{counts[key]}</span>
               </button>
             ))}
-          </div>
+          </div>}
           <div className="min-h-0 flex-1 overflow-y-auto">{detail}</div>
         </>
       ) : (

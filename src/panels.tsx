@@ -7,7 +7,7 @@ import { RowAction } from "./rowaction";
 import { WaitingChip } from "./actcard";
 import { entitySnapshot } from "./entitystore";
 import { useWaitingState, waitingThreadPaths } from "./waiting";
-import { Archive, ArrowRight, Check, ChevronDown, ChevronRight, Cpu, Download, Folder, Lightbulb, Link2, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, RefreshCw, Search, Shield, Sparkles, Trash2, UserRound, Wrench, X } from "lucide-react";
+import { Archive, Settings2, ArrowRight, Check, ChevronDown, ChevronRight, Cpu, Download, Folder, Lightbulb, Link2, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, RefreshCw, Search, Shield, Sparkles, Trash2, UserRound, Wrench, X } from "lucide-react";
 import { siWhatsapp } from "simple-icons";
 import { PrevailLogo } from "./PrevailLogo";
 import { ProviderMark } from "./marks";
@@ -999,7 +999,7 @@ export function HomeAppsStrip() {
   if (starred.length === 0) return null;
   return (
     <div className="flex w-full max-w-2xl flex-wrap items-center justify-center gap-2">
-      <span className="font-mono text-[12px] text-text-muted">Apps</span>
+      <span className="text-[12px] text-text-muted">Apps</span>
       {starred.map((a) => {
         const tint = STATUS_TINT[a.status] ?? "#9aa0a6";
         return (
@@ -1007,7 +1007,7 @@ export function HomeAppsStrip() {
             key={a.id}
             onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-app", { detail: a }))}
             title={`Open ${a.title} · ${a.status}${a.lastError ? ": " + a.lastError : ""}`}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-2 py-0.5 text-text-secondary transition-colors hover:border-accent-border hover:bg-surface-warm"
+            className="inline-flex items-center gap-1.5 text-text-secondary transition-colors hover:text-accent"
           >
             <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tint }} />
             <span className="text-[12px]">{a.account?.label ? `${a.title} · ${a.account.label}` : a.title}</span>
@@ -1035,17 +1035,8 @@ export function DomainAppsStrip({ domain }: { domain: string }) {
   }, []);
   if (apps.length === 0) return null;
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="font-mono text-[12px] text-text-muted">Apps</span>
-      {/* Direct jump to the Apps configuration space - saves the Editor > Apps
-          round-trip when tweaking a connector mid-flow. */}
-      <button
-        onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))}
-        title="Open Apps configuration"
-        className="font-mono text-[12px] text-text-muted underline decoration-dotted underline-offset-2 transition-colors hover:text-accent"
-      >
-        configure
-      </button>
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="text-[12px] text-text-muted">Apps</span>
       {apps.map((a) => {
         const tint = STATUS_TINT[a.status] ?? "#9aa0a6";
         const active = activeId === a.id;
@@ -1054,20 +1045,19 @@ export function DomainAppsStrip({ domain }: { domain: string }) {
             key={a.id}
             onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-app", { detail: a }))}
             title={`Open ${a.title} · ${a.status}${a.lastError ? ": " + a.lastError : ""}`}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 transition-colors ${
-              active
-                ? "border-accent-border bg-accent-soft text-text-primary"
-                : "border-border-subtle bg-surface text-text-secondary hover:border-accent-border hover:bg-surface-warm"
-            }`}
+            className={`inline-flex items-center gap-1.5 transition-colors ${active ? "font-medium text-text-primary" : "text-text-secondary hover:text-accent"}`}
           >
             <span
               className="h-1.5 w-1.5 rounded-full"
               style={active ? { backgroundColor: tint, boxShadow: `0 0 0 3px color-mix(in srgb, ${tint} 28%, transparent)` } : { backgroundColor: tint }}
             />
-            <span className="text-[12px]">{a.account?.label ? `${a.title} · ${a.account.label}` : a.title}</span>
+            <span className="text-[13px]">{a.account?.label ? `${a.title} · ${a.account.label}` : a.title}</span>
           </button>
         );
       })}
+      {/* Straight to the Apps page, without the Settings round-trip. */}
+      <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))} title="Manage apps" aria-label="Manage apps"
+        className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-text-primary"><Settings2 className="h-3.5 w-3.5" /></button>
     </div>
   );
 }

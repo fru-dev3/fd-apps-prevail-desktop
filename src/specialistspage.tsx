@@ -127,7 +127,7 @@ function JobRow({ job, vaultPath }: { job: Job; vaultPath: string }) {
         </span>
         <StatusDot tone={jobTone(job)} label={jobStatusLabel(job)} className="mt-1" />
       </button>
-      {open && !job.playbook && <JobCard id={job.id} vaultPath={vaultPath} />}
+      {open && !job.playbook && <JobCard id={job.id} vaultPath={vaultPath} embedded />}
       {open && job.playbook && <p className={`${BODY} mt-2 text-text-secondary`}>{job.why}</p>}
     </li>
   );

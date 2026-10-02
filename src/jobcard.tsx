@@ -31,7 +31,8 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
-export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
+/** `embedded`: inside a list row that already shows the ask, so no box and no repeated title. */
+export function JobCard({ id, vaultPath, embedded = false }: { id: string; vaultPath?: string; embedded?: boolean }) {
   const vault = vaultPath ?? lsGet(LS.vault, "");
   const q = useInvokeQuery<JobView>("engine_job_show", vault ? { vault, id } : null, { staleMs: 2_000 });
   const v = q.data && typeof q.data === "object" && q.data.job ? q.data : null;
@@ -61,10 +62,10 @@ export function JobCard({ id, vaultPath }: { id: string; vaultPath?: string }) {
   const waiting = job.status === "proposed" || job.status === "needs-approval";
   const done = job.status === "done";
   return (
-    <div data-testid="job-card" data-status={job.status} className="mt-3 rounded-xl border border-border-subtle p-3 sm:p-4">
+    <div data-testid="job-card" data-status={job.status} className={embedded ? "mt-2 border-l-2 border-border-subtle pl-3" : "mt-3 rounded-xl border border-border-subtle p-3 sm:p-4"}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p title={job.ask} className={`${ROW_TITLE} line-clamp-2 break-words`}>{job.ask}</p>
+          {!embedded && <p title={job.ask} className={`${ROW_TITLE} line-clamp-2 break-words`}>{job.ask}</p>}
           <p className="mt-0.5 text-[12px] text-text-muted"><span data-testid="job-status">{jobStatusLabel(job)}</span>{job.started ? ` · ${elapsed(job)}` : ""}{job.cost ? ` · about $${job.cost.usd.toFixed(2)}` : ""}</p>
         </div>
         {running && <button onClick={() => void act("stop", "engine_job_action", { action: "stop" })} disabled={!!busy} title="Stop" aria-label="Stop the job" data-testid="job-stop" className={iconBtn}><Square className="h-4 w-4" /></button>}
