@@ -11,6 +11,10 @@ import type { LucideIcon } from "lucide-react";
 // never clips it) through a portal on document.body, so an animated or
 // scrolling ancestor can neither offset nor clip it. Closes on outside click
 // or Escape.
+// Progressive reveal for a row's actions: hidden until the row (a `group`) is
+// hovered or focused, always shown on a touch screen (no hover there).
+export const REVEAL = "opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100";
+
 export type RowMenuItem =
   | { kind?: "item"; icon?: LucideIcon; label: string; hint?: string; onClick: () => void; checked?: boolean; danger?: boolean; disabled?: boolean }
   | { kind: "separator" }
@@ -53,7 +57,7 @@ export function RowMenu({ items, label = "More actions", reveal = false, classNa
         aria-haspopup="menu"
         aria-expanded={open}
         className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-surface-strong hover:text-text-primary ${
-          open ? "bg-surface-strong text-text-primary" : reveal ? "text-text-muted opacity-0 focus-visible:opacity-100 group-hover:opacity-100" : "text-text-muted"
+          open ? "bg-surface-strong text-text-primary" : reveal ? "text-text-muted opacity-0 focus-visible:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" : "text-text-muted"
         }`}
       >
         <MoreVertical className="h-4 w-4" />
