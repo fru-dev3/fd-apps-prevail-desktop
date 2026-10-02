@@ -65,7 +65,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
     setNote(null);
     try {
       await invoke("capture_install", { vault: vaultPath });
-      setNote("Capture turned on. Claude Code now logs live; other tools are read automatically from their chat history.");
+      setNote("Capture turned on. Claude Code and Codex now log live; other tools are read automatically from their chat history.");
       await loadCapture();
     } catch (e) {
       setNote(`Install failed: ${String(e).slice(0, 140)}`);

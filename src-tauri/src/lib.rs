@@ -247,6 +247,17 @@ pub fn run() {
             if let Some(v) = engine::engine_config_vault() {
                 engine::set_vault_root(Some(v));
             }
+            // Start on boot bakes this binary's path into a LaunchAgent. Opened
+            // from a download, macOS runs the app from a temporary translocated
+            // copy, and the agent kept pointing there after the copy was gone.
+            // An installed app rewrites it on every launch.
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+                if autostart_should_refresh(&exe) && app.autolaunch().is_enabled().unwrap_or(false) {
+                    let _ = app.autolaunch().enable();
+                }
+            }
             use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
             use tauri::tray::TrayIconBuilder;
             use tauri::Manager;
@@ -1063,5 +1074,23 @@ mod usage_tests {
         assert!(decision_feedback(vault_s.clone(), Some("health".into()), "nope".into(), "up".into(), None).is_err());
 
         let _ = fs::remove_dir_all(&vault);
+    }
+}
+
+/// Only an installed app bundle rewrites the start-on-boot agent: never a dev
+/// build, and never a translocated copy that disappears.
+fn autostart_should_refresh(exe: &str) -> bool {
+    exe.contains(".app/Contents/MacOS/") && !exe.contains("/AppTranslocation/")
+}
+
+#[cfg(test)]
+mod autostart_tests {
+    use super::autostart_should_refresh;
+
+    #[test]
+    fn only_an_installed_bundle_refreshes_start_on_boot() {
+        assert!(autostart_should_refresh("/Applications/Foo.app/Contents/MacOS/foo"));
+        assert!(!autostart_should_refresh("/private/var/folders/x/T/AppTranslocation/ABC/d/Foo.app/Contents/MacOS/foo"));
+        assert!(!autostart_should_refresh("/Users/foo/src/target/debug/foo"));
     }
 }
