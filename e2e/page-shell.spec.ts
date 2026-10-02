@@ -5,7 +5,7 @@
 import { test, expect } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
-const HOME = ["inbox", "insights", "recommendations", "projects", "task-list", "compass", "apps"];
+const HOME = ["inbox", "insights", "recommendations", "missions", "task-list", "compass", "apps"];
 const SETTINGS = ["models", "council", "toolkit", "benchmark", "intent", "entities", "activity", "connections", "privacy-safety", "settings"];
 
 test.beforeEach(async ({ page }) => {

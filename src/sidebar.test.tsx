@@ -5,7 +5,7 @@ vi.mock("./bridge", () => ({
   isBrowser: () => true,
   invoke: async (cmd: string) => {
     if (cmd === "work_count") return { open: 7, overdue: 0, today: 0 };
-    if (cmd === "entities_list") return { entities: [1, 2, 3, 4].map((i) => ({ id: `project/foo-${i}`, name: `Foo ${i}`, kind: "project", status: i === 4 ? "done" : "active" })) };
+    if (cmd === "engine_missions_list") return [1, 2, 3, 4].map((i) => ({ slug: `foo-${i}`, id: `mission/foo-${i}`, name: `Foo ${i}`, status: i === 4 ? "paused" : "active", target: `2026-12-0${i}`, domains: [], progress: { days: { day: 1, total: 60, left: 10 * i }, milestones: { done: 0, total: 0 }, budget: { planned: 0, used: 0 } } }));
     if (cmd === "engine_suggest_structure") return structure;
     if (cmd === "engine_list_archived") return ["old-stuff"];
     if (cmd === "apps_mirror_list") return appsList;
@@ -36,14 +36,18 @@ afterEach(() => { cleanup(); appsList = null; structure = null; });
 describe("Sidebar", () => {
   it("lists the home surfaces, work screens and domains with real counts", async () => {
     renderSidebar();
-    for (const label of ["Home", "Inbox", "Insights", "You", "Projects", "Tasks", "Compass"]) {
+    for (const label of ["Home", "Inbox", "Insights", "You", "Tasks", "Compass"]) {
       expect(screen.getByRole("button", { name: new RegExp(`^${label}(\\s|$)`) })).toBeTruthy();
     }
     // The Inbox row carries the shared waiting count, in the accent colour.
     await waitFor(() => expect(screen.getByTestId("nav-inbox").textContent).toContain("4"));
     expect(screen.getByTestId("nav-inbox").querySelector(".bg-accent")).toBeTruthy();
     expect(await screen.findByText("7")).toBeTruthy();
-    expect(await screen.findByText("3")).toBeTruthy();
+    // MISSIONS: the active ones with days left, soonest first; paused fold into one row.
+    await waitFor(() => expect(screen.getByTestId("sidebar-missions").textContent).toContain("Foo 1"));
+    expect(screen.getByTestId("sidebar-mission-foo-1").textContent).toContain("10d");
+    expect(screen.getByTestId("sidebar-missions-paused").textContent).toContain("Paused (1)");
+    expect(screen.queryByRole("button", { name: /^Projects(\s|$)/ })).toBeNull();
     expect(screen.getByTestId("nav-home").getAttribute("aria-current")).toBe("page");
     expect(await screen.findByText("Archived")).toBeTruthy();
   });

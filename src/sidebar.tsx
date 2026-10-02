@@ -10,10 +10,11 @@
 import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { useChiefOfStaff } from "./chiefofstaff";
-import { Activity, Archive, ArrowLeft, Briefcase, ChevronRight, Folder, Hourglass, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, UserCog, UserRound, X } from "lucide-react";
+import { Activity, Archive, ArrowLeft, Briefcase, ChevronRight, Folder, Hourglass, House, Inbox, LayoutList, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pause, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, Target, UserCog, UserRound, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
-import { openStructure, statusOf, useStructureSuggestions, useTrackedProjects } from "./trackedprojects";
+import { daysLeftLabel, openMission, useMissions } from "./missions";
+import { openStructure, useStructureSuggestions } from "./missions";
 import { prefetchSection, prefetchSettings } from "./prefetch";
 import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
@@ -81,6 +82,18 @@ function NavRow({ icon: Icon, label, title, active, count = 0, loud = false, col
       {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
       {!collapsed && <CountPill n={count} active={active} loud={loud} />}
       {collapsed && count > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
+    </button>
+  );
+}
+
+// A mission row: the target icon, its name, and the days left at the right.
+function MissionRow({ name, left, active, collapsed, onClick, testId }: { name: string; left: string; active: boolean; collapsed: boolean; onClick: () => void; testId?: string }) {
+  return (
+    <button onClick={onClick} title={collapsed ? `${name}${left ? `, ${left} left` : ""}` : undefined} aria-current={active ? "page" : undefined} data-testid={testId}
+      className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${collapsed ? "h-10 justify-center" : "h-9 gap-3 px-3"} ${active ? ACTIVE_ROW : IDLE_ROW}`}>
+      <Target className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
+      {!collapsed && <span className="min-w-0 flex-1 truncate">{name}</span>}
+      {!collapsed && left && <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{left}</span>}
     </button>
   );
 }
@@ -248,6 +261,14 @@ export function Sidebar({
     return next;
   });
   const [workActive, setWorkActive] = useState("task-list");
+  // Which mission the Missions page shows, so its sidebar row lights up.
+  const [openMissionSlug, setOpenMissionSlug] = useState<string | null>(null);
+  useEffect(() => {
+    const onMission = (e: Event) => setOpenMissionSlug((e as CustomEvent<string | null>).detail ?? null);
+    window.addEventListener("prevail:open-mission", onMission as EventListener);
+    window.addEventListener("prevail:mission-shown", onMission as EventListener);
+    return () => { window.removeEventListener("prevail:open-mission", onMission as EventListener); window.removeEventListener("prevail:mission-shown", onMission as EventListener); };
+  }, []);
   useEffect(() => {
     const onEd = (e: Event) => { const d = (e as CustomEvent<string>).detail || "settings"; setEditorActive(navSection(d.split(":")[0])); };
     const onWk = (e: Event) => { const d = workSection((e as CustomEvent<string>).detail || ""); if (d) setWorkActive(d); };
@@ -281,26 +302,36 @@ export function Sidebar({
   };
 
   // Counts for the Work rows, read from the same sources their screens use:
-  // open tasks across every domain, and the active projects you track.
-  // Through the shared cache, so the Tasks and Projects pages open on the
-  // same answers instead of fetching them again.
+  // open tasks across every domain. Missions are read once for their own
+  // section. Through the shared cache, so the pages open on the same answers
+  // instead of fetching them again.
   const today = new Date().toISOString().slice(0, 10);
   const workCount = useInvokeQuery<{ open?: number }>("work_count", vaultPath ? { vault: vaultPath, today, domain: null } : null, { invalidateOn: TASKS_CHANGED });
-  const tracked = useTrackedProjects(vaultPath || null);
+  const missionsQ = useMissions(vaultPath || null);
   // Named chief of staff: the General row (Home) carries their name.
   const chief = useChiefOfStaff(vaultPath || null);
   const openTasks = workCount.data?.open ?? 0;
-  const projectCount = tracked.projects.filter((p) => statusOf(p) === "active").length;
+  // MISSIONS: the active ones with days left (soonest target first), paused
+  // ones folded under one row. Completed and archived live on the page.
+  const activeMissions = missionsQ.missions.filter((m) => m.status === "active").sort((a, b) => (a.target || "9").localeCompare(b.target || "9"));
+  const pausedMissions = missionsQ.missions.filter((m) => m.status === "paused").length;
+  const [missionsOpen, setMissionsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.missionsOpen") !== "0");
+  useEffect(() => { lsSet("prevail.sidebar.missionsOpen", missionsOpen ? "1" : "0"); }, [missionsOpen]);
+  const openMissions = (focus: string) => {
+    try { localStorage.setItem("prevail.missions.focus", focus); } catch { /* storage off */ }
+    selectWork("missions");
+    window.dispatchEvent(new CustomEvent("prevail:missions-focus", { detail: focus }));
+  };
   // A pending "new domain" suggestion shows as a dot on the Domains header.
   const domainSuggestions = useStructureSuggestions(vaultPath || null).suggestions.filter((x) => x.kind === "domain").length;
   const refreshCounts = useRef<() => void>(() => {});
-  refreshCounts.current = () => { void workCount.refresh(); void tracked.refresh(); };
+  refreshCounts.current = () => { void workCount.refresh(); void missionsQ.refresh(); };
   useEffect(() => {
     if (!vaultPath) return;
     const id = window.setInterval(() => refreshCounts.current(), 120000);
     return () => window.clearInterval(id);
   }, [vaultPath]);
-  const workCounts: Record<string, number> = { "task-list": openTasks, projects: projectCount };
+  const workCounts: Record<string, number> = { "task-list": openTasks };
   // Apps: the connectors from your AI runtimes, read from the same list the
   // Apps page shows. A click opens that page with the app picked.
   const appsList = useInvokeQuery<MirrorList>("apps_mirror_list", vaultPath ? { vault: vaultPath } : null, { staleMs: Infinity });
@@ -752,6 +783,20 @@ export function Sidebar({
                 {WORK_NAV.slice(1).flatMap((g) => g.items).map((it) => (
                   <NavRow key={it.id} icon={it.icon} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
                 ))}
+              </nav>
+            )}
+            </section>
+
+            <Divider />
+            <section>
+            {!collapsed && <SectionHeader label="Missions" count={activeMissions.length} open={missionsOpen} onToggle={() => setMissionsOpen((v) => !v)} onAdd={() => openMissions("new")} addTitle="New mission" />}
+            {(collapsed || missionsOpen) && (
+              <nav aria-label="Missions" data-testid="sidebar-missions" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+                {activeMissions.map((m) => (
+                  <MissionRow key={m.slug} name={m.name} left={daysLeftLabel(m)} active={tab === "work" && workActive === "missions" && openMissionSlug === m.slug} collapsed={collapsed} onClick={() => { setOpenMissionSlug(m.slug); openMission(m.slug); setWorkActive("missions"); }} testId={`sidebar-mission-${m.slug}`} />
+                ))}
+                {pausedMissions > 0 && <NavRow icon={Pause} label={`Paused (${pausedMissions})`} active={false} collapsed={collapsed} onClick={() => openMissions("paused")} testId="sidebar-missions-paused" />}
+                <NavRow icon={LayoutList} label={activeMissions.length ? "All missions" : "Missions"} active={tab === "work" && workActive === "missions" && !openMissionSlug} collapsed={collapsed} onClick={() => { setOpenMissionSlug(null); openMissions("all"); }} testId="sidebar-missions-all" />
               </nav>
             )}
             </section>

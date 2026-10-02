@@ -6,7 +6,7 @@
 // keeps a readable copy (prompts.md) and an exact one (prompts.jsonl).
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight, Check, FolderKanban, FolderPlus, Lightbulb, Loader2, RefreshCw, Sparkles, Target, type LucideIcon,
+  ArrowRight, Check, Lightbulb, Loader2, RefreshCw, Sparkles, Target, type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
 import { hasInvoke, invokeCached, invokeKey, peekInvoke, setQueryData } from "./query";
@@ -18,7 +18,7 @@ import { SideSpine } from "./sidespine";
 import { DetailTitle, META } from "./typescale";
 import { RequirementsPane, RestartCard, TechnicalDetails, useRestart } from "./mirrorrestart";
 import type { HistoryDoc } from "./mirror";
-import { createProject, openTrackedProject, trackedFor, useTrackedProjects } from "./trackedprojects";
+import { createMission, missionFor, openMission, useMissions } from "./missions";
 import { openProject } from "./recmodel";
 
 export interface ProjectIntent { title: string; goal: string; status: string }
@@ -181,22 +181,22 @@ function useProjectPrompts(vaultPath: string, slug: string, on: boolean) {
 
 const fmtWhen = (ts: number) => new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-// "Track as a project": makes a tracked project from this inferred one, or
+// "Start a mission": makes a mission from this prompt project (your yes), or
 // opens the one already made from it.
 function TrackButton({ vaultPath, p, phone }: { vaultPath: string; p: ProjectEntry; phone: boolean }) {
-  const { projects } = useTrackedProjects(vaultPath);
+  const { missions } = useMissions(vaultPath);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const tracked = trackedFor(projects, p.slug);
+  const tracked = missionFor(missions, p.slug);
   const track = async () => {
     setBusy(true); setErr(null);
-    try { const made = await createProject(vaultPath, { name: displayTitle(p.title), fromIntent: p.slug }); if (made?.id) openTrackedProject(made.id); }
+    try { const made = await createMission(vaultPath, { name: displayTitle(p.title), fromPromptProject: p.slug }); if (made?.slug) openMission(made.slug); }
     catch (e) { setErr(String(e)); } finally { setBusy(false); }
   };
-  const label = tracked ? "Open tracked project" : "Track as a project";
-  const Icon = busy ? Loader2 : tracked ? FolderKanban : FolderPlus;
+  const label = tracked ? "Open its mission" : "Start a mission";
+  const Icon = busy ? Loader2 : Target;
   return (
-    <button onClick={() => (tracked ? openTrackedProject(tracked.id) : void track())} disabled={busy} data-testid="project-track" title={err ?? label} aria-label={label}
+    <button onClick={() => (tracked ? openMission(tracked.slug) : void track())} disabled={busy} data-testid="project-track" title={err ?? label} aria-label={label}
       className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${err ? "border-err text-err" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}>
       <Icon className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />{!phone && label}
     </button>
@@ -440,7 +440,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     <ProjectDetail key={cur.slug} vaultPath={vaultPath} p={cur} phone={phone} building={building} onRewrite={() => void build(cur.slug)} />
   ) : (
     <div data-testid="projects-overview">
-      <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Your projects</h2>
+      <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Your prompt projects</h2>
       <p className="mt-1.5 text-[14px] leading-snug text-text-secondary">
         {idx.projects.length} projects read from {idx.stats?.kept.toLocaleString() ?? "your"} prompts. Pick one on the left to see its arc and restart brief.
       </p>
@@ -458,7 +458,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
   return (
     <div className="flex h-full min-h-0 flex-col">
       {err && <div className="border-b border-border-subtle bg-surface px-6 py-2 text-[12px] text-err">{err}</div>}
-      <SideSpine storageKey="prevail.intent.spine.projects" title="Projects" label="projects" testId="projects-list" meta={meta} actions={refreshBtn}
+      <SideSpine storageKey="prevail.intent.spine.projects" title="Prompt projects" label="prompt projects" testId="projects-list" meta={meta} actions={refreshBtn}
         phone={phone} phoneDetail={sel !== null} onBack={() => setSel(null)} backLabel="All projects"
         detail={<div className={phone ? "p-4" : "p-6"}>{detail}</div>}>
         {list}

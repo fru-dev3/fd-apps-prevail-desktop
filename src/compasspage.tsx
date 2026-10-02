@@ -114,7 +114,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const list = (
     <nav className="space-y-0.5 p-2" aria-label="Compass">
       {row("overview", "Overview", LayoutList, undefined, proposed ? `${proposed} waiting for you` : undefined)}
-      {row("mission", "Mission", Compass, undefined, mission?.text ? mission.text.split("\n")[0] : "Not written yet")}
+      {row("mission", "Purpose", Compass, undefined, mission?.text ? mission.text.split("\n")[0] : "Not written yet")}
       {row("values", "Values", Star, values.length)}
       {row("roles", "Roles", Users, roles.length)}
       {row("goals", "Life goals", Target, goals.length)}
@@ -204,7 +204,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       )}
       {mission?.text && (
         <section className="mt-6">
-          <h3 className={`${SECTION_TITLE} mb-1`}>Mission</h3>
+          <h3 className={`${SECTION_TITLE} mb-1`}>Purpose</h3>
           <p className="font-display text-[22px] leading-snug text-text-primary">{mission.text.replace(/^>\s*/gm, "").replace(/\*\*/g, "")}</p>
         </section>
       )}
@@ -216,7 +216,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const missionView = (
     <section data-testid="compass-detail-mission">
       <div className="flex items-start gap-3">
-        <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>Mission</h2>
+        <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>Purpose</h2>
         {mission && actions({ id: "mission", title: "the mission", tokens: mission.tokens })}
       </div>
       {mission?.text ? (
@@ -237,7 +237,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     invoke<{ name: string }[]>("compass_versions", { vault: vaultPath }).then((v) => setVersions(Array.isArray(v) ? v : [])).catch(() => setVersions([]));
     invoke<typeof ledger>("compass_ledger", { vault: vaultPath }).then((l) => setLedger(Array.isArray(l) ? l : [])).catch(() => setLedger([]));
   }, [sel, vaultPath, text]);
-  const titleOf = (id: string) => id === "mission" ? "Mission" : items(doc).find((i) => i.id === id)?.title ?? id;
+  const titleOf = (id: string) => id === "mission" ? "Purpose" : items(doc).find((i) => i.id === id)?.title ?? id;
   const historyView = (
     <section data-testid="compass-detail-history">
       <h2 className={DETAIL_TITLE}>History</h2>

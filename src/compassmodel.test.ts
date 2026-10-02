@@ -89,4 +89,10 @@ describe("WOOP", () => {
     expect(confirmLines(g(`${full}  expect: 2\n`), "all").changes[0]!.to).toBe("prototyping");
     expect(confirmLines(g('  outcome: "on top"\n'), "all").changes[0]!.to).toBe("confirmed");
   });
+  test("reads ## Purpose, and an older ## Mission heading the same", () => {
+    const a = parseCompass("# Compass\n\n## Purpose\nMake foo things that last.\n\n## Values\n");
+    const b = parseCompass("# Compass\n\n## Mission\nMake foo things that last.\n\n## Values\n");
+    expect(missionOf(a)?.text).toBe("Make foo things that last.");
+    expect(missionOf(b)?.text).toBe("Make foo things that last.");
+  });
 });

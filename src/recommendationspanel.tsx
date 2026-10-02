@@ -22,7 +22,7 @@ import { useIsPhone } from "./useisphone";
 import { PREF, setPref } from "./storage";
 import { toast } from "./toast";
 import { StructureCards } from "./structurecards";
-import { RECS_CATEGORY_EVENT, useStructureSuggestions } from "./trackedprojects";
+import { RECS_CATEGORY_EVENT, useStructureSuggestions } from "./missions";
 import {
   addTask, applyRec, copyInstruction, doItLabel, loadSet, openEvidence, recsFor, REC_DISMISSED, REC_SAVED,
   SPINE, setDomainModel, spineCounts, START_N, storeSet, visibleRecs, normalizeRec,
@@ -39,7 +39,7 @@ const SPINE_ICON: Record<SpineKey, LucideIcon> = {
   people: Users, models: BarChart3, context: Gauge,
 };
 const CAT_LABEL: Record<RecCategory, string> = {
-  rules: "Rules", projects: "Projects", structure: "Structure", apps: "Apps", people: "People and places", models: "Models", context: "Context",
+  rules: "Rules", projects: "Prompt projects", structure: "Structure", apps: "Apps", people: "People and places", models: "Models", context: "Context",
 };
 // Dismissing a recommendation anywhere (this page or the Home Briefing) writes
 // the one shared set and announces it, so both agree.

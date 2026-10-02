@@ -6,7 +6,7 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, Blocks, BookUser, Compass, Database, FolderKanban, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords } from "lucide-react";
+import { Activity, Blocks, BookUser, Compass, Database, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
@@ -16,9 +16,8 @@ export type NavGroup = { heading: string; items: NavItem[] };
 // are not in these groups); the "Work" group holds the planning screens. Every
 // id here is a WorkPanel section.
 //   insights  -> Intent (what your prompts say about you)
-//   projects  -> Intent's Projects view
 //   task-list -> Tasks, a plain list
-//   compass   -> the Compass: mission, values, roles, life goals, rules;
+//   compass   -> the Compass: purpose, values, roles, life goals, rules;
 //                domain goals and the ideals are its other two views
 export const WORK_NAV: NavGroup[] = [
   { heading: "Home", items: [
@@ -26,7 +25,6 @@ export const WORK_NAV: NavGroup[] = [
     { id: "recommendations", label: "You", icon: Lightbulb },
   ]},
   { heading: "Work", items: [
-    { id: "projects", label: "Projects", icon: FolderKanban },
     { id: "task-list", label: "Tasks", icon: ListChecks },
     { id: "compass", label: "Compass", icon: Compass },
     { id: "decisions", label: "Decisions", icon: Gavel },
@@ -35,13 +33,14 @@ export const WORK_NAV: NavGroup[] = [
 
 // Every WorkPanel section: the nav rows plus Inbox and Apps, which the sidebar
 // draws itself.
-// Specialists has its own sidebar section (SPECIALISTS), like Apps.
-export const WORK_SECTION_IDS: string[] = ["inbox", "apps", "specialists", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
+// Specialists and Missions have their own sidebar sections, like Apps.
+export const WORK_SECTION_IDS: string[] = ["inbox", "apps", "specialists", "missions", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
 // Old ids that still arrive from deep links and saved state. The Work board
 // ("tasks") is the Tasks list now; the Settings Apps page ("connectors") is
 // the Home Apps page.
 // Goals and Ideals are views of the Compass page now.
-const WORK_ALIASES: Record<string, string> = { tasks: "task-list", connectors: "apps", goals: "compass", "ideal-state": "compass", ideals: "compass", omega: "compass" };
+// Work > Projects became the MISSIONS section.
+const WORK_ALIASES: Record<string, string> = { projects: "missions", tasks: "task-list", connectors: "apps", goals: "compass", "ideal-state": "compass", ideals: "compass", omega: "compass" };
 // Which Compass view an old id asks for (read by the page on open).
 const COMPASS_FOCUS: Record<string, string> = { goals: "goals", "ideal-state": "ideals", ideals: "ideals", omega: "ideals:omega" };
 /** Remember the Compass view an old Goals or Ideals link asked for. */

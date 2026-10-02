@@ -338,6 +338,12 @@ export interface ChatMessage {
   // event). The final reply also ends with "[job:<id>]" so a saved thread
   // keeps it.
   jobId?: string;
+  // A mission turn reached outside the mission (the engine's `bring_in`
+  // event): nothing was read; the card asks for this question, the mission, or no.
+  bringIn?: { mission: string; domains: string[]; never: boolean; why: string };
+  // The message sounded like a mission (the engine's `mission_start` event):
+  // a Start card, never started without the user's yes.
+  missionDraft?: { name: string; outcome: string; owner?: string; consulted: string[]; specialists: string[]; target?: string };
 }
 
 export type AppNotice =

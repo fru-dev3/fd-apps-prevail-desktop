@@ -42,6 +42,9 @@ pub struct Task {
     pub to: Option<String>,
     #[serde(default)]
     pub from: Option<String>,
+    // "~mission:<slug>": a domain-owned task that serves a mission (missions-plan.md).
+    #[serde(default)]
+    pub mission: Option<String>,
 }
 
 fn is_ymd(s: &str) -> bool {
@@ -92,6 +95,7 @@ struct Meta {
     kind: Option<String>,
     to: Option<String>,
     from: Option<String>,
+    mission: Option<String>,
 }
 
 // Strip trailing metadata tokens off a task body, in any order, only at the END
@@ -125,6 +129,7 @@ fn split_meta(raw: &str) -> (String, Meta) {
                         "kind" => { m.kind = Some(v.to_string()); true }
                         "to" => { m.to = Some(v.to_string()); true }
                         "from" => { m.from = Some(v.to_string()); true }
+                        "mission" => { m.mission = Some(v.to_string()); true }
                         _ => false,
                     };
                     if matched { text = t[..idx].to_string(); continue; }
@@ -171,6 +176,7 @@ fn parse_tasks(md: &str) -> Vec<Task> {
                 kind: m.kind,
                 to: m.to,
                 from: m.from,
+                mission: m.mission,
             })
         })
         .filter(|t| !t.text.is_empty())
@@ -229,6 +235,7 @@ fn render_tasks(tasks: &[Task]) -> String {
         if let Some(k) = t.kind.as_deref().filter(|k| matches!(*k, "commitment" | "waiting")) { line.push_str(&format!(" ~kind:{k}")); }
         if let Some(p) = t.to.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~to:{p}")); }
         if let Some(p) = t.from.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~from:{p}")); }
+        if let Some(p) = t.mission.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~mission:{p}")); }
         s.push_str(&line);
         s.push('\n');
     }
@@ -283,6 +290,7 @@ pub fn tasks_add(vault: String, domain: String, text: String, source: Option<Str
             kind: m.kind,
             to: m.to,
             from: m.from,
+            mission: m.mission,
         });
         tasks_set(vault.clone(), domain.clone(), tasks)?;
         // Fire any user hooks bound to task creation (non-blocking).
@@ -593,6 +601,15 @@ mod tests {
         assert_eq!(t[0].source.as_deref(), Some("gmail:abc123"));
         assert_eq!(t[1].from.as_deref(), Some("person/pat-bar"));
         assert_eq!(t[2].source.as_deref(), Some("loop"));
+        assert_eq!(super::render_tasks(&t), md);
+    }
+
+    #[test]
+    fn mission_token_round_trips_like_the_engine() {
+        let md = "# Tasks\n\n- [ ] Book the next term @2026-12-01 ~id:a9 ~mission:learn-the-cello\n";
+        let t = super::parse_tasks(md);
+        assert_eq!(t[0].mission.as_deref(), Some("learn-the-cello"));
+        assert_eq!(t[0].text, "Book the next term");
         assert_eq!(super::render_tasks(&t), md);
     }
 

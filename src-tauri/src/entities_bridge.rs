@@ -46,7 +46,8 @@ const KINDS: &[&str] = &["person", "place", "org", "thing", "project"];
 pub(crate) fn valid_id(id: &str) -> bool {
     let id = id.trim();
     match id.split_once('/') {
-        Some((kind, rest)) => KINDS.contains(&kind) && !rest.trim().is_empty() && !rest.starts_with('-') && id.len() <= 300,
+        // mission/<slug>: an @ mission in chat (the engine adds a brief of it).
+        Some((kind, rest)) => (KINDS.contains(&kind) || kind == "mission") && !rest.trim().is_empty() && !rest.starts_with('-') && id.len() <= 300,
         None => false,
     }
 }
@@ -381,6 +382,7 @@ mod tests {
         assert!(valid_id("person/Sam Rivera"));
         assert!(valid_id("org/acme"));
         assert!(!valid_id("sam"));
+        assert!(valid_id("mission/paint-the-shed"));
         assert!(!valid_id("planet/mars"));
         assert!(!valid_id("person/--vault"));
         assert!(!valid_id("person/"));

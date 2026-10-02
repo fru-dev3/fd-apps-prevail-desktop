@@ -1,6 +1,7 @@
 // Chat-display leaf components extracted from App.tsx: ChatBubble (one rendered
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
 import { JobCard } from "./jobcard";
+import { BringInCard, DomainMissions, MissionStartCard } from "./missioncards";
 import { jobIdOf } from "./plansmodel";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ReplyApps } from "./chatrefs";
@@ -617,6 +618,8 @@ export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMak
             onAddToEntityNotes={m.role === "assistant" ? onAddToEntityNotes : undefined}
             footer={m.role === "user" && userFooter ? userFooter(m, i) : undefined}
           />
+          {m.role === "assistant" && !m.streaming && m.bringIn && <div className="mx-auto w-full max-w-3xl px-4"><BringInCard b={m.bringIn} lastUser={[...messages.slice(0, i)].reverse().find((x) => x.role === "user")?.content ?? ""} /></div>}
+          {m.role === "assistant" && !m.streaming && m.missionDraft && <div className="mx-auto w-full max-w-3xl px-4"><MissionStartCard d={m.missionDraft} /></div>}
           {after}
           </Fragment>
         );
@@ -1010,6 +1013,7 @@ export function DomainHome({
     <div className="flex h-full w-full flex-col px-6 py-6">
       <div className="flex-1 overflow-y-auto">
         {!isApp && <DomainAppsStrip domain={domain} />}
+        {!isApp && <DomainMissions vaultPath={vaultPath} domain={domain} />}
         {loading && <div className="text-sm text-text-muted">loading domain context…</div>}
         {!loading && ctx && (
           <div>

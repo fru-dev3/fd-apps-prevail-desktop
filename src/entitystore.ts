@@ -4,7 +4,7 @@
 // Chips read it synchronously so a transcript never waits on the engine.
 import { useSyncExternalStore } from "react";
 import { invoke } from "./bridge";
-import { openTrackedProject } from "./trackedprojects";
+import { openMission } from "./missions";
 
 export type EntityKindName = "person" | "place" | "org" | "thing" | "project";
 
@@ -126,8 +126,8 @@ export function registerEntitiesView(): () => void {
 }
 
 export function requestEntity(t: EntityTarget) {
-  // A project opens on the Projects page, not in Entities.
-  if (t.kind === "project") { openTrackedProject(t.value); return; }
+  // A mission (or an old project id) opens on the Missions page, not in Entities.
+  if (t.kind === "project" || (t.kind as string) === "mission") { openMission(t.value); return; }
   pending = t;
   try { localStorage.setItem(OPEN_KEY, JSON.stringify(t)); } catch { /* storage off */ }
   window.dispatchEvent(new CustomEvent("prevail:open-entity", { detail: t }));

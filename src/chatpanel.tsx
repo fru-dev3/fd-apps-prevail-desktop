@@ -131,6 +131,7 @@ export function ChatPanel({
   phoneMic,
   entity = null,
   scopeApp = null,
+  mission = null,
   scopeGoogleAccount = null,
 }: {
   /// A Google app's Account picker: an account id or "all". Sent as
@@ -140,6 +141,11 @@ export function ChatPanel({
   /// Threads live in `_app-<id>` tagged `app: <id>`, and every turn goes
   /// through the engine with --scope-app.
   scopeApp?: { id: string; name: string } | null;
+  /// Mission chat: this panel is one mission's conversation (the mission's
+  /// Chat tab). Threads live in `_mission-<slug>` (the mission's
+  /// memory/threads), every turn goes through the engine scoped to the
+  /// mission, and the engine builds its context (no desktop preambles).
+  mission?: { slug: string; name: string } | null;
   /// Entity chat: this panel is scoped to one entity (the Entities detail
   /// pane renders it). Every turn goes through the engine with --entity, the
   /// thread is tagged with it, and each reply can be added to its notes.
@@ -335,7 +341,7 @@ export function ChatPanel({
   useEffect(() => {
     const onSeed = (e: Event) => {
       // An entity chat is its own conversation; seeds are for the main chat.
-      if (entity || scopeApp) return;
+      if (entity || scopeApp || mission) return;
       const text = (e as CustomEvent<string>).detail;
       if (typeof text === "string" && text) {
         setInput(text); setDomainTab("chat");
@@ -348,7 +354,7 @@ export function ChatPanel({
     // Pending seed from a view that wasn't mounted when it fired (e.g. a task's
     // "Discuss with AI"): pick it up on mount so it reliably lands here.
     try {
-      const pending = entity || scopeApp ? null : localStorage.getItem("prevail.compose.pending");
+      const pending = entity || scopeApp || mission ? null : localStorage.getItem("prevail.compose.pending");
       if (pending) { localStorage.removeItem("prevail.compose.pending"); setInput(pending); setDomainTab("chat"); }
     } catch { /* ignore */ }
     return () => window.removeEventListener("prevail:compose-seed", onSeed as EventListener);
@@ -362,7 +368,7 @@ export function ChatPanel({
       const d = (e as CustomEvent).detail as { band?: string; fromModel?: string; toModel?: string } | undefined;
       if (!d || !d.toModel || !vaultPath) return;
       // Match the engine's normalization: an empty domain is the General bucket.
-      const engineDomain = domain || "general";
+      const engineDomain = mission ? `_mission-${mission.slug}` : domain || "general";
       invoke("route_learn_record", {
         vault: vaultPath,
         domain: engineDomain,
@@ -893,6 +899,19 @@ export function ChatPanel({
   const refsRef = useRef<ChatRef[]>(refs);
   refsRef.current = refs;
   const [refOnly, setRefOnly] = useState<RefKind | null>(null);
+  // A mission's bring-in card: the domain rides along on the question, once.
+  useEffect(() => {
+    if (!mission) return;
+    const onBring = (e: Event) => {
+      const d = (e as CustomEvent<{ mission: string; domains: string[]; text: string }>).detail;
+      if (!d || d.mission !== mission.slug) return;
+      setRefs((list) => d.domains.reduce((acc, x) => addRef(acc, { kind: "domain", id: x, label: titleCase(x) }), list));
+      if (d.text) setInput(d.text);
+      requestAnimationFrame(() => taRef.current?.focus());
+    };
+    window.addEventListener("prevail:bring-in", onBring as EventListener);
+    return () => window.removeEventListener("prevail:bring-in", onBring as EventListener);
+  }, [mission?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const atMatch = useMemo(() => atMatchAt(input, caretPos), [input, caretPos]);
   const refCandidates = useRefCandidates(vaultPath, atMatch?.token ?? null, refOnly);
   const [refIdx, setRefIdx] = useState(0);
@@ -1777,6 +1796,18 @@ export function ChatPanel({
               if (t.entities.length) window.dispatchEvent(new CustomEvent("prevail:entities-changed"));
               break;
             }
+            case "bring_in":
+            case "mission_start": {
+              // A card the user answers: bring a domain into the mission, or
+              // start a mission. The engine read nothing and started nothing.
+              const card = ev.type === "bring_in" ? { bringIn: (ev as { bringIn?: ChatMessage["bringIn"] }).bringIn } : { missionDraft: (ev as { missionDraft?: ChatMessage["missionDraft"] }).missionDraft };
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || !last.streaming || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, ...card }];
+              });
+              break;
+            }
             case "job": {
               // The chief of staff staffed this message as a job: the reply
               // carries a marker the thread keeps, and the bubble draws the card.
@@ -2126,7 +2157,14 @@ export function ChatPanel({
       routedPreamble = await buildRoutedContext(vaultPath, routedOf(filingRef.current)).catch(() => "");
     }
     const history = buildChatContext(messages, 40000);
-    const promptText = fwLens.buildPrompt(
+    // A mission's context (memory, owner and consulted domains, tasks, skills,
+    // people) is built by the engine's scope resolver, the same as on the CLI,
+    // MCP and Telegram; the desktop sends only what this composer adds.
+    const promptText = mission ? fwLens.buildPrompt(
+      history
+        ? `${planPreamble}${attachPreamble}${primedPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
+        : `${planPreamble}${attachPreamble}${primedPreamble}${visible}`
+    ) : fwLens.buildPrompt(
       history
         ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
         : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
@@ -2255,11 +2293,11 @@ export function ChatPanel({
     // So does an app's own chat, and any turn with an @-reference: the engine
     // builds each app's context block and attaches its tools.
     const turnRefs = refsToChatArgs(refsRef.current);
-    const useEngine = ENGINE_CHAT_ENABLED && engineAvailable && (!!domain || !!entityIdRef.current || !!scopeApp || refsRef.current.length > 0 || (!!sendCli && ENGINE_ONLY.has(sendCli)));
+    const useEngine = ENGINE_CHAT_ENABLED && engineAvailable && (!!domain || !!mission || !!entityIdRef.current || !!scopeApp || refsRef.current.length > 0 || (!!sendCli && ENGINE_ONLY.has(sendCli)));
     turnAppNamesRef.current = [...(scopeApp ? [scopeApp.name] : []), ...refsRef.current.filter((r) => r.kind === "app" && r.id !== scopeApp?.id).map((r) => r.label)];
     // The engine treats General as the "general" domain (general_dir), so a
     // null/empty domain maps to that here.
-    const engineDomain = domain || "general";
+    const engineDomain = mission ? `_mission-${mission.slug}` : domain || "general";
     // Act mode: this domain routes sends through the AGENT runtime (real,
     // broker-gated tools + a Prevail-verified action ledger) instead of an
     // advisory text reply. Requires the engine; off in Bunker Mode; if the
@@ -2668,7 +2706,7 @@ export function ChatPanel({
       )}
       {/* General and the phone have no domain header; the Context view is
           still one tap away from a slim row above the transcript. */}
-      {!inDomainDetail && !isApp && !entity && !scopeApp && (phone || !domain) && (
+      {!inDomainDetail && !isApp && !entity && !scopeApp && !mission && (phone || !domain) && (
         <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border-subtle px-3 py-1.5">
           {scheduleButton}
           <ContextButton onClick={() => { setContextSection(undefined); setContextOpen(true); }} />
@@ -2692,7 +2730,7 @@ export function ChatPanel({
           <span className="truncate text-[11px] text-text-secondary" title={threadTitle}>{threadTitle}</span>
         </div>
       )}
-      {activeThreadPath && filing && !scopeApp && (
+      {activeThreadPath && filing && !scopeApp && !mission && (
         <div className="flex shrink-0 items-center border-b border-border-subtle px-4 py-1.5">
           <FilingChips filing={filing} domains={routableDomains} onChange={changeFiling} />
         </div>
@@ -2708,7 +2746,12 @@ export function ChatPanel({
             Ask anything about {entity.name}. What your vault knows about it comes along.
           </div>
         )}
-        {messages.length === 0 && !domain && !entity && !scopeApp && domainTab === "chat" && (
+        {messages.length === 0 && mission && domainTab === "chat" && (
+          <div data-testid="mission-chat-empty" className="flex h-full items-center justify-center px-6 py-10 text-center text-[15px] text-text-muted">
+            Talk to {mission.name}. Its domains, apps, people and notes come along; anything outside it asks you first.
+          </div>
+        )}
+        {messages.length === 0 && !domain && !entity && !scopeApp && !mission && domainTab === "chat" && (
           <TodayHome vaultPath={vaultPath} phone={phone} onAsk={(text) => { setInput(text); requestAnimationFrame(() => taRef.current?.focus()); }} fallback={
           <div className={`flex h-full flex-col items-center justify-center ${phone ? "px-5 py-4" : "px-6 py-8"}`} style={{ justifyContent: "safe center" }}>
             {/* Starred apps as a horizontal strip at the top of home - same

@@ -1,4 +1,4 @@
-// The Compass, the model: build/compass.md holds the user's mission, ranked
+// The Compass, the model: build/compass.md holds the user's purpose, ranked
 // values, roles, goals (with paths), non-negotiables, negotiables and
 // capacity, every line in the user's own words. The engine has the same
 // grammar (prevail-cli src/compass.ts); both read and write it.
@@ -28,8 +28,10 @@ export interface CompassSection { heading: string; kind: Kind | "mission"; block
 export interface CompassDoc { head: string[]; sections: CompassSection[] }
 export interface LedgerChange { id: string; from: string; to: string; reason: string; evidence?: string[]; by: "user" }
 
+// The life statement is called Purpose (missions-plan.md: "Mission" names the
+// time-bound primitive). An older `## Mission` heading reads the same.
 const SECTION_KIND: Record<string, Kind | "mission"> = {
-  mission: "mission", values: "value", roles: "role", goals: "goal",
+  purpose: "mission", mission: "mission", values: "value", roles: "role", goals: "goal",
   "non-negotiables": "rule", rules: "rule", negotiables: "negotiable", capacity: "capacity", routines: "routine",
 };
 const TOKEN = /\s+~([a-z][a-z0-9_-]*)(?::(\S+))?/g;

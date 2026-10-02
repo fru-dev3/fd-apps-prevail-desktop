@@ -147,6 +147,8 @@ const WEBUI_ALLOWED: &[&str] = &[
     // stopping, undoing and answering stay on the Mac.
     "engine_today", "engine_today_tap", "engine_review", "engine_review_checkin",
     "engine_jobs", "engine_job_show", "engine_specialists", "engine_decisions", "engine_metric_proposals",
+    // Missions are read on the phone; starting, changing and closing one stay on the Mac.
+    "engine_missions_list", "engine_missions_show",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.
@@ -1531,6 +1533,9 @@ mod tests {
             "engine_entities_set_picture", "engine_entities_set_website", "engine_entities_add_file", "entities_note", "entities_save", "goals_file_write",
             "engine_entities_set_relation", "engine_config_autosave_set", "engine_config_autosave_get",
             "engine_projects_create", "engine_projects_set", "engine_suggest_accept", "engine_suggest_dismiss",
+            "engine_missions_create", "engine_missions_set", "engine_missions_attach", "engine_missions_milestone",
+            "engine_missions_budget", "engine_missions_state", "engine_missions_log", "engine_missions_closeout_plan",
+            "engine_missions_closeout_apply", "engine_missions_undo",
             "engine_schedule_thread_add", "engine_schedule_set_enabled", "engine_schedule_remove",
             "engine_schedule_run",
             "engine_agent_run", "read_file", "read_text_file",

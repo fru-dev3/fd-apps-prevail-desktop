@@ -8,7 +8,7 @@ import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { openUpdateThread } from "./linking";
 import { CARD_HEADLINE, META } from "./typescale";
-import { acceptedTarget, openTrackedProject, PROJECTS_CHANGED, STRUCTURE_CHANGED, type StructureSuggestion } from "./trackedprojects";
+import { acceptedTarget, MISSIONS_CHANGED, openMission, STRUCTURE_CHANGED, type StructureSuggestion } from "./missions";
 
 const fire = (name: string, detail?: unknown) => window.dispatchEvent(new CustomEvent(name, { detail }));
 const KIND_ICON = { domain: FolderPlus, project: FolderKanban, archive_domain: Archive } as const;
@@ -29,9 +29,9 @@ function StructureCard({ s, vaultPath, onGone }: { s: StructureSuggestion; vault
   const accept = () => run("accept", async () => {
     const res = await invoke("engine_suggest_accept", { vault: vaultPath, id: s.id });
     fire("prevail:domains-changed");
-    fire(PROJECTS_CHANGED);
+    fire(MISSIONS_CHANGED);
     const t = acceptedTarget(res, s);
-    if (t && "project" in t) openTrackedProject(t.project);
+    if (t && "mission" in t) openMission(t.mission);
     else if (t && "domain" in t) fire("prevail:open-domain", t.domain);
   });
   const dismiss = (forever: boolean) => run(forever ? "never" : "later", async () => {
