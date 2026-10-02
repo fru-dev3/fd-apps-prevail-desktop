@@ -10,7 +10,9 @@
 import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { useChiefOfStaff } from "./chiefofstaff";
-import { Activity, Archive, ArrowLeft, Briefcase, ChevronRight, Folder, Hourglass, House, Inbox, LayoutList, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pause, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, Target, UserCog, UserRound, X } from "lucide-react";
+import { dropSpecialist, inSidebar, startPillDrag } from "./dragref";
+import { ChiefAvatar, SpecialistAvatar, useWorkingSpecialists } from "./specialistavatar";
+import { Activity, Archive, ArrowLeft, Briefcase, ChevronRight, Folder, Hourglass, House, Inbox, LayoutList, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pause, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, Target, UserCog, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
 import { daysLeftLabel, openMission, useMissions } from "./missions";
@@ -63,12 +65,15 @@ function CountPill({ n, active, loud = false }: { n: number; active: boolean; lo
 // One nav row. Collapsed, it is an icon button with the label as its tooltip.
 // `loud`: the count is something to act on (the Inbox), so it is always in
 // the accent colour rather than muted.
-function NavRow({ icon: Icon, label, title, active, count = 0, loud = false, collapsed, onClick, onPrefetch, testId }: {
-  icon: typeof House; label: string; title?: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; onPrefetch?: () => void; testId?: string;
+function NavRow({ icon: Icon, lead, label, title, active, count = 0, loud = false, collapsed, onClick, onPrefetch, onMouseDown, chatTarget, testId }: {
+  icon: typeof House; lead?: ReactNode; label: string; title?: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; onPrefetch?: () => void;
+  onMouseDown?: (e: ReactMouseEvent) => void; chatTarget?: boolean; testId?: string;
 }) {
   return (
     <button
       onClick={onClick}
+      onMouseDown={onMouseDown}
+      data-chat-target={chatTarget ? "" : undefined}
       onPointerEnter={onPrefetch}
       onFocus={onPrefetch}
       title={collapsed ? (count > 0 ? `${label} (${count})` : label) : title}
@@ -78,7 +83,7 @@ function NavRow({ icon: Icon, label, title, active, count = 0, loud = false, col
         collapsed ? "h-10 justify-center" : "h-9 gap-3 px-3"
       } ${active ? ACTIVE_ROW : IDLE_ROW}`}
     >
-      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
+      {lead ?? <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />}
       {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
       {!collapsed && <CountPill n={count} active={active} loud={loud} />}
       {collapsed && count > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
@@ -89,7 +94,7 @@ function NavRow({ icon: Icon, label, title, active, count = 0, loud = false, col
 // A mission row: the target icon, its name, and the days left at the right.
 function MissionRow({ name, left, active, collapsed, onClick, testId }: { name: string; left: string; active: boolean; collapsed: boolean; onClick: () => void; testId?: string }) {
   return (
-    <button onClick={onClick} title={collapsed ? `${name}${left ? `, ${left} left` : ""}` : undefined} aria-current={active ? "page" : undefined} data-testid={testId}
+    <button onClick={onClick} data-chat-target="" title={collapsed ? `${name}${left ? `, ${left} left` : ""}` : undefined} aria-current={active ? "page" : undefined} data-testid={testId}
       className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${collapsed ? "h-10 justify-center" : "h-9 gap-3 px-3"} ${active ? ACTIVE_ROW : IDLE_ROW}`}>
       <Target className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
       {!collapsed && <span className="min-w-0 flex-1 truncate">{name}</span>}
@@ -342,6 +347,7 @@ export function Sidebar({
   // Specialists page on that specialist; the section count is running jobs.
   const specsList = useInvokeQuery<{ id: string; name: string; on: boolean }[]>("engine_specialists", vaultPath ? { vault: vaultPath } : null, { staleMs: 5 * 60_000 });
   const specialists = Array.isArray(specsList.data) ? specsList.data.filter((x) => x.on) : [];
+  const working = useWorkingSpecialists(vaultPath || null);
   const [specsOpen, setSpecsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.specialistsOpen") === "1");
   useEffect(() => { lsSet("prevail.sidebar.specialistsOpen", specsOpen ? "1" : "0"); }, [specsOpen]);
   const openSpecialist = (focus: string) => {
@@ -463,42 +469,10 @@ export function Sidebar({
     const hook = (window as unknown as { __prevailAddRef?: (r: { kind: "app"; id: string; label: string }) => void }).__prevailAddRef;
     if (hook) hook({ kind: "app", id: a.id, label: a.name });
   });
-  const startDrag = (e: ReactMouseEvent, label: string, drop: (ev: MouseEvent) => void) => {
-    if (e.button !== 0) return;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    let dragging = false;
-    let pill: HTMLDivElement | null = null;
-    const onMove = (ev: MouseEvent) => {
-      if (!dragging && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
-      if (!dragging) {
-        dragging = true;
-        pill = document.createElement("div");
-        pill.textContent = label;
-        pill.style.cssText =
-          "position:fixed;z-index:9999;pointer-events:none;padding:6px 10px;border-radius:9999px;" +
-          "background:var(--color-accent);color:var(--color-on-accent,#fff);font-size:12px;font-weight:600;" +
-          "box-shadow:0 6px 20px rgba(0,0,0,0.2);transform:translate(-50%,-50%);";
-        document.body.appendChild(pill);
-        document.body.style.userSelect = "none";
-      }
-      if (pill) { pill.style.left = ev.clientX + "px"; pill.style.top = ev.clientY + "px"; }
-    };
-    const onUp = (ev: MouseEvent) => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      document.body.style.userSelect = "";
-      if (pill) { pill.remove(); pill = null; }
-      if (!dragging) return; // a click: let onClick fire
-      ev.preventDefault();
-      ev.stopPropagation();
-      // A drop back on the sidebar is not a drop on a chat.
-      if ((ev.target as HTMLElement | null)?.closest?.("aside, [data-sidebar]")) return;
-      drop(ev);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
+  const startDrag = (e: ReactMouseEvent, label: string, drop: (ev: MouseEvent) => void) =>
+    startPillDrag(e, label, (ev) => { if (!inSidebar(ev)) drop(ev); });
+  // A specialist dragged onto a chat (or onto Home, a domain or a mission row) hands the message to it.
+  const startSpecialistDrag = (e: ReactMouseEvent, name: string) => startPillDrag(e, `@${name}`, (ev) => { dropSpecialist(ev, name); });
   const openDomainRow = (name: string) => { setSelectedDomain(name); if (tab === "work") setTab("chat"); };
 
   const editorMode = tab === "settings";
@@ -608,6 +582,8 @@ export function Sidebar({
         <button
           onMouseDown={(e) => startDomainDrag(e, d.name)}
           onClick={() => openDomainRow(d.name)}
+          data-chat-target=""
+          data-testid={`sidebar-domain-${d.name}`}
           title="Click to enter · drag to chat as context (plain: state · ⇧ full · ⌥ entire folder)"
           aria-current={active ? "page" : undefined}
           className={`relative flex h-9 min-w-0 flex-1 cursor-grab items-center gap-3 rounded-lg pl-8 pr-9 text-left text-[14px] transition-colors active:cursor-grabbing ${active ? ACTIVE_ROW : IDLE_ROW}`}
@@ -781,7 +757,7 @@ export function Sidebar({
         ) : (
           <>
             <nav aria-label="Home" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
-              <NavRow icon={chief ? UserRound : House} label={chief ?? "Home"} title={chief ? `${chief}, your chief of staff` : undefined} active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
+              <NavRow icon={House} lead={<ChiefAvatar size={20} />} chatTarget label={chief ?? "Home"} title={chief ? `${chief}, your chief of staff` : undefined} active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
               <NavRow icon={Inbox} label="Inbox" count={waiting.total} loud active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} onPrefetch={() => prefetchSection("work", "inbox", vaultPath)} testId="nav-inbox" />
               {WORK_NAV[0].items.map((it) => (
                 <NavRow key={it.id} icon={it.icon} label={it.label} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
@@ -823,7 +799,8 @@ export function Sidebar({
                   <nav aria-label="Specialists" data-testid="sidebar-specialists" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
                     <NavRow icon={Briefcase} label="Jobs" active={tab === "work" && workActive === "specialists"} collapsed={collapsed} onClick={() => openSpecialist("jobs:running")} testId="sidebar-jobs" />
                     {!collapsed && specialists.map((x) => (
-                      <NavRow key={x.id} icon={UserCog} label={x.name} active={false} collapsed={collapsed} onClick={() => openSpecialist(`spec:${x.id}`)} testId={`sidebar-specialist-${x.id}`} />
+                      <NavRow key={x.id} icon={UserCog} lead={<SpecialistAvatar id={x.id} size={20} state={working.has(x.id) ? "working" : "idle"} />} label={x.name} title={`${x.name}: click to open, drag into a chat to hand it a message`} active={false} collapsed={collapsed}
+                        onClick={() => openSpecialist(`spec:${x.id}`)} onMouseDown={(e) => startSpecialistDrag(e, x.name)} testId={`sidebar-specialist-${x.id}`} />
                     ))}
                   </nav>
                 )}

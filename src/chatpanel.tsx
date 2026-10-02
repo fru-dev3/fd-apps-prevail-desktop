@@ -45,6 +45,7 @@ import { HomeBriefing } from "./recommendationspanel";
 import type { AppNotice, ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { savePastedImages } from "./paste";
+import { HANDOFF_EVENT, HANDOFF_PENDING_EVENT, takePendingHandoff, withHandoff } from "./dragref";
 import { useChiefOfStaff } from "./chiefofstaff";
 
 // Per-domain cache of the cheap (no-audit) context score. engine_score spawns the
@@ -960,6 +961,28 @@ export function ChatPanel({
     setRefs((cur) => addRef(cur, { kind: item.kind, id: item.id, label: item.label }));
     restoreCaret(next, head.length);
   }
+  // A specialist dragged in from the sidebar or the Specialists page: the same
+  // handoff as picking it from "@" (dragref.ts). A drop on a sidebar row that
+  // opens this chat leaves it pending for the panel that opens.
+  const dropRef = useRef<HTMLDivElement>(null);
+  const handOff = useCallback((label: string) => {
+    setInput((cur) => {
+      const next = withHandoff(cur, label);
+      requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(next.length, next.length); } });
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    const onDrop = (e: Event) => {
+      const l = (e as CustomEvent<string>).detail;
+      if (typeof l === "string" && l && dropRef.current?.contains(e.target as Node)) handOff(l);
+    };
+    const onPending = () => { const l = takePendingHandoff(); if (l) handOff(l); };
+    onPending();
+    window.addEventListener(HANDOFF_EVENT, onDrop);
+    window.addEventListener(HANDOFF_PENDING_EVENT, onPending);
+    return () => { window.removeEventListener(HANDOFF_EVENT, onDrop); window.removeEventListener(HANDOFF_PENDING_EVENT, onPending); };
+  }, [handOff]);
   function startRef(kind: RefKind) {
     const next = `${input}${input && !/\s$/.test(input) ? " " : ""}@`;
     setInput(next);
@@ -2685,6 +2708,8 @@ export function ChatPanel({
 
   return (
     <div
+      ref={dropRef}
+      data-chat-drop=""
       className="flex h-full"
       onDragOver={(e) => {
         const types = Array.from(e.dataTransfer.types);
