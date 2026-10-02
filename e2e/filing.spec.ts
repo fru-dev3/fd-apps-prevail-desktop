@@ -183,7 +183,7 @@ for (const width of [1440, 390]) {
       await expect(page.getByText("2 conversations have no home domain yet.", { exact: false })).toBeVisible({ timeout: 10_000 });
       await page.getByTestId("filing-settings").getByRole("button", { name: "Review" }).click();
     } else {
-      await page.getByTestId("app-sidebar").getByRole("button", { name: "You", exact: true }).click();
+      await page.getByTestId("app-sidebar").getByRole("button", { name: "For You", exact: true }).click();
       const card = page.getByTestId("filing-card");
       await expect(card).toContainText("File 2 unfiled conversations", { timeout: 10_000 });
       await card.getByRole("button", { name: "Review" }).click();

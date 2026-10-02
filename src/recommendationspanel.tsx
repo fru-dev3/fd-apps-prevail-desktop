@@ -329,7 +329,7 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="recommendations-page">
-      <SettingsHeader icon={Lightbulb} title="You" subtitle="Next steps learned from your prompts, projects, apps and benchmarks." />
+      <SettingsHeader icon={Lightbulb} title="For You" subtitle="Next steps learned from your prompts, projects, apps and benchmarks." />
       {phone ? (
         <>
           <div className="flex items-center justify-between gap-2 px-4 pt-2 text-[13px] text-text-muted"><span>{learned}</span>{learnBtn}</div>
@@ -455,7 +455,7 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
         )}
         {top.length > 0 && (
           <button onClick={openRecs} className="flex w-full items-center justify-center gap-1 border-t border-border-subtle px-4 py-2 text-xs font-semibold text-accent transition-colors hover:bg-surface-warm">
-            See all <ArrowRight className="h-3 w-3" />
+            See all in For You <ArrowRight className="h-3 w-3" />
           </button>
         )}
       </div>

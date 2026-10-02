@@ -137,7 +137,7 @@ export function FilingPlan({ vaultPath }: { vaultPath: string }) {
   );
 }
 
-/** The You page card: shown only while something is unfiled. Opens the plan in place. */
+/** The For You card: shown only while something is unfiled. Opens the plan in place. */
 export function FilingCard({ vaultPath }: { vaultPath: string }) {
   const { data } = useFilePlan(vaultPath);
   const [open, setOpen] = useState(false);
