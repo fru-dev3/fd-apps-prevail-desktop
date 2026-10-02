@@ -7,15 +7,14 @@ import { useState } from "react";
 import { invoke, isBrowser } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { toast } from "./toast";
-import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import { seasonLine, type LagTest, type Proxy, type Season, type ThemeTrend } from "./qualmodel";
 import { PatternsAndExperiments } from "./storiesview";
 
-const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
 
 function Words({ label, xs }: { label: string; xs: string[] }) {
   if (!xs.length) return null;
-  return <p className={`${BODY} break-words text-text-secondary`}><span className="font-semibold text-text-primary">{label}: </span>{xs.join(", ")}</p>;
+  return <p className={`${BODY} break-words text-text-secondary`}><span className="font-medium text-text-primary">{label}: </span>{xs.join(", ")}</p>;
 }
 
 export function PatternsView({ vaultPath }: { vaultPath: string }) {
@@ -41,10 +40,10 @@ export function PatternsView({ vaultPath }: { vaultPath: string }) {
       <h3 className={`${SECTION_TITLE} mt-6`}>What moves what</h3>
       <ul className="mt-2 max-w-4xl">{arr<LagTest>(lags.data).map((l) => (
         <li key={`${l.input}>${l.outcome}`} data-testid="pattern-lag" className="border-b border-border-subtle py-2.5 last:border-b-0">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><p className={`${BODY} min-w-0 flex-1 break-words text-text-primary`}>{l.text}</p><span className={chip}>{l.verdict}</span></div>
+          <p className={`${BODY} break-words text-text-primary`}>{l.text}</p><p className={`${META} mt-0.5`}>{l.verdict.charAt(0).toUpperCase() + l.verdict.slice(1)}</p>
         </li>
       ))}</ul>
-      {!arr(lags.data).length && <p className={`${BODY} mt-2 text-text-muted`}>No pairs to test yet.</p>}
+      {!arr(lags.data).length && <p className={`${META} mt-1`}>No pairs to test yet.</p>}
 
       <PatternsAndExperiments vaultPath={vaultPath} />
 
@@ -52,14 +51,14 @@ export function PatternsView({ vaultPath }: { vaultPath: string }) {
       <p className={`${META} mt-1`}>A passive signal is shown only once it predicts your own weekly check-ins.</p>
       <ul className="mt-2 max-w-4xl">{arr<Proxy>(prox.data).map((p) => (
         <li key={`${p.proxy}>${p.felt}`} data-testid="pattern-proxy" className="border-b border-border-subtle py-2.5 last:border-b-0">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><p className={`${BODY} min-w-0 flex-1 break-words text-text-primary`}>{p.text}</p><span className={chip}>{p.status === "promoted" ? "shown" : p.status}</span></div>
+          <p className={`${BODY} break-words text-text-primary`}>{p.text}</p><p className={`${META} mt-0.5`}>{p.status === "promoted" ? "Shown" : p.status.charAt(0).toUpperCase() + p.status.slice(1)}</p>
         </li>
       ))}</ul>
 
       <h3 className={`${SECTION_TITLE} mt-6`}>Themes</h3>
       <div className="mt-2 max-w-4xl space-y-3">{arr<ThemeTrend>(themes.data).map((t) => (
         <div key={t.kind} data-testid={`pattern-themes-${t.kind}`}>
-          <p className="text-[15px] font-semibold text-text-primary">{t.kind === "writing" ? "What you write about" : "What you read about"}{t.month ? `, ${t.month}` : ""}</p>
+          <p className={ROW_TITLE}>{t.kind === "writing" ? "What you write about" : "What you read about"}{t.month ? `, ${t.month}` : ""}</p>
           {t.topics.length ? <><Words label="New" xs={t.new} /><Words label="Steady" xs={t.steady} /><Words label="Gone" xs={t.gone} /></> : null}
           <p className={`${META} mt-0.5 break-words`}>{t.state}</p>
         </div>
@@ -67,9 +66,9 @@ export function PatternsView({ vaultPath }: { vaultPath: string }) {
 
       <h3 className={`${SECTION_TITLE} mt-6`}>Seasons</h3>
       <ul className="mt-2 max-w-4xl">{arr<Season>(seasons.data).map((s) => (
-        <li key={s.id} data-testid="pattern-season" className="py-1.5"><span className="text-[15px] font-semibold text-text-primary">{s.title}</span> <span className={META}>{seasonLine(s)}</span></li>
+        <li key={s.id} data-testid="pattern-season" className="py-1.5"><span className={ROW_TITLE}>{s.title}</span> <span className={META}>{seasonLine(s)}</span></li>
       ))}</ul>
-      {!arr(seasons.data).length && <p className={`${BODY} mt-2 text-text-muted`}>No season right now. A week away pauses work targets by itself; add one under ## Seasons in metrics.md.</p>}
+      {!arr(seasons.data).length && <p className={`${META} mt-1`}>No season right now. A week away pauses work targets by itself; add one under ## Seasons in metrics.md.</p>}
 
       <h3 className={`${SECTION_TITLE} mt-6`}>Monthly WHO-5</h3>
       <div className="mt-2 flex max-w-4xl flex-wrap items-center gap-3">

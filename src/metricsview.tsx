@@ -22,7 +22,9 @@ export const METRICS_FOCUS_EVENT = "prevail:metrics-focus";
 function takeMetricsFocus(): "year" | "month" | null {
   try { const f = localStorage.getItem(METRICS_FOCUS_KEY); localStorage.removeItem(METRICS_FOCUS_KEY); return f === "year" || f === "month" ? f : null; } catch { return null; }
 }
-import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { BODY, DETAIL_TITLE, META, ROW_TITLE, SCORE, SECTION_TITLE } from "./typescale";
+import { REVEAL, RowMenu } from "./ui";
+import { label } from "./plansmodel";
 
 export interface Normal { median: number; lo: number; hi: number; weeks: number; learning: boolean; learningWeeksLeft: number }
 export interface GlanceRow {
@@ -66,7 +68,16 @@ export function Sparkline({ values, normal, width = 168, height = 40 }: { values
   );
 }
 
-const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
+/** "From Your Compass", in words; the file itself stays on hover. */
+export function fromLabel(from: string): string {
+  const d = /data\/domains\/([^/]+)\//.exec(from)?.[1];
+  if (d) return `${label(d)} notes`;
+  if (/compass/.test(from)) return "Your Compass";
+  if (/ideal-state|constitution/.test(from)) return "Your ideal state";
+  if (/user\.md/.test(from)) return "Your profile";
+  if (/chat|thread/.test(from)) return "What you said in chat";
+  return label((from.split("/").pop() ?? from).replace(/\.[a-z]+$/i, ""));
+}
 
 function Citations({ items }: { items: { file: string; note?: string }[] }) {
   const [open, setOpen] = useState(false);
@@ -78,7 +89,7 @@ function Citations({ items }: { items: { file: string; note?: string }[] }) {
       </button>
       {open && (
         <ul className="mt-1 space-y-0.5" data-testid="metric-sources">
-          {items.map((c) => <li key={c.file} className="break-all font-mono text-[12px] text-text-muted">{c.file}{c.note ? `, ${c.note}` : ""}</li>)}
+          {items.map((c) => <li key={c.file} className="break-all text-[12px] text-text-muted">{c.file}{c.note ? `, ${c.note}` : ""}</li>)}
         </ul>
       )}
     </div>
@@ -90,13 +101,11 @@ function GlanceRowView({ r }: { r: GlanceRow }) {
     <li data-testid="glance-row" data-id={r.id} className="grid gap-x-6 gap-y-1 border-b border-border-subtle py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-[15px] font-semibold text-text-primary">{r.title}</span>
-          {!r.documentary && <span className="font-display text-[24px] font-semibold tabular-nums text-text-primary" data-testid="glance-value">{fmtValue(r.value, r.unit)}</span>}
-          <span className={chip} data-testid="glance-tier">{TIER[r.tier] ?? r.tier}</span>
-          {r.documentary && <span className={chip}>A record, no target</span>}
+          <span className={ROW_TITLE}>{r.title}</span>
+          {!r.documentary && <span className={`${SCORE} text-text-primary`} data-testid="glance-value">{fmtValue(r.value, r.unit)}</span>}
         </div>
         <p className={`${BODY} mt-0.5 text-text-secondary`}>{r.documentary ? r.record : normalText(r.normal, r.unit)}</p>
-        <p className={`${META} mt-0.5`} data-testid="glance-coverage">{r.coverage}</p>
+        <p className={`${META} mt-0.5`}><span data-testid="glance-tier">{TIER[r.tier] ?? r.tier}</span>{r.documentary ? " · A record, no target" : ""} · <span data-testid="glance-coverage">{r.coverage}</span></p>
         <Citations items={r.citations} />
       </div>
       {!r.documentary && <div className="self-center"><Sparkline values={r.spark} normal={r.normal} /></div>}
@@ -106,23 +115,17 @@ function GlanceRowView({ r }: { r: GlanceRow }) {
 
 function MetricCard({ m }: { m: MetricItem }) {
   return (
-    <div data-testid="metric-card" data-id={m.id} className="min-w-0 rounded-lg border border-border p-4">
-      <div className="flex items-start justify-between gap-2">
-        <span className="min-w-0 text-[15px] font-semibold text-text-primary">{m.title}</span>
-        <span className={chip}>{TIER[m.tier] ?? m.tier}</span>
+    <li data-testid="metric-card" data-id={m.id} className="grid gap-x-6 gap-y-1 border-b border-border-subtle py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className={ROW_TITLE}>{m.title}</span>
+          {!m.documentary && <span className={`${SCORE} text-text-primary`}>{fmtValue(m.thisWeek, m.unit)}<span className={`${META} ml-1.5 font-sans font-normal`}>this {m.per === "month" ? "month" : "week"}</span></span>}
+        </div>
+        <p className={`${BODY} mt-0.5 text-text-secondary`}>{m.documentary ? "A record, no target. Counted for your year, not shown as a number." : normalText(m.normal, m.unit)}</p>
+        <p className={`${META} mt-0.5`} title={m.from}>{TIER[m.tier] ?? m.tier} · {m.coverage}</p>
       </div>
-      {m.documentary ? (
-        <p className={`${BODY} mt-2 text-text-secondary`}>A record, no target. Counted for your year, not shown as a number.</p>
-      ) : (
-        <>
-          <div className="mt-1 font-display text-[24px] font-semibold tabular-nums text-text-primary">{fmtValue(m.thisWeek, m.unit)}<span className={`${META} ml-1.5 font-sans font-normal`}>this {m.per === "month" ? "month" : "week"}</span></div>
-          <div className="mt-2"><Sparkline values={m.spark} normal={m.normal} width={220} /></div>
-          <p className={`${META} mt-1`}>{normalText(m.normal, m.unit)}</p>
-        </>
-      )}
-      <p className={`${META} mt-2`}>{m.from}</p>
-      <p className={`${META} mt-0.5`}>{m.coverage}</p>
-    </div>
+      {!m.documentary && <div className="self-center"><Sparkline values={m.spark} normal={m.normal} /></div>}
+    </li>
   );
 }
 
@@ -158,7 +161,7 @@ export function RhythmPlot({ dots, days = 30, end }: { dots: Dot[]; days?: numbe
 type Sel = "week" | "rhythm" | "sources" | "proposals" | "changes" | "patterns" | `family:${string}` | "year" | "month";
 interface Insight { key: string; week: string; metric: string; title: string; text: string; direction: "up" | "down"; files: string[] }
 
-const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
+const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 
 /** A proposed metric: what it is, why, 12 weeks of history when Prevail can count it. Track / Not useful / Edit. */
 export function ProposalCard({ p, vaultPath, onAnswered }: { p: MetricProposal; vaultPath: string; onAnswered: () => void }) {
@@ -172,28 +175,28 @@ export function ProposalCard({ p, vaultPath, onAnswered }: { p: MetricProposal; 
     catch (e) { setErr(String(e)); } finally { setBusy(false); }
   };
   return (
-    <li data-testid="metric-proposal" data-kind={p.kind} className="border-b border-border-subtle py-4 last:border-b-0">
+    <li data-testid="metric-proposal" data-kind={p.kind} className="group border-b border-border-subtle py-3 last:border-b-0">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="break-words text-[15px] font-semibold text-text-primary">{p.title}</span>
-            <span className={chip}>{p.computable ? (TIER[p.tier] ?? p.tier) : "Needs a source"}</span>
-            {p.servesTitle && <span className={chip}>Serves {p.servesTitle}</span>}
-          </div>
-          <p className={`${BODY} mt-1 break-words text-text-secondary`}>{p.why}</p>
-          <p className={`${META} mt-0.5 break-all`}>From {p.from}</p>
+          <span title={p.title} className={`${ROW_TITLE} line-clamp-2 break-words`}>{p.title}</span>
+          <p title={p.why} className={`${BODY} mt-0.5 line-clamp-2 break-words text-text-secondary`}>{p.why}</p>
+          <p className={`${META} mt-0.5`}>
+            {p.computable ? (TIER[p.tier] ?? p.tier) : "Needs a source"}{p.servesTitle ? ` · Serves ${p.servesTitle}` : ""} · <span title={p.from}>From {fromLabel(p.from)}</span>
+          </p>
         </div>
-        <span className="flex shrink-0 items-center gap-0.5">
+        <span className={`flex shrink-0 items-center gap-0.5 ${REVEAL}`}>
           <button onClick={() => void answer("track")} disabled={busy} title="Track" aria-label={`Track ${p.title}`} data-testid="proposal-track" className={iconBtn}><Check className="h-4 w-4" /></button>
-          <button onClick={() => setEdit((v) => !v)} disabled={busy} title="Edit" aria-label={`Edit ${p.title}`} className={iconBtn}><Pencil className="h-4 w-4" /></button>
-          <button onClick={() => void answer("dismiss")} disabled={busy} title="Not useful" aria-label={`Not useful: ${p.title}`} data-testid="proposal-dismiss" className={iconBtn}><X className="h-4 w-4" /></button>
+          <RowMenu items={[
+            { icon: Pencil, label: "Rename, then track", onClick: () => setEdit((v) => !v) },
+            { icon: X, label: "Not useful", onClick: () => void answer("dismiss") },
+          ]} />
         </span>
       </div>
       {p.computable && p.spark.length > 0 && <div className="mt-2"><Sparkline values={p.spark} /></div>}
       {edit && (
         <div className="mt-2 flex max-w-md gap-2">
           <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Metric name" className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 text-[14px]" />
-          <button onClick={() => void answer("edit")} disabled={busy || !title.trim()} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-[13px] text-text-secondary hover:text-accent">Track as this</button>
+          <button onClick={() => void answer("edit")} disabled={busy || !title.trim()} className="inline-flex h-9 items-center text-[13px] font-medium text-accent hover:underline disabled:opacity-50">Track as this</button>
         </div>
       )}
       {err && <p className="mt-1 text-[13px] text-err">{err}</p>}
@@ -258,7 +261,7 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         <h2 className={DETAIL_TITLE}>This week{g ? `, ${weekLabel(g.week)} to ${weekLabel(g.through)}` : ""}</h2>
         <p className={`${META} mt-1`}>Against your own normal. Every number says how it was counted and where it came from.</p>
         {err(glanceQ)}
-        {loading(glanceQ) && <p className={`${BODY} mt-4 text-text-muted`}>Counting...</p>}
+        {loading(glanceQ) && <p className={`${META} mt-4`}>Counting...</p>}
         {g && <ul className="mt-3 max-w-4xl">{g.rows.map((r) => <GlanceRowView key={r.id} r={r} />)}</ul>}
         {g?.surprise && <p className={`${BODY} mt-4 max-w-4xl text-text-primary`} data-testid="glance-surprise"><span className="font-semibold">One surprise: </span>{g.surprise}</p>}
       </section>
@@ -270,7 +273,7 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
       <section data-testid="metrics-family">
         <h2 className={DETAIL_TITLE}>{f}</h2>
         {err(listQ)}
-        <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">{ms.map((m) => <MetricCard key={m.id} m={m} />)}</div>
+        <ul className="mt-3 max-w-4xl">{ms.map((m) => <MetricCard key={m.id} m={m} />)}</ul>
       </section>
     );
   } else if (sel === "proposals") {
@@ -279,7 +282,7 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         <h2 className={DETAIL_TITLE}>Proposals</h2>
         <p className={`${META} mt-1`}>Metrics Prevail could track for you, from your ideal states, your Compass goals and what you say in chat. One tap each; two "not useful" on a kind and it stops proposing that kind.</p>
         {err(propQ)}
-        {!props.length && !loading(propQ) && <p className={`${BODY} mt-4 text-text-muted`}>No proposals right now.</p>}
+        {!props.length && !loading(propQ) && <p className={`${META} mt-4`}>No proposals right now.</p>}
         <ul className="mt-3 max-w-4xl">{props.map((p) => <ProposalCard key={p.key} p={p} vaultPath={vaultPath} onAnswered={() => { invalidateQueries("engine_metric_proposals"); invalidateQueries("engine_review"); void propQ.refresh(); }} />)}</ul>
       </section>
     );
@@ -290,7 +293,7 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         <h2 className={DETAIL_TITLE}>Changes</h2>
         <p className={`${META} mt-1`}>A metric that sat outside your normal for three weeks running. A change, not a cause; each lists the files behind it.</p>
         {err(insightQ)}
-        {!ins.length && !loading(insightQ) && <p className={`${BODY} mt-4 text-text-muted`}>Nothing has moved outside your normal for three weeks.</p>}
+        {!ins.length && !loading(insightQ) && <p className={`${META} mt-4`}>Nothing has moved outside your normal for three weeks.</p>}
         <ul className="mt-3 max-w-4xl">{ins.map((i) => (
           <li key={i.key} data-testid="metric-change" className="border-b border-border-subtle py-3 last:border-b-0">
             <p className={`${BODY} text-text-primary`}>{i.text}</p>
@@ -313,7 +316,7 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         <h2 className={DETAIL_TITLE}>Rhythm</h2>
         <p className={`${META} mt-1`}>The last 30 days, one dot per prompt you wrote (green) and per commit (grey): time of day down, date across.</p>
         {err(rhythmQ)}
-        {loading(rhythmQ) ? <p className={`${BODY} mt-4 text-text-muted`}>Plotting...</p> : <div className="mt-4"><RhythmPlot dots={dots} end={end} /></div>}
+        {loading(rhythmQ) ? <p className={`${META} mt-4`}>Plotting...</p> : <div className="mt-4"><RhythmPlot dots={dots} end={end} /></div>}
         <p className={`${META} mt-2`}>{dots.filter((d) => d.kind === "prompt").length} prompts, {dots.filter((d) => d.kind === "commit").length} commits</p>
       </section>
     );
@@ -329,7 +332,7 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         <ul className="mt-3 max-w-4xl">{ss.map((s) => (
           <li key={s.id} data-testid="source-row" className="border-b border-border-subtle py-3 last:border-b-0">
             <div className="flex flex-wrap items-baseline gap-x-3">
-              <h4 className="text-[15px] font-semibold text-text-primary">{s.id === "ai" ? "AI tools" : s.id.charAt(0).toUpperCase() + s.id.slice(1)}</h4>
+              <h4 className={ROW_TITLE}>{s.id === "ai" ? "AI tools" : s.id.charAt(0).toUpperCase() + s.id.slice(1)}</h4>
               <span className={META}>{s.events.toLocaleString("en-US")} records{s.first ? `, ${s.first} to ${s.last}` : ""}</span>
             </div>
             <p className={`${BODY} text-text-secondary`}>{s.kind === "machine" ? `On ${s.hosts?.length ? s.hosts.join(", ") : "no Mac yet"}` : "Your vault, read in place"}{s.note ? `. ${s.note}` : ""}</p>

@@ -12,7 +12,8 @@ import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { requestEntity, useEntityStore, type EntityKindName, type EntitySummary } from "./entitystore";
 import { resolveThreadPath } from "./entitythreads";
-import { META } from "./typescale";
+import { BODY, META } from "./typescale";
+import { REVEAL } from "./ui";
 
 // Fired after a `touched` event, so every "Across your life" list refetches.
 export const TOUCHED_EVENT = "prevail:touched";
@@ -78,23 +79,18 @@ export function useUpdates(vaultPath: string | null, target: { domain: string } 
   return { lines, loading: q.loading };
 }
 
-// A domain as a small tinted chip that opens it.
+// A domain as a quiet label (its icon in the domain colour) that opens it.
+// Text, not a tinted pill, so a row of them never reads as a row of chips.
 export function DomainChip({ slug, still = false }: { slug: string; still?: boolean }) {
   const color = domainColor(slug);
   const Icon = domainIcon(slug);
+  const inner = <>{Icon && <Icon size={12} aria-hidden style={{ color }} />}{titleCase(slug)}</>;
   // Inside another button (an entity row) it is a plain label, never a nested button.
-  if (still) {
-    return (
-      <span data-testid="domain-chip" className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-px text-[12px] font-semibold" style={{ color, backgroundColor: `${color}1f` }}>
-        {Icon && <Icon size={12} aria-hidden />}{titleCase(slug)}
-      </span>
-    );
-  }
+  if (still) return <span data-testid="domain-chip" className="inline-flex shrink-0 items-center gap-1 text-[12px] text-text-secondary">{inner}</span>;
   return (
     <button type="button" data-testid="domain-chip" onClick={() => fire("prevail:open-domain", slug === "general" ? "" : slug)} title={`Open ${titleCase(slug)}`}
-      className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-px text-[12px] font-semibold"
-      style={{ color, backgroundColor: `${color}1f` }}>
-      {Icon && <Icon size={12} aria-hidden />}{titleCase(slug)}
+      className="inline-flex shrink-0 items-center gap-1 text-[12px] text-text-secondary hover:text-accent">
+      {inner}
     </button>
   );
 }
@@ -104,7 +100,7 @@ export function TouchedLine({ touched }: { touched: Touched }) {
   const { byId } = useEntityStore();
   const link = "font-medium text-text-secondary underline decoration-border underline-offset-[3px] hover:text-accent hover:decoration-accent";
   return (
-    <p data-testid="touched-line" className="mt-1.5 flex flex-wrap items-baseline gap-x-1 px-1 text-[13px] text-text-muted">
+    <p data-testid="touched-line" className="mt-1.5 flex flex-wrap items-baseline gap-x-1 px-1 text-[12px] text-text-muted">
       <span>Also noted in</span>
       {touched.domains.map((d, i) => (
         <span key={d.slug}>
@@ -125,16 +121,18 @@ export function TouchedLine({ touched }: { touched: Touched }) {
 
 function UpdateRow({ u, vaultPath, showSource }: { u: UpdateLine; vaultPath: string; showSource: boolean }) {
   return (
-    <li data-testid="update-row" className="flex flex-col gap-1 border-b border-border-subtle py-3 last:border-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={META}>{fmtDay(u.ts)}</span>
-        {showSource && u.from_domain && <DomainChip slug={u.from_domain} />}
+    <li data-testid="update-row" className="group flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-0">
+      <div className="min-w-0 flex-1">
+        <p className={`${BODY} text-text-primary`}>{u.fact}</p>
+        <div className={`${META} mt-0.5 flex flex-wrap items-center gap-x-1.5`}>
+          <span>{fmtDay(u.ts)}</span>
+          {showSource && u.from_domain && <><span aria-hidden>·</span><span>From</span><DomainChip slug={u.from_domain} /></>}
+        </div>
       </div>
-      <p className="text-[14px] leading-normal text-text-primary">{u.fact}</p>
       {u.thread && (
-        <button type="button" data-testid="update-open-thread" onClick={() => { void openUpdateThread(vaultPath, u); }}
-          className="inline-flex w-fit items-center gap-1.5 text-[13px] font-medium text-accent hover:underline">
-          <MessagesSquare className="h-3.5 w-3.5" aria-hidden />Open the conversation
+        <button type="button" data-testid="update-open-thread" onClick={() => { void openUpdateThread(vaultPath, u); }} title="Open the conversation" aria-label="Open the conversation"
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-strong hover:text-accent ${REVEAL}`}>
+          <MessagesSquare className="h-4 w-4" aria-hidden />
         </button>
       )}
     </li>
@@ -146,7 +144,7 @@ export function AcrossYourLife({ vaultPath, target, emptyName }: { vaultPath: st
   const { lines, loading } = useUpdates(vaultPath, target);
   if (loading) return <p className={META}>Reading updates</p>;
   if (!lines.length) {
-    return <p data-testid="across-empty" className="text-[14px] text-text-muted">Nothing from other domains yet. When a conversation somewhere else touches {emptyName}, it shows here.</p>;
+    return <p data-testid="across-empty" className={META}>Nothing from other domains yet. When a conversation somewhere else touches {emptyName}, it shows here.</p>;
   }
   return <ul data-testid="across-list" className="max-w-3xl">{lines.map((u, i) => <UpdateRow key={`${u.ts}:${u.thread}:${i}`} u={u} vaultPath={vaultPath} showSource />)}</ul>;
 }
@@ -158,12 +156,12 @@ export function AcrossCard({ vaultPath, domain, onOpen }: { vaultPath: string; d
   const from = [...new Set(lines.map((u) => u.from_domain).filter(Boolean))].slice(0, 3).map(titleCase).join(", ");
   return (
     <button type="button" data-testid="across-card" onClick={onOpen}
-      className="mb-3 flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-accent-border hover:bg-surface-warm">
+      className="group mb-3 flex w-full items-center gap-3 border-b border-border-subtle pb-2.5 text-left">
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold text-text-primary">{lines.length} {lines.length === 1 ? "update" : "updates"} from other domains</span>
-        <span className="block truncate text-[13px] text-text-muted">{from ? `From ${from}. ` : ""}{lines[0].fact}</span>
+        <span className="block text-[14px] font-medium text-text-primary group-hover:text-accent">{lines.length} {lines.length === 1 ? "update" : "updates"} from other domains</span>
+        <span className={`${META} block truncate`} title={lines[0].fact}>{from ? `From ${from} · ` : ""}{lines[0].fact}</span>
       </span>
-      <ArrowRight className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted group-hover:text-accent" aria-hidden />
     </button>
   );
 }
