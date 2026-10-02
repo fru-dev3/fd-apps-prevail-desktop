@@ -6,6 +6,8 @@
 // icon actions) over its tabs Chat, Milestones, Tasks, Calendar, Budget,
 // Artifacts, Timeline and Setup. Bring in and Complete open inline under the
 // header, never in a drawer.
+import { SpecialistAvatar } from "./specialistavatar";
+import { NewMission } from "./missionnew";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Archive, CalendarDays, Check, CheckCircle2, CircleDollarSign, Clock, FileText, Flag, ListChecks, Loader2, MessageSquare,
@@ -24,7 +26,6 @@ import { useChatApps } from "./chatrefs";
 import { displayTitle, nPrompts, type ProjectsIndex } from "./projectsview";
 import { ChatPanel } from "./chatpanel";
 import { useDetectedClis, useFrameworkLens } from "./hooks";
-import { MISSION_DRAFT_KEY } from "./missioncards";
 import type { ThreadMeta } from "./types";
 import { parseCompass } from "./compassmodel";
 import { useChainTree, walkUp, LEVEL_LABEL } from "./compasschain";
@@ -71,6 +72,7 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
   const stacked = useStacked();
   const phone = isPhone || stacked;
   const { missions, loading } = useMissions(vaultPath);
+  const newDomains = useDomains(vaultPath);
   const prompts = useInvokeQuery<ProjectsIndex | null>("projects_index", { vault: vaultPath });
   const focus = () => { try { const f = localStorage.getItem("prevail.missions.focus"); localStorage.removeItem("prevail.missions.focus"); return f; } catch { return null; } };
   const first = focus();
@@ -145,7 +147,7 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
     </nav>
   );
 
-  const detail = adding ? <NewMission vaultPath={vaultPath} onCancel={() => setAdding(false)} onMade={(slug) => { setTab("active"); pick(slug); }} />
+  const detail = adding ? <NewMission vaultPath={vaultPath} domains={newDomains} onCancel={() => setAdding(false)} onMade={(slug) => { setTab("active"); pick(slug); }} />
     : curSlug ? <MissionDetail key={curSlug} vaultPath={vaultPath} slug={curSlug} />
     : (
       <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"} data-testid="missions-empty">
@@ -182,52 +184,6 @@ function useDomains(vaultPath: string) {
   return (Array.isArray(scan.data) ? scan.data.map((x) => x.name) : []).filter(isUserDomain).filter((d) => d !== "general");
 }
 
-function NewMission({ vaultPath, onCancel, onMade }: { vaultPath: string; onCancel: () => void; onMade: (slug: string) => void }) {
-  const phone = useIsPhone();
-  const domains = useDomains(vaultPath);
-  const draft = (() => { try { const d = localStorage.getItem(MISSION_DRAFT_KEY); localStorage.removeItem(MISSION_DRAFT_KEY); return d ? JSON.parse(d) as { name?: string; outcome?: string; owner?: string; target?: string; specialists?: string[] } : null; } catch { return null; } })();
-  const [name, setName] = useState(draft?.name ?? "");
-  const [outcome, setOutcome] = useState(draft?.outcome ?? "");
-  const [target, setTarget] = useState(draft?.target ?? "");
-  const [owner, setOwner] = useState(draft?.owner ?? "");
-  const [budget, setBudget] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const make = async () => {
-    setBusy(true); setErr(null);
-    try {
-      const b = Number(budget);
-      const m = await createMission(vaultPath, { name: name.trim(), outcome: outcome.trim() || undefined, target: target || undefined, owner: owner || undefined, budgetUsd: budget && Number.isFinite(b) ? b : undefined, specialists: draft?.specialists });
-      onMade(m.slug);
-    } catch (e) { setErr(String(e)); } finally { setBusy(false); }
-  };
-  return (
-    <form data-testid="mission-new-form" className={phone ? "px-4 py-4" : "w-full max-w-3xl px-8 py-6"} onSubmit={(e) => { e.preventDefault(); if (name.trim()) void make(); }}>
-      <h2 className={DETAIL_TITLE}>New mission</h2>
-      <p className={`${BODY} mt-1 text-text-secondary`}>What do you want done, and by when? Leave the date empty and one is proposed.</p>
-      <div className="mt-5 grid gap-4">
-        <label className="block"><span className={fieldLabel}>Name</span><input autoFocus aria-label="Mission name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Learn the cello" className={inputCls} /></label>
-        <label className="block"><span className={fieldLabel}>Outcome</span><input aria-label="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} placeholder="What done looks like, in your words" className={inputCls} /></label>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <label className="block"><span className={fieldLabel}>Target date</span><input type="date" aria-label="Target date" value={target} onChange={(e) => setTarget(e.target.value)} className={inputCls} /></label>
-          <label className="block"><span className={fieldLabel}>Owner domain</span>
-            <select aria-label="Owner domain" value={owner} onChange={(e) => setOwner(e.target.value)} className={inputCls}>
-              <option value="">Choose later</option>
-              {domains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
-            </select>
-          </label>
-          <label className="block"><span className={fieldLabel}>Budget ($)</span><input inputMode="decimal" aria-label="Budget" value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="optional" className={inputCls} /></label>
-        </div>
-      </div>
-      {err && <p className="mt-3 text-[13px] text-err">{err}</p>}
-      <div className="mt-5 flex gap-2">
-        <button type="submit" disabled={!name.trim() || busy} data-testid="mission-create" className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}Start mission</button>
-        <button type="button" onClick={onCancel} className="inline-flex h-10 items-center rounded-lg px-3 text-[14px] text-text-secondary hover:text-text-primary">Cancel</button>
-      </div>
-    </form>
-  );
-}
-
 // ── One mission ─────────────────────────────────────────────────────────────
 
 const plainChip = "inline-flex max-w-full items-center truncate rounded-md bg-surface-warm px-1.5 py-px text-[12px] font-medium text-text-secondary";
@@ -245,7 +201,8 @@ function MissionWho({ m, owner, vaultPath }: { m: Mission; owner: string | null 
     rolesOf(m, "consulted").length > 0 && <span key="r">Reads {doms(rolesOf(m, "consulted"))}</span>,
     rolesOf(m, "informed").length > 0 && <span key="t">Tells {doms(rolesOf(m, "informed"))}</span>,
     m.apps.length > 0 && <span key="a">{m.apps.map(titleCase).join(", ")}</span>,
-    m.specialists.length > 0 && <span key="s">{m.specialists.map(titleCase).join(", ")}</span>,
+    m.specialists.length > 0 && <span key="s" data-testid="mission-team" className="inline-flex translate-y-[3px] items-center gap-1 align-baseline" title={m.specialists.map(titleCase).join(", ")}>
+      <span className="inline-flex -space-x-1">{m.specialists.map((id) => <SpecialistAvatar key={id} id={id} size={16} className="rounded-full ring-1 ring-background" />)}</span>{m.specialists.length === 1 ? titleCase(m.specialists[0]) : `${m.specialists.length} specialists`}</span>,
     m.people.length > 0 && <span key="p">With {m.people.map(personName).join(", ")}</span>,
     chain.length
       ? <span key="v" data-testid="mission-chain" title={chain.map((n) => `${LEVEL_LABEL[n.level]}: ${n.title}`).join("\n")}>Serves {chain.filter((n) => n.level !== "vision").map((n) => n.title).join(" > ")}</span>
@@ -412,7 +369,7 @@ function BringIn({ vaultPath, m, onDone, onClose, pad }: { vaultPath: string; m:
       <div className="flex items-center gap-2"><h3 className={`${SECTION_TITLE} flex-1`}>Bring in</h3><button onClick={onClose} title="Close" aria-label="Close" className={iconBtn}><X className="h-4 w-4" /></button></div>
       {(suggestedAgents.length > 0 || suggestedDomains.length > 0) && row("Suggested", <>
         {suggestedDomains.map((d) => <button key={d} className={textLink} disabled={!!busy} onClick={() => void run(`s:${d}`, "domain", `${d}:consulted`)}><Plus className="h-3.5 w-3.5" />{titleCase(d)}: reads</button>)}
-        {suggestedAgents.map((id) => <button key={id} className={textLink} disabled={!!busy} onClick={() => void run(`s:${id}`, "specialist", id)}><Plus className="h-3.5 w-3.5" />{titleCase(id)}</button>)}
+        {suggestedAgents.map((id) => <button key={id} className={textLink} disabled={!!busy} onClick={() => void run(`s:${id}`, "specialist", id)}><SpecialistAvatar id={id} size={18} />{titleCase(id)}</button>)}
       </>)}
       {row("Domains", <>
         {m.domains.map((d) => <span key={d.slug} className="inline-flex items-center gap-1"><DomainChip slug={d.slug} />{roleSel(d.slug, d.role)}{removeBtn(`d:${d.slug}`, "domain", d.slug, titleCase(d.slug))}</span>)}
@@ -423,7 +380,7 @@ function BringIn({ vaultPath, m, onDone, onClose, pad }: { vaultPath: string; m:
         {addSel("Add an app", apps.filter((a) => !m.apps.includes(a.id)).map((a) => ({ id: a.id, name: a.name })), (a) => void run(`a:${a}`, "app", a))}
       </>)}
       {row("Agents", <>
-        {m.specialists.map((a) => <span key={a} className="inline-flex items-center gap-0.5"><span className={plainChip}>{titleCase(a)}</span>{removeBtn(`s:${a}`, "specialist", a, a)}</span>)}
+        {m.specialists.map((a) => <span key={a} className="inline-flex items-center gap-1"><SpecialistAvatar id={a} size={20} /><span className="text-[13px] text-text-secondary">{titleCase(a)}</span>{removeBtn(`s:${a}`, "specialist", a, a)}</span>)}
         {addSel("Add an agent", (specs.data ?? []).filter((s) => s.on && !m.specialists.includes(s.id)).map((s) => ({ id: s.id, name: s.name })), (s) => void run(`s:${s}`, "specialist", s))}
       </>)}
       {row("People", <>
