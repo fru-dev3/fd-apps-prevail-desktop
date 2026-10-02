@@ -10,7 +10,7 @@
 import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { useChiefOfStaff } from "./chiefofstaff";
-import { Activity, Archive, ArrowLeft, ChevronRight, Folder, Hourglass, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, UserRound, X } from "lucide-react";
+import { Activity, Archive, ArrowLeft, Briefcase, ChevronRight, Folder, Hourglass, House, Inbox, Loader2, MoreVertical, PanelLeftClose, PanelLeftOpen, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, UserCog, UserRound, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
 import { openStructure, statusOf, useStructureSuggestions, useTrackedProjects } from "./trackedprojects";
@@ -307,6 +307,17 @@ export function Sidebar({
   const apps: MirrorApp[] = Array.isArray(appsList.data?.apps) ? appsList.data!.apps : [];
   const [appsOpen, setAppsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsOpen") !== "0");
   useEffect(() => { lsSet("prevail.sidebar.appsOpen", appsOpen ? "1" : "0"); }, [appsOpen]);
+  // Specialists: only the ones that are on, like Apps. A click opens the
+  // Specialists page on that specialist; the section count is running jobs.
+  const specsList = useInvokeQuery<{ id: string; name: string; on: boolean }[]>("engine_specialists", vaultPath ? { vault: vaultPath } : null, { staleMs: 5 * 60_000 });
+  const specialists = Array.isArray(specsList.data) ? specsList.data.filter((x) => x.on) : [];
+  const [specsOpen, setSpecsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.specialistsOpen") === "1");
+  useEffect(() => { lsSet("prevail.sidebar.specialistsOpen", specsOpen ? "1" : "0"); }, [specsOpen]);
+  const openSpecialist = (focus: string) => {
+    try { localStorage.setItem("prevail.specialists.focus", focus); } catch { /* storage off */ }
+    selectWork("specialists");
+    window.dispatchEvent(new Event("prevail:specialists-focus"));
+  };
   const [activeApp, setActiveApp] = useState<string | null>(null);
   useEffect(() => {
     const onPick = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (typeof id === "string") setActiveApp(id); };
@@ -744,6 +755,23 @@ export function Sidebar({
               </nav>
             )}
             </section>
+
+            {specialists.length > 0 && (
+              <>
+                <Divider />
+                <section>
+                {!collapsed && <SectionHeader label="Specialists" count={specialists.length} open={specsOpen} onToggle={() => setSpecsOpen((v) => !v)} toggleRight />}
+                {(collapsed || specsOpen) && (
+                  <nav aria-label="Specialists" data-testid="sidebar-specialists" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+                    <NavRow icon={Briefcase} label="Jobs" active={tab === "work" && workActive === "specialists"} collapsed={collapsed} onClick={() => openSpecialist("jobs:running")} testId="sidebar-jobs" />
+                    {!collapsed && specialists.map((x) => (
+                      <NavRow key={x.id} icon={UserCog} label={x.name} active={false} collapsed={collapsed} onClick={() => openSpecialist(`spec:${x.id}`)} testId={`sidebar-specialist-${x.id}`} />
+                    ))}
+                  </nav>
+                )}
+                </section>
+              </>
+            )}
 
             {apps.length > 0 && (
               <>

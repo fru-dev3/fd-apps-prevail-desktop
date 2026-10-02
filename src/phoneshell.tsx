@@ -24,6 +24,7 @@ import {
   Plus,
   Scale,
   Settings as SettingsIcon,
+  UserCog,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -49,6 +50,7 @@ const PHONE_TABS: { id: PhoneScreen; label: string; icon: LucideIcon }[] = [
 const PHONE_TOP: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "apps", label: "Apps", icon: Plug },
+  { id: "specialists", label: "Specialists", icon: UserCog },
 ];
 
 // A tappable row in a grouped list (Work and Settings): icon, label, chevron.

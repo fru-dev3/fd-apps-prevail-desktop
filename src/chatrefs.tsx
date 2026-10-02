@@ -6,7 +6,7 @@
 // Activity; engine notes about apps (routed, needs sign-in, unavailable) are
 // drawn in the flow of the reply.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Boxes, Building2, ExternalLink, KeyRound, Layers, MapPin, Route, User, X } from "lucide-react";
+import { AlertTriangle, Boxes, Building2, ExternalLink, KeyRound, Layers, MapPin, Route, User, UserCog, X } from "lucide-react";
 import { useInvokeQuery } from "./query";
 import { titleCase } from "./format";
 import { lsGet, LS } from "./storage";
@@ -38,6 +38,7 @@ export function useRefCandidates(vaultPath: string | null, token: string | null,
   const apps = useChatApps(token !== null ? vaultPath : null);
   const ents = useEntityStore();
   const doms = useInvokeQuery<{ name: string }[]>("scan_vault", token !== null && vaultPath ? { path: vaultPath } : null, { staleMs: 60_000 });
+  const specs = useInvokeQuery<{ id: string; name: string; on: boolean; returns: string }[]>("engine_specialists", token !== null && vaultPath ? { vault: vaultPath } : null, { staleMs: 5 * 60_000 });
   useEffect(() => { if (token !== null && vaultPath) void loadEntities(vaultPath); }, [token !== null, vaultPath]); // eslint-disable-line react-hooks/exhaustive-deps
   return useMemo(() => {
     if (token === null) return [];
@@ -50,10 +51,14 @@ export function useRefCandidates(vaultPath: string | null, token: string | null,
       .map((x) => ({ kind: "entity", id: x.id, label: x.name, entityKind: x.kind, sub: ENTITY_KIND[x.kind] ?? "Entity" }));
     const d: RefCandidate[] = (Array.isArray(doms.data) ? doms.data : []).map((x) => x.name).filter(isUserDomain).filter((x) => hit(x, titleCase(x))).slice(0, 5)
       .map((x) => ({ kind: "domain", id: x, label: titleCase(x), sub: "Domain" }));
+    // Specialists: picking one hands the message to it ("@Researcher ...").
+    const s: RefCandidate[] = (Array.isArray(specs.data) ? specs.data : []).filter((x) => x.on && hit(x.name, x.id)).slice(0, 6)
+      .map((x) => ({ kind: "specialist", id: x.id, label: x.name, sub: `Specialist, returns ${x.returns}` }));
     if (only === "app") return a;
     if (only === "entity") return e;
-    return [...a, ...e, ...d];
-  }, [token, only, apps, ents.list, doms.data]);
+    if (only === "specialist") return s;
+    return [...s, ...a, ...e, ...d];
+  }, [token, only, apps, ents.list, doms.data, specs.data]);
 }
 
 const ENTITY_KIND: Record<string, string> = { person: "Person", place: "Place", org: "Company", thing: "Thing" };
@@ -61,12 +66,13 @@ const ENTITY_KIND: Record<string, string> = { person: "Person", place: "Place", 
 function RefIcon({ r, size = 16 }: { r: RefCandidate | ChatRef; size?: number }) {
   if (r.kind === "app") return <AppLogo name={r.label} url={(r as RefCandidate).url} size={size} />;
   if (r.kind === "domain") { const D = domainIcon(r.id) ?? Layers; return <D className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />; }
+  if (r.kind === "specialist") return <UserCog className="shrink-0 text-accent" style={{ width: size - 2, height: size - 2 }} />;
   const k = (r as RefCandidate).entityKind ?? r.id.split("/")[0];
   const I = k === "person" ? User : k === "place" ? MapPin : k === "org" ? Building2 : Boxes;
   return <I className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />;
 }
 
-const GROUP: Record<RefKind, string> = { app: "Apps", entity: "People and things", domain: "Domains" };
+const GROUP: Record<RefKind, string> = { specialist: "Specialists", app: "Apps", entity: "People and things", domain: "Domains" };
 
 // The suggestion list, anchored above the composer (inside its relative box).
 export function RefSuggest({ items, index, onPick, empty }: { items: RefCandidate[]; index: number; onPick: (r: RefCandidate) => void; empty: string }) {

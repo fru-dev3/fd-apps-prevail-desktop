@@ -19,7 +19,7 @@ import type { EngineApp } from "./types";
 // These mirror the engine's activity-ledger producer types (cli activity.ts).
 // Keep them in lockstep: any type the engine writes must be representable here,
 // or the event falls through to the generic "other" label and can't be filtered.
-type ActivityType = "loop_run" | "loop_exec" | "task_filed" | "briefing" | "sync" | "nudge" | "playbook" | "playbook_step" | "other";
+type ActivityType = "loop_run" | "loop_exec" | "task_filed" | "briefing" | "sync" | "nudge" | "playbook" | "playbook_step" | "job" | "other";
 interface ActivityEvent {
   ts: number;
   type: ActivityType;
@@ -139,6 +139,7 @@ const TYPE_META: Record<ActivityType, { label: string; icon: typeof Activity; ti
   nudge:      { label: "Nudge",      icon: Bell,     tint: "text-text-secondary" },
   playbook:      { label: "Playbook",      icon: Workflow,        tint: "text-accent" },
   playbook_step: { label: "Playbook step", icon: CornerDownRight, tint: "text-text-secondary" },
+  job:        { label: "Job",        icon: Workflow, tint: "text-accent" },
   other:      { label: "Event",      icon: Activity, tint: "text-text-muted" },
 };
 
@@ -150,6 +151,7 @@ const FILTERS: { id: ActivityType | "all"; label: string }[] = [
   { id: "briefing", label: "Briefings" },
   { id: "sync", label: "Syncs" },
   { id: "playbook", label: "Playbooks" },
+  { id: "job", label: "Jobs" },
   { id: "nudge", label: "Nudges" },
   { id: "other", label: "Other" },
 ];

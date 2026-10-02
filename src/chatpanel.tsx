@@ -33,6 +33,7 @@ import { SchedulePanel } from "./convschedule";
 import { extractActIds, linkActsToThread, pendingActsForThread, useWaitingState } from "./waiting";
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
+import { TodayHome } from "./todaycard";
 import { AttachRow, RefSuggest, refItem, shortContextLabel, type AttachItem, atMatchAt, useRefCandidates, type RefCandidate } from "./chatrefs";
 import { addRef, appStepLabel, refsToChatArgs, type ChatRef, type RefKind } from "./appscope";
 import { peekInvoke } from "./query";
@@ -909,8 +910,29 @@ export function ChatPanel({
       if (ta.value === written) ta.setSelectionRange(pos, pos);
     });
   }
+  // "Set up my Compass now" (the first-run tour) and other prompts that start
+  // a conversation from outside the composer: the text waits in the box on Home.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const t = (e as CustomEvent<string>).detail;
+      if (typeof t !== "string" || domain) return;
+      setInput(t);
+      requestAnimationFrame(() => taRef.current?.focus());
+    };
+    window.addEventListener("prevail:compose", on);
+    return () => window.removeEventListener("prevail:compose", on);
+  }, [domain]);
   function applyRef(item: RefCandidate | undefined) {
     if (!atMatch || !item) return;
+    // A specialist is a handoff, not a chip: the message starts "@Name ".
+    if (item.kind === "specialist") {
+      const rest = `${input.slice(0, atMatch.start)}${input.slice(atMatch.end)}`.replace(/^\s+/, "");
+      const next = `@${item.label} ${rest}`;
+      setInput(next);
+      setCaretPos(next.length);
+      restoreCaret(next, next.length);
+      return;
+    }
     const head = input.slice(0, atMatch.start).replace(/\s$/, "");
     const tail = input.slice(atMatch.end);
     const next = `${head}${head && tail && !tail.startsWith(" ") ? " " : ""}${tail}`;
@@ -1625,7 +1647,9 @@ export function ChatPanel({
                   // Prefer the longer of accumulated deltas vs final text
                   // so we don't truncate a stream that already arrived.
                   const content = last.content.length >= full.length ? last.content : full;
-                  return [...m.slice(0, -1), { ...last, content }];
+                  // A job turn ends with its marker, so the saved thread keeps the card.
+                  const withJob = last.jobId && !content.includes(`[job:${last.jobId}]`) ? `${content}\n\n[job:${last.jobId}]` : content;
+                  return [...m.slice(0, -1), { ...last, content: withJob }];
                 }
                 return m;
               });
@@ -1753,6 +1777,18 @@ export function ChatPanel({
               if (t.entities.length) window.dispatchEvent(new CustomEvent("prevail:entities-changed"));
               break;
             }
+            case "job": {
+              // The chief of staff staffed this message as a job: the reply
+              // carries a marker the thread keeps, and the bubble draws the card.
+              const jid = (ev as { job?: { id?: string } }).job?.id;
+              if (!jid || !/^[A-Za-z0-9_-]+$/.test(jid)) break;
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || !last.streaming || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, jobId: jid }];
+              });
+              break;
+            }
             case "done":
               // 'done' on the stream closes the turn; the dedicated
               // engine-chat:done event below flips streaming off.
@@ -1800,6 +1836,8 @@ export function ChatPanel({
   }, []);
 
   useEffect(() => {
+    // Home with no conversation is Today: read from the top.
+    if (!messages.length) { scrollRef.current?.scrollTo({ top: 0 }); return; }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
@@ -2671,6 +2709,7 @@ export function ChatPanel({
           </div>
         )}
         {messages.length === 0 && !domain && !entity && !scopeApp && domainTab === "chat" && (
+          <TodayHome vaultPath={vaultPath} phone={phone} onAsk={(text) => { setInput(text); requestAnimationFrame(() => taRef.current?.focus()); }} fallback={
           <div className={`flex h-full flex-col items-center justify-center ${phone ? "px-5 py-4" : "px-6 py-8"}`} style={{ justifyContent: "safe center" }}>
             {/* Starred apps as a horizontal strip at the top of home - same
                 chip language as the in-domain Apps strip, per user feedback.
@@ -2697,7 +2736,7 @@ export function ChatPanel({
                 </p>
               </div>
             )}
-          </div>
+          </div>} />
         )}
         {domain && domainTab === "chat" && messages.length === 0 && (
           <DomainHome

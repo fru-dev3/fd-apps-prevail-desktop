@@ -1,5 +1,7 @@
 // Chat-display leaf components extracted from App.tsx: ChatBubble (one rendered
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
+import { JobCard } from "./jobcard";
+import { jobIdOf } from "./plansmodel";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ReplyApps } from "./chatrefs";
 import { AcrossCard, TouchedLine } from "./linking";
@@ -446,11 +448,13 @@ export function ChatBubble({
             msg.role === "assistant" ? (() => {
               const showThinking = getPref(PREF.showThinking, "1") === "1";
               // The gate's approval marker is for the app, not the reader.
-              const { thinking, answer } = splitThinking(stripActMarkers(msg.content));
+              const jid = msg.jobId ?? jobIdOf(msg.content);
+              const { thinking, answer } = splitThinking(stripActMarkers(jid ? msg.content.replace(/\s*\[job:[A-Za-z0-9_-]+\]\s*$/, "") : msg.content));
               return (
                 <>
                   {showThinking && thinking && <ThinkingDisclosure text={thinking} open={!answer} />}
                   {answer ? (msg.streaming ? <StreamingPlain source={answer} /> : <Markdown source={answer} />) : (!thinking && msg.streaming ? <ThinkingDots /> : null)}
+                  {jid && <JobCard id={jid} />}
                 </>
               );
             })() : (

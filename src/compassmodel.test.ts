@@ -63,10 +63,10 @@ describe("compassmodel", () => {
     expect(missionOf(doc)?.text).toBe("Live a calm foo life.");
     expect(proposedCount(doc)).toBe(1);
   });
-  test("confirm makes a proposed goal active and leaves the rest as written", () => {
+  test("confirm makes a proposed goal the user's (active only after its WOOP) and leaves the rest as written", () => {
     const { doc, changes } = confirmLines(parseCompass(SAMPLE), "all");
-    expect(changes).toEqual([{ id: "g-hike", from: "proposed", to: "active", reason: "confirmed", by: "user" }]);
-    expect(serializeCompass(doc)).toBe(SAMPLE.replace("~id:g-hike ~status:proposed", "~id:g-hike ~status:active"));
+    expect(changes).toEqual([{ id: "g-hike", from: "proposed", to: "confirmed", reason: "confirmed", by: "user" }]);
+    expect(serializeCompass(doc)).toBe(SAMPLE.replace("~id:g-hike ~status:proposed", "~id:g-hike ~status:confirmed"));
   });
   test("drop removes only a proposed line, with its words as evidence", () => {
     const body = SAMPLE.replace("- Faith ~id:v-faith ~rank:3 ~local", "- Faith ~id:v-faith ~rank:3 ~status:proposed\n  words: \"Faith matters.\"");
@@ -78,5 +78,15 @@ describe("compassmodel", () => {
   test("an empty file parses to nothing and writes nothing new", () => {
     expect(items(parseCompass(""))).toEqual([]);
     expect(proposedCount(parseCompass(""))).toBe(0);
+  });
+});
+
+describe("WOOP", () => {
+  test("a goal with outcome, obstacle and an if-then plan goes active on confirm; a low expectation is a small trial", () => {
+    const g = (extra: string) => parseCompass(`# Compass\n\n## Goals\n- [ ] Hike ~id:g-h ~status:proposed\n${extra}`);
+    const full = '  outcome: "on top"\n  obstacle: "weekends fill"\n  plan: "if a Saturday is free, then I hike"\n';
+    expect(confirmLines(g(full), "all").changes[0]!.to).toBe("active");
+    expect(confirmLines(g(`${full}  expect: 2\n`), "all").changes[0]!.to).toBe("prototyping");
+    expect(confirmLines(g('  outcome: "on top"\n'), "all").changes[0]!.to).toBe("confirmed");
   });
 });

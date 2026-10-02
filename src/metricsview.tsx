@@ -7,8 +7,10 @@
 //   Rhythm     one dot per prompt or commit, time of day by date
 //   Sources    what each number is read from, and its caveats
 import { useMemo, useState } from "react";
-import { Activity, BookOpen, CalendarRange, Cpu, Database, Map as MapIcon, Sparkles, Wallet } from "lucide-react";
-import { useInvokeQuery } from "./query";
+import { Activity, BookOpen, CalendarRange, Check, Cpu, Database, Lightbulb, Map as MapIcon, Pencil, Sparkles, TrendingUp, Wallet, X } from "lucide-react";
+import { invoke } from "./bridge";
+import { invalidateQueries, useInvokeQuery } from "./query";
+import type { MetricProposal } from "./plansmodel";
 import { SideSpine } from "./sidespine";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 
@@ -143,7 +145,51 @@ export function RhythmPlot({ dots, days = 30, end }: { dots: Dot[]; days?: numbe
   );
 }
 
-type Sel = "week" | "rhythm" | "sources" | `family:${string}`;
+type Sel = "week" | "rhythm" | "sources" | "proposals" | "changes" | `family:${string}`;
+interface Insight { key: string; week: string; metric: string; title: string; text: string; direction: "up" | "down"; files: string[] }
+
+const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
+
+/** A proposed metric: what it is, why, 12 weeks of history when Prevail can count it. Track / Not useful / Edit. */
+export function ProposalCard({ p, vaultPath, onAnswered }: { p: MetricProposal; vaultPath: string; onAnswered: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [edit, setEdit] = useState(false);
+  const [title, setTitle] = useState(p.title);
+  const [err, setErr] = useState<string | null>(null);
+  const answer = async (a: "track" | "dismiss" | "edit") => {
+    setBusy(true); setErr(null);
+    try { await invoke("engine_metric_answer", { vault: vaultPath, key: p.key, answer: a, title: a === "edit" ? title : null, serves: null, never: null }); onAnswered(); }
+    catch (e) { setErr(String(e)); } finally { setBusy(false); }
+  };
+  return (
+    <li data-testid="metric-proposal" data-kind={p.kind} className="border-b border-border-subtle py-4 last:border-b-0">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="break-words text-[16px] font-semibold text-text-primary">{p.title}</span>
+            <span className={chip}>{p.computable ? (TIER[p.tier] ?? p.tier) : "Needs a source"}</span>
+            {p.servesTitle && <span className={chip}>Serves {p.servesTitle}</span>}
+          </div>
+          <p className={`${BODY} mt-1 break-words text-text-secondary`}>{p.why}</p>
+          <p className={`${META} mt-0.5 break-all`}>From {p.from}</p>
+        </div>
+        <span className="flex shrink-0 items-center gap-0.5">
+          <button onClick={() => void answer("track")} disabled={busy} title="Track" aria-label={`Track ${p.title}`} data-testid="proposal-track" className={iconBtn}><Check className="h-4 w-4" /></button>
+          <button onClick={() => setEdit((v) => !v)} disabled={busy} title="Edit" aria-label={`Edit ${p.title}`} className={iconBtn}><Pencil className="h-4 w-4" /></button>
+          <button onClick={() => void answer("dismiss")} disabled={busy} title="Not useful" aria-label={`Not useful: ${p.title}`} data-testid="proposal-dismiss" className={iconBtn}><X className="h-4 w-4" /></button>
+        </span>
+      </div>
+      {p.computable && p.spark.length > 0 && <div className="mt-2"><Sparkline values={p.spark} /></div>}
+      {edit && (
+        <div className="mt-2 flex max-w-md gap-2">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Metric name" className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 text-[14px]" />
+          <button onClick={() => void answer("edit")} disabled={busy || !title.trim()} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-[13px] text-text-secondary hover:text-accent">Track as this</button>
+        </div>
+      )}
+      {err && <p className="mt-1 text-[13px] text-err">{err}</p>}
+    </li>
+  );
+}
 
 export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: boolean }) {
   const [sel, setSel] = useState<Sel>("week");
@@ -152,6 +198,9 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
   const listQ = useInvokeQuery<MetricItem[]>("engine_metrics", { vault: vaultPath, view: "list", week: null }, { staleMs: 10 * 60_000 });
   const rhythmQ = useInvokeQuery<Dot[]>("engine_metrics", sel === "rhythm" ? { vault: vaultPath, view: "rhythm", week: null } : null, { staleMs: 10 * 60_000 });
   const sourcesQ = useInvokeQuery<Source[]>("engine_metrics", sel === "sources" ? { vault: vaultPath, view: "sources", week: null } : null, { staleMs: 10 * 60_000 });
+  const propQ = useInvokeQuery<MetricProposal[]>("engine_metric_proposals", { vault: vaultPath, view: "proposals" }, { staleMs: 10 * 60_000 });
+  const insightQ = useInvokeQuery<Insight[]>("engine_metric_proposals", sel === "changes" ? { vault: vaultPath, view: "insights" } : null, { staleMs: 10 * 60_000 });
+  const props = Array.isArray(propQ.data) ? propQ.data : [];
   const g = glanceQ.data ?? null;
   const list = useMemo(() => (Array.isArray(listQ.data) ? listQ.data : []), [listQ.data]);
   const families = useMemo(() => [...new Set(list.map((m) => m.family))], [list]);
@@ -173,7 +222,9 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
       {row("week", "This week", CalendarRange, g ? `Week of ${weekLabel(g.week)}` : undefined)}
       <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Families</div>
       {families.map((f) => row(`family:${f}`, f, FAMILY_ICON[f] ?? Activity, undefined, list.filter((m) => m.family === f).length))}
+      {row("proposals", "Proposals", Lightbulb, "Metrics to track, from what you said", props.length)}
       <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Patterns</div>
+      {row("changes", "Changes", TrendingUp, "Three weeks outside your normal")}
       {row("rhythm", "Rhythm", Activity, "When you work")}
       {row("sources", "Sources", Database, "What each number reads")}
     </nav>
@@ -201,6 +252,32 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         <h2 className={DETAIL_TITLE}>{f}</h2>
         {err(listQ)}
         <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">{ms.map((m) => <MetricCard key={m.id} m={m} />)}</div>
+      </section>
+    );
+  } else if (sel === "proposals") {
+    detail = (
+      <section data-testid="metrics-proposals">
+        <h2 className={DETAIL_TITLE}>Proposals</h2>
+        <p className={`${META} mt-1`}>Metrics Prevail could track for you, from your ideal states, your Compass goals and what you say in chat. One tap each; two "not useful" on a kind and it stops proposing that kind.</p>
+        {err(propQ)}
+        {!props.length && !loading(propQ) && <p className={`${BODY} mt-4 text-text-muted`}>No proposals right now.</p>}
+        <ul className="mt-3 max-w-4xl">{props.map((p) => <ProposalCard key={p.key} p={p} vaultPath={vaultPath} onAnswered={() => { invalidateQueries("engine_metric_proposals"); invalidateQueries("engine_review"); void propQ.refresh(); }} />)}</ul>
+      </section>
+    );
+  } else if (sel === "changes") {
+    const ins = Array.isArray(insightQ.data) ? insightQ.data : [];
+    detail = (
+      <section data-testid="metrics-changes">
+        <h2 className={DETAIL_TITLE}>Changes</h2>
+        <p className={`${META} mt-1`}>A metric that sat outside your normal for three weeks running. A change, not a cause; each lists the files behind it.</p>
+        {err(insightQ)}
+        {!ins.length && !loading(insightQ) && <p className={`${BODY} mt-4 text-text-muted`}>Nothing has moved outside your normal for three weeks.</p>}
+        <ul className="mt-3 max-w-4xl">{ins.map((i) => (
+          <li key={i.key} data-testid="metric-change" className="border-b border-border-subtle py-3 last:border-b-0">
+            <p className={`${BODY} text-text-primary`}>{i.text}</p>
+            <Citations items={i.files.map((file) => ({ file }))} />
+          </li>
+        ))}</ul>
       </section>
     );
   } else if (sel === "rhythm") {

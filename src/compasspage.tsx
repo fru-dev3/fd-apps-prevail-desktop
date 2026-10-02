@@ -92,7 +92,11 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     catch (e) { setErr(`Could not draft: ${String(e)}`); }
     finally { setBusy(null); }
   };
-  const talk = () => { window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: "" })); };
+  // Talk it through: Home, with the Compass conversation ready to start.
+  const talk = () => {
+    window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: "" }));
+    setTimeout(() => window.dispatchEvent(new CustomEvent("prevail:compose", { detail: "Let's set up my Compass" })), 50);
+  };
 
   const choose = (s: Sel) => { setSel(s); setPicked(true); };
   const isOn = (s: Sel) => sel === s && (!phone || picked);
@@ -126,13 +130,15 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
     </span>
   ) : null;
   const status = (x: { tokens: Record<string, string> }) => isProposed(x)
-    ? <span className={`${chip} border-accent-border text-accent`} data-testid="compass-proposed">Proposed</span> : null;
+    ? <span className={`${chip} border-accent-border text-accent`} data-testid="compass-proposed">Proposed</span>
+    : x.tokens.status === "confirmed" ? <span className={chip} data-testid="compass-needs-plan" title="It goes active once it has an outcome, an obstacle and an if-then plan">Yours, needs its plan</span>
+    : x.tokens.status === "prototyping" ? <span className={chip}>Small trial</span> : null;
 
   const itemRow = (it: CompassItem, lead?: string) => {
     const words = fieldOf(it, "words");
     const from = fieldOf(it, "from");
     const extra: [string, string][] = [];
-    for (const k of ["enough", "hope", "fear", "why", "trade"]) { const v = fieldOf(it, k); if (v) extra.push([k, v]); }
+    for (const k of ["enough", "hope", "fear", "why", "trade", "outcome", "obstacle", "plan"]) { const v = fieldOf(it, k); if (v) extra.push([k, v]); }
     const serves = (it.tokens.serves ?? "").split(",").map((id) => valueTitle.get(id)).filter(Boolean) as string[];
     return (
       <li key={it.id} data-testid="compass-item" data-id={it.id} className="flex items-start gap-3 border-b border-border-subtle py-3 last:border-b-0">

@@ -156,7 +156,16 @@ export const fieldOf = (x: { fields: Field[] }, k: string): string => (x.fields.
 export const rankOf = (v: CompassItem) => Number(v.tokens.rank ?? 99);
 export const proposedCount = (doc: CompassDoc) => items(doc).filter(isProposed).length + (missionOf(doc) && isProposed(missionOf(doc)!) ? 1 : 0);
 
-/** Confirm proposed lines (all, or by id): goals become active, others lose the token. Pure. */
+// WOOP (the engine's rule): a goal goes active only with an outcome, an
+// obstacle and an if-then plan, in the user's words; until then it is
+// "confirmed". An expectation of 1 or 2 out of 5 makes it a small trial.
+const IF_THEN = /\bif\b[\s\S]{2,}?(\bthen\b|,)/i;
+export function woopComplete(it: { fields: Field[] }): boolean {
+  return !!fieldOf(it, "outcome").trim() && !!fieldOf(it, "obstacle").trim() && IF_THEN.test(fieldOf(it, "plan"));
+}
+const goalStatusOnConfirm = (it: CompassItem) => (!woopComplete(it) ? "confirmed" : Number(fieldOf(it, "expect") || 5) <= 2 ? "prototyping" : "active");
+
+/** Confirm proposed lines (all, or by id): a goal becomes active once its WOOP is done (else confirmed), others lose the token. Pure. */
 export function confirmLines(doc: CompassDoc, ids: string[] | "all", reason = "confirmed"): { doc: CompassDoc; changes: LedgerChange[] } {
   const next = parseCompass(serializeCompass(doc));
   const changes: LedgerChange[] = [];
@@ -165,9 +174,10 @@ export function confirmLines(doc: CompassDoc, ids: string[] | "all", reason = "c
   if (m && isProposed(m) && want("mission")) { delete m.tokens.status; m.dirty = true; changes.push({ id: "mission", from: "proposed", to: "confirmed", reason, by: "user" }); }
   for (const it of items(next)) {
     if (!isProposed(it) || !want(it.id)) continue;
-    if (it.kind === "goal") it.tokens.status = "active"; else delete it.tokens.status;
+    const to = it.kind === "goal" ? goalStatusOnConfirm(it) : "confirmed";
+    if (it.kind === "goal") it.tokens.status = to; else delete it.tokens.status;
     it.dirty = true;
-    changes.push({ id: it.id, from: "proposed", to: it.kind === "goal" ? "active" : "confirmed", reason, by: "user" });
+    changes.push({ id: it.id, from: "proposed", to, reason, by: "user" });
   }
   return { doc: next, changes };
 }

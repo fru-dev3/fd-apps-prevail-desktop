@@ -19,6 +19,7 @@ mod structure;
 mod appscope;
 mod goals;
 mod compass;
+mod plans;
 mod appcmds;
 mod bunker;
 mod vault_lock;
@@ -623,6 +624,23 @@ pub fn run() {
             goals::goals_files_read,
             goals::goals_file_write,
             compass::chief_of_staff_read,
+            plans::engine_today,
+            plans::engine_today_tap,
+            plans::engine_review,
+            plans::engine_review_checkin,
+            plans::engine_review_candidate,
+            plans::engine_specialists,
+            plans::engine_specialist_show,
+            plans::engine_jobs,
+            plans::engine_job_show,
+            plans::engine_job_action,
+            plans::engine_job_undo,
+            plans::engine_job_adjust,
+            plans::engine_decisions,
+            plans::engine_decision_action,
+            plans::engine_metric_proposals,
+            plans::engine_metric_answer,
+            plans::engine_chief_set,
             compass::compass_read,
             compass::compass_write,
             compass::compass_versions,

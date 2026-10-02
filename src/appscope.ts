@@ -117,7 +117,7 @@ export type AddSourceResult = { app: MirrorApp; probe: SourceProbe; adopted: boo
 export type UntrustedSource = { id: string; name: string; integration: SourceKind; urls: string[] };
 
 // ── @-references ────────────────────────────────────────────────────────────
-export type RefKind = "app" | "entity" | "domain";
+export type RefKind = "app" | "entity" | "domain" | "specialist";
 export type ChatRef = { kind: RefKind; id: string; label: string };
 export function addRef(list: ChatRef[], r: ChatRef): ChatRef[] {
   return list.some((x) => x.kind === r.kind && x.id === r.id) ? list : [...list, r];
