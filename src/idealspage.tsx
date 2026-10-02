@@ -15,7 +15,7 @@ import { MissionEditor } from "./missioneditor";
 import { AlignmentCard } from "./panels";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
-import { DETAIL_TITLE } from "./typescale";
+import { BODY, DETAIL_TITLE, META } from "./typescale";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
 
@@ -39,7 +39,7 @@ function DomainIdeal({ vaultPath, domain, body, onSaved }: { vaultPath: string; 
       <div className="mb-4 flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 className={DETAIL_TITLE}>{titleCase(domain)}</h2>
-          <p className="mt-1 text-[14px] text-text-muted">What a thriving {titleCase(domain)} looks like.</p>
+          <p className={`${META} mt-1`}>What a thriving {titleCase(domain)} looks like.</p>
         </div>
         {editing ? (
           <div className="flex shrink-0 items-center gap-0.5">
@@ -52,11 +52,11 @@ function DomainIdeal({ vaultPath, domain, body, onSaved }: { vaultPath: string; 
       </div>
       {editing ? (
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={16} aria-label={`${titleCase(domain)} ideal`}
-          className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[14px] leading-relaxed text-text-primary focus:border-accent-border focus:outline-none" />
+          className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[14px] leading-normal text-text-primary focus:border-accent-border focus:outline-none" />
       ) : body.trim() ? (
-        <div className="prose-sm max-w-3xl text-sm leading-relaxed text-text-primary"><Markdown source={body} /></div>
+        <div className={`${BODY} max-w-3xl text-text-primary`}><Markdown source={body} /></div>
       ) : (
-        <p className="text-[14px] text-text-muted">No ideal yet. Use the edit icon to write one.</p>
+        <p className={META}>No ideal yet. Use the edit icon to write one.</p>
       )}
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
     </section>
@@ -89,10 +89,10 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
     const on = sel === id && (!phone || picked);
     return (
       <button key={id} data-testid={`ideal-row-${id}`} aria-current={on ? "true" : undefined} onClick={() => choose(id)}
-        className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
+        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
         {Icon ? <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} /> : <CircleDot className="h-4 w-4 shrink-0 text-text-muted" />}
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{label}</span>
+          <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{label}</span>
           {sub && <span className="block truncate text-[12px] text-text-muted">{sub}</span>}
         </span>
         {missing && <span title="No ideal yet" className="flex items-center gap-1 text-[12px] text-text-muted"><Circle className="h-3 w-3" /> Not set</span>}
@@ -112,7 +112,7 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
     <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"} data-testid="ideals-detail">
       {sel === "mission" && (
         <section data-testid="ideal-detail-mission">
-          <MissionEditor vaultPath={vaultPath} />
+          <MissionEditor vaultPath={vaultPath} title="Your constitution" />
           <div className="mt-8"><AlignmentCard vaultPath={vaultPath} /></div>
         </section>
       )}

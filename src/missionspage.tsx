@@ -18,6 +18,7 @@ import { SettingsHeader } from "./sectionutil";
 import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone, useStacked } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { StatusDot } from "./ui";
 import { DomainChip } from "./linking";
 import { useChatApps } from "./chatrefs";
 import { displayTitle, nPrompts, type ProjectsIndex } from "./projectsview";
@@ -41,10 +42,13 @@ const D_TABS: { id: DTab; label: string; icon: typeof Target }[] = [
   { id: "budget", label: "Budget", icon: CircleDollarSign }, { id: "artifacts", label: "Artifacts", icon: FileText },
   { id: "timeline", label: "Timeline", icon: Clock }, { id: "setup", label: "Setup", icon: Settings2 },
 ];
-const inputCls = "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-[15px] text-text-primary focus:border-accent-border focus:outline-none";
+const inputCls = "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
 const fieldLabel = "mb-1 block text-[13px] font-medium text-text-secondary";
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
-const smallBtn = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
+// Quiet text actions instead of bordered secondary buttons; seg is one option of a segmented choice.
+const textLink = "inline-flex h-8 shrink-0 items-center gap-1 text-[13px] font-medium text-accent hover:underline disabled:opacity-50 disabled:no-underline";
+const seg = (on: boolean) => `inline-flex h-8 shrink-0 items-center px-2.5 text-[13px] ${on ? "bg-accent-soft font-medium text-accent" : "text-text-secondary hover:text-accent"}`;
+const segGroup = "inline-flex max-w-full flex-wrap overflow-hidden rounded-md border border-border";
 const fmtDate = (t?: string) => (t && /^\d{4}-\d{2}-\d{2}/.test(t) ? new Date(`${t.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "");
 const usd = (n: number) => `$${n.toLocaleString(undefined, { maximumFractionDigits: n % 1 ? 2 : 0 })}`;
 
@@ -112,7 +116,7 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
         const left = daysLeftLabel(m);
         return (
           <button key={m.slug} data-testid="mission-row" aria-current={on ? "true" : undefined} onClick={() => pick(m.slug)} className={rowCls(on)}>
-            <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-warm text-accent"><Target className="h-3.5 w-3.5" /></span>
+            <Target aria-hidden className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{m.name}</span>
               <span className="block truncate text-[12px] text-text-muted">{m.progress?.milestones?.total ? `${m.progress.milestones.done} of ${m.progress.milestones.total} milestones` : titleCase(m.status)}</span>
@@ -225,14 +229,28 @@ function NewMission({ vaultPath, onCancel, onMade }: { vaultPath: string; onCanc
 
 // ── One mission ─────────────────────────────────────────────────────────────
 
-function Chips({ label, children }: { label: string; children: ReactNode }) {
+const plainChip = "inline-flex max-w-full items-center truncate rounded-md bg-surface-warm px-1.5 py-px text-[12px] font-medium text-text-secondary";
+const personName = (p: string) => titleCase(p.replace(/^[a-z]+\//, "").replace(/-/g, " "));
+const domainLink = "font-medium text-text-secondary hover:text-accent";
+
+/** Who the mission brought in, as one muted line: each domain name opens the domain. */
+function MissionWho({ m, owner }: { m: Mission; owner: string | null | undefined }) {
+  const doms = (ds: string[]) => ds.map((d, i) => <span key={d}>{i > 0 && ", "}<button type="button" onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: d === "general" ? "" : d }))} className={domainLink}>{titleCase(d)}</button></span>);
+  const bits: ReactNode[] = [
+    <span key="o">Owner {owner ? doms([owner]) : "none yet"}</span>,
+    rolesOf(m, "consulted").length > 0 && <span key="r">Reads {doms(rolesOf(m, "consulted"))}</span>,
+    rolesOf(m, "informed").length > 0 && <span key="t">Tells {doms(rolesOf(m, "informed"))}</span>,
+    m.apps.length > 0 && <span key="a">{m.apps.map(titleCase).join(", ")}</span>,
+    m.specialists.length > 0 && <span key="s">{m.specialists.map(titleCase).join(", ")}</span>,
+    m.people.length > 0 && <span key="p">With {m.people.map(personName).join(", ")}</span>,
+    <span key="v" title={[m.goal, m.path].filter(Boolean).join(" > ")}>{m.goal || m.path ? `Serves ${m.goal || m.path}` : "Not linked to a goal"}</span>,
+  ].filter(Boolean);
   return (
-    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
-      <span className="text-[13px] text-text-muted">{label}</span>{children}
-    </span>
+    <p data-testid="mission-chips" className={`${META} mt-0.5 line-clamp-2`}>
+      {bits.map((b, i) => <span key={i}>{i > 0 && <span aria-hidden> · </span>}{b}</span>)}
+    </p>
   );
 }
-const plainChip = "inline-flex max-w-full items-center truncate rounded-md bg-surface-warm px-1.5 py-px text-[12px] font-medium text-text-secondary";
 
 export function MissionDetail({ vaultPath, slug }: { vaultPath: string; slug: string }) {
   const phone = useIsPhone();
@@ -265,15 +283,7 @@ export function MissionDetail({ vaultPath, slug }: { vaultPath: string; slug: st
           </div>
         </div>
         <p data-testid="mission-meta" className={`${META} mt-1`}>{missionMeta(m)}{m.result ? ` · result ${m.result.replace("-", " ")}` : ""}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5" data-testid="mission-chips">
-          <Chips label="Owner">{owner ? <DomainChip slug={owner} /> : <span className={plainChip}>none yet</span>}</Chips>
-          {rolesOf(m, "consulted").length > 0 && <Chips label="Reads">{rolesOf(m, "consulted").map((d) => <DomainChip key={d} slug={d} />)}</Chips>}
-          {rolesOf(m, "informed").length > 0 && <Chips label="Tells">{rolesOf(m, "informed").map((d) => <DomainChip key={d} slug={d} />)}</Chips>}
-          {m.apps.length > 0 && <Chips label="Apps">{m.apps.map((a) => <span key={a} className={plainChip}>{titleCase(a)}</span>)}</Chips>}
-          {m.specialists.length > 0 && <Chips label="Agents">{m.specialists.map((a) => <span key={a} className={plainChip}>{titleCase(a)}</span>)}</Chips>}
-          {m.people.length > 0 && <Chips label="People">{m.people.map((a) => <span key={a} className={plainChip}>{titleCase(a.replace(/^[a-z]+\//, "").replace(/-/g, " "))}</span>)}</Chips>}
-          <Chips label="Serves"><span className={plainChip}>{m.goal || m.path ? [m.goal, m.path].filter(Boolean).join(" > ") : "unlinked"}</span></Chips>
-        </div>
+        <MissionWho m={m} owner={owner} />
         {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
         <div role="tablist" aria-label="Mission" data-scroll-x className={`-mx-1 mt-3 flex gap-x-1 ${phone ? "overflow-x-auto" : "flex-wrap"}`} data-testid="mission-tabs">
           {D_TABS.map((t) => (
@@ -395,8 +405,8 @@ function BringIn({ vaultPath, m, onDone, onClose, pad }: { vaultPath: string; m:
     <section data-testid="mission-bring-panel" className={`shrink-0 border-b border-border-subtle bg-surface-warm/40 ${pad} py-3`}>
       <div className="flex items-center gap-2"><h3 className={`${SECTION_TITLE} flex-1`}>Bring in</h3><button onClick={onClose} title="Close" aria-label="Close" className={iconBtn}><X className="h-4 w-4" /></button></div>
       {(suggestedAgents.length > 0 || suggestedDomains.length > 0) && row("Suggested", <>
-        {suggestedDomains.map((d) => <button key={d} className={smallBtn} disabled={!!busy} onClick={() => void run(`s:${d}`, "domain", `${d}:consulted`)}><Plus className="h-3.5 w-3.5" />{titleCase(d)}: reads</button>)}
-        {suggestedAgents.map((id) => <button key={id} className={smallBtn} disabled={!!busy} onClick={() => void run(`s:${id}`, "specialist", id)}><Plus className="h-3.5 w-3.5" />{titleCase(id)}</button>)}
+        {suggestedDomains.map((d) => <button key={d} className={textLink} disabled={!!busy} onClick={() => void run(`s:${d}`, "domain", `${d}:consulted`)}><Plus className="h-3.5 w-3.5" />{titleCase(d)}: reads</button>)}
+        {suggestedAgents.map((id) => <button key={id} className={textLink} disabled={!!busy} onClick={() => void run(`s:${id}`, "specialist", id)}><Plus className="h-3.5 w-3.5" />{titleCase(id)}</button>)}
       </>)}
       {row("Domains", <>
         {m.domains.map((d) => <span key={d.slug} className="inline-flex items-center gap-1"><DomainChip slug={d.slug} />{roleSel(d.slug, d.role)}{removeBtn(`d:${d.slug}`, "domain", d.slug, titleCase(d.slug))}</span>)}
@@ -411,7 +421,7 @@ function BringIn({ vaultPath, m, onDone, onClose, pad }: { vaultPath: string; m:
         {addSel("Add an agent", (specs.data ?? []).filter((s) => s.on && !m.specialists.includes(s.id)).map((s) => ({ id: s.id, name: s.name })), (s) => void run(`s:${s}`, "specialist", s))}
       </>)}
       {row("People", <>
-        {m.people.map((p) => <span key={p} className="inline-flex items-center gap-0.5"><span className={plainChip}>{titleCase(p.replace(/^[a-z]+\//, "").replace(/-/g, " "))}</span>{removeBtn(`p:${p}`, "person", p, p)}</span>)}
+        {m.people.map((p) => <span key={p} className="inline-flex items-center gap-0.5"><span className={plainChip}>{personName(p)}</span>{removeBtn(`p:${p}`, "person", p, p)}</span>)}
         <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); const v = person.trim().toLowerCase().replace(/[^a-z0-9/]+/g, "-"); if (v) { void run(`p:${v}`, "person", v.includes("/") ? v : `person/${v}`); setPerson(""); } }}>
           <input aria-label="Add a person" value={person} onChange={(e) => setPerson(e.target.value)} placeholder="Add a person" className="h-8 w-40 rounded-md border border-border bg-background px-2 text-[13px]" />
         </form>
@@ -449,7 +459,7 @@ function CloseOut({ vaultPath, m, onClose, pad }: { vaultPath: string; m: Missio
   const groups = (k: string[]) => (plan?.filings ?? []).filter((f) => k.includes(f.kind));
   const step = (n: number, title: string, body: ReactNode) => (
     <div className="flex gap-3 py-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-accent-border bg-accent-soft text-[13px] font-semibold text-accent">{n}</span>
+      <span className="w-5 shrink-0 pt-px text-right text-[13px] font-semibold tabular-nums text-text-muted">{n}</span>
       <div className="min-w-0 flex-1"><h4 className="text-[15px] font-semibold text-text-primary">{title}</h4><div className="mt-1.5">{body}</div></div>
     </div>
   );
@@ -464,7 +474,7 @@ function CloseOut({ vaultPath, m, onClose, pad }: { vaultPath: string; m: Missio
       <section data-testid="mission-closeout-done" className={`shrink-0 border-b border-border-subtle bg-surface-warm/40 ${pad} py-4`}>
         <h3 className={SECTION_TITLE}>Completed</h3>
         <p className={`${BODY} mt-1 text-text-secondary`}>{filed.length} line{filed.length === 1 ? "" : "s"} filed to your domains. Each can be undone for 7 days from the Timeline tab.</p>
-        <button className={`${smallBtn} mt-3`} onClick={onClose}><Check className="h-3.5 w-3.5" />Done</button>
+        <button className={`${textLink} mt-2`} onClick={onClose}><Check className="h-3.5 w-3.5" />Done</button>
       </section>
     );
   }
@@ -472,7 +482,7 @@ function CloseOut({ vaultPath, m, onClose, pad }: { vaultPath: string; m: Missio
     <section data-testid="mission-closeout" className={`max-h-[70vh] shrink-0 overflow-y-auto border-b border-border-subtle bg-surface-warm/40 ${pad} py-3`}>
       <div className="flex items-center gap-2"><h3 className={`${SECTION_TITLE} min-w-0 flex-1 truncate`}>Complete: {m.name}</h3><button onClick={onClose} title="Close" aria-label="Close" className={iconBtn}><X className="h-4 w-4" /></button></div>
       {step(1, "Result", <div className="flex flex-wrap items-center gap-2">
-        {RESULTS.map((r) => <button key={r.id} data-testid={`closeout-result-${r.id}`} onClick={() => setResult(r.id)} className={`${smallBtn} ${result === r.id ? "border-accent bg-accent-soft text-accent" : ""}`}>{r.label}</button>)}
+        <span className={segGroup} role="group" aria-label="Result">{RESULTS.map((r) => <button key={r.id} data-testid={`closeout-result-${r.id}`} aria-pressed={result === r.id} onClick={() => setResult(r.id)} className={seg(result === r.id)}>{r.label}</button>)}</span>
         <input aria-label="In your words" value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => void draft()} placeholder="In your words (optional)" className="h-8 min-w-0 flex-1 basis-48 rounded-md border border-border bg-background px-2 text-[13px]" />
       </div>)}
       {!plan ? <p className={META}>{busy ? "Drafting the close-out" : ""}</p> : <>
@@ -480,11 +490,11 @@ function CloseOut({ vaultPath, m, onClose, pad }: { vaultPath: string; m: Missio
         {step(3, "Open tasks", groups(["task"]).length ? groups(["task"]).map((f) => (
           <div key={f.n} className="flex flex-wrap items-center gap-2 py-1">
             <span className="min-w-0 flex-1 basis-48 text-[14px] text-text-primary">{f.text.replace(/\s+[~@+]\S+/g, "")}</span>
-            {(["move", "drop", "carry"] as const).map((a) => <button key={a} onClick={() => setAction(f.n, a)} className={`${smallBtn} ${(f.action ?? "move") === a ? "border-accent bg-accent-soft text-accent" : ""}`}>{a === "move" ? `Move to ${titleCase(f.domain)}` : titleCase(a)}</button>)}
+            <span className={segGroup} role="group" aria-label={`What happens to ${f.text}`}>{(["move", "drop", "carry"] as const).map((a) => <button key={a} aria-pressed={(f.action ?? "move") === a} onClick={() => setAction(f.n, a)} className={seg((f.action ?? "move") === a)}>{a === "move" ? `Move to ${titleCase(f.domain)}` : titleCase(a)}</button>)}</span>
           </div>
         )) : <p className={META}>No open mission tasks.</p>)}
         {step(4, "Filing", <div>{groups(["summary", "note", "money", "person", "file", "routine"]).map(line)}</div>)}
-        <div className="flex flex-wrap items-center gap-3 py-2 pl-10">
+        <div className="flex flex-wrap items-center gap-3 py-2 pl-8">
           <button data-testid="closeout-apply" onClick={() => void complete()} disabled={!!busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover disabled:opacity-50">{busy === "apply" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Complete mission</button>
           <span className={META}>Nothing is deleted. Each line keeps a receipt and an Undo for 7 days.</span>
         </div>
@@ -505,19 +515,18 @@ function Milestones({ vaultPath, m }: { vaultPath: string; m: Mission }) {
   const p = m.progress.milestones;
   return (
     <section data-testid="mission-milestones">
-      <div className="flex flex-wrap items-baseline gap-x-3"><h3 className={SECTION_TITLE}>Milestones</h3><span className={META}>{p.done} of {p.total}{p.overdue.length ? ` · ${p.overdue.length} overdue` : ""}</span></div>
-      <ul className="mt-3 divide-y divide-border-subtle">
+      {p.total > 0 && <p className={META}>{p.done} of {p.total} done{p.overdue.length ? ` · ${p.overdue.length} overdue` : ""}</p>}
+      <ul className="mt-1 divide-y divide-border-subtle">
         {m.milestones.map((x) => (
           <li key={x.id} className="flex items-center gap-3 py-2">
             <button onClick={() => void run(x.id, () => missionMilestone(vaultPath, m.slug, x.done ? "undone" : "done", { id: x.id }))} disabled={!!busy} aria-label={x.done ? `Reopen ${x.title}` : `Mark ${x.title} done`} title={x.done ? "Reopen" : "Mark done"}
               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${x.done ? "border-accent bg-accent text-white" : "border-border hover:border-accent"}`}>{x.done && <Check className="h-3.5 w-3.5" />}</button>
-            <span className={`min-w-0 flex-1 break-words text-[15px] ${x.done ? "text-text-muted line-through" : "text-text-primary"}`}>{x.title}</span>
-            {x.check && <span className="hidden text-[12px] text-text-muted sm:inline">{x.check}</span>}
+            <span title={x.check ? `${x.title}. Done when: ${x.check}` : x.title} className={`min-w-0 flex-1 line-clamp-2 break-words text-[15px] ${x.done ? "text-text-muted line-through" : "text-text-primary"}`}>{x.title}</span>
             <span className="shrink-0 text-[13px] tabular-nums text-text-muted">{fmtDate(x.doneOn ?? x.due)}</span>
           </li>
         ))}
       </ul>
-      {m.milestones.length === 0 && <p className={`${BODY} text-text-muted`}>No milestones yet. Two or three checkpoints on the way to the outcome are enough.</p>}
+      {m.milestones.length === 0 && <p className={META}>No milestones yet. Two or three checkpoints on the way to the outcome are enough.</p>}
       <form className="mt-3 flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (title.trim()) void run("add", async () => { await missionMilestone(vaultPath, m.slug, "add", { title: title.trim(), due: due || undefined }); setTitle(""); setDue(""); }); }}>
         <input aria-label="New milestone" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New milestone" className="h-9 min-w-0 flex-1 basis-48 rounded-lg border border-border bg-background px-2.5 text-[14px]" />
         <input type="date" aria-label="Due" value={due} onChange={(e) => setDue(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-[14px]" />
@@ -534,13 +543,12 @@ function Tasks({ vaultPath, slug }: { vaultPath: string; slug: string }) {
   const open = tasks.filter((t) => !t.done);
   return (
     <section data-testid="mission-tasks">
-      <div className="flex flex-wrap items-baseline gap-x-3"><h3 className={SECTION_TITLE}>Tasks</h3><span className={META}>{open.length} open · the mission's own and ~mission: tasks in any domain</span></div>
-      {tasks.length === 0 ? <p className={`${BODY} mt-2 text-text-muted`}>No tasks yet. Jobs this mission runs add the next step here.</p> : (
-        <ul className="mt-3 divide-y divide-border-subtle">{tasks.map((t, i) => (
+      {tasks.length > 0 && <p className={META} title="The mission's own tasks, and tasks in any domain marked for it">{open.length} open</p>}
+      {tasks.length === 0 ? <p className={META}>No tasks yet. Jobs this mission runs add the next step here.</p> : (
+        <ul className="mt-1 divide-y divide-border-subtle">{tasks.map((t, i) => (
           <li key={`${t.id ?? i}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-2">
-            <span className={`min-w-0 flex-1 basis-48 break-words text-[15px] ${t.done ? "text-text-muted line-through" : "text-text-primary"}`}>{t.text}</span>
-            {!t.own && <DomainChip slug={t.domain} still />}
-            {t.due && <span className="text-[13px] tabular-nums text-text-muted">{fmtDate(t.due)}</span>}
+            <span title={t.text} className={`min-w-0 flex-1 basis-48 line-clamp-2 break-words text-[15px] ${t.done ? "text-text-muted line-through" : "text-text-primary"}`}>{t.text}</span>
+            {(t.due || !t.own) && <span className={`${META} tabular-nums`}>{[!t.own ? titleCase(t.domain) : "", fmtDate(t.due)].filter(Boolean).join(" · ")}</span>}
           </li>
         ))}</ul>
       )}
@@ -561,9 +569,8 @@ function Calendar({ vaultPath, m }: { vaultPath: string; m: Mission }) {
   const attendees = who.split(",").map((x) => x.trim()).filter(Boolean);
   return (
     <section data-testid="mission-calendar">
-      <h3 className={SECTION_TITLE}>Calendar</h3>
-      <p className={`${META} mt-1`}>Events that match the mission count on their own. A hold on your calendar waits for your yes; an event with other people stays a draft you send.</p>
-      {ev.length === 0 ? <p className={`${BODY} mt-2 text-text-muted`}>No events linked yet.</p> : (
+      <p className={META}>Events that match the mission count on their own. A hold on your calendar waits for your yes; an event with other people stays a draft you send.</p>
+      {ev.length === 0 ? null : (
         <ul className="mt-3 divide-y divide-border-subtle">{ev.map((e) => {
           const p = pending.get(e.event);
           return (
@@ -580,7 +587,7 @@ function Calendar({ vaultPath, m }: { vaultPath: string; m: Mission }) {
         <input aria-label="Event title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A practice block, a viewing" className="h-9 min-w-0 flex-1 basis-48 rounded-lg border border-border bg-background px-2.5 text-[14px]" />
         <input type="datetime-local" aria-label="Starts" value={start} onChange={(e) => setStart(e.target.value)} className="h-9 min-w-0 rounded-lg border border-border bg-background px-2 text-[14px]" />
         <input aria-label="With (emails, optional)" value={who} onChange={(e) => setWho(e.target.value)} placeholder="With (emails, optional)" className="h-9 min-w-0 flex-1 basis-40 rounded-lg border border-border bg-background px-2.5 text-[14px]" />
-        <button type="submit" disabled={!title.trim() || !start || !!busy} className={smallBtn}>{busy === "create" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}{attendees.length ? "Draft invite" : "Draft a hold"}</button>
+        <button type="submit" disabled={!title.trim() || !start || !!busy} className={textLink}>{busy === "create" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}{attendees.length ? "Draft invite" : "Draft a hold"}</button>
       </form>
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
     </section>
@@ -602,21 +609,21 @@ function Budget({ vaultPath, m }: { vaultPath: string; m: Mission }) {
   };
   return (
     <section data-testid="mission-budget">
-      <div className="flex flex-wrap items-baseline gap-x-3"><h3 className={SECTION_TITLE}>Budget</h3><span className={META}>{b.planned ? `${usd(b.used)} of ${usd(b.planned)} · ${Math.round(b.share * 100)}%` : b.used ? `${usd(b.used)} spent, no plan set` : "No budget set"}</span></div>
+      <p className={META}>{b.planned ? `${usd(b.used)} of ${usd(b.planned)} · ${Math.round(b.share * 100)}%` : b.used ? `${usd(b.used)} spent, no plan set` : "No budget set"}</p>
       {b.planned > 0 && <div className="mt-3 h-2 w-full max-w-xl overflow-hidden rounded-full bg-surface-warm" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(b.share * 100)}><div className={`h-full ${b.share > 1 ? "bg-err" : b.share >= 0.8 ? "bg-warn" : "bg-accent"}`} style={{ width: `${Math.min(100, b.share * 100)}%` }} /></div>}
       {b.byLine.length > 0 && (
         <ul className="mt-3 max-w-xl divide-y divide-border-subtle">{b.byLine.map((l) => (
           <li key={l.id} className="flex items-center gap-3 py-2"><span className="min-w-0 flex-1 truncate text-[15px] text-text-primary">{l.label}</span><span className="text-[14px] tabular-nums text-text-secondary">{usd(l.used)} of {usd(l.planned)}</span></li>
         ))}</ul>
       )}
-      <h4 className="mt-6 text-[15px] font-semibold text-text-primary">Record a spend or plan a line</h4>
+      <h3 className={`${SECTION_TITLE} mt-6`}>Record a spend or plan a line</h3>
       <p className={META}>A spend is recorded here, never paid. A charge already recorded counts once.</p>
       <div className="mt-2 flex max-w-2xl flex-wrap items-center gap-2">
         <input aria-label="Line" value={line} onChange={(e) => setLine(e.target.value)} placeholder="Line (lessons)" className="h-9 min-w-0 flex-1 basis-32 rounded-lg border border-border bg-background px-2.5 text-[14px]" />
         <input aria-label="Amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="$" className="h-9 w-24 rounded-lg border border-border bg-background px-2.5 text-[14px]" />
         <input aria-label="What" value={what} onChange={(e) => setWhat(e.target.value)} placeholder="What (optional)" className="h-9 min-w-0 flex-1 basis-40 rounded-lg border border-border bg-background px-2.5 text-[14px]" />
-        <button className={smallBtn} disabled={busy} onClick={() => void record("spend")}>Spent</button>
-        <button className={smallBtn} disabled={busy} onClick={() => void record("set-line")}>Plan line</button>
+        <button className={textLink} disabled={busy} onClick={() => void record("spend")}>Spent</button>
+        <button className={textLink} disabled={busy} onClick={() => void record("set-line")}>Plan line</button>
       </div>
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
     </section>
@@ -628,12 +635,11 @@ function Artifacts({ m }: { m: Mission }) {
   const KIND = { artifact: "Made here", file: "Added by you", brief: "Job page" } as const;
   return (
     <section data-testid="mission-artifacts">
-      <h3 className={SECTION_TITLE}>Artifacts</h3>
-      {a.length === 0 ? <p className={`${BODY} mt-2 text-text-muted`}>Nothing yet. Pages jobs write, plans and drafts land here, newest first.</p> : (
-        <ul className="mt-3 divide-y divide-border-subtle">{a.map((x) => (
+      {a.length === 0 ? <p className={META}>Nothing yet. Pages jobs write, plans and drafts land here, newest first.</p> : (
+        <ul className="divide-y divide-border-subtle">{a.map((x) => (
           <li key={x.path} className="flex flex-wrap items-center gap-x-3 py-2">
             <FileText className="h-4 w-4 shrink-0 text-text-muted" />
-            <span className="min-w-0 flex-1 basis-48 break-all text-[15px] text-text-primary" title={x.path}>{x.name}</span>
+            <span className="min-w-0 flex-1 basis-48 truncate text-[15px] text-text-primary" title={x.path}>{x.name}</span>
             <span className={META}>{KIND[x.kind]} · {new Date(x.mtime).toLocaleDateString()}</span>
           </li>
         ))}</ul>
@@ -665,12 +671,12 @@ function Timeline({ vaultPath, m }: { vaultPath: string; m: Mission }) {
       {mine.length > 0 && <div>
         <h3 className={SECTION_TITLE}>Jobs</h3>
         <ul className="mt-2 divide-y divide-border-subtle">{mine.map((j) => (
-          <li key={j.id} className="flex flex-wrap items-center gap-x-3 py-2"><span className="min-w-0 flex-1 basis-48 break-words text-[14px] text-text-primary">{j.ask}</span><span className={META}>{titleCase(j.status)} · {new Date(j.created).toLocaleDateString()}</span></li>
+          <li key={j.id} className="flex flex-wrap items-center gap-x-3 py-2"><span className="min-w-0 flex-1 basis-48 break-words text-[14px] text-text-primary">{j.ask}</span><span className={META}>{new Date(j.created).toLocaleDateString()}</span><StatusDot tone={j.status === "done" ? "ok" : j.status === "running" ? "accent" : j.status === "failed" ? "err" : j.status === "proposed" || j.status === "needs-approval" ? "warn" : "muted"} label={titleCase(j.status.replace("-", " "))} /></li>
         ))}</ul>
       </div>}
       <div>
         <h3 className={SECTION_TITLE}>Log</h3>
-        {(m.log ?? []).length === 0 ? <p className={`${BODY} mt-1 text-text-muted`}>Nothing logged yet.</p> : (
+        {(m.log ?? []).length === 0 ? <p className={`${META} mt-1`}>Nothing logged yet.</p> : (
           <ul className="mt-2 space-y-1">{(m.log ?? []).map((l, i) => <li key={i} className="break-words text-[14px] text-text-secondary"><span className="mr-2 tabular-nums text-text-muted">{l.slice(0, 10)}</span>{l.slice(11)}</li>)}</ul>
         )}
       </div>
@@ -698,7 +704,6 @@ function Setup({ vaultPath, m }: { vaultPath: string; m: Mission }) {
   );
   return (
     <section data-testid="mission-setup" className="grid max-w-3xl gap-4">
-      <h3 className={SECTION_TITLE}>Setup</h3>
       {text("name", "Name", m.name)}
       {text("outcome", "Outcome", m.outcome, "What done looks like, in one line")}
       {text("why", "Why, in your words", m.why, "", true)}
@@ -756,12 +761,12 @@ function Progress({ vaultPath, m }: { vaultPath: string; m: Mission }) {
       </div>
       <div>
         <h3 className={SECTION_TITLE}>Metrics</h3>
-        {props.length === 0 ? <p className={`${BODY} mt-1 text-text-muted`}>Nothing to propose for this kind of mission yet.</p> : (
+        {props.length === 0 ? <p className={`${META} mt-1`}>Nothing to propose for this kind of mission yet.</p> : (
           <ul className="mt-2 divide-y divide-border-subtle">{props.map((p) => (
             <li key={p.key} data-testid="mission-metric" className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-2">
-              <span className="min-w-0 flex-1 basis-48"><span className="block break-words text-[15px] text-text-primary">{p.title}</span><span className={`${META} block break-words`}>{p.why}</span></span>
+              <span className="min-w-0 flex-1 basis-48"><span className="block break-words text-[15px] text-text-primary">{p.title}</span><span title={p.why} className={`${META} block line-clamp-2 break-words`}>{p.why}</span></span>
               {tracked.has(p.id) ? <span className={META} data-testid="mission-metric-tracked">Tracking</span>
-                : <button onClick={() => void run(p.key, () => trackMissionMetric(vaultPath, m.slug, p.key))} disabled={!!busy} className={smallBtn} data-testid="mission-metric-track">{busy === p.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Track</button>}
+                : <button onClick={() => void run(p.key, () => trackMissionMetric(vaultPath, m.slug, p.key))} disabled={!!busy} className={textLink} data-testid="mission-metric-track">{busy === p.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Track</button>}
             </li>
           ))}</ul>
         )}

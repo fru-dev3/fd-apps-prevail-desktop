@@ -138,7 +138,7 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect(h.getByTestId("mission-chips")).toContainText("Reads");
       await expect(h.getByTestId("mission-chips")).toContainText("Tells");
       await expect(h.getByTestId("mission-chips")).toContainText("Researcher");
-      await expect(h.getByTestId("mission-chips")).toContainText("unlinked");
+      await expect(h.getByTestId("mission-chips")).toContainText("Not linked to a goal");
       await noOverflow(page);
       await shot(page, "mission-chat");
       for (const t of ["milestones", "tasks", "calendar", "budget", "artifacts", "timeline", "setup"]) {

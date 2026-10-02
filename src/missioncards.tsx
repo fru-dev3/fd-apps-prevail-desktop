@@ -12,7 +12,9 @@ import { titleCase } from "./format";
 import { attachToMission, createMission, daysLeftLabel, openMission, useMissions } from "./missions";
 import type { ChatMessage } from "./types";
 
-const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
+// One filled primary action per card; the rest are quiet text links.
+const primary = "inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50";
+const quiet = "inline-flex h-8 items-center gap-1 px-1 text-[13px] text-text-muted hover:text-text-primary disabled:opacity-50";
 const card = "mt-3 rounded-xl border border-border bg-surface p-3";
 
 /** Ask the mission's chat panel to resend the last question with these domains for this one turn. */
@@ -35,10 +37,10 @@ export function BringInCard({ b, lastUser }: { b: NonNullable<ChatMessage["bring
     <div data-testid="bring-in-card" className={card}>
       <p className="text-[14px] text-text-primary"><span className="font-semibold">Bring in {names}?</span> {b.never ? "It is on your never-read list. " : ""}Nothing from {b.domains.length === 1 ? "it" : "them"} was read.</p>
       {done === "mission" ? <p className="mt-2 text-[13px] text-accent">Added to the mission. Send the question again below.</p> : (
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button className={smallBtn} disabled={!!busy} onClick={() => { setDone("turn"); ask(); }} data-testid="bring-in-turn"><Check className="h-3.5 w-3.5" />For this question</button>
-          <button className={smallBtn} disabled={!!busy} onClick={() => void forMission()} data-testid="bring-in-mission">{busy === "mission" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}For the mission</button>
-          <button className={smallBtn} disabled={!!busy} onClick={() => setDone("no")} data-testid="bring-in-no"><X className="h-3.5 w-3.5" />No</button>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button className={primary} disabled={!!busy} onClick={() => { setDone("turn"); ask(); }} data-testid="bring-in-turn"><Check className="h-3.5 w-3.5" />For this question</button>
+          <button className={quiet} disabled={!!busy} onClick={() => void forMission()} data-testid="bring-in-mission">{busy === "mission" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}For the mission</button>
+          <button className={quiet} disabled={!!busy} onClick={() => setDone("no")} data-testid="bring-in-no"><X className="h-3.5 w-3.5" />No</button>
         </div>
       )}
       {done === "turn" && <p className="mt-2 text-[13px] text-accent">{names} rides along on the question below. Send it when ready.</p>}
@@ -79,10 +81,10 @@ export function MissionStartCard({ d }: { d: NonNullable<ChatMessage["missionDra
         {d.specialists.length > 0 && <><dt className="text-text-muted">Agents</dt><dd className="text-text-primary">{d.specialists.map(titleCase).join(", ")}</dd></>}
       </dl>
       {made ? <p className="mt-2 text-[13px] text-accent">Started. It is in Missions.</p> : (
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button className={smallBtn} disabled={busy} onClick={() => void start()} data-testid="mission-start">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Start</button>
-          <button className={smallBtn} disabled={busy} onClick={adjust} data-testid="mission-adjust"><SlidersHorizontal className="h-3.5 w-3.5" />Adjust</button>
-          <button className={smallBtn} disabled={busy} onClick={() => setNo(true)} data-testid="mission-not-now"><X className="h-3.5 w-3.5" />Not now</button>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button className={primary} disabled={busy} onClick={() => void start()} data-testid="mission-start">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Start</button>
+          <button className={quiet} disabled={busy} onClick={adjust} data-testid="mission-adjust"><SlidersHorizontal className="h-3.5 w-3.5" />Adjust</button>
+          <button className={quiet} disabled={busy} onClick={() => setNo(true)} data-testid="mission-not-now"><X className="h-3.5 w-3.5" />Not now</button>
         </div>
       )}
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
@@ -96,12 +98,12 @@ export function DomainMissions({ vaultPath, domain }: { vaultPath: string; domai
   const mine = missions.filter((m) => m.status === "active" && m.domains.some((d) => d.slug === domain));
   if (!mine.length) return null;
   return (
-    <section data-testid="domain-missions" className="mb-3 rounded-xl border border-border bg-surface p-3">
-      <h3 className="mb-1.5 flex items-center gap-2 text-[15px] font-semibold text-text-primary"><Target className="h-4 w-4 text-accent" />Missions</h3>
-      <ul className="flex flex-col gap-1">
+    <section data-testid="domain-missions" className="mb-4">
+      <h3 className="mb-1 flex items-center gap-2 text-[15px] font-semibold text-text-primary"><Target className="h-4 w-4 text-text-muted" />Missions</h3>
+      <ul className="flex flex-col">
         {mine.map((m) => (
           <li key={m.slug}>
-            <button onClick={() => openMission(m.slug)} data-testid={`domain-mission-${m.slug}`} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-surface-warm">
+            <button onClick={() => openMission(m.slug)} data-testid={`domain-mission-${m.slug}`} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-surface-warm/60">
               <span className="min-w-0 flex-1 truncate text-[14px] text-text-primary">{m.name}</span>
               <span className="shrink-0 text-[12px] text-text-muted">{m.domains.find((d) => d.slug === domain)?.role === "owner" ? "owns" : m.domains.find((d) => d.slug === domain)?.role === "consulted" ? "reads" : "tells"}{daysLeftLabel(m) ? ` · ${daysLeftLabel(m)}` : ""}</span>
             </button>

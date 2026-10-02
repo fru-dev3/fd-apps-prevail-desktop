@@ -39,12 +39,12 @@ function StructureCard({ s, vaultPath, onGone }: { s: StructureSuggestion; vault
   });
   const acceptLabel = s.kind === "archive_domain" ? "Archive" : "Accept";
   return (
-    <li data-testid="structure-card" data-suggestion={s.id} className="px-4 py-4">
+    <li data-testid="structure-card" data-suggestion={s.id} className="py-3">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon className="h-4 w-4" /></span>
+        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
         <div className="min-w-0 flex-1">
           <h3 className={CARD_HEADLINE}>{s.title}</h3>
-          <p className="mt-1 text-[14px] leading-snug text-text-secondary">{s.reason}</p>
+          <p title={s.reason} className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-text-secondary">{s.reason}</p>
           {s.evidence?.length > 0 && (
             <ul className="mt-2 space-y-0.5" data-testid="structure-evidence">
               {s.evidence.slice(0, 4).map((ev, i) => (
@@ -63,16 +63,16 @@ function StructureCard({ s, vaultPath, onGone }: { s: StructureSuggestion; vault
             </ul>
           )}
           {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
-          <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Decide">
-            <button onClick={() => void accept()} disabled={busy !== null} data-testid="structure-accept" className={`${btn} bg-accent text-white hover:bg-accent-hover`}>
+          <div className="mt-2 flex flex-wrap items-center gap-3" role="group" aria-label="Decide">
+            <button onClick={() => void accept()} disabled={busy !== null} data-testid="structure-accept" className={`${btn} bg-accent text-on-accent hover:bg-accent-hover`}>
               {busy === "accept" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}{acceptLabel}
             </button>
             <button onClick={() => void dismiss(false)} disabled={busy !== null} data-testid="structure-later" title="Hide it for 30 days"
-              className={`${btn} border border-border text-text-secondary hover:border-accent-border hover:text-accent`}>
+              className={`${btn} px-1 text-text-muted hover:text-text-primary`}>
               {busy === "later" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Not now
             </button>
             <button onClick={() => void dismiss(true)} disabled={busy !== null} data-testid="structure-never" title="Never suggest this again"
-              className={`${btn} text-text-muted hover:text-err`}>
+              className={`${btn} px-1 text-text-muted hover:text-err`}>
               {busy === "never" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Never
             </button>
           </div>
@@ -86,9 +86,9 @@ export function StructureCards({ suggestions, vaultPath }: { suggestions: Struct
   // Answered cards leave at once; the engine's next read agrees.
   const [gone, setGone] = useState<Set<string>>(new Set());
   const left = suggestions.filter((s) => !gone.has(s.id));
-  if (!left.length) return <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-[14px] text-text-muted">Nothing to change in your structure right now.</div>;
+  if (!left.length) return <p className={META}>Nothing to change in your structure right now.</p>;
   return (
-    <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface" data-testid="structure-list">
+    <ul className="divide-y divide-border-subtle" data-testid="structure-list">
       {left.map((s) => <StructureCard key={s.id} s={s} vaultPath={vaultPath} onGone={(id) => setGone((g) => new Set(g).add(id))} />)}
     </ul>
   );

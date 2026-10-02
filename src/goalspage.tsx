@@ -21,7 +21,7 @@ import { openMission, useMissions } from "./missions";
 type Tab = "all" | "active" | "done";
 type Sel = "overview" | `goal:${string}`;
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
-const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2 text-[15px] text-text-primary focus:border-accent-border focus:outline-none";
+const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
 const DAY = 86_400_000;
 
 export function DomainGoals({ vaultPath }: { vaultPath: string }) {
@@ -132,7 +132,7 @@ export function DomainGoals({ vaultPath }: { vaultPath: string }) {
             <Archive className="h-4 w-4" />
           </button>
         </div>
-        <p className={`${META} mt-1`}>{titleCase(g.domain)} · source/goals.md</p>
+        <p className={`${META} mt-1`} title={`data/domains/${g.domain}/source/goals.md`}>In {titleCase(g.domain)} goals</p>
         <div className="mt-5 grid max-w-3xl gap-4">
           <label className="block">
             <span className="mb-1 block text-[13px] font-medium text-text-secondary">Why it matters</span>
@@ -174,20 +174,20 @@ export function DomainGoals({ vaultPath }: { vaultPath: string }) {
             Open {tracked.find((p) => p.slug === g.project)?.name ?? g.project}
           </button>
         )}
-        <h3 className={`${SECTION_TITLE} mt-8 mb-2`}>From your prompts</h3>
-        {linkedProjects.length ? (
+        {linkedProjects.length > 0 && <h3 className={`${SECTION_TITLE} mt-8 mb-2`}>From your prompts</h3>}
+        {linkedProjects.length > 0 && (
           <ul className="space-y-1">{linkedProjects.map((p) => (
             <li key={p.slug}><button onClick={() => { try { localStorage.setItem("prevail.intent.project", p.slug); localStorage.setItem("prevail.mirror.view", "projects"); } catch { /* storage off */ } window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "projects" })); }}
               className={`${BODY} text-left text-text-primary hover:text-accent`}>{p.title}</button></li>
           ))}</ul>
-        ) : <p className={`${BODY} text-text-muted`}>No projects in {titleCase(g.domain)} yet.</p>}
-        <h3 className={`${SECTION_TITLE} mt-6 mb-2`}>Tasks</h3>
-        {linkedTasks.length ? (
+        )}
+        {linkedTasks.length > 0 && <h3 className={`${SECTION_TITLE} mt-6 mb-2`}>Tasks</h3>}
+        {linkedTasks.length > 0 && (
           <ul className="space-y-1">{linkedTasks.map((t) => (
             <li key={`${t.domain}:${t.id}`}><button onClick={() => { try { if (t.id) localStorage.setItem("prevail.board.openTask", t.id); } catch { /* storage off */ } window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "task-list" })); }}
               className={`${BODY} text-left text-text-primary hover:text-accent ${t.status === "done" ? "line-through text-text-muted" : ""}`}>{t.text}</button></li>
           ))}</ul>
-        ) : <p className={`${BODY} text-text-muted`}>No tasks mention it yet.</p>}
+        )}
       </section>
     );
   };
@@ -203,7 +203,7 @@ export function DomainGoals({ vaultPath }: { vaultPath: string }) {
         <ul className="space-y-1">{soon.map((g) => (
           <li key={g.id}><button onClick={() => choose(`goal:${g.id}`)} className={`${BODY} text-left text-text-primary hover:text-accent`}>{g.title}<span className={`${META} ml-2`}>{g.due}</span></button></li>
         ))}</ul>
-      ) : <p className={`${BODY} text-text-muted`}>Nothing due in the next 30 days.</p>}
+      ) : <p className={META}>Nothing due in the next 30 days.</p>}
     </section>
   );
 
