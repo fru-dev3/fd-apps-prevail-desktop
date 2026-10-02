@@ -234,7 +234,7 @@ export function PatternsAndExperiments({ vaultPath }: { vaultPath: string }) {
         <li key={p.key} data-testid="pattern-across" className="group flex items-start gap-2 border-b border-border-subtle py-2.5 last:border-b-0">
           <p className={`${BODY} min-w-0 flex-1 break-words text-text-primary`}>{p.text}</p>
           {!running && !isBrowser() && (
-            <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
               <RowMenu items={[{ icon: FlaskConical, label: "Try it as an experiment", onClick: () => void act(`p:${p.key}`, { action: "propose", id: null, key: p.key }) }]} />
             </span>
           )}
@@ -253,7 +253,7 @@ export function PatternsAndExperiments({ vaultPath }: { vaultPath: string }) {
           </div>
           {e.status === "proposed" && <button onClick={() => void act(`s:${e.id}`, { action: "start", id: e.id, key: null })} disabled={!!busy} data-testid="experiment-start" className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">{busy === `s:${e.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Start</button>}
           {(e.status === "running" || e.status === "proposed") && (
-            <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
               <RowMenu items={[
                 ...(e.status === "running" ? [{ icon: Scale, label: "Score it now", onClick: () => void act(`c:${e.id}`, { action: "score", id: e.id, key: null }) }] : []),
                 { icon: CircleOff, label: "Stop it", onClick: () => void act(`x:${e.id}`, { action: "stop", id: e.id, key: null }) },

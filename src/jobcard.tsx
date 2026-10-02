@@ -171,7 +171,7 @@ function OperatorActions({ job, vault, onChanged }: { job: Job; vault: string; o
           {x.status === "asks" && (
             <span className="flex shrink-0 items-center gap-1">
               <button onClick={() => void answer(x, "allow")} disabled={!!busy} data-testid="job-action-allow" title={x.carries?.length ? `Allow; it carries ${x.carries.join(" and ")}` : "Allow"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">{busy === `allow${x.n}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Allow</button>
-              <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+              <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
                 <RowMenu items={[{ icon: X, label: "Deny", onClick: () => void answer(x, "deny") }]} />
               </span>
             </span>

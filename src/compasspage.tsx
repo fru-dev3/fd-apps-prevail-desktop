@@ -147,7 +147,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   );
 
   const actions = (x: { id: string; title: string; tokens: Record<string, string> }) => isProposed(x) ? (
-    <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+    <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
       <button onClick={() => void confirmIds([x.id])} disabled={!!busy} title="Confirm" aria-label={`Confirm ${x.title}`} data-testid="compass-confirm" className={iconBtn}><Check className="h-4 w-4" /></button>
       <button onClick={() => void dropIds([x.id])} disabled={!!busy} title="Not mine" aria-label={`Drop ${x.title}`} data-testid="compass-drop" className={`${iconBtn} hover:text-warn`}><X className="h-4 w-4" /></button>
     </span>

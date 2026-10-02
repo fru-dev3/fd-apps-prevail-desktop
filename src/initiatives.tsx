@@ -76,7 +76,7 @@ export function Initiatives({ goalId, vaultPath, values }: { goalId: string; vau
                 {busy === `c:${p.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Choose
               </button>
             )}
-            <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
               <RowMenu items={[
                 ...(st === "proposed" ? [{ icon: TestTube, label: "Try it as a small trial", onClick: () => void run(`t:${p.id}`, "engine_initiative_choose", { id: p.id, until: null, trial: true }, () => "Started as a trial.") }] : []),
                 ...(p.mission ? [{ icon: Target, label: "Open its mission", onClick: () => openMission(p.mission!) }]

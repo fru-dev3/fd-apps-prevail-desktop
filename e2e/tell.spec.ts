@@ -28,14 +28,14 @@ async function setup(page: Page, width: number) {
     engine_tell: { ok: true, told: { id: "tabc123", kind: "task", text: "Call the foo plumber", where: "Home's board, due 2026-10-02", due: "2026-10-02" }, reply: "Filed a task in Home's board, due 2026-10-02." },
   });
   await page.goto("/");
-  await expect(page.getByTestId("tell-box")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
 }
 
 test("tell anything: filed with a receipt and Undo; what am I forgetting opens inline", async ({ page }) => {
-  await setup(page, 1280);
+  await setup(page, 390);
   await page.getByTestId("tell-input").fill("remind me to call the foo plumber by Friday");
   await page.getByTestId("tell-input").press("Enter");
-  await expect.poll(async () => (await calls(page, "engine_tell"))[0]).toEqual({ vault: "/tmp/smoke-vault", text: "remind me to call the foo plumber by Friday", surface: "desktop", domain: null, mission: null });
+  await expect.poll(async () => (await calls(page, "engine_tell"))[0]).toEqual({ vault: "/tmp/smoke-vault", text: "remind me to call the foo plumber by Friday", surface: "phone", domain: null, mission: null });
   await expect(page.getByTestId("tell-receipt")).toContainText("Filed a task in Home's board");
   await page.getByTestId("tell-undo").click();
   await expect.poll(async () => (await calls(page, "engine_tell_undo"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "tabc123" });
@@ -47,7 +47,12 @@ test("tell anything: filed with a receipt and Undo; what am I forgetting opens i
   await expect(f).toContainText("Should I sell the foo bike?");
 });
 
-for (const width of [390, 768, 1280, 1920]) {
+test("desktop Home has no tell box; the composer files instead", async ({ page }) => {
+  await setup(page, 1280);
+  await expect(page.getByTestId("tell-input")).toHaveCount(0);
+});
+
+for (const width of [390]) {
   test(`layout at ${width}: the tell line and the open loops fit`, async ({ page }) => {
     await setup(page, width);
     await page.getByTestId("tell-forgetting").click();

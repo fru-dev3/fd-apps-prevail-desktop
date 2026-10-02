@@ -416,7 +416,7 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
   const everyDismissed = top.length === 0 && (raw?.length ?? 0) > 0;
   if (hidden || raw === null || (top.length === 0 && !everyDismissed && intentLine === "")) return null;
   // Row actions sit quietly until hover; on touch there is no hover, so they show.
-  const quiet = "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100";
+  const quiet = "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100";
   return (
     <div className="mt-8 w-full max-w-5xl" data-testid="home-briefing">
       <div className="group mb-1.5 flex items-center justify-between">

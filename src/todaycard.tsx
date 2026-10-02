@@ -29,7 +29,8 @@ export function TodayHome({ vaultPath, phone, onAsk, fallback }: { vaultPath: st
   if (!t && !r) return <>{fallback}</>;
   return (
     <div data-testid="today-home" className={`mx-auto w-full max-w-3xl ${phone ? "px-4 py-4" : "px-6 py-8"}`}>
-      <TellBox vaultPath={vaultPath} surface={phone ? "phone" : "desktop"} />
+      {/* Desktop Home stays clean: the chat composer below already files anything said to it. */}
+      {phone && <TellBox vaultPath={vaultPath} surface="phone" />}
       {t && <TodayCardView card={t} vaultPath={vaultPath} onChanged={() => void today.refresh()} />}
       {r && (r.due || !t) && <div className="mt-8"><ReviewCardView card={r} vaultPath={vaultPath} onAsk={onAsk} onChanged={() => { invalidateQueries("engine_review"); void review.refresh(); }} /></div>}
     </div>
@@ -55,7 +56,7 @@ function ItemRow({ x, n, busy, tap }: { x: TodayItem; n?: number; busy: string |
         </p>
       </div>
       {/* Progressive reveal: actions appear on hover (always on touch). */}
-      <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+      <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
         {x.ref.id || x.ref.text ? (
           <button onClick={() => tap(x.key, "done")} disabled={!!busy} title="Done" aria-label={`Done: ${x.title}`} data-testid="today-done" className={iconSm}>{busy === `${x.key}:done` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
         ) : null}
@@ -452,7 +453,7 @@ function TimeBlock({ t, vaultPath, onChanged }: { t: TimeReview; vaultPath: stri
             <p className={`${META} mt-0.5`}>A protected block, {when(h.start)} · waits for your yes{h.note ? ` · ${h.note}` : ""}</p>
           </div>
           <button onClick={() => void answer(h.id, "approve")} disabled={!!busy} data-testid="review-hold-approve" className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-white disabled:opacity-50">{busy === h.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Hold it</button>
-          <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"><RowMenu items={[{ icon: X, label: "Not this week", onClick: () => void answer(h.id, "decline") }]} /></span>
+          <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"><RowMenu items={[{ icon: X, label: "Not this week", onClick: () => void answer(h.id, "decline") }]} /></span>
         </li>
       ))}</ul>}
       {t.declines.length > 0 && <ul className="mt-2">{t.declines.map((d) => (
