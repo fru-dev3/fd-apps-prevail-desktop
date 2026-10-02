@@ -156,7 +156,9 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect(h.getByTestId("mission-chips")).toContainText("Owner");
       await expect(h.getByTestId("mission-chips")).toContainText("Reads");
       await expect(h.getByTestId("mission-chips")).toContainText("Tells");
-      await expect(h.getByTestId("mission-chips")).toContainText("Researcher");
+      // The team as faces; their names on hover.
+      await expect(h.getByTestId("mission-team")).toContainText("2 specialists");
+      await expect(h.getByTestId("mission-team")).toHaveAttribute("title", "Researcher, Scout");
       await expect(h.getByTestId("mission-chips")).toContainText("Not linked to a goal");
       await noOverflow(page);
       await shot(page, "mission-chat");
@@ -193,6 +195,8 @@ test.describe("missions · actions", () => {
     await expect(col.getByTestId("mission-row")).toContainText("Paint the shed");
     await expect(col.getByTestId("suggested-mission")).toContainText("Bar Garden");
     await page.getByTestId("mission-new").click();
+    // New mission opens as a chat; the fields are a toggle away.
+    await page.getByTestId("mission-mode-fields").click();
     const form = page.getByTestId("mission-new-form");
     await form.getByLabel("Mission name").fill("Kitchen remodel");
     await form.getByLabel("Outcome").fill("New counters in by spring");
