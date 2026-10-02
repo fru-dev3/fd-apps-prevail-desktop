@@ -116,6 +116,12 @@ export interface Specialist {
   id: string; name: string; icon: string; family: "know" | "decide" | "do" | "grow" | "deliver"; returns: string;
   ceiling: string; tools: string[]; apps: string[]; runtime: string; budget: { minutes: number; usd: number; passes: number };
   handoff: string; doneWhen: string[]; mandate: string; on: boolean; builtIn: boolean; source?: string;
+  /** A preset: the built-in it is built on (never past it). */
+  base?: string;
+  /** The vertical pack that installed it. */
+  pack?: string;
+  /** An outside agent: only the brief leaves, each call asks first. */
+  outside?: { endpoint: string; tool: string; perDay: number };
   /** Only from `specialists show`: the rest of the system prompt. */
   method?: string; never?: string; lens?: string;
 }
