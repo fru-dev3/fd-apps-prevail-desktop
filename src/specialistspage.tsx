@@ -7,7 +7,7 @@
 // A specialist's detail: what it is for, how it works, its ceiling, budget
 // and tools, its notebooks per domain, and the jobs it worked on.
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BadgeCheck, BookOpen, Briefcase, Check, ChevronRight, ChartColumn, CircleDashed, Clock, Compass, FileText, FolderInput, Hammer, Hand, History, Hourglass, ListOrdered, Loader2, MessagesSquare, PenLine, Pencil, Plus, Radar, RotateCcw, Scale, Search, Settings2, ShieldQuestion, Sprout, UserCog, Wrench } from "lucide-react";
+import { AlertTriangle, Archive, BadgeCheck, BookOpen, Briefcase, Check, ChevronRight, ChartColumn, CircleDashed, Clock, Compass, FileText, FolderInput, Globe, Hammer, Hand, History, Hourglass, ListOrdered, Loader2, MessagesSquare, PenLine, Pencil, Plus, Radar, RotateCcw, Scale, Search, Settings2, ShieldQuestion, Sprout, UserCog, Wrench } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { SettingsHeader } from "./sectionutil";
@@ -16,6 +16,7 @@ import { useIsPhone } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import { RowMenu, StatusDot } from "./ui";
 import { JobCard } from "./jobcard";
+import { AppRowLogo } from "./panels3";
 import { useChiefOfStaff } from "./chiefofstaff";
 import { CEILINGS, CEILING_LABEL, CEILING_SAYS, FAMILY_LABEL, HANDOFF_LABEL, RUNTIME_LABEL, SPECIALIST_TOOLS, ceilingRank, draftOf, editOf, jobGroups, jobStatusLabel, jobTone, label, loosens, scopeLabel, toolLabel, type Job, type Specialist, type SpecialistDraft } from "./plansmodel";
 
@@ -274,13 +275,22 @@ function SpecialistEditor({ s, vaultPath, onDone, onCancel }: { s: Specialist; v
       </div>
       <fieldset className="mt-5">
         <legend className="text-[13px] font-medium text-text-primary">Tools and apps</legend>
-        <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1.5">
-          {SPECIALIST_TOOLS.map((t) => (
-            <label key={t.id} className="inline-flex items-center gap-2 text-[14px] text-text-secondary"><input type="checkbox" checked={d.tools.includes(t.id)} onChange={() => toggle("tools", t.id)} className="accent-[var(--color-accent)]" />{t.label}</label>
-          ))}
-          {apps.map(([id, title]) => (
-            <label key={id} className="inline-flex items-center gap-2 text-[14px] text-text-secondary"><input type="checkbox" checked={d.apps.includes(id)} onChange={() => toggle("apps", id)} className="accent-[var(--color-accent)]" />{title}</label>
-          ))}
+        {/* Each tool or app is a tile with its real icon; selected tiles carry the accent. */}
+        <div className="mt-2 flex flex-wrap gap-2" data-testid="spec-edit-tools">
+          {[...SPECIALIST_TOOLS.map((t) => ({ kind: "tools" as const, id: t.id, title: t.label })), ...apps.map(([id, title]) => ({ kind: "apps" as const, id, title }))].map((t) => {
+            const on = (t.kind === "tools" ? d.tools : d.apps).includes(t.id);
+            const Icon = t.kind === "tools" ? (t.id === "web" ? Globe : Archive) : null;
+            return (
+              <button key={`${t.kind}:${t.id}`} type="button" role="checkbox" aria-checked={on} aria-label={t.title} onClick={() => toggle(t.kind, t.id)}
+                className={`inline-flex h-9 items-center gap-2 rounded-lg border pl-1.5 pr-3 text-[13px] transition-colors ${on ? "border-accent-border bg-accent-soft text-text-primary" : "border-border-subtle text-text-secondary hover:border-border hover:bg-surface-warm"}`}>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface">
+                  {Icon ? <Icon className={`h-3.5 w-3.5 ${on ? "text-accent" : "text-text-muted"}`} /> : <AppRowLogo app={{ id: t.id, title: t.title }} size={20} fallback="letter" />}
+                </span>
+                <span className="truncate">{t.title}</span>
+                {on && <Check className="h-3.5 w-3.5 shrink-0 text-accent" />}
+              </button>
+            );
+          })}
         </div>
       </fieldset>
       <div className="mt-5 grid grid-cols-3 gap-3 sm:max-w-md">
