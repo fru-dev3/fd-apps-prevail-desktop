@@ -7,24 +7,21 @@
 // A specialist's detail: what it is for, how it works, its ceiling, budget
 // and tools, its notebooks per domain, and the jobs it worked on.
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, BookOpen, Briefcase, ChartColumn, CircleDashed, Clock, Compass, FileText, FolderInput, Hammer, Hand, History, Hourglass, ListOrdered, Loader2, MessagesSquare, PenLine, Radar, Scale, Search, Settings2, ShieldQuestion, Sprout, UserCog, Wrench } from "lucide-react";
+import { AlertTriangle, BadgeCheck, BookOpen, Briefcase, Check, ChevronRight, ChartColumn, CircleDashed, Clock, Compass, FileText, FolderInput, Hammer, Hand, History, Hourglass, ListOrdered, Loader2, MessagesSquare, PenLine, Pencil, Plus, Radar, RotateCcw, Scale, Search, Settings2, ShieldQuestion, Sprout, UserCog, Wrench } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
-import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
+import { RowMenu, StatusDot } from "./ui";
 import { JobCard } from "./jobcard";
 import { useChiefOfStaff } from "./chiefofstaff";
-import { FAMILY_LABEL, jobGroups, jobStatusLabel, label, type Job, type Specialist } from "./plansmodel";
+import { CEILINGS, CEILING_LABEL, CEILING_SAYS, FAMILY_LABEL, HANDOFF_LABEL, RUNTIME_LABEL, SPECIALIST_TOOLS, ceilingRank, draftOf, editOf, jobGroups, jobStatusLabel, jobTone, label, loosens, scopeLabel, toolLabel, type Job, type Specialist, type SpecialistDraft } from "./plansmodel";
 
 export const SPECIALISTS_FOCUS_KEY = "prevail.specialists.focus";
 const ICON: Record<string, typeof Search> = { search: Search, compass: Compass, "list-ordered": ListOrdered, scale: Scale, "file-text": FileText, "pen-line": PenLine, "chart-column": ChartColumn, history: History, radar: Radar, "badge-check": BadgeCheck, hammer: Hammer, "folder-input": FolderInput, hand: Hand, sprout: Sprout, "shield-question": ShieldQuestion, "messages-square": MessagesSquare, wrench: Wrench };
-const CEILINGS = ["read", "write-vault", "draft", "act-ask", "act"];
-const CEILING_LABEL: Record<string, string> = { read: "Read", "write-vault": "Write vault", draft: "Draft", "act-ask": "Ask, then act", act: "Act" };
-const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
 const input = "h-9 w-full max-w-sm rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary";
-const smallBtn = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
 
 type Sel = "jobs:running" | "jobs:waiting" | "jobs:done" | "setup" | `spec:${string}`;
 
@@ -120,14 +117,15 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
 
 function JobRow({ job, vaultPath }: { job: Job; vaultPath: string }) {
   const [open, setOpen] = useState(false);
+  const when = new Date(job.created).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
     <li data-testid="job-row" className="border-b border-border-subtle py-2.5 last:border-b-0">
       <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-start gap-3 text-left">
         <span className="min-w-0 flex-1">
-          <span className="block break-words text-[15px] font-semibold text-text-primary">{job.ask}</span>
-          <span className={META}>{job.playbook ? `Playbook ${job.playbook}` : label(job.domains.owner || "general")} · {new Date(job.created).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+          <span title={job.ask} className={`${ROW_TITLE} line-clamp-2 break-words`}>{job.ask}</span>
+          <span className={`${META} mt-0.5 block truncate`}>{job.playbook ? `Playbook ${label(job.playbook)}` : scopeLabel(job.domains.owner)} · {when}</span>
         </span>
-        <span className={chip}>{jobStatusLabel(job)}</span>
+        <StatusDot tone={jobTone(job)} label={jobStatusLabel(job)} className="mt-1" />
       </button>
       {open && !job.playbook && <JobCard id={job.id} vaultPath={vaultPath} />}
       {open && job.playbook && <p className={`${BODY} mt-2 text-text-secondary`}>{job.why}</p>}
@@ -135,55 +133,270 @@ function JobRow({ job, vaultPath }: { job: Job; vaultPath: string }) {
   );
 }
 
+const field = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
+const textLink = "inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline disabled:opacity-50 disabled:no-underline";
+const quietLink = "inline-flex items-center gap-1 text-[13px] text-text-muted hover:text-text-primary disabled:opacity-50";
+const iconAct = "flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-strong hover:text-text-primary";
+
+function Segmented({ value, options, onChange, label: aria, disabledAbove }: { value: string; options: [string, string][]; onChange: (v: string) => void; label: string; disabledAbove?: number }) {
+  return (
+    <div role="group" aria-label={aria} className="inline-flex max-w-full flex-wrap overflow-hidden rounded-md border border-border">
+      {options.map(([k, t], i) => (
+        <button key={k} type="button" onClick={() => onChange(k)} aria-pressed={value === k} disabled={disabledAbove !== undefined && i > disabledAbove}
+          className={`h-8 px-2.5 text-[13px] disabled:opacity-35 ${value === k ? "bg-accent-soft font-medium text-accent" : "text-text-secondary hover:text-accent"}`}>{t}</button>
+      ))}
+    </div>
+  );
+}
+
+type SpecShow = { spec?: Specialist; notebooks?: { domain: string; lines: number; notes: boolean }[] };
+type SaveReply = { ok?: boolean; error?: string; needsConfirm?: boolean; moved?: string | null };
+
 function SpecialistDetail({ s, vaultPath, jobs }: { s: Specialist; vaultPath: string; jobs: Job[] }) {
-  const show = useInvokeQuery<{ notebooks?: { domain: string; lines: number; notes: boolean }[] }>("engine_specialist_show", { vault: vaultPath, id: s.id, domain: null }, { staleMs: 60_000 });
-  const [nbDomain, setNbDomain] = useState<string | null>(null);
-  const nb = useInvokeQuery<{ notebook?: string[]; notes?: string }>("engine_specialist_show", nbDomain ? { vault: vaultPath, id: s.id, domain: nbDomain } : null, { staleMs: 60_000 });
+  const show = useInvokeQuery<SpecShow>("engine_specialist_show", { vault: vaultPath, id: s.id, domain: null }, { staleMs: 60_000 });
+  const full: Specialist = { ...s, ...(show.data?.spec ?? {}) };
   const notebooks = show.data?.notebooks ?? [];
+  const [editing, setEditing] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => { setEditing(false); setMsg(null); }, [s.id]);
+  const Icon = ICON[s.icon] ?? UserCog;
+  const refresh = async () => { invalidateQueries("engine_specialists"); invalidateQueries("engine_specialist_show"); await show.refresh(); };
+  const reset = async () => {
+    setMsg(null);
+    try {
+      const r = await invoke<SaveReply>("engine_specialist_reset", { vault: vaultPath, id: s.id });
+      if (r?.ok === false) throw new Error(r.error ?? "not reset");
+      setMsg("Back to the built-in. Your version is kept in the vault.");
+      await refresh();
+    } catch (e) { setMsg(`Not reset: ${String(e)}`); }
+  };
+  const summary: [string, string, string?][] = [
+    ["Can", CEILING_SAYS[full.ceiling] ?? full.ceiling, "Enforced in code. Nothing a specialist does sends, buys or changes anything outside the vault."],
+    ["Tools", [...full.tools.map(toolLabel), ...full.apps.map(label)].join(", ") || "None"],
+    ["Budget", `${full.budget.minutes} min · $${full.budget.usd.toFixed(2)} · ${full.budget.passes} pass${full.budget.passes === 1 ? "" : "es"}`],
+    ["Hands off", HANDOFF_LABEL[full.handoff] ?? label(full.handoff)],
+  ];
   return (
     <section data-testid="specialist-detail" data-id={s.id} className="max-w-3xl">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className={DETAIL_TITLE}>{s.name}</h2>
-        <span className={chip}>Returns {s.returns}</span>
-        {!s.on && <span className={chip}>Off, coming later</span>}
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon className="h-[18px] w-[18px]" /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className={DETAIL_TITLE}>{s.name}</h2>
+          <p className={`${META} mt-0.5`}>{FAMILY_LABEL[s.family]} · Returns {s.returns}{s.source ? " · Your version" : ""}{!s.on ? " · Off, coming later" : ""}</p>
+        </div>
+        {s.on && !editing && (
+          <span className="flex shrink-0 items-center gap-0.5">
+            <button onClick={() => { setEditing(true); setMsg(null); }} title="Edit" aria-label={`Edit ${s.name}`} data-testid="specialist-edit" className={iconAct}><Pencil className="h-4 w-4" /></button>
+            {s.source && s.builtIn && <RowMenu items={[{ icon: RotateCcw, label: "Reset to built-in", hint: "Your version is kept", onClick: () => void reset() }]} />}
+          </span>
+        )}
       </div>
-      {s.mandate && <p className={`${BODY} mt-2 text-text-secondary`}>{s.mandate}</p>}
-      {s.on && (
+      {full.mandate && !editing && <p className={`${BODY} mt-3 text-text-secondary`}>{full.mandate}</p>}
+      {msg && <p className={`${META} mt-2`} data-testid="specialist-msg">{msg}</p>}
+      {s.on && editing && <SpecialistEditor s={full} vaultPath={vaultPath} onDone={async (m) => { setEditing(false); setMsg(m); await refresh(); }} onCancel={() => setEditing(false)} />}
+      {s.on && !editing && (
         <>
-          <h3 className={`${SECTION_TITLE} mt-6`}>Ceiling</h3>
-          <div className="mt-2 flex flex-wrap gap-1.5" data-testid="specialist-ceiling">
-            {CEILINGS.map((c) => <span key={c} className={`${chip} ${c === s.ceiling ? "border-accent-border bg-accent-soft font-medium text-accent" : ""}`}>{CEILING_LABEL[c]}</span>)}
-          </div>
-          <p className={`${META} mt-1`}>Enforced in code. Nothing a specialist does sends, buys or changes anything outside the vault.</p>
-          {s.doneWhen.length > 0 && (<><h3 className={`${SECTION_TITLE} mt-6`}>Done when</h3><ul className={`${BODY} mt-1 list-disc pl-5 text-text-secondary`}>{s.doneWhen.map((d) => <li key={d}>{d}</li>)}</ul></>)}
-          <h3 className={`${SECTION_TITLE} mt-6`}>Setup</h3>
-          <dl className={`${BODY} mt-1 grid grid-cols-[7rem_minmax(0,1fr)] gap-y-1 text-text-secondary`}>
-            <dt className="text-text-muted">Tools</dt><dd>{s.tools.length ? s.tools.map((t) => (t === "web" ? "Web" : t === "vault-read" ? "Vault read" : t)).join(", ") : "None"}</dd>
-            <dt className="text-text-muted">Budget</dt><dd>{s.budget.minutes} min, ${s.budget.usd.toFixed(2)}, {s.budget.passes} pass{s.budget.passes === 1 ? "" : "es"}</dd>
-            <dt className="text-text-muted">Handoff</dt><dd>{label(s.handoff)}</dd>
-            {s.source && (<><dt className="text-text-muted">Your file</dt><dd className="break-all">{s.source}</dd></>)}
+          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:flex-wrap sm:gap-x-10" data-testid="specialist-summary">
+            {summary.map(([k, v, tip]) => (
+              <div key={k} className="min-w-0" title={tip}>
+                <dt className={META}>{k}</dt>
+                <dd className="mt-0.5 break-words text-[14px] text-text-primary sm:whitespace-nowrap" data-testid={k === "Can" ? "specialist-ceiling" : undefined}>{v}</dd>
+              </div>
+            ))}
           </dl>
-          <h3 className={`${SECTION_TITLE} mt-6`}>Notebooks</h3>
-          {notebooks.length ? (
-            <ul className="mt-1" data-testid="specialist-notebooks">{notebooks.map((n) => (
-              <li key={n.domain}>
-                <button onClick={() => setNbDomain(nbDomain === n.domain ? null : n.domain)} aria-expanded={nbDomain === n.domain} className={`${BODY} flex w-full items-center gap-2 py-1 text-left text-text-primary hover:text-accent`}>
-                  <BookOpen className="h-4 w-4 shrink-0 text-text-muted" />{label(n.domain)}<span className={META}>{n.lines} line{n.lines === 1 ? "" : "s"}{n.notes ? ", your notes" : ""}</span>
-                </button>
-                {nbDomain === n.domain && (
-                  <div className="mb-2 ml-6">
-                    {nb.data?.notes && <p className={`${BODY} mb-1 text-text-secondary`}><span className="text-text-muted">Your instructions: </span>{nb.data.notes}</p>}
-                    <ul className={`${BODY} list-disc pl-5 text-text-secondary`}>{(nb.data?.notebook ?? []).map((l) => <li key={l} className="break-words">{l}</li>)}</ul>
-                  </div>
-                )}
-              </li>
-            ))}</ul>
-          ) : <p className={`${BODY} mt-1 text-text-muted`}>Nothing learned yet. After each job it keeps a short note of what worked, per domain.</p>}
-          <h3 className={`${SECTION_TITLE} mt-6`}>Runs</h3>
-          {jobs.length ? <ul className="mt-1">{jobs.slice(0, 20).map((j) => <JobRow key={j.id} job={j} vaultPath={vaultPath} />)}</ul> : <p className={`${BODY} mt-1 text-text-muted`}>No runs yet. Type @{s.name} in any chat to hand it something.</p>}
+          {full.doneWhen.length > 0 && (
+            <>
+              <h3 className={`${SECTION_TITLE} mt-7`}>Done when</h3>
+              <ul className="mt-1.5 space-y-1">{full.doneWhen.map((d) => (
+                <li key={d} className={`${BODY} flex items-start gap-2 text-text-secondary`}><Check className="mt-[3px] h-3.5 w-3.5 shrink-0 text-text-muted" />{d}</li>
+              ))}</ul>
+            </>
+          )}
+          {(full.method || full.never) && (
+            <details className="group mt-6">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] text-text-muted hover:text-text-primary [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />How it works
+              </summary>
+              {full.method && <p className={`${BODY} mt-2 whitespace-pre-line text-text-secondary`}>{full.method}</p>}
+              {full.never && <p className={`${BODY} mt-2 text-text-secondary`}><span className="text-text-muted">Never: </span>{full.never}</p>}
+            </details>
+          )}
+          <Notebooks s={full} vaultPath={vaultPath} notebooks={notebooks} onSaved={refresh} />
+          <h3 className={`${SECTION_TITLE} mt-7`}>Runs</h3>
+          {jobs.length ? <ul className="mt-1">{jobs.slice(0, 20).map((j) => <JobRow key={j.id} job={j} vaultPath={vaultPath} />)}</ul>
+            : <p className={`${META} mt-1`}>No runs yet. Type @{s.name} in any chat to hand it something.</p>}
         </>
       )}
     </section>
+  );
+}
+
+/** The whole specialist, edited in place: the same fields as build/specialists/<id>.md. */
+function SpecialistEditor({ s, vaultPath, onDone, onCancel }: { s: Specialist; vaultPath: string; onDone: (msg: string) => void; onCancel: () => void }) {
+  const [d, setD] = useState<SpecialistDraft>(() => draftOf(s));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const appsQ = useInvokeQuery<{ id: string; title?: string }[]>("engine_apps_list", { vault: vaultPath }, { staleMs: 60_000 });
+  const apps = [...new Map([...(Array.isArray(appsQ.data) ? appsQ.data : []).map((a) => [a.id, a.title ?? label(a.id)] as const), ...s.apps.map((a) => [a, label(a)] as const)]).entries()];
+  const set = <K extends keyof SpecialistDraft>(k: K, v: SpecialistDraft[K]) => { setD((x) => ({ ...x, [k]: v })); setConfirm(null); setErr(null); };
+  const toggle = (k: "tools" | "apps", id: string) => set(k, d[k].includes(id) ? d[k].filter((x) => x !== id) : [...d[k], id]);
+  const save = async (confirmRaise = false) => {
+    const edit = editOf(s, d);
+    if (typeof edit === "string") { setErr(edit); return; }
+    if (!Object.keys(edit).length) { onCancel(); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await invoke<SaveReply>("engine_specialist_save", { vault: vaultPath, id: s.id, edit, confirmRaise });
+      if (r?.needsConfirm) { setConfirm(r.error ?? "This raises the ceiling. Confirm to save."); return; }
+      if (r?.ok === false) throw new Error(r.error ?? "not saved");
+      onDone("Saved. The earlier version is kept in the vault.");
+    } catch (e) { setErr(`Not saved: ${String(e)}`); } finally { setBusy(false); }
+  };
+  const area = (k: "mandate" | "method" | "never", title: string, hint: string, rows: number) => (
+    <label className="mt-5 block">
+      <span className="block text-[13px] font-medium text-text-primary">{title}</span>
+      <span className={`${META} block`}>{hint}</span>
+      <textarea value={d[k]} rows={rows} onChange={(e) => set(k, e.target.value)} data-testid={`spec-edit-${k}`} className={`${field} mt-1.5 resize-y leading-normal`} />
+    </label>
+  );
+  const builtInRank = ceilingRank(s.ceiling);
+  return (
+    <div data-testid="specialist-editor" className="mt-4 border-t border-border-subtle pt-1">
+      {area("mandate", "Mandate", "What it is for, in a line.", 2)}
+      {area("method", "Method", "How it works, step by step. This and the two around it are its instructions.", 5)}
+      {area("never", "Never", "What it must not do.", 2)}
+      <div className="mt-5">
+        <span className="block text-[13px] font-medium text-text-primary">Ceiling</span>
+        <span className={`${META} block`}>The most it may do, enforced in code. A higher one than {CEILING_LABEL[s.ceiling]} asks you first.</span>
+        <div className="mt-1.5"><Segmented label="Ceiling" value={d.ceiling} onChange={(v) => set("ceiling", v)} options={CEILINGS.map((c) => [c, CEILING_LABEL[c]!] as [string, string])} /></div>
+        {ceilingRank(d.ceiling) > builtInRank && <p className="mt-1 text-[12px] text-warn">Above what it has today.</p>}
+      </div>
+      <fieldset className="mt-5">
+        <legend className="text-[13px] font-medium text-text-primary">Tools and apps</legend>
+        <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1.5">
+          {SPECIALIST_TOOLS.map((t) => (
+            <label key={t.id} className="inline-flex items-center gap-2 text-[14px] text-text-secondary"><input type="checkbox" checked={d.tools.includes(t.id)} onChange={() => toggle("tools", t.id)} className="accent-[var(--color-accent)]" />{t.label}</label>
+          ))}
+          {apps.map(([id, title]) => (
+            <label key={id} className="inline-flex items-center gap-2 text-[14px] text-text-secondary"><input type="checkbox" checked={d.apps.includes(id)} onChange={() => toggle("apps", id)} className="accent-[var(--color-accent)]" />{title}</label>
+          ))}
+        </div>
+      </fieldset>
+      <div className="mt-5 grid grid-cols-3 gap-3 sm:max-w-md">
+        {([["minutes", "Minutes"], ["usd", "Dollars"], ["passes", "Passes"]] as const).map(([k, t]) => (
+          <label key={k} className="block min-w-0"><span className={`${META} block`}>{t}</span>
+            <input type="number" inputMode="decimal" min={k === "usd" ? 0 : 1} step={k === "usd" ? 0.05 : 1} value={d[k]} onChange={(e) => set(k, e.target.value)} data-testid={`spec-edit-${k}`} className={`${field} mt-1 tabular-nums`} /></label>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-wrap gap-x-8 gap-y-4">
+        <div><span className="block text-[13px] font-medium text-text-primary">Hands off</span>
+          <div className="mt-1.5"><Segmented label="Hands off" value={d.handoff} onChange={(v) => set("handoff", v)} options={Object.entries(HANDOFF_LABEL)} /></div></div>
+        <div><span className="block text-[13px] font-medium text-text-primary">Runtime</span>
+          <div className="mt-1.5"><Segmented label="Runtime" value={d.runtime} onChange={(v) => set("runtime", v)} options={Object.entries(RUNTIME_LABEL)} /></div></div>
+      </div>
+      <label className="mt-5 block">
+        <span className="block text-[13px] font-medium text-text-primary">Done when</span>
+        <span className={`${META} block`}>One check per line. A run is not done until each is true.</span>
+        <textarea value={d.doneWhen} rows={3} onChange={(e) => set("doneWhen", e.target.value)} data-testid="spec-edit-done" className={`${field} mt-1.5 resize-y`} />
+      </label>
+      {err && <p className="mt-3 text-[13px] text-err">{err}</p>}
+      {confirm && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-warn" data-testid="spec-confirm">
+          <AlertTriangle className="h-3.5 w-3.5" />{confirm}
+          <button onClick={() => void save(true)} disabled={busy} className={textLink} data-testid="spec-confirm-raise">Raise it and save</button>
+        </p>
+      )}
+      <div className="mt-5 flex items-center gap-4">
+        <button onClick={() => void save(false)} disabled={busy} data-testid="spec-save" className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Save</button>
+        <button onClick={onCancel} disabled={busy} className={quietLink}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/** What it learned per domain, and the user's instructions there (tighten-only). */
+function Notebooks({ s, vaultPath, notebooks, onSaved }: { s: Specialist; vaultPath: string; notebooks: { domain: string; lines: number; notes: boolean }[]; onSaved: () => Promise<void> }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const doms = useInvokeQuery<{ name: string }[]>("scan_vault", adding ? { path: vaultPath } : null, { staleMs: 60_000 });
+  const rows = open && !notebooks.some((n) => n.domain === open) ? [...notebooks, { domain: open, lines: 0, notes: false }] : notebooks;
+  const others = (Array.isArray(doms.data) ? doms.data : []).map((d) => d.name).filter((d) => !d.startsWith("_") && !rows.some((n) => n.domain === d));
+  return (
+    <>
+      <div className="mt-7 flex items-baseline gap-3">
+        <h3 className={SECTION_TITLE}>Notebooks</h3>
+        {!adding ? <button onClick={() => setAdding(true)} className={quietLink} data-testid="specialist-add-domain"><Plus className="h-3.5 w-3.5" />Instructions for a domain</button>
+          : <select autoFocus aria-label="Domain" defaultValue="" onChange={(e) => { if (e.target.value) { setOpen(e.target.value); setAdding(false); } }} onBlur={() => setAdding(false)} className="h-7 rounded-md border border-border bg-background px-1.5 text-[13px] text-text-primary">
+              <option value="" disabled>Pick a domain</option>
+              {others.map((d) => <option key={d} value={d}>{scopeLabel(d)}</option>)}
+            </select>}
+      </div>
+      {rows.length ? (
+        <ul className="mt-1" data-testid="specialist-notebooks">{rows.map((n) => (
+          <li key={n.domain} className="border-b border-border-subtle last:border-b-0">
+            <button onClick={() => setOpen(open === n.domain ? null : n.domain)} aria-expanded={open === n.domain} className="flex w-full items-center gap-2.5 py-2 text-left">
+              <BookOpen className="h-4 w-4 shrink-0 text-text-muted" />
+              <span className="text-[14px] text-text-primary">{scopeLabel(n.domain)}</span>
+              <span className={`${META} min-w-0 truncate`}>{[n.lines ? `${n.lines} line${n.lines === 1 ? "" : "s"}` : "", n.notes ? "your instructions" : ""].filter(Boolean).join(" · ") || "No notes yet"}</span>
+              <ChevronRight className={`ml-auto h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open === n.domain ? "rotate-90" : ""}`} />
+            </button>
+            {open === n.domain && <DomainNotes s={s} domain={n.domain} vaultPath={vaultPath} onSaved={onSaved} />}
+          </li>
+        ))}</ul>
+      ) : <p className={`${META} mt-1`}>Nothing learned yet. After each job it keeps a short note of what worked, per domain.</p>}
+    </>
+  );
+}
+
+function DomainNotes({ s, domain, vaultPath, onSaved }: { s: Specialist; domain: string; vaultPath: string; onSaved: () => Promise<void> }) {
+  const q = useInvokeQuery<{ spec?: Specialist; notebook?: string[]; notes?: string }>("engine_specialist_show", { vault: vaultPath, id: s.id, domain }, { staleMs: 60_000 });
+  const [edit, setEdit] = useState<{ ceiling: string; tools: string[]; notes: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const here = q.data?.spec;
+  const start = () => { setMsg(null); setEdit({ ceiling: here?.ceiling ?? s.ceiling, tools: here?.tools ?? s.tools, notes: q.data?.notes ?? "" }); };
+  const problem = edit ? loosens(s, edit) : null;
+  const save = async () => {
+    if (!edit || problem) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await invoke<SaveReply>("engine_specialist_domain_save", { vault: vaultPath, id: s.id, domain, edit: { ceiling: edit.ceiling, tools: edit.tools, notes: edit.notes } });
+      if (r?.ok === false) throw new Error(r.error ?? "not saved");
+      setEdit(null); setMsg("Saved."); invalidateQueries("engine_specialist_show"); await q.refresh(); await onSaved();
+    } catch (e) { setMsg(`Not saved: ${String(e)}`); } finally { setBusy(false); }
+  };
+  const tightened = here && (here.ceiling !== s.ceiling || here.tools.length < s.tools.length);
+  return (
+    <div className="mb-3 ml-6.5 pl-0.5" data-testid="specialist-domain">
+      {!edit && (
+        <>
+          {q.data?.notes && <p className={`${BODY} text-text-secondary`}><span className="text-text-muted">Your instructions: </span>{q.data.notes}</p>}
+          {tightened && <p className={`${META} mt-1`}>Here it {CEILING_SAYS[here!.ceiling]?.toLowerCase()} with {here!.tools.map(toolLabel).join(", ") || "no tools"}.</p>}
+          {(q.data?.notebook ?? []).length > 0 && <ul className={`${BODY} mt-1 list-disc pl-5 text-text-secondary`}>{(q.data?.notebook ?? []).map((l) => <li key={l} className="break-words">{l}</li>)}</ul>}
+          <button onClick={start} className={`${textLink} mt-1.5`} data-testid="specialist-domain-edit">{q.data?.notes || tightened ? "Edit instructions" : `Add instructions for ${label(domain)}`}</button>
+          {msg && <span className={`${META} ml-3`}>{msg}</span>}
+        </>
+      )}
+      {edit && (
+        <div className="pt-1">
+          <p className={META}>In a domain it can only be tightened: a lower ceiling, fewer tools. Never more than it has.</p>
+          <div className="mt-2"><Segmented label={`Ceiling in ${label(domain)}`} value={edit.ceiling} onChange={(v) => setEdit({ ...edit, ceiling: v })} disabledAbove={ceilingRank(s.ceiling)} options={CEILINGS.map((c) => [c, CEILING_LABEL[c]!] as [string, string])} /></div>
+          {s.tools.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">{s.tools.map((t) => (
+              <label key={t} className="inline-flex items-center gap-2 text-[14px] text-text-secondary"><input type="checkbox" checked={edit.tools.includes(t)} onChange={() => setEdit({ ...edit, tools: edit.tools.includes(t) ? edit.tools.filter((x) => x !== t) : [...edit.tools, t] })} className="accent-[var(--color-accent)]" />{toolLabel(t)}</label>
+            ))}</div>
+          )}
+          <textarea value={edit.notes} rows={3} placeholder={`How ${s.name} should work in ${label(domain)}`} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} data-testid="spec-domain-notes" className={`${field} mt-2 resize-y`} />
+          {problem && <p className="mt-1 text-[12px] text-err">{problem}</p>}
+          {msg && <p className="mt-1 text-[12px] text-err">{msg}</p>}
+          <div className="mt-2 flex items-center gap-4">
+            <button onClick={() => void save()} disabled={busy || !!problem} className={textLink} data-testid="spec-domain-save">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Save</button>
+            <button onClick={() => setEdit(null)} disabled={busy} className={quietLink}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -220,10 +433,10 @@ function ChiefSetup({ vaultPath }: { vaultPath: string }) {
   };
   const field = (k: string, title: string, d: string, hint: string, type = "text") => (
     <div className="mt-4">
-      <label className="block text-[14px] font-medium text-text-primary" htmlFor={`cos-${k}`}>{title}</label>
+      <label className="block text-[13px] font-medium text-text-primary" htmlFor={`cos-${k}`}>{title}</label>
       <div className="mt-1 flex items-center gap-2">
         <input id={`cos-${k}`} type={type} value={val(k, d)} onChange={(e) => setDraft((x) => ({ ...x, [k]: e.target.value }))} className={input} />
-        <button onClick={() => void save(k, val(k, d))} disabled={!!busy || val(k, d) === d} className={smallBtn}>{busy === k ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}Save</button>
+        {val(k, d) !== d && <button onClick={() => void save(k, val(k, d))} disabled={!!busy} className={textLink}>{busy === k ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}Save</button>}
       </div>
       <p className={`${META} mt-1`}>{hint}</p>
     </div>
@@ -234,7 +447,7 @@ function ChiefSetup({ vaultPath }: { vaultPath: string }) {
       <p className={`${BODY} mt-1 text-text-secondary`}>The one you talk to. They answer, or staff a job with specialists and run it within your limits.</p>
       {field("name", "Name", doc.name ?? "", "Shown on the Home row and in every chat.")}
       <div className="mt-4">
-        <span className="block text-[14px] font-medium text-text-primary">Jobs from chat</span>
+        <span className="block text-[13px] font-medium text-text-primary">Jobs from chat</span>
         <div className="mt-1 inline-flex overflow-hidden rounded-md border border-border" role="group" aria-label="Jobs from chat">
           {[["auto", "Start within my limits"], ["offer", "Always ask"], ["off", "Only when I @ a specialist"]].map(([k, t]) => (
             <button key={k} onClick={() => void save("handoff", k!)} aria-pressed={doc.handoff === k} className={`h-9 px-3 text-[13px] ${doc.handoff === k ? "bg-accent-soft font-medium text-accent" : "text-text-secondary hover:text-accent"}`}>{t}</button>
@@ -247,7 +460,7 @@ function ChiefSetup({ vaultPath }: { vaultPath: string }) {
       {msg && <p className={`${META} mt-3`}>{msg}</p>}
       <h3 className={`${SECTION_TITLE} mt-6`}>What I've learned</h3>
       {doc.learned.length ? <ul className={`${BODY} mt-1 list-disc pl-5 text-text-secondary`}>{doc.learned.map((l) => <li key={l}>{l}</li>)}</ul>
-        : <p className={`${BODY} mt-1 text-text-muted`}>Nothing yet. When you adjust the same thing twice, it becomes a rule here.</p>}
+        : <p className={`${META} mt-1`}>Nothing yet. When you adjust the same thing twice, it becomes a rule here.</p>}
     </section>
   );
 }

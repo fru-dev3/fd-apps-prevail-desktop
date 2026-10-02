@@ -81,6 +81,39 @@ pub(crate) async fn engine_specialist_show(vault: String, id: String, domain: Op
     blocking(a).await
 }
 
+async fn blocking_stdin(args: Vec<String>, body: String) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let a: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        crate::engine::run_engine_json_stdin(&a, &body)
+    })
+    .await
+    .map_err(|e| format!("engine task failed: {e}"))?
+}
+
+/// Save the user's version of a specialist (the engine validates, keeps the
+/// prior file as a dated version and refuses a ceiling raise unless confirmed).
+#[tauri::command]
+pub(crate) async fn engine_specialist_save(vault: String, id: String, edit: serde_json::Value, confirm_raise: Option<bool>) -> Result<serde_json::Value, String> {
+    if !edit.is_object() { return Err("edit must be an object".into()); }
+    let mut a = v(&["--vault", &vault, "specialists", "save", ok_id(&id)?, "--file", "-"]);
+    if confirm_raise == Some(true) { a.push("--confirm-raise".into()); }
+    blocking_stdin(a, edit.to_string()).await
+}
+
+/// A domain's instructions for a specialist (tighten-only, enforced by the engine).
+#[tauri::command]
+pub(crate) async fn engine_specialist_domain_save(vault: String, id: String, domain: String, edit: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !edit.is_object() { return Err("edit must be an object".into()); }
+    let a = v(&["--vault", &vault, "specialists", "domain-save", ok_id(&id)?, "--domain", ok_id(&domain)?, "--file", "-"]);
+    blocking_stdin(a, edit.to_string()).await
+}
+
+/// Back to the built-in: the override moves aside, never deleted.
+#[tauri::command]
+pub(crate) async fn engine_specialist_reset(vault: String, id: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "specialists", "reset", ok_id(&id)?])).await
+}
+
 #[tauri::command]
 pub(crate) async fn engine_jobs(vault: String) -> Result<serde_json::Value, String> {
     blocking(v(&["--vault", &vault, "job", "list"])).await
