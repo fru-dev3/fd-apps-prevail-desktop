@@ -36,8 +36,8 @@ afterEach(() => { cleanup(); appsList = null; structure = null; });
 describe("Sidebar", () => {
   it("lists the home surfaces, work screens and domains with real counts", async () => {
     renderSidebar();
-    for (const label of ["Home", "Inbox", "Insights", "For You", "Projects", "Tasks", "Compass"]) {
-      expect(screen.getByRole("button", { name: new RegExp(`^${label}`) })).toBeTruthy();
+    for (const label of ["Home", "Inbox", "Insights", "You", "Projects", "Tasks", "Compass"]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${label}(\\s|$)`) })).toBeTruthy();
     }
     // The Inbox row carries the shared waiting count, in the accent colour.
     await waitFor(() => expect(screen.getByTestId("nav-inbox").textContent).toContain("4"));

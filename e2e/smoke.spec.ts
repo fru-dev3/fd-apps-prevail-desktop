@@ -576,7 +576,7 @@ test("22 · the Briefing: dismissing a row shares the Recommendations set; hidin
   await expect(briefing.getByTestId("briefing-row")).toHaveCount(1);
   expect(await page.evaluate(() => localStorage.getItem("prevail.recs.dismissed"))).toContain("r1");
   // The Recommendations page counts it as dismissed.
-  await page.getByTestId("app-sidebar").getByRole("button", { name: "For You" }).click();
+  await page.getByTestId("app-sidebar").getByRole("button", { name: "You", exact: true }).click();
   await expect(page.getByRole("button", { name: /Show dismissed 1/ })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("Foo rule to adopt")).toHaveCount(0);
   // Back Home, hide the whole Briefing: the Settings switch turns off.

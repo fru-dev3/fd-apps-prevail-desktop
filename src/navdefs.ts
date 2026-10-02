@@ -23,7 +23,7 @@ export type NavGroup = { heading: string; items: NavItem[] };
 export const WORK_NAV: NavGroup[] = [
   { heading: "Home", items: [
     { id: "insights", label: "Insights", icon: ScanFace },
-    { id: "recommendations", label: "For You", icon: Lightbulb },
+    { id: "recommendations", label: "You", icon: Lightbulb },
   ]},
   { heading: "Work", items: [
     { id: "projects", label: "Projects", icon: FolderKanban },
