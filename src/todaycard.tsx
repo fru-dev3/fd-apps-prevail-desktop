@@ -316,7 +316,7 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
           </ul>
         </div>
       )}
-      {card.time && <TimeBlock t={card.time} vaultPath={vaultPath} onChanged={onChanged} />}
+      {card.time && (card.time.thisWeek.connected || card.time.warning || card.time.holds.length > 0 || card.time.declines.length > 0) && <TimeBlock t={card.time} vaultPath={vaultPath} onChanged={onChanged} />}
       {card.radar && card.radar.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-radar">
           <h3 className="text-[15px] font-semibold text-text-primary">Falling behind</h3>
@@ -432,7 +432,7 @@ function TimeBlock({ t, vaultPath, onChanged }: { t: TimeReview; vaultPath: stri
   return (
     <div className="mt-4 border-t border-border-subtle pt-3" data-testid="review-time">
       <h3 className="text-[15px] font-semibold text-text-primary">Time</h3>
-      {!w.connected ? <p className={`${META} mt-0.5`} data-testid="review-time-off">{w.note}</p> : (
+      {w.connected && (
         <>
           <p className={`${META} mt-0.5`}>{w.hours} h on the calendar · {w.meetings} h meetings · {w.focus} h focus{w.afterHours ? ` · ${w.afterHours} h after hours` : ""}</p>
           <ul className="mt-1">{w.byValue.filter((v) => v.hours > 0 || v.rank <= 2).slice(0, 4).map((v) => (

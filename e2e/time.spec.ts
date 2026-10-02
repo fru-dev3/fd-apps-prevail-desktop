@@ -46,9 +46,10 @@ test("the weekly card's time: by value against rank, next week warned, a hold to
   await expect(t.getByTestId("review-decline")).toContainText("a draft, yours to send");
 });
 
-test("no calendar: the card says so by name", async ({ page }) => {
+test("no calendar and nothing to hold: the card stays quiet, no time block", async ({ page }) => {
   await setup(page, 1280, { ...REVIEW, time: { thisWeek: { week: "2026-09-28", connected: false, note: "No calendar is connected on this Mac (Google sign-in), so time by value waits for it.", hours: 0, meetings: 0, focus: 0, afterHours: 0, byValue: [], unlinked: 0, lines: [] }, warning: null, holds: [], declines: [] } });
-  await expect(page.getByTestId("review-time-off")).toHaveText("No calendar is connected on this Mac (Google sign-in), so time by value waits for it.", { timeout: 15_000 });
+  await expect(page.getByTestId("review-card")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("review-time")).toHaveCount(0);
 });
 
 for (const width of [390, 768, 1280, 1920]) {

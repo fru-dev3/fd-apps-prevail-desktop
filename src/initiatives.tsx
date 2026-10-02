@@ -52,12 +52,11 @@ export function Initiatives({ goalId, vaultPath, values }: { goalId: string; vau
       <div className="flex items-center gap-2">
         <p className="min-w-0 flex-1 text-[13px] font-medium text-text-muted">Initiatives{live.length ? ` (${live.length})` : ""}</p>
         <button onClick={() => void run("gen", "engine_initiatives_generate", { goal: goalId }, (r) => `Proposed ${(r.candidates as unknown[] | undefined)?.filter((c) => (c as { verdict: string }).verdict === "survivor").length ?? 0}; the rest are left out with the reason.`)} disabled={!!busy}
-          title="Find initiatives" aria-label="Find initiatives" data-testid="initiatives-generate" className={iconSm}>
+          title="Find initiatives: 2 or 3 ways to reach this goal, each weighed against all your values. You only choose." aria-label="Find initiatives" data-testid="initiatives-generate" className={iconSm}>
           {busy === "gen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
         </button>
       </div>
       {busy === "gen" && <p className={META}>Thinking through six to eight ways, then checking them against your rules and capacity. About a minute.</p>}
-      {!live.length && busy !== "gen" && <p className={META}>None yet. Find initiatives: 2 or 3 ways to reach this goal, each weighed against all your values. You only choose.</p>}
       <ul>{live.map((p) => {
         const st = p.status;
         const meta = [STATUS_LABEL[st] ?? st, KIND_LABEL[p.kind ?? ""] ?? "", costLine(p), p.until && (st === "chosen" || st === "trial") ? `until ${p.until}` : ""].filter(Boolean);
