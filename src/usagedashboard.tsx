@@ -53,6 +53,44 @@ const RANGES: { id: string; label: string; days: number | null }[] = [
   { id: "all", label: "All time", days: null },
 ];
 
+// Every AI tool this month, from the tools' own local records (engine `ai usage`).
+type AiTool = { key: string; tokens: number; usd_api: number; usd_reported: number; sessions: number; paid_monthly?: number; value_multiple?: number; prompts?: number };
+type AiUsage = { month: string; hosts: string[]; price_snapshot: string; total: { tokens: number; usd_api: number }; by_tool: AiTool[]; paid_monthly: number | null; value_multiple: number | null };
+const TOOL_NAMES: Record<string, string> = { claude: "Claude Code", codex: "Codex", opencode: "opencode", hermes: "Hermes", antigravity: "Antigravity", cursor: "Cursor", aionui: "AionUi", wispr: "Wispr Flow", glyph: "glyph" };
+
+/** The month's AI spend across every tool and machine, with honest labels. */
+export function AllToolsPanel({ data }: { data: AiUsage }) {
+  const rows = data.by_tool.filter((t) => t.tokens > 0 || t.sessions > 0 || (t.prompts ?? 0) > 0);
+  const machines = data.hosts.length;
+  return (
+    <div className="@container rounded-xl border border-border bg-surface p-4" data-testid="ai-all-tools">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-text-primary">All AI tools, {new Date(`${data.month}-01T12:00:00`).toLocaleString(undefined, { month: "long", year: "numeric" })}</h3>
+        <span className="text-[11px] text-text-muted">measured from each tool's own records on {machines} {machines === 1 ? "machine" : "machines"}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <div><span className="text-2xl font-semibold tabular-nums text-text-primary" data-testid="ai-all-tools-usd">{fmtCost(data.total.usd_api)}</span> <span className="text-xs text-text-muted">at API prices</span></div>
+        <div className="text-sm tabular-nums text-text-secondary">{fmtTok(data.total.tokens)} tokens</div>
+        <div className="text-sm text-text-secondary">{data.paid_monthly !== null ? <>paid {fmtCost(data.paid_monthly)}{data.value_multiple !== null && <span className="text-text-muted"> ({data.value_multiple}x)</span>}</> : <span className="text-text-muted">paid: not set yet</span>}</div>
+      </div>
+      {rows.length > 0 && (
+        <table className="mt-3 w-full text-xs">
+          <tbody>
+            {rows.map((t) => (
+              <tr key={t.key} className="border-t border-border-subtle" data-testid="ai-tool-row">
+                <td className="py-1.5 pr-2 text-text-primary">{TOOL_NAMES[t.key] ?? t.key}</td>
+                <td className="hidden py-1.5 pr-2 text-right tabular-nums text-text-secondary @xs:table-cell">{t.tokens > 0 ? fmtTok(t.tokens) : t.prompts ? `${fmtNum(t.prompts)} prompts` : `${fmtNum(t.sessions)} sessions`}</td>
+                <td className="py-1.5 text-right tabular-nums text-text-primary">{t.tokens > 0 ? fmtCost(t.usd_api) : <span className="text-text-muted">{t.prompts ? `${fmtNum(t.prompts)} prompts` : "no token counts"}</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="mt-2 text-[11px] text-text-muted">API prices as of {data.price_snapshot}: what this use would cost on the API. The turns below are Prevail's own, and their tokens are estimated.</p>
+    </div>
+  );
+}
+
 const fmtCost = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : n > 0 ? `$${n.toFixed(3)}` : "$0");
 const fmtTok = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${n}`);
 const fmtNum = (n: number) => n.toLocaleString();
@@ -66,6 +104,7 @@ function heat(t: number): string {
 
 export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: { vaultPath: string; embedded?: boolean; view?: UsageView }) {
   const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [ai, setAi] = useState<AiUsage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState("30d");
   const [query, setQuery] = useState("");
@@ -86,6 +125,9 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
     invoke<Entry[]>("usage_entries", { vault: vaultPath })
       .then((rows) => { if (alive) setEntries(Array.isArray(rows) ? rows : []); })
       .catch((e) => { if (alive) { setError(String(e)); setEntries([]); } });
+    invoke<AiUsage>("engine_ai_usage", { vault: vaultPath, month: null })
+      .then((r) => { if (alive && r && Array.isArray(r.by_tool)) setAi(r); })
+      .catch(() => { /* optional: older engines have no ai usage */ });
     return () => { alive = false; };
   }, [vaultPath]);
 
@@ -204,14 +246,14 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
   const viewLabel = USAGE_VIEWS.find((v) => v.id === view)?.label ?? "Overview";
 
   const controls = (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
+          <div className="relative max-w-full">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search model, domain, activity, machine…"
-              className="w-56 rounded-lg border border-border bg-surface py-1.5 pl-8 pr-7 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
+              className="w-56 max-w-full rounded-lg border border-border bg-surface py-1.5 pl-8 pr-7 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
             />
             {query && (
               <button onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-accent" aria-label="clear search">
@@ -219,7 +261,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
               </button>
             )}
           </div>
-          <div className="inline-flex overflow-hidden rounded-lg border border-border">
+          <div className="inline-flex max-w-full flex-wrap overflow-hidden rounded-lg border border-border">
             {(["cost", "tokens", "turns"] as const).map((m) => (
               <button key={m} onClick={() => setMetric(m)}
                 className={`px-3 py-1 text-xs font-medium ${metric === m ? "bg-accent text-background" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}>
@@ -227,7 +269,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
               </button>
             ))}
           </div>
-          <div className="inline-flex overflow-hidden rounded-lg border border-border">
+          <div className="inline-flex max-w-full flex-wrap overflow-hidden rounded-lg border border-border">
             {RANGES.map((r) => (
               <button key={r.id} onClick={() => setRange(r.id)}
                 className={`px-3 py-1 text-xs font-medium ${range === r.id ? "bg-accent-soft text-accent" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}>
@@ -239,8 +281,9 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
   );
   const detailBody = (
     <div className={`flex flex-col gap-5 ${embedded ? "" : phone ? "px-4 py-4" : "w-full px-8 py-6"}`} data-testid="usage-detail">
-      {embedded && <div className="flex justify-end">{controls}</div>}
+      {embedded && <div className="flex min-w-0 justify-end">{controls}</div>}
       {!embedded && <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{viewLabel}</h2>}
+      {view === "overview" && ai && ai.total.tokens > 0 && <AllToolsPanel data={ai} />}
       {empty ? (
         <div className="rounded-xl border border-dashed border-border-subtle px-6 py-16 text-center text-sm text-text-muted">
           No usage recorded yet. Run a chat, council, or benchmark and it will show up here.
@@ -257,7 +300,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
             {[
               { l: "Turns", v: fmtNum(totals.turns) },
               { l: "Tokens (in / out)", v: `${fmtTok(totals.inTok)} / ${fmtTok(totals.outTok)}` },
-              { l: "Est. cost", v: fmtCost(totals.cost) },
+              { l: "Est. cost (Prevail turns)", v: fmtCost(totals.cost) },
               { l: "Active days", v: `${totals.days.size}` },
             ].map((t) => (
               <div key={t.l} className="rounded-xl border border-border bg-surface p-3.5">

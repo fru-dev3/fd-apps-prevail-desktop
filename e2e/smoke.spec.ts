@@ -844,6 +844,19 @@ test("31 · Usage is part of Activity: views in its column; a breakdown replaces
   await expect(detail).not.toContainText("When you use it");
 });
 
+test("31b · Usage leads with every AI tool's own records: API price, paid, and the estimate labeled", async ({ page }) => {
+  await openSettings(page, "usage");
+  const panel = page.getByTestId("ai-all-tools");
+  await expect(panel).toContainText("All AI tools", { timeout: 10_000 });
+  await expect(page.getByTestId("ai-all-tools-usd")).toHaveText("$84.50");
+  await expect(panel).toContainText("2 machines");
+  await expect(panel).toContainText("paid $20.00");
+  await expect(panel.getByTestId("ai-tool-row")).toHaveCount(3);
+  await expect(panel.getByTestId("ai-tool-row").filter({ hasText: "Wispr Flow" })).toContainText("31 prompts");
+  await expect(panel).toContainText("estimated");
+  expect(await invokeArgs(page, "engine_ai_usage")).toContainEqual({ vault: "/tmp/smoke-vault", month: null });
+});
+
 const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Entities", "Ideals", "Activity", "Connections", "Privacy & Safety", "Settings"];
 
 test("32 · the Settings nav is 11 rows, and each opens a header above a side column", async ({ page }) => {

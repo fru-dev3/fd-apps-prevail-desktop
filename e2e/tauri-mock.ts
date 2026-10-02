@@ -79,6 +79,16 @@ export const FIXTURES: Record<string, unknown> = {
   capture_prompts_read: [],
   intents_distilled_read: { generated_ts: 1783200000, source_count: 3, intents: [{ title: "Track net worth", goal: "Know my finances", domains: ["wealth"], prompt_ts: [1783200000000, 1783100000000] }] },
   read_domain_ideal: "# Wealth\nFinancial security with a 6-month runway.",
+  engine_ai_usage: {
+    month: "2026-10", hosts: ["foo-laptop", "bar-hub"], price_snapshot: "2026-10-02",
+    total: { tokens: 125_000_000, usd_api: 84.5 },
+    by_tool: [
+      { key: "claude", tokens: 120_000_000, usd_api: 80.25, usd_reported: 79.1, sessions: 40, paid_monthly: 20, value_multiple: 4 },
+      { key: "codex", tokens: 5_000_000, usd_api: 4.25, usd_reported: 0, sessions: 6 },
+      { key: "wispr", tokens: 0, usd_api: 0, usd_reported: 0, sessions: 0, prompts: 31 },
+    ],
+    paid_monthly: 20, value_multiple: 4.2,
+  },
   usage_entries: [
     { ts: 1783200000000, day: "2026-07-05", session: "s1", domain: "career", surface: "chat", cli: "claude", model: "opus", input_tokens: 1200, output_tokens: 800, est_cost_usd: 0.12, host: "mbp" },
     { ts: 1783120000000, day: "2026-07-04", session: "s2", domain: "wealth", surface: "council", cli: "codex", model: "gpt", input_tokens: 400, output_tokens: 600, est_cost_usd: 0.03, host: "mini" },
