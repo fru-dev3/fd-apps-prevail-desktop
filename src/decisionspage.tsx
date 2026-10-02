@@ -11,11 +11,11 @@ import { SettingsHeader } from "./sectionutil";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
-import { DECISIONS_FOCUS_KEY, decisionStatus, fmtDue, label, type DecisionRecord } from "./plansmodel";
+import { DECISIONS_FOCUS_KEY, decisionStatus, fmtDue, label, scopeLabel, type DecisionRecord } from "./plansmodel";
 
-const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
 const input = "h-9 w-full rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary";
-const smallBtn = "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border px-3 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50";
+const textLink = "inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-50 disabled:no-underline";
+const primary = "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50";
 const SECTIONS = ["Context", "Options", "Trade-offs", "Recommendation", "Decision", "Retro"];
 
 /** Calibration per domain from decided records: how often the gut and the recommendation were right. */
@@ -62,7 +62,7 @@ export function DecisionsPage({ vaultPath }: { vaultPath: string }) {
       <Gavel className={`h-4 w-4 shrink-0 ${isOn(key(r)) ? "text-accent" : "text-text-muted"}`} />
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-[14px] ${isOn(key(r)) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{r.question}</span>
-        <span className="block truncate text-[12px] text-text-muted">{label(r.domain)}{decisionStatus(r) ? `, ${decisionStatus(r)}` : ""}</span>
+        <span className="block truncate text-[12px] text-text-muted">{scopeLabel(r.domain)}{decisionStatus(r) ? ` · ${decisionStatus(r)}` : ""}</span>
       </span>
     </button>
   );
@@ -91,10 +91,10 @@ export function DecisionsPage({ vaultPath }: { vaultPath: string }) {
       <p className={`${BODY} mt-1 text-text-secondary`}>Ninety days after a decision, you say which call was right: your gut, the recommendation, both or neither. Per domain, you learn which to trust.</p>
       {cal.length ? (
         <table className="mt-4 w-full max-w-xl text-left text-[14px]">
-          <thead><tr className="text-text-muted"><th className="py-1 font-medium">Domain</th><th className="font-medium">Retros</th><th className="font-medium">Gut right</th><th className="font-medium">Recommendation right</th></tr></thead>
-          <tbody>{cal.map((c) => <tr key={c.domain} className="border-t border-border-subtle"><td className="py-1.5">{label(c.domain)}</td><td className="tabular-nums">{c.retros}</td><td className="tabular-nums">{c.gut}</td><td className="tabular-nums">{c.rec}</td></tr>)}</tbody>
+          <thead><tr className="text-[12px] text-text-muted"><th className="py-1 font-medium">Domain</th><th className="font-medium">Retros</th><th className="font-medium">Gut right</th><th className="font-medium">Recommendation right</th></tr></thead>
+          <tbody>{cal.map((c) => <tr key={c.domain} className="border-t border-border-subtle"><td className="py-1.5">{scopeLabel(c.domain)}</td><td className="tabular-nums">{c.retros}</td><td className="tabular-nums">{c.gut}</td><td className="tabular-nums">{c.rec}</td></tr>)}</tbody>
         </table>
-      ) : <p className={`${BODY} mt-4 text-text-muted`}>No retros yet. {open.length ? `${open.length} decision${open.length === 1 ? " is" : "s are"} open.` : "No open decisions."}</p>}
+      ) : <p className={`${META} mt-4`}>No retros yet. {open.length ? `${open.length} decision${open.length === 1 ? " is" : "s are"} open.` : "No open decisions."}</p>}
     </section>
   );
   return (
@@ -131,24 +131,21 @@ function DecisionDetail({ r, vaultPath, onChanged }: { r: DecisionRecord; vaultP
   return (
     <section data-testid="decision-detail" className="max-w-3xl">
       <h2 className={DETAIL_TITLE}>{r.question}</h2>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        <span className={chip}>{label(r.domain)}</span>
-        {r.due && r.status !== "decided" && <span className={chip}>Due {fmtDue(r.due)}</span>}
-        {r.consulted.map((d) => <span key={d} className={chip}>Reads {label(d)}</span>)}
-        {r.status === "decided" && <span className={`${chip} border-accent-border text-accent`}>Decided {r.decided}</span>}
-        {retroDue && <span className={`${chip} border-accent-border text-accent`} data-testid="decision-retro-owed">Retro owed</span>}
-      </div>
+      <p className={`${META} mt-1`} title={r.file}>
+        {[scopeLabel(r.domain), r.due && r.status !== "decided" ? `due ${fmtDue(r.due)}` : "", r.consulted.length ? `reads ${r.consulted.map(scopeLabel).join(", ")}` : "", r.status === "decided" ? `decided ${r.decided ?? ""}`.trim() : ""].filter(Boolean).join(" · ")}
+        {retroDue && <> · <span className="text-warn" data-testid="decision-retro-owed">retro owed</span></>}
+      </p>
       {r.status !== "decided" && missing.length > 0 && <p className={`${META} mt-2`} data-testid="decision-missing">Still missing: {missing.join(", ")}.</p>}
       {r.status !== "decided" && !r.recommendationReady && (
         <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="decision-recommend">
-          <button onClick={() => void recommend()} disabled={recBusy} className={smallBtn} title="Get a recommendation">{recBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}Get a recommendation</button>
+          <button onClick={() => void recommend()} disabled={recBusy} className={textLink} title="Get a recommendation">{recBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}Get a recommendation</button>
           <span className={META}>{recBusy ? `${r.big ? "The council is" : "The Steward is"} weighing the options against your Compass. This takes a few minutes.` : r.big ? "A big decision: the council weighs it." : "The Steward weighs the options against your Compass."}</span>
         </div>
       )}
       {r.status !== "decided" && !r.gut && (
-        <div className="mt-5 rounded-lg border border-accent-border bg-accent-soft/40 p-3" data-testid="decision-gut">
+        <div className="mt-5" data-testid="decision-gut">
           <p className={`${BODY} text-text-primary`}>{r.recommendationReady ? "A recommendation is ready. Your gut call first, in one line:" : "Before the recommendation: what does your gut say, in one line?"}</p>
-          <div className="mt-2 flex gap-2"><input value={text} onChange={(e) => setText(e.target.value)} aria-label="Your gut call" className={input} /><button onClick={() => void act("gut", text)} disabled={busy || !text.trim()} className={smallBtn}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}Save</button></div>
+          <div className="mt-2 flex gap-2"><input value={text} onChange={(e) => setText(e.target.value)} aria-label="Your gut call" className={input} /><button onClick={() => void act("gut", text)} disabled={busy || !text.trim()} className={primary}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}Save</button></div>
         </div>
       )}
       {r.gut && <p className={`${BODY} mt-4 text-text-secondary`}><span className="text-text-muted">Your gut: </span>{r.gut}</p>}
@@ -159,22 +156,23 @@ function DecisionDetail({ r, vaultPath, onChanged }: { r: DecisionRecord; vaultP
       {r.status !== "decided" && r.gut && (
         <div className="mt-6" data-testid="decision-decide">
           <h3 className={SECTION_TITLE}>Decide</h3>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row"><input value={text} onChange={(e) => setText(e.target.value)} placeholder="What you chose" aria-label="What you chose" className={input} /><input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why, in a line" aria-label="Why" className={input} /><button onClick={() => void act("decide", text, { why })} disabled={busy || !text.trim()} className={smallBtn}>Decide</button></div>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row"><input value={text} onChange={(e) => setText(e.target.value)} placeholder="What you chose" aria-label="What you chose" className={input} /><input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why, in a line" aria-label="Why" className={input} /><button onClick={() => void act("decide", text, { why })} disabled={busy || !text.trim()} className={primary}>Decide</button></div>
         </div>
       )}
       {retroDue && (
         <div className="mt-6" data-testid="decision-retro">
           <h3 className={`${SECTION_TITLE} flex items-center gap-1.5`}><History className="h-4 w-4 text-text-muted" />How did it play out?</h3>
           <input value={text} onChange={(e) => setText(e.target.value)} aria-label="How it played out" className={`${input} mt-2`} />
-          <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Which call was right">
-            {["gut", "recommendation", "both", "neither"].map((k) => <button key={k} onClick={() => setRight(k)} aria-pressed={right === k} className={`${chip} h-8 px-3 ${right === k ? "border-accent-border bg-accent-soft text-accent" : ""}`}>{label(k)}</button>)}
-            <button onClick={() => void act("retro", text, { right })} disabled={busy || !text.trim() || !right} className={smallBtn}>Save</button>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <div className="inline-flex overflow-hidden rounded-md border border-border" role="group" aria-label="Which call was right">
+              {["gut", "recommendation", "both", "neither"].map((k) => <button key={k} onClick={() => setRight(k)} aria-pressed={right === k} className={`h-8 px-3 text-[13px] ${right === k ? "bg-accent-soft font-medium text-accent" : "text-text-secondary hover:text-accent"}`}>{label(k)}</button>)}
+            </div>
+            <button onClick={() => void act("retro", text, { right })} disabled={busy || !text.trim() || !right} className={textLink}>Save</button>
           </div>
         </div>
       )}
       {r.status === "decided" && !retroDue && !r.retroRight && r.retroDue && <p className={`${META} mt-6`}>The retro is due {r.retroDue}.</p>}
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
-      <p className={`${META} mt-6 break-all`}>{r.file}</p>
     </section>
   );
 }

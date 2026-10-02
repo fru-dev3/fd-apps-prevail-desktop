@@ -92,7 +92,7 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
       <section data-testid="specialists-jobs">
         <h2 className={DETAIL_TITLE}>{k === "running" ? "Running" : k === "waiting" ? "Waiting on you" : "Done"}</h2>
         <p className={`${META} mt-1`}>Jobs your chief of staff staffed, and playbook runs.</p>
-        {!list.length && <p className={`${BODY} mt-4 text-text-muted`}>{k === "running" ? "Nothing is running." : k === "waiting" ? "Nothing waits on you." : "No finished jobs yet."}</p>}
+        {!list.length && <p className={`${META} mt-4`}>{k === "running" ? "Nothing is running." : k === "waiting" ? "Nothing waits on you." : "No finished jobs yet."}</p>}
         <ul className="mt-3 max-w-3xl">{list.map((j) => <JobRow key={j.id} job={j} vaultPath={vaultPath} />)}</ul>
       </section>
     );
@@ -444,7 +444,7 @@ function ChiefSetup({ vaultPath }: { vaultPath: string }) {
   return (
     <section data-testid="chief-setup" className="max-w-3xl">
       <h2 className={DETAIL_TITLE}>{name ?? "Your chief of staff"}</h2>
-      <p className={`${BODY} mt-1 text-text-secondary`}>The one you talk to. They answer, or staff a job with specialists and run it within your limits.</p>
+      <p className={`${BODY} mt-2 text-text-secondary`}>The one you talk to. They answer, or staff a job with specialists and run it within your limits.</p>
       {field("name", "Name", doc.name ?? "", "Shown on the Home row and in every chat.")}
       <div className="mt-4">
         <span className="block text-[13px] font-medium text-text-primary">Jobs from chat</span>

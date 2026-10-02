@@ -11,8 +11,9 @@ import { Bot, CheckCheck, Inbox, Mail, Play, Repeat, ShieldAlert, Workflow, type
 import { DecisionInbox, type InboxCategory, type InboxRow } from "./decisioninbox";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
-import { label, openPlaybook, type InboxResult } from "./plansmodel";
-import { relTime, titleCase } from "./format";
+import { openPlaybook, scopeLabel, type InboxResult } from "./plansmodel";
+import { BODY, DETAIL_TITLE, META } from "./typescale";
+import { relTime } from "./format";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
@@ -71,8 +72,8 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
 
   const list = (
     <nav className="space-y-0.5 p-2" aria-label="Waiting items" data-testid="inbox-items">
-      {rows === null && <p className="px-2.5 py-2 text-[13px] text-text-muted">Reading what is waiting</p>}
-      {rows !== null && shown.length === 0 && <p className="px-2.5 py-2 text-[13px] text-text-muted">Nothing is waiting on you.</p>}
+      {rows === null && <p className={`${META} px-2.5 py-2`}>Reading what is waiting</p>}
+      {rows !== null && shown.length === 0 && <p className={`${META} px-2.5 py-2`}>Nothing is waiting on you.</p>}
       {shown.map((r) => {
         const on = sel === r.id && (!phone || picked);
         const Icon = ICON[r.category];
@@ -83,7 +84,7 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
             <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-primary"}`}>{r.title}</span>
-              <span className="block truncate text-[12px] text-text-muted">{titleCase(r.domain || "general")}{r.ts ? ` · ${relTime(r.ts)}` : ""}{r.snoozed ? " · snoozed" : ""}</span>
+              <span className="block truncate text-[12px] text-text-muted">{scopeLabel(r.domain || "general")}{r.ts ? ` · ${relTime(r.ts)}` : ""}{r.snoozed ? " · snoozed" : ""}</span>
             </span>
             {r.sensitive && <span title="Carries sensitive information"><ShieldAlert className="h-3.5 w-3.5 shrink-0 text-warn" /></span>}
           </button>
@@ -124,20 +125,20 @@ function ResultDetail({ r, vaultPath, onSeen }: { r: InboxResult; vaultPath: str
     <section data-testid="inbox-result" className="max-w-3xl">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="break-words font-display text-[22px] font-semibold text-text-primary">{r.name}</h2>
-          <p className="text-[13px] text-text-muted">{r.trigger === "event" && r.event ? `Ran when the radar flagged: ${r.event}` : "Ran on its schedule"}{r.domain ? ` · ${label(r.domain.replace(/^mission\//, ""))}` : ""} · {new Date(r.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+          <h2 className={`${DETAIL_TITLE} break-words`}>{r.name}</h2>
+          <p className={`${META} mt-1`}>{r.trigger === "event" && r.event ? `Ran when the radar flagged: ${r.event}` : "Ran on its schedule"}{r.domain ? ` · ${scopeLabel(r.domain)}` : ""} · {new Date(r.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
         </div>
         <button onClick={() => openPlaybook(r.playbook)} title="Open the playbook" aria-label="Open the playbook" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent"><Workflow className="h-4 w-4" /></button>
         <button onClick={() => void seen()} disabled={busy} title="Seen" aria-label="Mark as seen" data-testid="inbox-result-seen" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent disabled:opacity-40"><CheckCheck className="h-4 w-4" /></button>
       </div>
-      <p className="mt-3 text-[15px] text-text-primary">{r.note}</p>
+      {r.note && <p className={`${BODY} mt-3 text-text-secondary`}>{r.note}</p>}
       <ol className="mt-3">
         {r.steps.map((x, i) => (
           <li key={i} className="flex items-start gap-3 border-b border-border-subtle py-2 last:border-b-0">
-            <span className="w-5 shrink-0 text-right text-[13px] tabular-nums text-text-muted">{i + 1}</span>
+            <span className={`${META} w-5 shrink-0 pt-px text-right tabular-nums`}>{i + 1}</span>
             <span className="min-w-0 flex-1">
-              <span className="block break-words text-[14px] text-text-primary">{x.label}</span>
-              <span className="block break-words text-[12px] text-text-muted">{x.decision === "ask" ? "Waits for your yes: " : x.ok ? "" : "Did not run: "}{x.note}</span>
+              <span className={`${BODY} block break-words text-text-primary`}>{x.label}</span>
+              <span className={`${META} block break-words`}>{x.decision === "ask" ? "Waits for your yes: " : x.ok ? "" : "Did not run: "}{x.note}</span>
             </span>
           </li>
         ))}

@@ -4,7 +4,7 @@
 // tasks_set_status / tasks_set_owner. Trash and Icebox sit behind More.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { VIRTUAL_MIN, VirtualRows } from "./virtualrows";
-import { Bot, CornerUpLeft, Filter, Flag, LayoutGrid, ListChecks, Loader2, Play, Plus, RotateCcw, Search, Trash2, User, X, Zap } from "lucide-react";
+import { Bot, Filter, Flag, LayoutGrid, ListChecks, Loader2, Play, Plus, RotateCcw, Search, Trash2, User, Zap } from "lucide-react";
 import { invoke, listen } from "./bridge";
 import type { UnlistenFn } from "./bridge";
 import { invokeCached, peekInvoke, useInvokeQuery } from "./query";
@@ -19,6 +19,7 @@ import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import type { BoardTask, CliInfo } from "./types";
 import { isUserDomain } from "./helpers";
+import { RowMenu } from "./ui";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-50";
 
@@ -247,16 +248,6 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
       cleanup();
     }
   };
-  // Hand to AI: also move todo→doing so it visibly lands in Doing and the steward
-  // picks it up. Take back: just flip owner, leave the column where it is.
-  const toggleOwner = (t: BoardTask) => {
-    if (!t.id) return;
-    const toAi = t.owner !== "ai";
-    return act(`o:${t.id}`, async () => {
-      await invoke("tasks_set_owner", { vault: vaultPath, domain: t.domain, id: t.id, owner: toAi ? "ai" : "me" });
-      if (toAi && t.status === "todo") await invoke("tasks_set_status", { vault: vaultPath, domain: t.domain, id: t.id, status: "doing" });
-    });
-  };
   // Bulk hand-off: assign every currently-shown, me-owned, open task to the agent
   // at once - so you do not have to click "hand to AI" on each one. Skips anything
   // that needs the human (blocked = awaiting a decision, or in Review), and skips
@@ -285,16 +276,6 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
     }
   };
 
-  // Cycle priority normal -> high -> critical -> normal (the importance signal
-  // that drives due/critical alerting).
-  const cyclePriority = async (t: BoardTask) => {
-    if (!t.id) return;
-    const next = t.priority === "critical" ? null : t.priority === "high" ? "critical" : "high";
-    await act(`pr:${t.id}`, async () => {
-      const cur = await invoke<BoardTask[]>("tasks_read", { vault: vaultPath, domain: t.domain });
-      await invoke("tasks_set", { vault: vaultPath, domain: t.domain, tasks: cur.map((x) => (x.id === t.id ? { ...x, priority: next } : x)) });
-    });
-  };
   // Delete = soft-delete: tag the task ~trashed:<today> so it moves to Trash
   // (recoverable), never silently lost. Honors the "never delete user data" rule.
   const del = async (t: BoardTask) => {
@@ -399,7 +380,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
         {t.owner === "ai" ? <Bot className="h-3.5 w-3.5 shrink-0 text-accent" /> : <User className="h-3.5 w-3.5 shrink-0 text-text-muted" />}
         <span className="min-w-0 flex-1">
           <span className={`block truncate text-[14px] ${t.status === "done" || t.trashed ? "text-text-muted line-through" : on ? "font-semibold text-text-primary" : "text-text-primary"}`}>{t.text}</span>
-          {(t.due || overdue) && <span className={`block text-[12px] ${overdue ? "font-semibold text-err" : dueTone(t.due)}`}>{overdue ? `Overdue · ${t.due}` : t.due}</span>}
+          {(t.due || overdue) && <span className={`block text-[12px] ${overdue ? "text-err" : dueTone(t.due)}`}>{overdue ? `Overdue · ${t.due}` : t.due}</span>}
         </span>
         {waitingOnYou(t) && t.status !== "done" && <WaitingChip compact />}
         {(t.priority === "critical" || t.priority === "high") && <Flag className={`h-3.5 w-3.5 shrink-0 ${t.priority === "critical" ? "text-err" : "text-warn"}`} fill="currentColor" />}
@@ -407,17 +388,13 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
     );
   };
 
+  // Priority and owner are controls in the detail; the header keeps the rest in one menu.
   const detailActions = (t: BoardTask) => t.trashed ? (<>
     <button onClick={() => void restore(t)} title="Restore" aria-label="Restore task" className={iconBtn}><RotateCcw className="h-4 w-4" /></button>
-    <button onClick={() => void purge(t)} title="Delete forever" aria-label="Delete task forever" className={`${iconBtn} hover:text-err`}><Trash2 className="h-4 w-4" /></button>
-  </>) : (<>
-    <button onClick={() => void cyclePriority(t)} title={`Priority: ${t.priority || "normal"}`} aria-label="Change priority"
-      className={`${iconBtn} ${t.priority === "critical" ? "text-err" : t.priority === "high" ? "text-warn" : ""}`}><Flag className="h-4 w-4" fill={t.priority ? "currentColor" : "none"} /></button>
-    <button onClick={() => void toggleOwner(t)} title={t.owner === "ai" ? "Take it back from the agent" : "Hand to the agent"} aria-label={t.owner === "ai" ? "Take it back from the agent" : "Hand to the agent"} className={iconBtn}>
-      {t.owner === "ai" ? <CornerUpLeft className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-    </button>
-    <button onClick={() => { void del(t); setOpenId(null); }} title="Move to Trash" aria-label="Move task to Trash" className={`${iconBtn} hover:text-err`}><Trash2 className="h-4 w-4" /></button>
-  </>);
+    <RowMenu items={[{ icon: Trash2, label: "Delete forever", danger: true, onClick: () => void purge(t) }]} />
+  </>) : (
+    <RowMenu items={[{ icon: Trash2, label: "Move to Trash", hint: "You can restore it", danger: true, onClick: () => { void del(t); setOpenId(null); } }]} />
+  );
 
   const TABS: { id: BoardView; label: string }[] = [
     { id: "open", label: "Open" }, { id: "waiting", label: "Waiting on you" }, { id: "done", label: "Done" },
@@ -425,7 +402,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
   ];
 
   const domainHead = (d: string, n: number) => (
-    <h3 className="flex items-baseline gap-2 px-2.5 pb-1 pt-1 text-[15px] font-semibold text-text-primary">{titleCase(d)}<span className="text-[13px] font-normal text-text-muted">{n}</span></h3>
+    <h3 className="flex items-baseline gap-2 px-2.5 pb-1 pt-1 text-[13px] font-semibold text-text-secondary">{titleCase(d)}<span className="font-normal tabular-nums text-text-muted">{n}</span></h3>
   );
   type FlatRow = { kind: "h"; d: string; n: number; first: boolean } | { kind: "t"; t: BoardTask };
   const flatRows: FlatRow[] = [];
@@ -438,37 +415,7 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
     <div className={`flex min-h-0 flex-col ${initialDomain ? "h-[75vh]" : "h-full"}`} data-testid="tasks-page">
       <SettingsHeader title="Tasks" icon={ListChecks} subtitle="Your tasks, yours or handed to AI."
         right={<SpineTabs label="Tasks" value={view} onChange={(v) => { setView(v); setOpenId(null); }}
-          tabs={TABS.map((t) => ({ ...t, count: tabItems[t.id].length }))} />} />
-      {/* Add-task dialog: task text, domain, optional due date. */}
-      {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh]" onClick={() => setAddModalOpen(false)}>
-          <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-[15px] font-semibold text-text-primary">New task</span>
-              <button onClick={() => setAddModalOpen(false)} aria-label="Close" className="rounded p-1 text-text-muted hover:bg-surface-warm hover:text-text-primary"><X className="h-4 w-4" /></button>
-            </div>
-            <input autoFocus value={addText} onChange={(e) => { setAddText(e.target.value); if (addErr) setAddErr(null); }} onKeyDown={(e) => { if (e.key === "Enter") addTask(); }}
-              placeholder="What needs doing?" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
-            <div className="mt-2 flex items-center gap-2">
-              {addDomains.length > 0 && (
-                <select value={addDomain} onChange={(e) => setAddDomain(e.target.value)} title="Domain"
-                  className="min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-text-secondary focus:border-accent-border focus:outline-none">
-                  {addDomains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
-                </select>
-              )}
-              <input type="date" value={addDue} onChange={(e) => setAddDue(e.target.value)} title="Due date (optional)"
-                className="cursor-pointer rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-text-muted focus:border-accent-border focus:outline-none" />
-            </div>
-            {addErr && <div className="mt-2 text-[12px] text-err">{addErr}</div>}
-            <div className="mt-3 flex justify-end gap-2">
-              <button onClick={() => setAddModalOpen(false)} className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary">Cancel</button>
-              <button onClick={addTask} disabled={busy === "add"} className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-background hover:bg-accent-hover disabled:opacity-50">
-                {busy === "add" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add task
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          tabs={TABS.filter((t) => t.id === "open" || t.id === view || tabItems[t.id].length > 0).map((t) => ({ ...t, count: tabItems[t.id].length }))} />} />
       <SideSpine storageKey="prevail.tasks.spine" title="Tasks" label="tasks" testId="tasks-column"
         actions={<button onClick={() => { setAddErr(null); setAddModalOpen(true); }} title="New task" aria-label="New task" data-testid="task-new" className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"><Plus className="h-4 w-4" /></button>}
         toolbar={
@@ -525,10 +472,33 @@ export function BoardPanel({ vaultPath, initialDomain, clis }: { vaultPath: stri
                 onDelegate={(cli) => runWithAgent(openTask, cli)}
                 actions={detailActions(openTask)}
               />
-            ) : <p className="text-[15px] text-text-muted">{inTab.length ? "Pick a task on the left." : view === "trash" ? "Trash is empty. Deleted tasks land here and can be restored." : view === "icebox" ? "Icebox is empty. Set a task's status to icebox to park it." : "Nothing here."}</p>}
+            ) : inTab.length ? <p className="text-[13px] text-text-muted">Pick a task on the left.</p> : null}
           </div>
         }>
         <div className="p-2" data-testid="tasks-list">
+          {addModalOpen && (
+            <div className="mb-3 border-b border-border-subtle px-2.5 pb-3" data-testid="task-add" onKeyDown={(e) => { if (e.key === "Escape") setAddModalOpen(false); }}>
+              <input autoFocus value={addText} onChange={(e) => { setAddText(e.target.value); if (addErr) setAddErr(null); }} onKeyDown={(e) => { if (e.key === "Enter") addTask(); }}
+                placeholder="What needs doing?" aria-label="New task" className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[14px] text-text-primary focus:border-accent-border focus:outline-none" />
+              <div className="mt-2 flex items-center gap-2">
+                {addDomains.length > 0 && (
+                  <select value={addDomain} onChange={(e) => setAddDomain(e.target.value)} aria-label="Domain"
+                    className="min-w-0 flex-1 cursor-pointer rounded-md border border-border bg-background px-2 py-1 text-[13px] text-text-secondary focus:border-accent-border focus:outline-none">
+                    {addDomains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
+                  </select>
+                )}
+                <input type="date" value={addDue} onChange={(e) => setAddDue(e.target.value)} aria-label="Due date (optional)"
+                  className="min-w-0 cursor-pointer rounded-md border border-border bg-background px-2 py-1 text-[13px] text-text-muted focus:border-accent-border focus:outline-none" />
+              </div>
+              {addErr && <p className="mt-1.5 text-[12px] text-err">{addErr}</p>}
+              <div className="mt-2 flex items-center gap-4">
+                <button onClick={addTask} disabled={busy === "add"} className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline disabled:opacity-50">
+                  {busy === "add" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add task
+                </button>
+                <button onClick={() => setAddModalOpen(false)} className="text-[13px] text-text-muted hover:text-text-primary">Cancel</button>
+              </div>
+            </div>
+          )}
           {flatRows.length > VIRTUAL_MIN
             // A large board: one windowed list of domain headings and task rows.
             ? <VirtualRows items={flatRows} estimate={52} getKey={(r) => (r.kind === "h" ? `h:${r.d}` : r.t.id ?? r.t.text)}
