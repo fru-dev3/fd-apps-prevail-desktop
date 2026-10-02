@@ -3,17 +3,17 @@
 // weeks, and the weekly calm where it applies), with the metrics behind each.
 // A value nothing measures says so plainly.
 import { useInvokeQuery } from "./query";
-import { META, SECTION_TITLE } from "./typescale";
+import { META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import { barPct, type ValueLived } from "./qualmodel";
 
 function Bar({ label, value, tone, testId }: { label: string; value: number | null; tone: "lived" | "matters"; testId: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span className="w-16 shrink-0 text-[13px] text-text-muted">{label}</span>
-      <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-warm" aria-hidden>
+      <span className="w-16 shrink-0 text-[12px] text-text-muted">{label}</span>
+      <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-warm" aria-hidden>
         <span className={`block h-full rounded-full ${tone === "lived" ? "bg-accent" : "bg-text-muted/50"}`} style={{ width: `${barPct(value)}%` }} />
       </span>
-      <span className="w-20 shrink-0 text-right text-[13px] tabular-nums text-text-secondary" data-testid={testId}>{value === null ? "unmeasured" : `${value} of 5`}</span>
+      <span className="w-20 shrink-0 text-right text-[12px] tabular-nums text-text-secondary" data-testid={testId}>{value === null ? "unmeasured" : `${value} of 5`}</span>
     </div>
   );
 }
@@ -25,10 +25,10 @@ export function MattersLived({ vaultPath }: { vaultPath: string }) {
     <section data-testid="matters-lived" className="mt-8 max-w-3xl">
       <h3 className={SECTION_TITLE}>Matters and lived</h3>
       <p className={`${META} mt-1`}>How much each value matters (its rank) beside how it was lived the last four weeks, from the metrics that serve it.</p>
-      {!rows.length && !!q.data && <p className="mt-3 text-[15px] text-text-muted">Confirm your Compass values to see matters against lived.</p>}
+      {!rows.length && !!q.data && <p className={`${META} mt-2`}>Confirm your Compass values to see matters against lived.</p>}
       <ul className="mt-3 space-y-4">{rows.map((v) => (
         <li key={v.id} data-testid={`lived-${v.id}`}>
-          <p className="break-words text-[15px] font-semibold text-text-primary">{v.title}</p>
+          <p className={`${ROW_TITLE} break-words`}>{v.title}</p>
           <div className="mt-1.5 space-y-1">
             <Bar label="Matters" value={v.matters} tone="matters" testId="lived-matters" />
             <Bar label="Lived" value={v.lived} tone="lived" testId="lived-lived" />

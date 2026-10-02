@@ -25,7 +25,9 @@ function CopyBtn({ label, get, primary, big }: { label: string; get: () => Promi
         try { await navigator.clipboard.writeText(await get()); setState("done"); setTimeout(() => setState("idle"), 1800); }
         catch { setState("err"); setTimeout(() => setState("idle"), 2500); }
       }}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors ${big ? "h-12 w-full px-5 text-[15px]" : "h-10 px-4 text-[14px]"} ${primary ? "bg-accent text-background hover:bg-accent-hover" : "border border-border bg-background text-text-secondary hover:border-accent-border hover:text-accent"}`}
+      className={primary
+        ? `inline-flex items-center justify-center gap-2 rounded-lg bg-accent font-medium text-on-accent transition-colors hover:bg-accent-hover ${big ? "h-11 w-full px-5 text-[14px]" : "h-8 px-3 text-[13px]"}`
+        : "inline-flex items-center gap-1.5 text-[13px] text-text-muted transition-colors hover:text-text-primary"}
     >
       {state === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : state === "done" ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
       {state === "done" ? "Copied" : state === "err" ? "Could not copy" : label}
@@ -39,23 +41,19 @@ function Section({ title, rows, excluded, toggle, readOnly }: { title: string; r
   if (!rows.length) return null;
   return (
     <section className="mt-5">
-      {title && <h4 className="mb-2 text-[15px] font-semibold text-text-primary">{title}</h4>}
-      <ul className="space-y-1.5">
+      {title && <h4 className="mb-1 text-[14px] font-semibold text-text-primary">{title}</h4>}
+      <ul className="divide-y divide-border-subtle">
         {rows.map((r) => {
           const off = excluded.has(r.text);
           return (
             <li key={r.text}>
-              <label className={`flex items-start gap-3 rounded-lg border border-border-subtle bg-background px-3 py-2.5 ${readOnly ? "" : "cursor-pointer hover:border-accent-border"}`}>
+              <label className={`flex items-start gap-3 py-2 ${readOnly ? "" : "cursor-pointer"}`}>
                 {!readOnly && (
                   <input type="checkbox" checked={!off} onChange={() => toggle(r.text)} aria-label={`Include: ${r.text}`}
                     className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]" />
                 )}
-                <span className={`min-w-0 flex-1 text-[15px] leading-snug ${off ? "text-text-muted line-through" : "text-text-primary"}`}>{r.text}</span>
-                {r.tag && (
-                  <span className={`shrink-0 rounded-md px-1.5 py-px text-[12px] font-medium ${r.tag === "you" ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}>
-                    {r.tag === "you" ? "you" : "inferred"}
-                  </span>
-                )}
+                <span className={`min-w-0 flex-1 text-[14px] leading-snug ${off ? "text-text-muted line-through" : "text-text-primary"}`}>{r.text}</span>
+                {r.tag && <span className={`shrink-0 pt-px text-[12px] ${r.tag === "you" ? "text-accent" : "text-text-muted"}`}>{r.tag === "you" ? "you" : "inferred"}</span>}
               </label>
             </li>
           );
@@ -89,14 +87,14 @@ function RebuildCheck({ vaultPath, slug }: { vaultPath: string; slug: string }) 
     { key: "unclear", label: "Unclear", icon: HelpCircle, tone: "text-text-muted" },
   ];
   return (
-    <section className="mt-6 rounded-xl border border-border-subtle bg-surface p-5" data-testid="rebuild-check">
-      <h3 className="text-[15px] font-semibold text-text-primary flex items-center gap-2"><FolderSearch className="h-5 w-5 text-accent" />Check a rebuild</h3>
-      <p className="mt-1 text-[14px] text-text-secondary">Point at the folder a model built from this brief. Prevail reads it and says which requirements it met. The folder is only read.</p>
+    <section className="mt-6 border-t border-border-subtle pt-4" data-testid="rebuild-check">
+      <h3 className="text-[15px] font-semibold text-text-primary flex items-center gap-2"><FolderSearch className="h-4 w-4 text-text-muted" />Check a rebuild</h3>
+      <p className="mt-1 text-[12px] text-text-muted">Point at the folder a model built from this brief. Prevail reads it and says which requirements it met. The folder is only read.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <input value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="/path/to/rebuild" aria-label="Rebuild folder"
-          className="h-10 min-w-0 flex-1 basis-60 rounded-lg border border-border bg-background px-3 text-[14px] text-text-primary focus:border-accent-border focus:outline-none" />
-        {!isBrowser() && <button onClick={() => void pick()} className="inline-flex h-10 items-center rounded-lg border border-border bg-background px-4 text-[14px] text-text-secondary hover:border-accent-border hover:text-accent">Choose folder</button>}
-        <button onClick={() => void run()} disabled={busy || !folder.trim()} className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-medium text-background hover:bg-accent-hover disabled:opacity-60">
+          className="h-9 min-w-0 flex-1 basis-60 rounded-lg border border-border bg-background px-3 text-[14px] text-text-primary focus:border-accent-border focus:outline-none" />
+        {!isBrowser() && <button onClick={() => void pick()} className="inline-flex h-9 items-center px-1 text-[13px] text-text-muted hover:text-text-primary">Choose folder</button>}
+        <button onClick={() => void run()} disabled={busy || !folder.trim()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}{busy ? "Checking" : "Check"}
         </button>
       </div>
@@ -104,8 +102,8 @@ function RebuildCheck({ vaultPath, slug }: { vaultPath: string; slug: string }) 
       {diff && (
         <div className="mt-4 grid gap-3">
           {cols.map(({ key, label, icon: Icon, tone }) => (
-            <div key={key} className="rounded-lg border border-border-subtle bg-background p-3" data-testid={`diff-${key}`}>
-              <div className={`mb-2 flex items-center gap-1.5 text-[15px] font-semibold ${tone}`}><Icon className="h-4 w-4" />{label} <span className="tabular-nums">{(diff[key] ?? []).length}</span></div>
+            <div key={key} data-testid={`diff-${key}`}>
+              <div className={`mb-1 flex items-center gap-1.5 text-[14px] font-semibold ${tone}`}><Icon className="h-4 w-4" />{label} <span className="tabular-nums">{(diff[key] ?? []).length}</span></div>
               <ul className="space-y-1.5 text-[14px] leading-snug text-text-secondary">
                 {(diff[key] ?? []).map((t, i) => <li key={i}>{t}</li>)}
               </ul>
@@ -140,18 +138,18 @@ export function useRestart(vaultPath: string, slug: string) {
 }
 export type Restart = ReturnType<typeof useRestart>;
 
-const loading = <div className="mt-4 flex items-center gap-2 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading the project</div>;
+const loading = <div className="mt-4 flex items-center gap-2 text-[12px] text-text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" />Reading the project</div>;
 
 export function RestartCard({ r, phone }: { r: Restart; phone: boolean }) {
   const { doc, err } = r;
   return (
-    <section className="mt-6 rounded-xl border border-accent-border bg-accent-soft/30 p-5" data-testid="restart">
-      <h3 className="text-[15px] font-semibold text-text-primary flex items-center gap-2"><RotateCcw className="h-5 w-5 text-accent" />Restart</h3>
+    <section className="mt-6" data-testid="restart">
+      <h3 className="text-[15px] font-semibold text-text-primary flex items-center gap-2"><RotateCcw className="h-4 w-4 text-accent" />Restart</h3>
       <p className="mt-1 text-[14px] leading-snug text-text-secondary">
         Everything a newer model needs to do this properly, without the back-and-forth.{!phone && " Untick what should not carry over under Requirements and Technical details."}
         {doc?.brief_model ? ` Distilled by ${modelName(doc.brief_model)}.` : ""}
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
         <CopyBtn primary big={phone} label="Copy restart brief" get={r.text("handoff")} />
         {!phone && <CopyBtn label="Copy intent" get={r.text("intent")} />}
         {!phone && <CopyBtn label="Copy raw prompts" get={r.text("raw")} />}
@@ -182,7 +180,7 @@ export function RequirementsPane({ r, phone }: { r: Restart; phone: boolean }) {
         ))}
       </div>
       {rows.length === 0
-        ? <p className="mt-5 text-[14px] text-text-muted">{all.length ? "None of this kind." : "No requirements found yet."}</p>
+        ? <p className="mt-5 text-[12px] text-text-muted">{all.length ? "None of this kind." : "No requirements found yet."}</p>
         : <Section title="" rows={rows} excluded={r.excluded} toggle={r.toggle} readOnly={phone} />}
     </div>
   );
@@ -200,8 +198,8 @@ export function TechnicalDetails({ r, phone }: { r: Restart; phone: boolean }) {
     { title: "Open questions", rows: (d.open_questions ?? []).map((text) => ({ text })) },
   ];
   return (
-    <details data-testid="project-technical" className="group mt-6 rounded-xl border border-border-subtle bg-surface px-5 py-3">
-      <summary className="cursor-pointer select-none text-[15px] font-semibold text-text-primary">Technical details</summary>
+    <details data-testid="project-technical" className="group mt-6">
+      <summary className="cursor-pointer select-none text-[13px] text-text-muted hover:text-text-primary">Technical details</summary>
       {sections.map((s) => <Section key={s.title} title={s.title} rows={s.rows} excluded={r.excluded} toggle={r.toggle} readOnly={phone} />)}
       {!phone && <RebuildCheck vaultPath={r.vaultPath} slug={r.slug} />}
     </details>

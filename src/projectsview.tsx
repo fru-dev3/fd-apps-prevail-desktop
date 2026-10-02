@@ -15,7 +15,8 @@ import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { useIsPhone } from "./useisphone";
 import { SideSpine } from "./sidespine";
-import { DETAIL_TITLE, DetailTitle, META } from "./typescale";
+import { BODY, DETAIL_TITLE, DetailTitle, META, SECTION_TITLE } from "./typescale";
+import { RowMenu, StatusDot, type DotTone } from "./ui";
 import { RequirementsPane, RestartCard, TechnicalDetails, useRestart } from "./mirrorrestart";
 import type { HistoryDoc } from "./mirror";
 import { createMission, missionFor, openMission, useMissions } from "./missions";
@@ -38,9 +39,7 @@ export interface ProjectsIndex {
   projects: ProjectEntry[]; recommendations: Recommendation[]; recommendations_model?: string;
 }
 
-const STATUS_TONE: Record<ProjectEntry["status"], string> = {
-  active: "bg-ok/15 text-ok", dormant: "bg-surface-warm text-text-muted", done: "bg-accent-soft text-accent",
-};
+const STATUS_DOT: Record<ProjectEntry["status"], DotTone> = { active: "ok", dormant: "muted", done: "accent" };
 // The model words intent status freely ("in progress", "shipped", "open").
 export function statusKind(s: string): ProjectEntry["status"] {
   const l = s.toLowerCase();
@@ -76,8 +75,8 @@ function ActivityChart({ p }: { p: ProjectEntry }) {
   const every = Math.max(1, Math.ceil(keys.length / 8)); // label at most ~8 ticks
   const color = domainColor(p.domain);
   return (
-    <div className="mt-5 rounded-xl border border-border-subtle bg-surface p-4">
-      <div className="mb-3 text-[12px] text-text-muted">Prompts per {weekly ? "week" : "month"}</div>
+    <div className="mt-5">
+      <div className={`${META} mb-3`}>Prompts per {weekly ? "week" : "month"}</div>
       <div className="flex h-20 items-end gap-1">
         {keys.map((k, i) => {
           const n = counts[k] ?? 0;
@@ -197,7 +196,7 @@ function TrackButton({ vaultPath, p, phone }: { vaultPath: string; p: ProjectEnt
   const Icon = busy ? Loader2 : Target;
   return (
     <button onClick={() => (tracked ? openMission(tracked.slug) : void track())} disabled={busy} data-testid="project-track" title={err ?? label} aria-label={label}
-      className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${err ? "border-err text-err" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"}`}>
+      className={`inline-flex h-8 shrink-0 items-center gap-1.5 text-[13px] font-medium hover:underline disabled:opacity-60 ${err ? "text-err" : "text-accent"}`}>
       <Icon className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />{!phone && label}
     </button>
   );
@@ -211,11 +210,11 @@ export function IntentBrief({ vaultPath, slug }: { vaultPath: string; slug: stri
   return (
     <div data-testid="project-brief" className="pb-6">
       <RestartCard r={r} phone={phone} />
-      <h3 className="mt-7 text-[15px] font-semibold text-text-primary">Requirements</h3>
+      <h3 className={`${SECTION_TITLE} mt-7`}>Requirements</h3>
       <RequirementsPane r={r} phone={phone} />
       <TechnicalDetails r={r} phone={phone} />
-      <button onClick={() => openProject(slug)} className="mt-6 inline-flex items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
-        Open in Intent<ArrowRight className="h-4 w-4" />
+      <button onClick={() => openProject(slug)} className="mt-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline">
+        Open in Intent<ArrowRight className="h-3.5 w-3.5" />
       </button>
     </div>
   );
@@ -245,12 +244,9 @@ function ProjectDetail({ vaultPath, p, phone, building, onRewrite }: { vaultPath
             </p>
           </div>
           <TrackButton vaultPath={vaultPath} p={p} phone={phone} />
-          {!phone && (
-            <button onClick={onRewrite} disabled={!!building}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
-              {building === p.slug ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {building === p.slug ? "Rewriting" : "Rewrite brief"}
-            </button>
-          )}
+          {building === p.slug
+            ? <span className={`${META} inline-flex shrink-0 items-center gap-1.5`}><Loader2 className="h-3.5 w-3.5 animate-spin" />Rewriting</span>
+            : <RowMenu items={[{ icon: RefreshCw, label: "Rewrite brief", disabled: !!building, onClick: onRewrite }]} />}
         </div>
         <div role="tablist" aria-label="Project" className="mt-4 flex overflow-x-auto border-b border-border-subtle">
           {PROJECT_TABS.map((t) => (
@@ -265,19 +261,19 @@ function ProjectDetail({ vaultPath, p, phone, building, onRewrite }: { vaultPath
       </div>
 
       <div className={pane("overview")} data-testid="project-overview">
-        {p.summary && <p className="mt-5 text-[15px] leading-snug text-text-secondary">{p.summary}</p>}
+        {p.summary && <p className={`${BODY} mt-5 text-text-secondary`}>{p.summary}</p>}
         <RestartCard r={r} phone={phone} />
         {p.intents.length > 0 && (
           <section className="mt-7">
-            <h3 className="mb-2.5 flex items-center gap-2 text-[15px] font-semibold text-text-primary"><Target className="h-4 w-4 text-accent" />Intents</h3>
-            <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+            <h3 className={`${SECTION_TITLE} mb-1`}>Intents</h3>
+            <div className="divide-y divide-border-subtle">
               {p.intents.map((it, i) => (
-                <div key={i} className="flex items-start gap-3 px-4 py-3">
+                <div key={i} className="flex items-start gap-3 py-2.5">
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-medium text-text-primary">{it.title}</div>
-                    <div className="mt-0.5 text-[13px] leading-snug text-text-muted">{it.goal}</div>
+                    <div title={it.goal} className={`${META} mt-0.5 line-clamp-2 leading-snug`}>{it.goal}</div>
                   </div>
-                  <span className={`shrink-0 whitespace-nowrap rounded-md px-1.5 py-px text-[12px] font-medium ${STATUS_TONE[statusKind(it.status)]}`}>{titleCase(it.status)}</span>
+                  <StatusDot tone={STATUS_DOT[statusKind(it.status)]} label={titleCase(it.status)} className="mt-1" />
                 </div>
               ))}
             </div>
@@ -296,13 +292,13 @@ function ProjectDetail({ vaultPath, p, phone, building, onRewrite }: { vaultPath
           {histState ?? (
             <ol className="space-y-4">
               {hist.sittings.map((st) => (
-                <li key={st.id} className="rounded-xl border border-border-subtle bg-surface">
-                  <div className="flex items-center gap-2 border-b border-border-subtle px-4 py-2 text-[13px] text-text-muted">
+                <li key={st.id} className="border-t border-border-subtle pt-2">
+                  <div className={`${META} flex items-center gap-2 py-1`}>
                     <span className="font-medium text-text-secondary">{titleCase(st.tool)}</span><span aria-hidden>·</span><span>{fmtWhen(st.start_ts)}</span>
                   </div>
                   <ul className="divide-y divide-border-subtle">
                     {st.prompts.map((q, i) => (
-                      <li key={`${q.ts}-${i}`} data-testid="project-prompt" className="whitespace-pre-wrap break-words px-4 py-2.5 text-[14px] leading-relaxed text-text-primary">{q.text}</li>
+                      <li key={`${q.ts}-${i}`} data-testid="project-prompt" className="whitespace-pre-wrap break-words py-2 text-[14px] leading-normal text-text-primary">{q.text}</li>
                     ))}
                   </ul>
                 </li>
@@ -316,12 +312,12 @@ function ProjectDetail({ vaultPath, p, phone, building, onRewrite }: { vaultPath
         <ActivityChart p={p} />
         <div className="mt-5">
           {histState ?? (
-            <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+            <ul className="divide-y divide-border-subtle">
               {hist.sittings.map((st) => (
-                <li key={st.id} className="flex items-center gap-3 px-4 py-2.5 text-[14px]">
-                  <span className="w-40 shrink-0 tabular-nums text-text-muted">{fmtWhen(st.start_ts)}</span>
-                  <span className="min-w-0 flex-1 truncate text-text-primary">{st.prompts[0]?.text ?? ""}</span>
-                  <span className="shrink-0 text-[13px] text-text-muted">{titleCase(st.tool)} · {nPrompts(st.prompts.length)}</span>
+                <li key={st.id} className="flex items-center gap-3 py-2.5 text-[14px]">
+                  <span className="w-40 shrink-0 text-[12px] tabular-nums text-text-muted max-sm:w-24">{fmtWhen(st.start_ts)}</span>
+                  <span title={st.prompts[0]?.text ?? ""} className="min-w-0 flex-1 truncate text-text-primary">{st.prompts[0]?.text ?? ""}</span>
+                  <span className="shrink-0 text-[12px] text-text-muted">{titleCase(st.tool)} · {nPrompts(st.prompts.length)}</span>
                 </li>
               ))}
             </ul>
@@ -336,7 +332,7 @@ function ListBlock({ icon: Icon, title, items }: { icon: LucideIcon; title: stri
   if (!items.length) return null;
   return (
     <section className="mt-7">
-      <h3 className="mb-2.5 flex items-center gap-2 text-[15px] font-semibold text-text-primary"><Icon className="h-4 w-4 text-accent" />{title}</h3>
+      <h3 className={`${SECTION_TITLE} mb-1.5 flex items-center gap-2`}><Icon className="h-4 w-4 text-text-muted" />{title}</h3>
       <ul className="space-y-1.5">
         {items.map((t, i) => <li key={i} className="flex gap-2.5 text-[14px] leading-snug text-text-secondary"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-text-muted" />{t}</li>)}
       </ul>
@@ -386,10 +382,10 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
     return (
       <div className="mx-auto max-w-xl p-8">
         <h2 className={DETAIL_TITLE}>Turn your prompts into projects</h2>
-        <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">
+        <p className={`${BODY} mt-2 text-text-secondary`}>
           Prevail reads every prompt you have typed, in every AI tool, groups them by what you were building, and writes each project a replay brief: one prompt that carries every requirement and correction, so a newer model can rebuild it without the back-and-forth. Your original prompts are never changed.
         </p>
-        <button onClick={() => build()} disabled={!!building} className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-[14px] font-semibold text-background hover:bg-accent-hover disabled:opacity-60">
+        <button onClick={() => build()} disabled={!!building} className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg bg-accent px-4 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-60">
           {building ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {building ? "Building. This takes a while the first time." : "Build my projects"}
         </button>
         {err && <div className="mt-4 text-[13px] text-err">{err}</div>}
@@ -416,7 +412,7 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
           <button key={p.slug} onClick={() => setSel(p.slug)} className={`mb-1 flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
             <div className="min-w-0 flex-1">
               <div className={`truncate text-[13px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{displayTitle(p.title)}</div>
-              <div className="mt-0.5 text-[11px] text-text-muted">{nPrompts(p.prompt_count)} · {new Date(p.last_ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+              <div className="mt-0.5 text-[12px] text-text-muted">{nPrompts(p.prompt_count)} · {new Date(p.last_ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
             </div>
             <Sparkline monthly={p.monthly} months={months} color={domainColor(p.domain)} />
           </button>
@@ -441,15 +437,15 @@ export function ProjectsView({ vaultPath, initialSlug }: { vaultPath: string; in
   ) : (
     <div data-testid="projects-overview">
       <h2 className={DETAIL_TITLE}>Your prompt projects</h2>
-      <p className="mt-1.5 text-[14px] leading-snug text-text-secondary">
+      <p className={`${BODY} mt-1.5 text-text-secondary`}>
         {idx.projects.length} projects read from {idx.stats?.kept.toLocaleString() ?? "your"} prompts. Pick one on the left to see its arc and restart brief.
       </p>
       {idx.recommendations.length > 0 && (
         <button data-testid="recs-link" onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "recommendations" }))}
-          className="mt-6 flex w-full items-center gap-3 rounded-xl border border-border-subtle bg-surface px-4 py-3.5 text-left transition-colors hover:border-accent-border">
-          <Lightbulb className="h-5 w-5 shrink-0 text-accent" />
-          <span className="min-w-0 flex-1 text-[15px] text-text-primary">{idx.recommendations.length} next steps from your projects are in Recommendations</span>
-          <ArrowRight className="h-4 w-4 shrink-0 text-accent" />
+          className="mt-4 inline-flex items-center gap-1.5 text-left text-[13px] font-medium text-accent hover:underline">
+          <Lightbulb className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0">{idx.recommendations.length} next steps from your projects are in For You</span>
+          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
         </button>
       )}
     </div>

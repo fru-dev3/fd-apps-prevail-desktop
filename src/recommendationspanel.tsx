@@ -24,6 +24,8 @@ import { PREF, setPref } from "./storage";
 import { toast } from "./toast";
 import { StructureCards } from "./structurecards";
 import { RECS_CATEGORY_EVENT, useStructureSuggestions } from "./missions";
+import { META, ROW_TITLE, SCORE, SECTION_TITLE } from "./typescale";
+import { REVEAL, RowMenu } from "./ui";
 import {
   addTask, applyRec, copyInstruction, doItLabel, loadSet, openEvidence, recsFor, REC_DISMISSED, REC_SAVED,
   SPINE, setDomainModel, spineCounts, START_N, storeSet, visibleRecs, normalizeRec,
@@ -45,7 +47,7 @@ const CAT_LABEL: Record<RecCategory, string> = {
 // Dismissing a recommendation anywhere (this page or the Home Briefing) writes
 // the one shared set and announces it, so both agree.
 export const RECS_CHANGED = "prevail:recs-changed";
-const iconBtn = "inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
+const iconBtn = "inline-flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 
 function IconAction({ label, icon: Icon, onClick, busy, done, tone, pressed, className = "", testId }: {
   label: string; icon: LucideIcon; onClick: () => void; busy?: boolean; done?: boolean; tone?: "danger"; pressed?: boolean; className?: string; testId?: string;
@@ -60,9 +62,9 @@ function IconAction({ label, icon: Icon, onClick, busy, done, tone, pressed, cla
 
 function ModelTable({ rows, onApply, applied }: { rows: RecRow[]; onApply: (r: RecRow) => void; applied: Set<string> }) {
   return (
-    <div className="mt-3 overflow-x-auto rounded-lg border border-border-subtle">
+    <div className="mt-3 overflow-x-auto">
       <table className="w-full text-left text-[13px]" data-testid="model-table">
-        <thead className="bg-surface-warm/60 text-[12px] text-text-muted">
+        <thead className="border-b border-border-subtle text-[12px] text-text-muted">
           <tr><th className="px-3 py-2 font-medium">Domain</th><th className="px-3 py-2 font-medium">Current</th><th className="px-3 py-2 font-medium">Suggested</th><th className="px-3 py-2 text-right font-medium">Score</th><th className="w-10" /></tr>
         </thead>
         <tbody className="divide-y divide-border-subtle">
@@ -83,7 +85,7 @@ function ModelTable({ rows, onApply, applied }: { rows: RecRow[]; onApply: (r: R
   );
 }
 
-function RecItem({ r, rank, vaultPath, saved, dismissed, onSave, onDismiss, onRestore, onChanged, phone }: {
+function RecItem({ r, rank, vaultPath, saved, dismissed, onSave, onDismiss, onRestore, onChanged }: {
   r: Rec; rank?: number; vaultPath: string; saved: boolean; dismissed: boolean;
   onSave: () => void; onDismiss: () => void; onRestore: () => void; onChanged: () => void; phone: boolean;
 }) {
@@ -102,22 +104,22 @@ function RecItem({ r, rank, vaultPath, saved, dismissed, onSave, onDismiss, onRe
   const canCopy = !!r.instruction || r.action.kind === "project_rec";
   const canTask = !!r.task;
   return (
-    <li data-testid="rec-item" data-rec-id={r.id} className={`px-4 py-4 ${dismissed ? "opacity-50" : ""}`}>
-      <div className={`flex gap-3 ${phone ? "flex-col" : "items-start"}`}>
+    <li data-testid="rec-item" data-rec-id={r.id} className={`group py-3 ${dismissed ? "opacity-50" : ""}`}>
+      <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
             {r.metric && (
-              <span className="shrink-0 font-display text-2xl font-semibold tabular-nums leading-none text-accent" title={r.metric.unit} data-testid="rec-metric">
+              <span className={`${SCORE} shrink-0 text-accent`} title={r.metric.unit} data-testid="rec-metric">
                 {r.metric.value.toLocaleString()}
               </span>
             )}
-            <h3 className="min-w-0 text-[15px] font-semibold leading-snug text-text-primary">
+            <h3 title={r.title} className={`${ROW_TITLE} min-w-0 line-clamp-2`}>
               {rank ? <span className="sr-only">{`${rank}. `}</span> : null}{r.title}
             </h3>
           </div>
-          {r.metric && <div className="mt-0.5 text-[12px] text-text-muted">{r.metric.unit}</div>}
-          <p className="mt-1.5 text-[14px] leading-snug text-text-secondary">{r.detail}</p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+          {r.metric && <div className={`${META} mt-0.5`}>{r.metric.unit}</div>}
+          <p title={r.detail} className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-text-secondary">{r.detail}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
             {r.evidence && (
               <button onClick={() => openEvidence(r.evidence!)} className="inline-flex items-center gap-1 text-accent underline decoration-accent-border underline-offset-[3px] hover:decoration-accent">
                 {r.evidence.label}<ArrowUpRight className="h-3.5 w-3.5" />
@@ -134,23 +136,19 @@ function RecItem({ r, rank, vaultPath, saved, dismissed, onSave, onDismiss, onRe
           </div>
           {msg && <p className={`mt-1.5 inline-flex items-center gap-1 text-[13px] ${msg.ok ? "text-ok" : "text-err"}`}>{msg.ok && <Check className="h-3.5 w-3.5" />}{msg.text}</p>}
         </div>
-        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Actions">
+        {/* One primary action on hover (always on touch); the rest in the menu. */}
+        <div className={`flex shrink-0 items-center gap-0.5 ${busy ? "" : REVEAL}`} role="group" aria-label="Actions">
+          {saved && <Bookmark className="mr-1 h-3.5 w-3.5 text-accent" fill="currentColor" aria-label="Saved" />}
           {!dismissed && (
             <IconAction label={doItLabel(r)} icon={isModels ? Play : ArrowRight} busy={busy === "do"}
               onClick={() => void run("do", async () => { const t = await applyRec(r, vaultPath); onChanged(); return t; })} />
           )}
-          {canTask && !dismissed && (
-            <IconAction label={`Add a task to ${titleCase(r.task!.domain)}`} icon={ListTodo} busy={busy === "task"}
-              onClick={() => void run("task", async () => { await addTask(r, vaultPath); return `Added to the ${titleCase(r.task!.domain)} board.`; })} />
-          )}
-          {canCopy && !dismissed && (
-            <IconAction label="Copy an instruction for an agent" icon={ClipboardCopy} busy={busy === "copy"}
-              onClick={() => void run("copy", async () => { await copyInstruction(r, vaultPath); return "Copied."; })} />
-          )}
-          <IconAction label={saved ? "Saved; click to unsave" : "Save for later"} icon={Bookmark} pressed={saved} onClick={onSave} />
-          {dismissed
-            ? <IconAction label="Restore" icon={RotateCcw} onClick={onRestore} />
-            : <IconAction label="Dismiss" icon={X} tone="danger" onClick={onDismiss} />}
+          <RowMenu items={[
+            ...(canTask && !dismissed ? [{ icon: ListTodo, label: `Add a task to ${titleCase(r.task!.domain)}`, onClick: () => void run("task", async () => { await addTask(r, vaultPath); return `Added to the ${titleCase(r.task!.domain)} board.`; }) }] : []),
+            ...(canCopy && !dismissed ? [{ icon: ClipboardCopy, label: "Copy an instruction for an agent", onClick: () => void run("copy", async () => { await copyInstruction(r, vaultPath); return "Copied."; }) }] : []),
+            { icon: Bookmark, label: saved ? "Unsave" : "Save for later", checked: saved, onClick: onSave },
+            dismissed ? { icon: RotateCcw, label: "Restore", onClick: onRestore } : { icon: X, label: "Dismiss", danger: true, onClick: onDismiss },
+          ]} />
         </div>
       </div>
       {hasTable && open && (
@@ -257,11 +255,11 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
       onChanged={() => setTick((n) => n + 1)} />
   );
   const list = (rs: Rec[], ranked = false) => (
-    <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">{rs.map((r, i) => item(r, ranked ? i + 1 : undefined))}</ul>
+    <ul className="divide-y divide-border-subtle">{rs.map((r, i) => item(r, ranked ? i + 1 : undefined))}</ul>
   );
   const sectionHead = (label: string, n: number, Icon: LucideIcon) => (
-    <h2 className="text-[15px] font-semibold text-text-primary mb-2.5 flex items-center gap-2">
-      <Icon className="h-5 w-5 text-accent" />{label}<span className="text-[14px] font-normal tabular-nums text-text-muted">{n}</span>
+    <h2 className={`${SECTION_TITLE} mb-1 flex items-center gap-2`}>
+      <Icon className="h-4 w-4 text-text-muted" />{label}<span className="text-[12px] font-normal tabular-nums text-text-muted">{n}</span>
     </h2>
   );
 
@@ -270,13 +268,12 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
     <section data-testid="section-structure">{sectionHead("Structure", suggestions.length, Shapes)}<StructureCards suggestions={suggestions} vaultPath={vaultPath} /></section>
   );
   if (sel === "structure") body = structure;
-  else if (recs === null) body = <div className="text-[14px] text-text-muted">Reading your vault...</div>;
+  else if (recs === null) body = <div className={META}>Reading your vault...</div>;
   else if (!live.length && !suggestions.length) {
     body = (
-      <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center">
-        <Lightbulb className="mx-auto h-8 w-8 text-accent" />
-        <p className="mt-3 text-[15px] text-text-secondary">{savedOnly ? "Nothing saved yet." : "Nothing to do right now."}</p>
-        <p className="mt-1 text-[13px] text-text-muted">Recommendations appear as Prevail reads your prompts, projects, apps and benchmarks.</p>
+      <div className="py-6">
+        <p className="text-[14px] text-text-secondary">{savedOnly ? "Nothing saved yet." : "Nothing to do right now."}</p>
+        <p className={`${META} mt-0.5`}>Recommendations appear as Prevail reads your prompts, projects, apps and benchmarks.</p>
       </div>
     );
   } else if (sel === "all") {
@@ -296,22 +293,22 @@ export function RecommendationsPanel({ vaultPath }: { vaultPath: string }) {
     const label = SPINE.find((s) => s.key === sel)!.label;
     body = shown.length
       ? <section data-testid={`section-${sel}`}>{sectionHead(label, shown.length, SPINE_ICON[sel])}{list(shown, sel === "start")}</section>
-      : <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-[14px] text-text-muted">Nothing in {label} right now.</div>;
+      : <p className={META}>Nothing in {label} right now.</p>;
   }
 
   const toolbar = (
-    <div className="mb-5 flex flex-wrap items-center gap-2 text-[13px] text-text-muted">
-      <span>{counts.all} to consider, ranked by leverage</span>
-      <span className="ml-auto flex items-center gap-2">
+    <div className={`${META} mb-4 flex flex-wrap items-center gap-x-4 gap-y-1`}>
+      <span>{counts.all ? `${counts.all} to consider, ranked by leverage` : ""}</span>
+      <span className="ml-auto flex items-center gap-4">
         {savedCount > 0 && (
           <button onClick={() => setSavedOnly((v) => !v)} aria-pressed={savedOnly}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 ${savedOnly ? "border-accent-border bg-accent-soft text-accent" : "border-border hover:border-accent-border hover:text-accent"}`}>
+            className={`inline-flex items-center gap-1.5 hover:text-accent ${savedOnly ? "font-medium text-accent" : ""}`}>
             <Bookmark className="h-3.5 w-3.5" />Saved {savedCount}
           </button>
         )}
         {dismissedCount > 0 && (
           <button onClick={() => setShowDismissed((v) => !v)} aria-pressed={showDismissed}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 hover:border-accent-border hover:text-accent">
+            className={`inline-flex items-center gap-1.5 hover:text-accent ${showDismissed ? "font-medium text-accent" : ""}`}>
             {showDismissed ? "Hide" : "Show"} dismissed {dismissedCount}
           </button>
         )}
@@ -420,22 +417,22 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
   return (
     <div className="mt-8 w-full max-w-5xl" data-testid="home-briefing">
       <div className="group mb-1.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[13px] font-bold text-text-primary">
+        <div className={`${SECTION_TITLE} flex items-center gap-2`}>
           <Sparkles className="h-3.5 w-3.5 text-accent" /> Briefing
         </div>
         <IconAction label="Hide briefing" icon={EyeOff} onClick={hide} className={quiet} testId="briefing-hide" />
       </div>
-      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-sm">
-        {everyDismissed && <p data-testid="briefing-empty" className="px-4 py-3 text-sm text-text-muted">Nothing new to suggest right now.</p>}
+      <div className="border-t border-border-subtle">
+        {everyDismissed && <p data-testid="briefing-empty" className={`${META} py-3`}>Nothing new to suggest right now.</p>}
         {top.map((r, i) => {
           const Icon = BRIEF_ICON[r.category] ?? Compass;
           const tip = doItLabel(r);
           return (
-            <div key={r.id} data-testid="briefing-row" data-rec={r.id} className={`group flex items-center gap-3 px-4 py-2.5 ${i > 0 ? "border-t border-border-subtle" : ""}`}>
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon className="h-3.5 w-3.5" /></span>
+            <div key={r.id} data-testid="briefing-row" data-rec={r.id} className={`group flex items-center gap-3 py-2.5 ${i > 0 ? "border-t border-border-subtle" : ""}`}>
+              <Icon className="h-4 w-4 shrink-0 text-text-muted" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-text-primary">{r.title}</div>
-                <div className="truncate text-xs text-text-secondary">{r.detail}</div>
+                <div title={r.title} className="truncate text-[14px] font-medium text-text-primary">{r.title}</div>
+                <div title={r.detail} className={`${META} truncate`}>{r.detail}</div>
               </div>
               <IconAction label="Dismiss" icon={X} tone="danger" onClick={() => dismiss(r)} className={quiet} testId="briefing-dismiss" />
               {done[r.id] ? <Check className="h-4 w-4 shrink-0 text-ok" /> : (
@@ -448,14 +445,14 @@ export function HomeBriefing({ vaultPath }: { vaultPath: string }) {
           );
         })}
         {intentLine !== "" && (
-          <button onClick={openIntents} className={`flex w-full items-center gap-2 px-4 py-2.5 text-left transition-colors hover:bg-surface-warm ${top.length > 0 || everyDismissed ? "border-t border-border-subtle" : ""}`}>
-            <Compass className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-            <span className="min-w-0 flex-1 truncate text-xs text-text-secondary"><span className="font-semibold text-text-primary">Recent intents:</span> {intentLine}</span>
-            <span className="shrink-0 text-xs text-accent">See all</span>
+          <button onClick={openIntents} className={`group flex w-full items-center gap-3 py-2.5 text-left ${top.length > 0 || everyDismissed ? "border-t border-border-subtle" : ""}`}>
+            <Compass className="h-4 w-4 shrink-0 text-text-muted" />
+            <span className="min-w-0 flex-1 truncate text-[12px] text-text-secondary"><span className="font-medium text-text-primary">Recent intents:</span> {intentLine}</span>
+            <span className="shrink-0 text-[12px] text-text-muted group-hover:text-accent">See all</span>
           </button>
         )}
         {top.length > 0 && (
-          <button onClick={openRecs} className="flex w-full items-center justify-center gap-1 border-t border-border-subtle px-4 py-2 text-xs font-semibold text-accent transition-colors hover:bg-surface-warm">
+          <button onClick={openRecs} className="flex items-center gap-1 pt-1 text-[12px] font-medium text-accent hover:underline">
             See all in For You <ArrowRight className="h-3 w-3" />
           </button>
         )}

@@ -21,7 +21,6 @@ import {
 import { invoke } from "./bridge";
 import { hasInvoke, invokeCached, invokeKey, peekInvoke, setQueryData, useInvokeQuery } from "./query";
 import { titleCase } from "./format";
-import { domainColor } from "./helpers";
 import { Markdown } from "./Markdown";
 import { CAPTURE_LABELS, PromptCapturePanel, type CaptureStatus } from "./promptcapturepanel";
 import { ProjectsView } from "./projectsview";
@@ -30,7 +29,8 @@ import { useIsPhone } from "./useisphone";
 import { SideSpine, SpineTabs } from "./sidespine";
 import { MetricsView } from "./metricsview";
 import { HeaderSlot, SettingsHeader } from "./sectionutil";
-import { DETAIL_TITLE, META } from "./typescale";
+import { BODY, CARD_HEADLINE, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
+import { REVEAL } from "./ui";
 import { RowAction, RowActions } from "./rowaction";
 import type { LifeReadiness } from "./types";
 
@@ -88,10 +88,10 @@ export function visibleFindings(doc: FindingsDoc | null, now = Date.now()): Find
 
 function ProjectChip({ slug, title }: { slug: string; title: string }) {
   if (!slug && !title) return null;
-  const c = domainColor(slug || title);
+  // Quiet text, not a coloured chip: the project is meta, the prompt is the content.
   return (
-    <span className="inline-flex max-w-[16rem] items-center gap-1 truncate rounded-md px-1.5 py-px text-[12px] font-semibold" style={{ color: c, backgroundColor: `${c}1f` }}>
-      <FolderKanban size={12} aria-hidden className="shrink-0" /><span className="truncate">{title || slug}</span>
+    <span title={title || slug} className="inline-flex max-w-[16rem] items-center gap-1 truncate text-[12px] text-text-secondary">
+      <FolderKanban size={12} aria-hidden className="shrink-0 text-text-muted" /><span className="truncate">{title || slug}</span>
     </span>
   );
 }
@@ -213,17 +213,17 @@ export function MirrorPanel({ vaultPath, title = "Insights" }: { vaultPath: stri
   const periodView = view === "noticed" || view === "history";
   let body: React.ReactNode = null;
   if (periodView) {
-    if (!periods) body = <div className="p-8 text-[15px] text-text-muted">Looking back over your prompts...</div>;
+    if (!periods) body = <div className={`${META} p-8`}>Looking back over your prompts...</div>;
     else if (!periods.weeks.length || !sel) {
       body = (
         <div className={phone ? "p-4" : "px-8 py-8"}>
-          <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center">
-            <ScanFace className="mx-auto h-10 w-10 text-accent" />
+          <div className="mx-auto max-w-lg py-10 text-center">
+            <ScanFace className="mx-auto h-8 w-8 text-accent" />
             <h2 className={`${DETAIL_TITLE} mt-3`}>No prompts yet</h2>
-            <p className="mx-auto mt-2 max-w-lg text-[14px] leading-normal text-text-secondary">
+            <p className={`${BODY} mx-auto mt-2 text-text-secondary`}>
               Turn on capture for your tools and every prompt you type shows up here, week by week. Intent then points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go.
             </p>
-            <button onClick={() => setView("capture")} className={`${btnPrimary} mt-5 h-11 px-5`}>Set up capture</button>
+            <button onClick={() => setView("capture")} className={`${btnPrimary} mt-5 h-9 px-4`}>Set up capture</button>
             {periodsErr && <div className="mt-3 text-[13px] text-err">{periodsErr}</div>}
             {readinessLine && <p data-testid="life-readiness" className={`mt-4 ${META}`}>{readinessLine}</p>}
           </div>
@@ -252,7 +252,7 @@ export function MirrorPanel({ vaultPath, title = "Insights" }: { vaultPath: stri
         {view === "metrics" && <MetricsView vaultPath={vaultPath} phone={phone} />}
         {view === "capture" && (
           <div className={phone ? "p-4" : "w-full px-8 py-8"} data-testid="capture-view">
-            <button onClick={() => setView("noticed")} className="mb-4 inline-flex items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
+            <button onClick={() => setView("noticed")} className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline">
               <ArrowLeft className="h-4 w-4" />Back to Noticed
             </button>
             <HeaderSlot.Provider value="detail"><PromptCapturePanel vaultPath={vaultPath} /></HeaderSlot.Provider>
@@ -296,8 +296,8 @@ export function FindingVisual({ visual }: { visual: Finding["visual"] }) {
         <div className="flex flex-wrap gap-1.5" data-testid="visual-dots">
           {dots.slice(0, 84).map((x, i) => <span key={i} title={x.label || undefined} aria-label={x.label || undefined} className={`h-3 w-3 rounded-full ${x.on ? "bg-accent" : "bg-border"}`} />)}
         </div>
-        {named && <div className="mt-2 text-[13px] text-text-muted" data-testid="visual-dots-legend"><span className="tabular-nums">{lit}</span> of <span className="tabular-nums">{dots.length}</span> came up</div>}
-        {quiet.length > 0 && <div className="mt-1 break-words text-[13px] text-text-secondary" data-testid="visual-dots-quiet">Never came up: {quiet.map(titleCase).join(", ")}</div>}
+        {named && <div className={`${META} mt-2`} data-testid="visual-dots-legend"><span className="tabular-nums">{lit}</span> of <span className="tabular-nums">{dots.length}</span> came up</div>}
+        {quiet.length > 0 && <div className="mt-1 break-words text-[12px] text-text-secondary" data-testid="visual-dots-quiet">Never came up: {quiet.map(titleCase).join(", ")}</div>}
       </div>
     );
   }
@@ -317,9 +317,9 @@ export function FindingVisual({ visual }: { visual: Finding["visual"] }) {
           const w = Math.round(Math.max(0, Math.min(1, b.frac)) * 100);
           return (
             <div key={i}>
-              {multi && <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]"><span className="min-w-0 truncate text-text-secondary">{b.label}</span><span className="shrink-0 tabular-nums text-text-muted">{b.value}%{b.note ? ` of ${b.note}` : ""}</span></div>}
-              <div className="h-4 w-full overflow-hidden rounded-full bg-surface-warm"><div className="h-full rounded-full bg-accent" style={{ width: `${w}%` }} /></div>
-              {!multi && b.label && <div className="mt-1.5 text-[13px] text-text-muted">{b.label}</div>}
+              {multi && <div className="mb-1 flex items-baseline justify-between gap-3 text-[12px]"><span className="min-w-0 truncate text-text-secondary">{b.label}</span><span className="shrink-0 tabular-nums text-text-muted">{b.value}%{b.note ? ` of ${b.note}` : ""}</span></div>}
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-warm"><div className="h-full rounded-full bg-accent" style={{ width: `${w}%` }} /></div>
+              {!multi && b.label && <div className={`${META} mt-1.5`}>{b.label}</div>}
             </div>
           );
         })}
@@ -343,10 +343,10 @@ export function FindingVisual({ visual }: { visual: Finding["visual"] }) {
     const shade = (i: number) => i === 0 ? "var(--color-accent)" : `color-mix(in srgb, var(--color-accent) ${Math.max(18, 70 - i * 18)}%, var(--color-border))`;
     return (
       <div data-testid="visual-split">
-        <div className="flex h-4 w-full overflow-hidden rounded-full bg-surface-warm">
+        <div className="flex h-2 w-full overflow-hidden rounded-full bg-surface-warm">
           {parts.map((p, i) => <div key={p.key + i} style={{ width: `${(p.value / total) * 100}%`, background: shade(i) }} title={`${p.label}: ${p.value}`} />)}
         </div>
-        <div className="mt-2 space-y-1.5 text-[13px] text-text-secondary">
+        <div className="mt-2 space-y-1.5 text-[12px] text-text-secondary">
           {parts.map((p, i) => {
             const names = namesFor(p.key);
             return (
@@ -382,18 +382,18 @@ function Receipts({ receipts, onReceipt }: { receipts: Receipt[]; onReceipt: (ts
   if (!receipts.length) return null;
   return (
     <div className="mt-6">
-      <h3 className="mb-2 text-[15px] font-semibold text-text-primary">Receipts</h3>
-      <ul className="space-y-2">
+      <h3 className={`${SECTION_TITLE} mb-1`}>Receipts</h3>
+      <ul className="divide-y divide-border-subtle">
         {receipts.slice(0, 5).map((r, i) => (
           <li key={`${r.ts}-${i}`}>
             <button onClick={() => onReceipt(r.ts)} aria-label={`Open prompt from ${fmtDate(r.ts)}`}
-              className="group w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-left hover:border-accent-border">
+              className="group w-full py-2 text-left">
               <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
                 <span className="tabular-nums">{fmtDate(r.ts)}</span><span>{toolLabel(r.tool)}</span>
                 <ProjectChip slug={r.project} title={r.project_title} />
                 <ArrowRight className="ml-auto h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
-              <div className="mt-1 line-clamp-2 text-[14px] leading-snug text-text-secondary">{r.text}</div>
+              <div title={r.text} className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-text-secondary group-hover:text-text-primary">{r.text}</div>
             </button>
           </li>
         ))}
@@ -405,28 +405,30 @@ function Receipts({ receipts, onReceipt }: { receipts: Receipt[]; onReceipt: (ts
 const btn = "inline-flex items-center justify-center gap-2 rounded-lg text-[14px] font-medium transition-colors disabled:opacity-60";
 const btnPrimary = `${btn} bg-accent text-background hover:bg-accent-hover`;
 const btnGhost = `${btn} border border-border bg-background text-text-secondary hover:border-accent-border hover:text-accent`;
+// Secondary actions read as quiet text links, never a second bordered button.
+const linkQuiet = "inline-flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text-primary disabled:opacity-50";
 
 // One repeated instruction: confirm it as a standing rule, editing the words first.
 function RuleItem({ item, big, onConfirm }: { item: FindingItem; big: boolean; onConfirm: (text: string) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(item.rule_text || item.label);
   const [busy, setBusy] = useState(false);
-  const h = big ? "h-12 px-5" : "h-9 px-3.5";
+  const h = big ? "h-11 px-5" : "h-8 px-3";
   return (
-    <li className="flow-root rounded-lg border border-border-subtle bg-background px-3.5 py-3" data-testid="rule-item">
-      {!editing && <RowActions><RowAction icon={Sparkles} label="Make it a rule" onClick={() => setEditing(true)} testId="make-rule" /></RowActions>}
-      <span className="text-[15px] text-text-primary">{item.label}</span>
-      {item.count != null && <span className="ml-2 text-[13px] tabular-nums text-text-muted">said {item.count} times</span>}
+    <li className="group flow-root py-2.5" data-testid="rule-item">
+      {!editing && <RowActions><span className={REVEAL}><RowAction icon={Sparkles} label="Make it a rule" onClick={() => setEditing(true)} testId="make-rule" /></span></RowActions>}
+      <span className={`${ROW_TITLE} font-normal`}>{item.label}</span>
+      {item.count != null && <span className={`${META} ml-2 tabular-nums`}>said {item.count} times</span>}
       {editing && (
         <div className="mt-3">
-          <label className="mb-1 block text-[13px] text-text-muted" htmlFor={`rule-${item.id}`}>The rule, in your words</label>
+          <label className={`${META} mb-1 block`} htmlFor={`rule-${item.id}`}>The rule, in your words</label>
           <textarea id={`rule-${item.id}`} value={text} onChange={(e) => setText(e.target.value)} rows={2}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[15px] text-text-primary focus:border-accent-border focus:outline-none" />
-          <div className="mt-2 flex flex-wrap gap-2">
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[14px] text-text-primary focus:border-accent-border focus:outline-none" />
+          <div className="mt-2 flex flex-wrap items-center gap-4">
             <button disabled={busy || !text.trim()} onClick={async () => { setBusy(true); try { await onConfirm(text.trim()); } finally { setBusy(false); } }} className={`${btnPrimary} ${h}`}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}Save rule
             </button>
-            <button onClick={() => setEditing(false)} className={`${btnGhost} ${h}`}>Cancel</button>
+            <button onClick={() => setEditing(false)} className={linkQuiet}>Cancel</button>
           </div>
         </div>
       )}
@@ -445,30 +447,30 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
   const acts = f.actions ?? [];
   const isRules = f.kind === "repeated_rules" || acts.includes("rule");
   const isLoops = f.kind === "open_loops" || acts.includes("resume") || acts.includes("let_go");
-  const h = phone ? "h-12 px-5 text-[15px]" : "h-10 px-4";
+  const h = phone ? "h-11 px-5" : "h-8 px-3";
   return (
-    <article data-testid="featured-finding" className={`rounded-2xl border border-border-subtle bg-surface transition-all duration-300 ${leaving ? "translate-y-2 opacity-0" : "opacity-100"} ${phone ? "p-5" : "p-8"}`}>
-      <h2 className="text-[15px] font-semibold leading-snug text-text-primary">{f.headline}</h2>
-      <p className="mt-3 text-[14px] leading-normal text-text-secondary">{f.detail}</p>
+    <article data-testid="featured-finding" className={`transition-all duration-300 ${leaving ? "translate-y-2 opacity-0" : "opacity-100"}`}>
+      <h2 className={CARD_HEADLINE}>{f.headline}</h2>
+      <p className={`${BODY} mt-1.5 text-text-secondary`}>{f.detail}</p>
       {/* A list visual repeats the item rows below it; draw it only when there are no rows. */}
-      {!((isRules || isLoops) && f.visual?.type === "list" && items.length > 0) && <div className="mt-6"><FindingVisual visual={f.visual} /></div>}
+      {!((isRules || isLoops) && f.visual?.type === "list" && items.length > 0) && <div className="mt-4"><FindingVisual visual={f.visual} /></div>}
 
       {isRules && items.length > 0 && (
-        <ul className="mt-6 space-y-2">
+        <ul className="mt-4 divide-y divide-border-subtle">
           {items.map((it) => <RuleItem key={it.id} item={it} big={phone} onConfirm={async (rule) => { await onVerdict("true", { item: it.id, rule }); drop(it.id); }} />)}
         </ul>
       )}
       {isLoops && items.length > 0 && (
-        <ul className="mt-6 space-y-2">
+        <ul className="mt-4 divide-y divide-border-subtle">
           {items.map((it) => (
-            <li key={it.id} className="flow-root rounded-lg border border-border-subtle bg-background px-3.5 py-3" data-testid="loop-item">
-              <RowActions>
+            <li key={it.id} className="group flow-root py-2.5" data-testid="loop-item">
+              <RowActions><span className={`flex items-center gap-0.5 ${REVEAL}`}>
                 <RowAction icon={Play} label="Resume" onClick={async () => { await onVerdict("resume", { item: it.id }); drop(it.id); if (it.project) onProject(it.project); }} testId="loop-resume" />
                 <RowAction icon={PauseCircle} label="Let go" onClick={async () => { await onVerdict("let_go", { item: it.id }); drop(it.id); }} testId="loop-letgo" />
                 {it.project && <RowAction icon={RotateCcw} label="Replay the project" onClick={() => onProject(it.project!)} testId="loop-replay" />}
-              </RowActions>
-              <span className="text-[15px] text-text-primary">{it.label}</span>
-              {it.count != null && it.count > 0 && <span className="ml-2 text-[13px] tabular-nums text-text-muted">{it.count} prompts</span>}
+              </span></RowActions>
+              <span className={`${ROW_TITLE} font-normal`}>{it.label}</span>
+              {it.count != null && it.count > 0 && <span className={`${META} ml-2 tabular-nums`}>{it.count} prompts</span>}
             </li>
           ))}
         </ul>
@@ -476,10 +478,10 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
 
       {!phone && <Receipts receipts={f.receipts ?? []} onReceipt={onReceipt} />}
 
-      <div className={`mt-7 flex flex-wrap gap-2 ${phone ? "[&>button]:flex-1" : ""}`}>
+      <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2">
         {!isRules && !isLoops && <button onClick={() => void onVerdict("true", { whole: true })} className={`${btnPrimary} ${h}`}><Check className="h-4 w-4" />That's true</button>}
-        <button onClick={() => void onVerdict("not_really", { whole: true })} className={`${btnGhost} ${h}`}><ThumbsDown className="h-4 w-4" />Not really</button>
-        <button onClick={() => void onVerdict("later", { whole: true })} className={`${btnGhost} ${h}`}><Clock className="h-4 w-4" />Later</button>
+        <button onClick={() => void onVerdict("not_really", { whole: true })} className={linkQuiet}><ThumbsDown className="h-3.5 w-3.5" />Not really</button>
+        <button onClick={() => void onVerdict("later", { whole: true })} className={linkQuiet}><Clock className="h-3.5 w-3.5" />Later</button>
       </div>
       {phone && <Receipts receipts={(f.receipts ?? []).slice(0, 3)} onReceipt={onReceipt} />}
     </article>
@@ -488,10 +490,12 @@ function FeaturedFinding({ f, phone, leaving, onVerdict, onReceipt, onProject }:
 
 function QuietCard({ f, onOpen }: { f: Finding; onOpen: () => void }) {
   return (
-    <button onClick={onOpen} data-testid="quiet-finding" className="flex h-full w-full flex-col rounded-xl border border-border-subtle bg-surface p-5 text-left hover:border-accent-border">
-      <div className="text-[15px] font-semibold leading-snug text-text-primary">{f.headline}</div>
-      <div className="mt-2 line-clamp-2 text-[14px] leading-snug text-text-muted">{f.detail}</div>
-      <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-accent">Look closer <ArrowRight className="h-3.5 w-3.5" /></span>
+    <button onClick={onOpen} data-testid="quiet-finding" title={f.detail} className="group flex w-full items-start gap-3 py-3 text-left">
+      <span className="min-w-0 flex-1">
+        <span className={`${ROW_TITLE} line-clamp-2 group-hover:text-accent`}>{f.headline}</span>
+        <span className={`${META} mt-0.5 line-clamp-1`}>{f.detail}</span>
+      </span>
+      <ArrowRight className={`mt-1 h-3.5 w-3.5 shrink-0 text-text-muted ${REVEAL}`} aria-label="Look closer" />
     </button>
   );
 }
@@ -599,9 +603,9 @@ function PeriodHeading({ label, line, lineBusy, totals, right }: { label: string
         <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`} data-testid="period-title">{label}</h2>
         {right}
       </div>
-      {line ? <p className="mt-2 text-[15px] leading-snug text-text-secondary" data-testid="period-line">{line}</p>
-        : lineBusy ? <p className="mt-2 inline-flex items-center gap-2 text-[15px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading what you were after</p> : null}
-      <div className="mt-2 text-[13px] text-text-muted">{nPrompts(totals.prompts)} in {nSittings(totals.sittings)}</div>
+      {line ? <p className={`${BODY} mt-1.5 text-text-secondary`} data-testid="period-line">{line}</p>
+        : lineBusy ? <p className={`${META} mt-1.5 inline-flex items-center gap-2`}><Loader2 className="h-3.5 w-3.5 animate-spin" />Reading what you were after</p> : null}
+      <div className={`${META} mt-1`}>{nPrompts(totals.prompts)} in {nSittings(totals.sittings)}</div>
     </header>
   );
 }
@@ -611,26 +615,26 @@ function SpentOn({ projects, title, onProject }: { projects: PeriodProject[]; ti
   const max = Math.max(1, ...projects.map((p) => p.prompts));
   return (
     <section className="mb-8" data-testid="spent-on">
-      <h3 className="text-[15px] font-semibold text-text-primary mb-3">{title}</h3>
-      <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface">
+      <h3 className={`${SECTION_TITLE} mb-1`}>{title}</h3>
+      <ul className="divide-y divide-border-subtle">
         {projects.slice(0, 8).map((p) => {
           const row = (
             <>
-              <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-text-primary">{p.title}</span>
-              <span className="hidden h-2 w-32 overflow-hidden rounded-full bg-surface-warm sm:block" aria-hidden><span className="block h-full rounded-full bg-accent" style={{ width: `${Math.max(6, (p.prompts / max) * 100)}%` }} /></span>
-              <span className="w-40 shrink-0 text-right text-[13px] tabular-nums text-text-muted max-sm:w-auto">{nPrompts(p.prompts)}, {nSittings(p.sittings)}</span>
+              <span title={p.title} className={`${ROW_TITLE} min-w-0 flex-1 truncate`}>{p.title}</span>
+              <span className="hidden h-1.5 w-32 overflow-hidden rounded-full bg-surface-warm sm:block" aria-hidden><span className="block h-full rounded-full bg-accent" style={{ width: `${Math.max(6, (p.prompts / max) * 100)}%` }} /></span>
+              <span className={`${META} w-40 shrink-0 text-right tabular-nums max-sm:w-auto`}>{nPrompts(p.prompts)}, {nSittings(p.sittings)}</span>
             </>
           );
           return (
             <li key={p.slug || "other"}>
               {p.slug ? (
-                <button onClick={() => onProject(p.slug)} title={`Open ${p.title} in Prompt projects`} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-warm/60">{row}</button>
-              ) : <div className="flex items-center gap-3 px-4 py-3">{row}</div>}
+                <button onClick={() => onProject(p.slug)} title={`Open ${p.title} in Prompt projects`} className="flex w-full items-center gap-3 py-2.5 text-left hover:[&>span:first-child]:text-accent">{row}</button>
+              ) : <div className="flex items-center gap-3 py-2.5">{row}</div>}
             </li>
           );
         })}
       </ul>
-      {projects.length > 8 && <div className="mt-2 text-[13px] text-text-muted">and {projects.length - 8} more</div>}
+      {projects.length > 8 && <div className={`${META} mt-2`}>and {projects.length - 8} more</div>}
     </section>
   );
 }
@@ -656,17 +660,17 @@ function Findings({ findings, phone, onVerdict, onReceipt, onProject }: {
     setTimeout(() => { setDone((d) => new Set(d).add(f.id)); setLeaving(null); setFeaturedId(null); }, 280);
   };
   return (
-    <div className="space-y-4">
+    <div>
       <FeaturedFinding key={featured.id} f={featured} phone={phone} leaving={leaving === featured.id}
         onVerdict={(v, o) => verdict(featured, v, o)} onReceipt={onReceipt} onProject={onProject} />
       {phone ? shown.length > 1 && (
-        <div className="flex items-center gap-2">
-          <button aria-label="Previous finding" disabled={idx <= 0} onClick={() => setFeaturedId(shown[idx - 1]?.id ?? null)} className={`${btnGhost} h-12 w-12`}><ArrowLeft className="h-5 w-5" /></button>
-          <span className="flex-1 text-center text-[14px] tabular-nums text-text-muted">{idx + 1} of {shown.length}</span>
-          <button aria-label="Next finding" disabled={idx >= shown.length - 1} onClick={() => setFeaturedId(shown[idx + 1]?.id ?? null)} className={`${btnGhost} h-12 w-12`}><ArrowRight className="h-5 w-5" /></button>
+        <div className="mt-5 flex items-center gap-2">
+          <button aria-label="Previous finding" disabled={idx <= 0} onClick={() => setFeaturedId(shown[idx - 1]?.id ?? null)} className={`${btnGhost} h-11 w-11`}><ArrowLeft className="h-5 w-5" /></button>
+          <span className={`${META} flex-1 text-center tabular-nums`}>{idx + 1} of {shown.length}</span>
+          <button aria-label="Next finding" disabled={idx >= shown.length - 1} onClick={() => setFeaturedId(shown[idx + 1]?.id ?? null)} className={`${btnGhost} h-11 w-11`}><ArrowRight className="h-5 w-5" /></button>
         </div>
       ) : rest.length > 0 && (
-        <div className="space-y-3">
+        <div className="mt-6 divide-y divide-border-subtle border-t border-border-subtle">
           {rest.map((f) => <QuietCard key={f.id} f={f} onOpen={() => setFeaturedId(f.id)} />)}
         </div>
       )}
@@ -678,24 +682,24 @@ function LetterBlock({ letter, status, busy, current, onLastWeek }: { letter: Fi
   const [open, setOpen] = useState(true);
   if (letter) {
     return (
-      <section className="mb-8 rounded-2xl border border-accent-border bg-accent-soft/30 p-5 sm:p-6" data-testid="letter">
-        <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-2.5 text-left">
-          <BookOpen className="h-5 w-5 shrink-0 text-accent" />
-          <span className="text-[15px] font-semibold leading-snug text-text-primary min-w-0 flex-1">{letter.title}</span>
-          {open ? <ChevronUp className="h-5 w-5 text-text-muted" /> : <ChevronDown className="h-5 w-5 text-text-muted" />}
+      <section className="mb-8 border-l-2 border-accent-border pl-4" data-testid="letter">
+        <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-2 text-left">
+          <BookOpen className="h-4 w-4 shrink-0 text-accent" />
+          <span className={`${CARD_HEADLINE} min-w-0 flex-1`}>{letter.title}</span>
+          {open ? <ChevronUp className="h-4 w-4 text-text-muted" /> : <ChevronDown className="h-4 w-4 text-text-muted" />}
         </button>
-        {open && <div className="mt-3 text-[14px] leading-normal text-text-secondary"><Markdown source={letter.markdown} /></div>}
+        {open && <div className={`${BODY} mt-2 text-text-secondary`}><Markdown source={letter.markdown} /></div>}
       </section>
     );
   }
   if (status === "missing" && busy) {
-    return <div className="mb-8 inline-flex items-center gap-2 text-[15px] text-text-muted" data-testid="letter-writing"><Loader2 className="h-4 w-4 animate-spin" />Writing the letter for this week</div>;
+    return <div className={`${META} mb-8 inline-flex items-center gap-2`} data-testid="letter-writing"><Loader2 className="h-3.5 w-3.5 animate-spin" />Writing the letter for this week</div>;
   }
   if (current) {
     return (
-      <div className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-text-muted" data-testid="letter-not-yet">
+      <div className={`${META} mb-8 flex flex-wrap items-center gap-x-3 gap-y-1`} data-testid="letter-not-yet">
         <span>The letter for this week is written once it ends.</span>
-        {onLastWeek && <button onClick={onLastWeek} className="inline-flex items-center gap-1 font-medium text-accent hover:underline"><BookOpen className="h-4 w-4" />Read last week's letter</button>}
+        {onLastWeek && <button onClick={onLastWeek} className="inline-flex items-center gap-1 font-medium text-accent hover:underline"><BookOpen className="h-3.5 w-3.5" />Read last week's letter</button>}
       </div>
     );
   }
@@ -770,7 +774,7 @@ function NoticedView({ readiness, vaultPath, phone, periods, sel, onSelect, onRe
     catch (e) { setErr(String(e)); return false; }
   };
 
-  if (loading && !doc) return <div className={phone ? "p-4 text-[15px] text-text-muted" : "px-8 py-8 text-[15px] text-text-muted"}>Looking back over this {sel.kind}...</div>;
+  if (loading && !doc) return <div className={`${META} ${phone ? "p-4" : "px-8 py-8"}`}>Looking back over this {sel.kind}...</div>;
   if (!doc) return <div className="p-8 text-[14px] text-err">{err ?? "Could not read this period."}</div>;
 
   const weekIdx = periods.weeks.findIndex((w) => w.week === doc.period.week);
@@ -778,8 +782,8 @@ function NoticedView({ readiness, vaultPath, phone, periods, sel, onSelect, onRe
   const shown = visibleFindings({ generated_ts: 0, letter: null, findings: doc.findings });
   const refreshBtn = (
     <button onClick={() => void refresh()} disabled={refreshing} title={doc.current ? "Read your prompts again and redo the findings" : "Rewrite this week's letter and lines"}
-      className={`${btnGhost} h-10 px-4`}>
-      {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{refreshing ? "Refreshing" : "Refresh"}
+      aria-label="Refresh" className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-strong hover:text-text-primary disabled:opacity-50">
+      {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
     </button>
   );
 
@@ -793,17 +797,17 @@ function NoticedView({ readiness, vaultPath, phone, periods, sel, onSelect, onRe
       )}
       <SpentOn projects={doc.projects} title={doc.period.kind === "day" ? "What the day went to" : "What the week went to"} onProject={onProject} />
       <section>
-        <h3 className="text-[15px] font-semibold text-text-primary mb-3">Noticed</h3>
+        <h3 className={`${SECTION_TITLE} mb-2`}>Noticed</h3>
         {shown.length ? (
           <Findings key={`${doc.period.kind}:${doc.period.key}`} findings={doc.findings} phone={phone} onVerdict={verdict} onReceipt={onReceipt} onProject={onProject} />
         ) : (
-          <div className="rounded-2xl border border-dashed border-border bg-surface p-6 text-[14px] leading-normal text-text-secondary" data-testid="nothing-noticed">
+          <p className={`${META} leading-normal`} data-testid="nothing-noticed">
             {doc.totals.sittings ? `Nothing stood out this ${doc.period.kind}.` : `No prompts this ${doc.period.kind}.`}
             {doc.current && !doc.generated_ts && <> Intent reads every prompt you typed and points out what you might not see yourself: instructions you keep repeating, projects left open, where your hours really go.</>}
-          </div>
+          </p>
         )}
       </section>
-      <div className="mt-6 flex flex-wrap items-center gap-3 text-[13px] text-text-muted">
+      <div className={`${META} mt-6 flex flex-wrap items-center gap-3`}>
         {doc.generated_ts ? <span>Read {fmtDate(doc.generated_ts)}</span> : null}
         {phone && refreshBtn}
         {err && <span className="text-err">{err}</span>}
@@ -824,7 +828,7 @@ export function PromptText({ p, focused, phone }: { p: HistPrompt; focused: bool
   const long = p.text.length > (phone ? LONG_CHARS / 2 : LONG_CHARS) || p.text.split("\n").length > (phone ? LONG_LINES / 2 : LONG_LINES);
   const [open, setOpen] = useState(false);
   return (
-    <div data-prompt-ts={p.ts} className={`group flex gap-2 rounded-lg px-3 py-2 ${phone ? "flex-wrap" : ""} ${focused ? "bg-accent-soft ring-1 ring-accent-border" : "hover:bg-surface-warm/60"}`}>
+    <div data-prompt-ts={p.ts} className={`group flex gap-2 rounded-md px-3 py-1.5 ${phone ? "flex-wrap" : ""} ${focused ? "bg-accent-soft ring-1 ring-accent-border" : "hover:bg-surface-warm/60"}`}>
       <span className={`shrink-0 pt-0.5 text-[12px] tabular-nums text-text-muted ${phone ? "order-first basis-[calc(100%-2.5rem)]" : "w-16"}`}>{fmtTime(p.ts)}</span>
       <div className={`min-w-0 flex-1 ${phone ? "order-last basis-full" : ""}`}>
         <div className={`relative ${long && !open ? (phone ? "max-h-40 overflow-hidden" : "max-h-72 overflow-hidden") : ""}`}>
@@ -833,7 +837,7 @@ export function PromptText({ p, focused, phone }: { p: HistPrompt; focused: bool
         </div>
         {long && <button onClick={() => setOpen((o) => !o)} className="mt-1 text-[13px] font-medium text-accent hover:underline">{open ? "Show less" : "Show all"}</button>}
       </div>
-      <RowAction icon={ClipboardCopy} label="Copy prompt" doneLabel="Copied" onClick={() => navigator.clipboard.writeText(p.text)} testId="copy-prompt" />
+      <span className={REVEAL}><RowAction icon={ClipboardCopy} label="Copy prompt" doneLabel="Copied" onClick={() => navigator.clipboard.writeText(p.text)} testId="copy-prompt" /></span>
     </div>
   );
 }
@@ -841,15 +845,15 @@ export function PromptText({ p, focused, phone }: { p: HistPrompt; focused: bool
 function SittingCard({ s, focusTs, phone }: { s: Sitting; focusTs: number | null; phone: boolean }) {
   const same = fmtDate(s.start_ts) === fmtDate(s.end_ts);
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface" data-testid="sitting">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2.5">
-        <span className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-text-primary"><Terminal className="h-4 w-4 text-accent" />{toolLabel(s.tool)}</span>
+    <div className="border-t border-border-subtle pt-2" data-testid="sitting">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-1">
+        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-text-primary"><Terminal className="h-3.5 w-3.5 text-text-muted" />{toolLabel(s.tool)}</span>
         <ProjectChip slug={s.project} title={s.project_title} />
-        <span className="ml-auto text-[13px] tabular-nums text-text-muted">
+        <span className={`${META} ml-auto tabular-nums`}>
           {fmtDate(s.start_ts)}, {fmtTime(s.start_ts)} to {same ? "" : `${fmtDate(s.end_ts)}, `}{fmtTime(s.end_ts)}
         </span>
       </div>
-      <div className="space-y-0.5 p-1.5">
+      <div className="space-y-0.5">
         {s.prompts.map((p, i) => <PromptText key={`${p.ts}-${i}`} p={p} focused={focusTs === p.ts} phone={phone} />)}
       </div>
     </div>
@@ -905,7 +909,7 @@ function HistoryView({ vaultPath, phone, periods, sel, focus }: { vaultPath: str
   const label = day?.label ?? week?.label ?? sel.key;
   const line = (sel.kind === "day" ? day?.intent_line : week?.intent_line) ?? null;
   const nPromptsHere = sittings.reduce((a, s) => a + s.prompts.length, 0);
-  const sel2 = "h-10 rounded-lg border border-border bg-surface px-3 text-[14px] text-text-secondary focus:border-accent-border focus:outline-none";
+  const sel2 = "h-9 rounded-lg border border-border bg-surface px-3 text-[13px] text-text-secondary focus:border-accent-border focus:outline-none";
   const filtered = !!(qDebounced || tool || project);
 
   return (
@@ -915,7 +919,7 @@ function HistoryView({ vaultPath, phone, periods, sel, focus }: { vaultPath: str
         <label className="relative min-w-0 flex-1 basis-56">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search this ${sel.kind}`} aria-label="Search prompts"
-            className="h-10 w-full rounded-lg border border-border bg-surface pl-9 pr-3 text-[15px] text-text-primary focus:border-accent-border focus:outline-none" />
+            className="h-9 w-full rounded-lg border border-border bg-surface pl-9 pr-3 text-[14px] text-text-primary focus:border-accent-border focus:outline-none" />
         </label>
         <select aria-label="Tool" value={tool} onChange={(e) => setTool(e.target.value)} className={`${sel2} max-sm:flex-1`}>
           <option value="">All tools</option>
@@ -929,11 +933,9 @@ function HistoryView({ vaultPath, phone, periods, sel, focus }: { vaultPath: str
       {err && <div className="mb-3 text-[13px] text-err">{err}</div>}
       {loading && !doc ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-text-muted" /></div>
         : sittings.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-[15px] text-text-muted">
-            {filtered ? "No prompts match." : `No prompts this ${sel.kind}.`}
-          </div>
+          <p className={META}>{filtered ? "No prompts match." : `No prompts this ${sel.kind}.`}</p>
         ) : (
-          <div className="space-y-3">
+          <div>
             <VirtualRows items={sittings} estimate={160} gap={12} getKey={(s) => s.id}
               focusIndex={focusTs == null ? null : sittings.findIndex((s) => s.prompts.some((p) => p.ts === focusTs))}
               render={(s) => <SittingCard key={s.id} s={s} focusTs={focusTs} phone={phone} />} />
