@@ -55,7 +55,8 @@ async function noOverflow(page: Page) {
     const vw = document.documentElement.clientWidth;
     return [...document.querySelectorAll("[data-testid]")].filter((e) => {
       const r = (e as HTMLElement).getBoundingClientRect();
-      return r.width > 0 && (r.right > vw + 1 || r.left < -1);
+      // A row that scrolls on its own (a tab row on a phone) may hold items past the edge.
+      return r.width > 0 && (r.right > vw + 1 || r.left < -1) && !(e as HTMLElement).closest("[data-scroll-x]");
     }).map((e) => (e as HTMLElement).dataset.testid).slice(0, 5);
   });
   expect(over).toEqual([]);
