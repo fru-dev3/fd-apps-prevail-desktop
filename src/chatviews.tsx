@@ -2,8 +2,8 @@
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
 import { JobCard } from "./jobcard";
 import { BringInCard, DomainMissions, MissionStartCard } from "./missioncards";
-import { filedIdOf, jobIdOf } from "./plansmodel";
-import { DecisionOfferCard, FiledCard } from "./filedcard";
+import { filedIdOf, jobIdOf, toldIdOf } from "./plansmodel";
+import { DecisionOfferCard, FiledCard, ToldCard } from "./filedcard";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ReplyApps } from "./chatrefs";
 import { AcrossCard, TouchedLine } from "./linking";
@@ -450,8 +450,10 @@ export function ChatBubble({
             msg.role === "assistant" ? (() => {
               const showThinking = getPref(PREF.showThinking, "1") === "1";
               // The gate's approval marker is for the app, not the reader.
-              const fid = msg.filed?.id ?? filedIdOf(msg.content);
-              const body0 = fid ? msg.content.replace(/\s*\[filed:[A-Za-z0-9_-]+\]\s*$/, "") : msg.content;
+              const tid = msg.told?.id ?? toldIdOf(msg.content);
+              const content0 = tid ? msg.content.replace(/\s*\[told:[A-Za-z0-9_-]+\]\s*$/, "") : msg.content;
+              const fid = msg.filed?.id ?? filedIdOf(content0);
+              const body0 = fid ? content0.replace(/\s*\[filed:[A-Za-z0-9_-]+\]\s*$/, "") : content0;
               const jid = msg.jobId ?? jobIdOf(body0);
               const { thinking, answer } = splitThinking(stripActMarkers(jid ? body0.replace(/\s*\[job:[A-Za-z0-9_-]+\]\s*$/, "") : body0));
               return (
@@ -460,6 +462,7 @@ export function ChatBubble({
                   {answer ? (msg.streaming ? <StreamingPlain source={answer} /> : <Markdown source={answer} />) : (!thinking && msg.streaming ? <ThinkingDots /> : null)}
                   {jid && <JobCard id={jid} />}
                   {fid && <FiledCard id={fid} filed={msg.filed} />}
+                  {tid && <ToldCard id={tid} told={msg.told} />}
                   {msg.decisionOffer && <DecisionOfferCard offer={msg.decisionOffer} />}
                 </>
               );

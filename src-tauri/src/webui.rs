@@ -162,6 +162,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_story",
     // Time against values is read on the phone; approving a hold stays on the Mac.
     "engine_time",
+    // Telling the chief of staff anything is the phone's capture surface (a
+    // receipt and Undo, like a Today tap); the list and the open loops are read.
+    "engine_tell", "engine_tell_undo", "engine_told", "engine_forgetting",
     // The stack and the sources are read on the phone; probes, answers,
     // mapping, consent and syncs stay on the Mac.
     "engine_apps_stack", "engine_apps_unknown", "engine_sources",

@@ -341,6 +341,8 @@ export interface ChatMessage {
   // A commitment or waiting-for filed from this turn (the engine's `filed`
   // event, Today T2). The reply ends with "[filed:<id>]" so a saved thread keeps it.
   filed?: { id: string; kind: "commitment" | "waiting"; domain: string; text: string; due?: string; person?: string };
+  /** Today T6: anything told to the chief of staff and filed by code, with its id for Undo. */
+  told?: { id: string; kind: string; text: string; where: string; due?: string };
   // The user deliberated ("should I...?"): an offer to open a decision record (Today T4). Live only, never saved.
   decisionOffer?: { question: string; domain: string; due: string };
   // A mission turn reached outside the mission (the engine's `bring_in`

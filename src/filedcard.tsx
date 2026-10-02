@@ -75,3 +75,37 @@ export function DecisionOfferCard({ offer, vaultPath }: { offer: { question: str
     </div>
   );
 }
+
+/** Today T6: the receipt under a reply when something told to the chief of staff was filed by code; Undo takes exactly it out. */
+export function ToldCard({ id, told, vaultPath }: { id: string; told?: { id: string; kind: string; text: string; where: string; due?: string }; vaultPath?: string }) {
+  const vault = vaultPath ?? lsGet(LS.vault, "");
+  const q = useInvokeQuery<{ id: string; kind: string; text: string; where: string; due?: string; undone?: number }[]>("engine_told", told ? null : { vault }, { staleMs: 60_000 });
+  const t = told ?? (Array.isArray(q.data) ? q.data.find((x) => x.id === id) : undefined);
+  const [state, setState] = useState<"idle" | "busy" | "undone" | "error">("idle");
+  const gone = state === "undone" || (!told && !!(t as { undone?: number } | undefined)?.undone);
+  const undo = async () => {
+    setState("busy");
+    try { await invoke("engine_tell_undo", { vault, id }); invalidateQueries("engine_today"); invalidateQueries("engine_told"); setState("undone"); }
+    catch { setState("error"); }
+  };
+  return (
+    <div data-testid="told-card" className="mt-3 flex items-start gap-2.5 rounded-lg border border-border-subtle bg-background/40 px-3 py-2">
+      <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+      <div className="min-w-0 flex-1">
+        {gone ? <p className="text-[14px] text-text-muted">Undone.</p> : t ? (
+          <>
+            <p className="line-clamp-2 break-words text-[14px] font-medium text-text-primary">{t.text}</p>
+            <p className={`${META} truncate`}>{t.where}{t.due ? ` · due ${fmtDue(t.due)}` : ""}</p>
+          </>
+        ) : <p className="text-[14px] text-text-muted">Filed.</p>}
+        {state === "error" && <p className="text-[12px] text-err">Could not undo it.</p>}
+      </div>
+      {!gone && t && (
+        <button onClick={() => void undo()} disabled={state === "busy"} title="Undo" aria-label="Undo" data-testid="told-undo"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent disabled:opacity-40">
+          {state === "busy" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+        </button>
+      )}
+    </div>
+  );
+}

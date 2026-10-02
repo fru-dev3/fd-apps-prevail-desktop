@@ -11,6 +11,7 @@ import { fmtDue, label, openDecision, personName, radarGroups, type Radar, type 
 import { openMission } from "./missions";
 import { WHO5_ITEMS, WHO5_SCALE } from "./qualmodel";
 import { RowMenu } from "./ui";
+import { TellBox } from "./tellbox";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const iconSm = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -28,6 +29,7 @@ export function TodayHome({ vaultPath, phone, onAsk, fallback }: { vaultPath: st
   if (!t && !r) return <>{fallback}</>;
   return (
     <div data-testid="today-home" className={`mx-auto w-full max-w-3xl ${phone ? "px-4 py-4" : "px-6 py-8"}`}>
+      <TellBox vaultPath={vaultPath} surface={phone ? "phone" : "desktop"} />
       {t && <TodayCardView card={t} vaultPath={vaultPath} onChanged={() => void today.refresh()} />}
       {r && (r.due || !t) && <div className="mt-8"><ReviewCardView card={r} vaultPath={vaultPath} onAsk={onAsk} onChanged={() => { invalidateQueries("engine_review"); void review.refresh(); }} /></div>}
     </div>

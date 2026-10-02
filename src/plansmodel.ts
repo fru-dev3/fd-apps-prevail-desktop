@@ -188,6 +188,11 @@ export function fmtDue(due?: string, today = new Date().toISOString().slice(0, 1
 }
 
 /** The commitment a turn filed ("[filed:<id>]" at its end), if any. */
+/** The told receipt a saved reply carries ([told:<id>]), or null. */
+export function toldIdOf(text: string): string | null {
+  return /\[told:([A-Za-z0-9_-]+)\]\s*$/.exec(text)?.[1] ?? null;
+}
+
 export function filedIdOf(text: string): string | null {
   return /\[filed:([A-Za-z0-9_-]+)\]\s*$/.exec(text ?? "")?.[1] ?? null;
 }

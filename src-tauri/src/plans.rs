@@ -350,6 +350,36 @@ pub(crate) async fn engine_time_hold(vault: String, id: String, action: String) 
     blocking(v(&["--vault", &vault, "time", "hold", &act, ok_playbook(&id)?, "--json"])).await
 }
 
+// ── Today T6: tell the chief of staff anything ──
+
+/// File anything said (a task, a promise, a decision, a note...) where it belongs, with a receipt.
+#[tauri::command]
+pub(crate) async fn engine_tell(vault: String, text: String, surface: Option<String>, domain: Option<String>, mission: Option<String>) -> Result<serde_json::Value, String> {
+    let t: String = text.chars().filter(|c| !c.is_control() || *c == ' ').take(600).collect();
+    if t.trim().is_empty() { return Err("tell me something to file".into()); }
+    let s = one_of(surface.as_deref().unwrap_or("desktop"), &["desktop", "phone"])?.to_string();
+    let mut a = vec!["--vault".to_string(), vault, "tell".into(), "--text".into(), t, "--surface".into(), s, "--json".into()];
+    if let Some(d) = domain.filter(|d| !d.is_empty()) { a.push("--domain".into()); a.push(ok_playbook(&d)?.to_string()); }
+    if let Some(m) = mission.filter(|m| !m.is_empty()) { a.push("--mission".into()); a.push(ok_playbook(&m)?.to_string()); }
+    blocking(a).await
+}
+
+#[tauri::command]
+pub(crate) async fn engine_tell_undo(vault: String, id: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "tell", "undo", ok_playbook(&id)?, "--json"])).await
+}
+
+#[tauri::command]
+pub(crate) async fn engine_told(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "tell", "list", "--json"])).await
+}
+
+/// Every open loop across the vault.
+#[tauri::command]
+pub(crate) async fn engine_forgetting(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "forgetting", "--json"])).await
+}
+
 /// Playbook ids and domain slugs: a plain slug, nothing else.
 fn ok_playbook(s: &str) -> Result<&str, String> {
     let mut c = s.chars();
