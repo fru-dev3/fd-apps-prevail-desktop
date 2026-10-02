@@ -5,6 +5,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
+/** Today and the weekly review live in the Inbox's Briefing tab (Home is the chat). */
+async function openBriefing(page: Page, which: "today" | "week" = "today") {
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "inbox" })));
+  await page.getByTestId("tab-briefing").click({ timeout: 15_000 });
+  await page.getByTestId(`briefing-${which}`).click();
+  await page.getByTestId(which === "today" ? "today-card" : "review-card").waitFor({ timeout: 15_000 });
+}
+
+
 const N = (lo: number, hi: number) => ({ median: (lo + hi) / 2, lo, hi, weeks: 8, learning: false, learningWeeksLeft: 0 });
 const TIME = {
   thisWeek: { week: "2026-09-28", connected: true, hours: 11, meetings: 8, focus: 1, afterHours: 2, unlinked: 3, lines: ["You rank Family presence first; it got 18% of your calendar hours."],
@@ -36,6 +45,7 @@ async function setup(page: Page, width: number, review: unknown = REVIEW) {
 
 test("the weekly card's time: by value against rank, next week warned, a hold to approve, a decline to copy", async ({ page }) => {
   await setup(page, 1280);
+  await openBriefing(page, "week");
   const t = page.getByTestId("review-time");
   await expect(t).toBeVisible({ timeout: 15_000 });
   await expect(t).toContainText("11 h on the calendar · 8 h meetings · 1 h focus · 2 h after hours");
@@ -48,13 +58,14 @@ test("the weekly card's time: by value against rank, next week warned, a hold to
 
 test("no calendar and nothing to hold: the card stays quiet, no time block", async ({ page }) => {
   await setup(page, 1280, { ...REVIEW, time: { thisWeek: { week: "2026-09-28", connected: false, note: "No calendar is connected on this Mac (Google sign-in), so time by value waits for it.", hours: 0, meetings: 0, focus: 0, afterHours: 0, byValue: [], unlinked: 0, lines: [] }, warning: null, holds: [], declines: [] } });
-  await expect(page.getByTestId("review-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page, "week");
   await expect(page.getByTestId("review-time")).toHaveCount(0);
 });
 
 for (const width of [390, 768, 1280, 1920]) {
   test(`layout at ${width}: the time block fits`, async ({ page }) => {
     await setup(page, width);
+    await openBriefing(page, "week");
     await expect(page.getByTestId("review-time")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("review-time").scrollIntoViewIfNeeded();
     await noOverflow(page);

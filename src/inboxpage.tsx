@@ -7,7 +7,8 @@
 // Results (Specialists Phase 3): playbook runs the user did not start (a
 // loop's clock, a radar event) wait here until marked seen.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, CheckCheck, Inbox, Mail, Play, Repeat, ShieldAlert, Workflow, type LucideIcon } from "lucide-react";
+import { Bot, CalendarDays, CheckCheck, Inbox, Mail, Play, Repeat, ShieldAlert, Sun, Workflow, type LucideIcon } from "lucide-react";
+import { Briefing } from "./todaycard";
 import { DecisionInbox, type InboxCategory, type InboxRow } from "./decisioninbox";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
@@ -19,8 +20,9 @@ import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { useWaiting, type WaitingKind } from "./waiting";
 
-type Tab = InboxCategory | "results";
+type Tab = InboxCategory | "results" | "briefing";
 const TABS: { key: Tab; label: string }[] = [
+  { key: "briefing", label: "Briefing" },
   { key: "all", label: "All" },
   { key: "actions", label: "Actions" },
   { key: "google", label: "Google" },
@@ -50,13 +52,13 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
   // store before that.
   const waiting = useWaiting(vaultPath);
   const counts = useMemo(() => {
-    const c: Record<Tab, number> = { all: 0, actions: 0, google: 0, automations: 0, tasks: 0, results: resultRows.length };
+    const c: Record<Tab, number> = { briefing: 0, all: 0, actions: 0, google: 0, automations: 0, tasks: 0, results: resultRows.length };
     if (rows) for (const r of rows) { c[r.category]++; c.all++; }
     else for (const it of waiting.items) { c[KIND_CATEGORY[it.kind] ?? "actions"]++; c.all++; }
     c.all += resultRows.length;
     return c;
   }, [rows, waiting, resultRows.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tabs = TABS.filter((t) => t.key === "all" || t.key === tab || counts[t.key] > 0).map((t) => ({ id: t.key, label: t.label, count: counts[t.key] }));
+  const tabs = TABS.filter((t) => t.key === "briefing" || t.key === "all" || t.key === tab || counts[t.key] > 0).map((t) => ({ id: t.key, label: t.label, count: counts[t.key] }));
   const shown: Row[] = [...(rows ?? []), ...(rows ? resultRows : [])].filter((r) => tab === "all" || r.category === tab);
   const pickedResult = sel?.startsWith("result:") ? results.find((r) => `result:${r.runId}` === sel) ?? null : null;
   const pickTab = (k: Tab) => {
@@ -70,6 +72,21 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
     if (!phone) setSel(shown[0]?.id ?? null);
   }, [shown.map((r) => r.id).join("|"), phone]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [brief, setBrief] = useState<"today" | "week">("today");
+  const briefList = (
+    <nav className="space-y-0.5 p-2" aria-label="Briefings" data-testid="inbox-briefings">
+      {([["today", "Today", Sun], ["week", "This week", CalendarDays]] as const).map(([k, label, Icon]) => {
+        const on = brief === k && (!phone || picked);
+        return (
+          <button key={k} data-testid={`briefing-${k}`} aria-current={on ? "true" : undefined} onClick={() => { setBrief(k); setPicked(true); }}
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
+            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <span className={`truncate text-[14px] text-text-primary ${on ? "font-semibold" : ""}`}>{label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
   const list = (
     <nav className="space-y-0.5 p-2" aria-label="Waiting items" data-testid="inbox-items">
       {rows === null && <p className={`${META} px-2.5 py-2`}>Reading what is waiting</p>}
@@ -101,15 +118,16 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
         phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All items"
         detail={
           <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>
-            {pickedResult
+            {tab === "briefing" ? <Briefing which={brief} vaultPath={vaultPath} phone={phone} />
+              : pickedResult
               ? <><ResultDetail r={pickedResult} vaultPath={vaultPath} onSeen={() => { setSel(null); void resQ.refresh(); }} /><div hidden><DecisionInbox vaultPath={vaultPath} category="all" selected={null} onRows={onRows} /></div></>
               : <DecisionInbox vaultPath={vaultPath} category={tab === "results" ? "all" : tab} selected={tab === "results" ? null : sel} onRows={onRows} />}
           </div>
         }>
-        {list}
+        {tab === "briefing" ? briefList : list}
       </SideSpine>
       {/* On a phone's list the detail is not mounted, so this keeps the column fed. */}
-      {phone && !picked && <div hidden><DecisionInbox vaultPath={vaultPath} category={tab === "results" ? "all" : tab} selected={null} onRows={onRows} /></div>}
+      {phone && !picked && <div hidden><DecisionInbox vaultPath={vaultPath} category={tab === "results" || tab === "briefing" ? "all" : tab} selected={null} onRows={onRows} /></div>}
     </div>
   );
 }

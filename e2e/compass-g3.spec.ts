@@ -6,6 +6,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
+/** The weekly review lives in the Inbox's Briefing tab (Home is the chat). */
+async function openWeek(page: Page) {
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "inbox" })));
+  await page.getByTestId("tab-briefing").click({ timeout: 15_000 });
+  await page.getByTestId("briefing-week").click();
+}
+
 const CONFLICT = { key: "presence:g-a-p1|g-b-p1", kind: "presence", a: "g-a-p1", b: "g-b-p1", aTitle: "Foo consulting", bTitle: "Family dinners", question: "Foo consulting means away often, but Family dinners needs home evenings. Do them in sequence, change one, or accept the tension?", evidence: ["Foo consulting means away often", "Family dinners needs home evenings"], confidence: 0.8, asserted_by: "code" };
 const ROLLUP = {
   week: "2026-09-28", computed: 1,
@@ -126,6 +133,7 @@ for (const width of [390, 768, 1280, 1920]) {
 
     test("the weekly card's conflict line carries its evidence and Accept the tension", async ({ page }) => {
       await setup(page, width);
+      await openWeek(page);
       const c = page.getByTestId("review-conflict");
       await expect(c).toBeVisible({ timeout: 15_000 });
       await expect(c.getByTestId("review-conflict-evidence")).toContainText("Foo consulting means away often");

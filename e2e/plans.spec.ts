@@ -6,6 +6,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
+/** Today and the weekly review live in the Inbox's Briefing tab (Home is the chat). */
+async function openBriefing(page: Page, which: "today" | "week" = "today") {
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "inbox" })));
+  await page.getByTestId("tab-briefing").click({ timeout: 15_000 });
+  await page.getByTestId(`briefing-${which}`).click();
+  await page.getByTestId(which === "today" ? "today-card" : "review-card").waitFor({ timeout: 15_000 });
+}
+
+
 const TODAY = {
   date: "2026-10-02", generated: 1, calm: 3,
   items: [
@@ -97,6 +106,7 @@ async function noOverflow(page: Page) {
 
 test("Home is Today: three things with their thread, taps go to the engine; the weekly review takes the 1-5", async ({ page }) => {
   await setup(page, 1280);
+  await openBriefing(page);
   const card = page.getByTestId("today-card");
   await expect(card).toContainText("What matters today", { timeout: 15_000 });
   await expect(card.getByTestId("today-item")).toHaveCount(3);
@@ -112,6 +122,7 @@ test("Home is Today: three things with their thread, taps go to the engine; the 
   await page.getByRole("menuitem", { name: "Not important" }).click();
   await expect.poll(async () => (await calls(page, "engine_today_tap")).length).toBe(2);
   // The weekly review: lines, glance, a candidate, a metric proposal, the question, the 1-5.
+  await openBriefing(page, "week");
   const r = page.getByTestId("review-card");
   await expect(r).toContainText("Week of Sep 28");
   await expect(r).toContainText("Commits 40, above your normal");
@@ -134,7 +145,7 @@ test("without a Today card, Home keeps its greeting", async ({ page }) => {
 
 test("a job in chat: the card shows the team, then the result, Open page, and Undo on each filed line", async ({ page }) => {
   await setup(page, 1280);
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
   await fire(page, "prevail:open-domain", "insurance");
   const box = page.locator("[data-tour=composer] textarea").first();
   await expect(box).toBeVisible({ timeout: 10_000 });
@@ -161,7 +172,7 @@ test("a job in chat: the card shows the team, then the result, Open page, and Un
 
 test("a proposed job asks first: Start, Adjust inside the card, Not now", async ({ page }) => {
   await setup(page, 1280, { engine_job_show: { ...JOB_VIEW, job: { ...JOB, id: "b-job", status: "proposed", startsAlone: false, askReason: "over your limit of $1 and 10 minutes", result: undefined }, filed: [], body: "" }, engine_job_adjust: { ok: true }, engine_job_action: { ok: true } });
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
   await fire(page, "prevail:work-section", "specialists");
   await page.getByTestId("specialists-row-jobs:waiting").click();
   await page.getByTestId("job-row").first().getByRole("button").first().click();
@@ -179,7 +190,7 @@ test("a proposed job asks first: Start, Adjust inside the card, Not now", async 
 
 test("Specialists: families, a specialist's ceiling and notebooks, the chief of staff's setup", async ({ page }) => {
   await setup(page, 1280);
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
   await fire(page, "prevail:work-section", "specialists");
   await expect(page.getByTestId("specialists-page")).toBeVisible({ timeout: 10_000 });
   await page.getByTestId("specialists-row-spec:researcher").click();
@@ -208,7 +219,7 @@ test("Specialists: Edit saves the specialist in place; a ceiling raise asks firs
       : { spec: { ...spec, method: "1. Read the domain first.", never: "Guess a number." }, notebooks: [{ domain: "insurance", lines: 1, notes: true }] };
     fx.engine_specialist_save = (a: { confirmRaise?: boolean; edit: { ceiling?: string } }) => (a.edit.ceiling && !a.confirmRaise ? { ok: false, needsConfirm: true, error: "This raises Researcher's ceiling above read. Confirm to save." } : { ok: true });
   }, SPECIALISTS[0]);
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
   await fire(page, "prevail:work-section", "specialists");
   await page.getByTestId("specialists-row-spec:researcher").click();
   const d = page.getByTestId("specialist-detail");
@@ -244,7 +255,7 @@ test("Specialists: Edit saves the specialist in place; a ceiling raise asks firs
 
 test("Decisions: the gut call comes before the recommendation", async ({ page }) => {
   await setup(page, 1280);
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
   await page.getByTestId("app-sidebar").getByRole("button", { name: "Decisions" }).click();
   await page.getByTestId("decision-row").first().click();
   const d = page.getByTestId("decision-detail");
@@ -257,7 +268,7 @@ test("Decisions: the gut call comes before the recommendation", async ({ page })
 
 test("Insights > Metrics > Proposals: Track sends the answer", async ({ page }) => {
   await setup(page, 1280);
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
   await page.getByTestId("app-sidebar").getByRole("button", { name: "Insights" }).click();
   await page.getByTestId("tab-metrics").click();
   await page.getByTestId("metrics-row-proposals").click();
@@ -268,7 +279,7 @@ test("Insights > Metrics > Proposals: Track sends the answer", async ({ page }) 
 
 test("@ lists specialists; picking one hands the message to it", async ({ page }) => {
   await setup(page, 1280);
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
   await fire(page, "prevail:open-domain", "insurance");
   const box = page.locator("[data-tour=composer] textarea").first();
   await expect(box).toBeVisible({ timeout: 10_000 });
@@ -280,7 +291,7 @@ test("@ lists specialists; picking one hands the message to it", async ({ page }
 for (const width of [390, 768, 1280, 1920]) {
   test(`layout at ${width}: Today, the review card, a job card, Specialists and Decisions fit`, async ({ page }) => {
     await setup(page, width);
-    await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+    await openBriefing(page);
     await noOverflow(page);
     if (SHOTS) { await page.waitForTimeout(300); await page.screenshot({ path: `${SHOTS}/today-${width}.png`, fullPage: true }); }
     await fire(page, "prevail:work-section", "specialists");

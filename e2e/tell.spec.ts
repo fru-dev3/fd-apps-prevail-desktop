@@ -5,6 +5,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
+/** Today and the weekly review live in the Inbox's Briefing tab (Home is the chat). */
+async function openBriefing(page: Page, which: "today" | "week" = "today") {
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "inbox" })));
+  await page.getByTestId("tab-briefing").click({ timeout: 15_000 });
+  await page.getByTestId(`briefing-${which}`).click();
+  await page.getByTestId(which === "today" ? "today-card" : "review-card").waitFor({ timeout: 15_000 });
+}
+
+
 const TODAY = { date: "2026-10-02", generated: 1, calm: null, items: [], fallingBehind: null, decisionDue: null, yourDay: { connected: false, note: "No calendar is connected yet, so your day is not on the card." }, alsoDue: [], feedback: [], promises: [], added: [] };
 const FORGET = { count: 3, sections: [
   { title: "Promises you made", items: [{ text: "Send the foo photos to Sam", why: "due 2026-10-02", domain: "general" }] },
@@ -28,7 +37,7 @@ async function setup(page: Page, width: number) {
     engine_tell: { ok: true, told: { id: "tabc123", kind: "task", text: "Call the foo plumber", where: "Home's board, due 2026-10-02", due: "2026-10-02" }, reply: "Filed a task in Home's board, due 2026-10-02." },
   });
   await page.goto("/");
-  await expect(page.getByTestId("today-card")).toBeVisible({ timeout: 15_000 });
+  await openBriefing(page);
 }
 
 test("tell anything: filed with a receipt and Undo; what am I forgetting opens inline", async ({ page }) => {
