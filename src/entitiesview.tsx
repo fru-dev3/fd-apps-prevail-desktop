@@ -120,8 +120,8 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
   type Group = (typeof groups)[number];
   const shownOf = (g: Group) => (expanded.has(g.kind) || !!q.trim() ? g.items : g.items.slice(0, PER_GROUP));
   const groupHead = (g: Group) => (
-    <h2 className="mb-1 flex items-baseline gap-2 px-2.5 text-[15px] font-semibold text-text-primary">
-      {g.label}<span className="text-[13px] font-normal text-text-muted">{g.items.length}</span>
+    <h2 className="mb-1 flex items-baseline gap-2 px-2.5 text-[13px] font-semibold text-text-secondary">
+      {g.label}<span className="text-[12px] font-normal text-text-muted">{g.items.length}</span>
     </h2>
   );
   const moreBtn = (g: Group) => (
@@ -192,8 +192,8 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
       {!list && <div className="flex items-center gap-2 px-2 py-6 text-[14px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" />Reading your vault</div>}
       {list && groups.length === 0 && (
         <div className="px-2 py-8 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">{q || filter !== "all" ? "Nothing matches" : rel === "reference" ? "No references" : "No entities yet"}</p>
-          <p className="mt-1 text-[13px] text-text-muted">{q || filter !== "all" ? "Try another name or kind." : rel === "reference" ? "What only comes up in conversation, like the people in an essay, lands here." : "They appear as you chat, and as Intent reads your prompts."}</p>
+          <p className="text-[14px] font-medium text-text-primary">{q || filter !== "all" ? "Nothing matches" : rel === "reference" ? "No references" : "No entities yet"}</p>
+          <p className="mt-1 text-[12px] text-text-muted">{q || filter !== "all" ? "Try another name or kind." : rel === "reference" ? "What only comes up in conversation, like the people in an essay, lands here." : "They appear as you chat, and as Intent reads your prompts."}</p>
         </div>
       )}
       {flat.length > VIRTUAL_MIN
@@ -228,7 +228,7 @@ export function EntitiesView({ vaultPath, embedded = false }: { vaultPath: strin
     ? <DuplicatesPane vault={vaultPath} pairs={dups} onDone={dupDone} />
     : target
     ? <EntityDetailView key={`${target.kind}/${target.value}:${sel?.n ?? 0}`} vaultPath={vaultPath} target={target} />
-    : list && !phone ? <p className="text-[15px] text-text-muted">Pick someone or something on the left.</p> : null;
+    : list && !phone ? <p className="text-[13px] text-text-muted">Pick someone or something on the left.</p> : null;
 
   return (
     <div className={`flex ${embedded ? "min-h-0 flex-1" : "h-full min-h-0"} flex-col`} data-testid="entities-view">

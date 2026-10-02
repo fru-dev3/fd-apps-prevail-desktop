@@ -16,7 +16,8 @@ import { toast } from "./toast";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
-import { BODY, DETAIL_TITLE, META } from "./typescale";
+import { BODY, DETAIL_TITLE, META, ROW_TITLE } from "./typescale";
+import { REVEAL, RowMenu } from "./ui";
 import {
   ACTION_LABEL, HEALTH_LABEL, VERDICT_LABEL, activeShare, appsIn, healthTone, money, needsFda, stackSubtitle,
   type Stack, type StackApp, type StackCard, type UnknownSignal,
@@ -29,8 +30,8 @@ const TONE_DOT: Record<string, string> = { good: "bg-ok", warn: "bg-warn", bad: 
 export function HealthDot({ app }: { app: Pick<StackApp, "health"> }) {
   const tone = healthTone(app.health);
   return (
-    <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] text-text-secondary" data-testid="stack-health">
-      <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_DOT[tone]}`} aria-hidden />
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-text-muted" data-testid="stack-health">
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT[tone]}`} aria-hidden />
       <span className="truncate">{app.health ? HEALTH_LABEL[app.health] : "Not checked"}</span>
     </span>
   );
@@ -44,7 +45,7 @@ function UsageBar({ app }: { app: StackApp }) {
       <span className="h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-surface-warm" aria-hidden>
         <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.round(share * 100)}%` }} />
       </span>
-      <span className="text-[13px] tabular-nums text-text-secondary">{d} day{d === 1 ? "" : "s"}</span>
+      <span className="text-[12px] tabular-nums text-text-muted">{d} day{d === 1 ? "" : "s"}</span>
     </span>
   );
 }
@@ -54,26 +55,26 @@ function AppRow({ app, vaultPath, open, onToggle }: { app: StackApp; vaultPath: 
   const u = app.usage;
   const offboard = async () => {
     setBusy(true);
-    try { const r = await invoke<{ path?: string }>("engine_apps_offboard", { vault: vaultPath, id: app.id }); toast.success(`Drafted ${r?.path ?? "the checklist"}. Nothing was cancelled or sent.`); }
+    try { await invoke("engine_apps_offboard", { vault: vaultPath, id: app.id }); toast.success(`Drafted an offboarding checklist in ${app.name}'s notes. Nothing was cancelled or sent.`); }
     catch (e) { toast.error(String(e)); } finally { setBusy(false); }
   };
   const detail = (label: string, value: ReactNode) => (
-    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3"><span className="w-32 shrink-0 text-[13px] font-semibold text-text-secondary">{label}</span><span className={`${BODY} min-w-0 break-words text-text-secondary`}>{value}</span></div>
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3"><span className={`${META} w-28 shrink-0 sm:pt-px`}>{label}</span><span className={`${BODY} min-w-0 break-words text-text-secondary`}>{value}</span></div>
   );
   return (
     <li data-testid={`stack-row-${app.id}`} className="border-b border-border-subtle last:border-b-0">
       <button type="button" onClick={onToggle} aria-expanded={open} className="block w-full min-w-0 py-3 text-left hover:bg-surface-warm/40">
         <span className="flex min-w-0 items-center gap-3">
           {open ? <ChevronDown className="h-4 w-4 shrink-0 text-text-muted" /> : <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />}
-          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text-primary">{app.name}</span>
-          <span className="shrink-0 text-[15px] tabular-nums text-text-primary">{app.monthly !== null ? `${money(app.monthly)}/mo` : ""}</span>
-          <span className={`w-16 shrink-0 text-right text-[13px] font-semibold ${app.verdict === "keep" ? "text-text-muted" : app.verdict === "cancel" ? "text-err" : "text-warn"}`}>{VERDICT_LABEL[app.verdict]}</span>
+          <span title={app.name} className={`${ROW_TITLE} min-w-0 flex-1 truncate`}>{app.name}</span>
+          <span className="shrink-0 text-[14px] tabular-nums text-text-primary">{app.monthly !== null ? `${money(app.monthly)}/mo` : ""}</span>
+          <span className={`w-16 shrink-0 text-right text-[12px] font-medium ${app.verdict === "keep" ? "text-text-muted" : app.verdict === "cancel" ? "text-err" : "text-warn"}`}>{VERDICT_LABEL[app.verdict]}</span>
         </span>
-        <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1 pl-7">
+        <span className={`${META} mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 pl-7 tabular-nums`}>
           <UsageBar app={app} />
-          {u?.minutes_30d ? <span className="text-[13px] tabular-nums text-text-secondary">{u.minutes_30d} min</span> : null}
-          {app.value_multiple !== undefined && <span className="text-[13px] tabular-nums text-text-secondary">{app.value_multiple}x value</span>}
-          <HealthDot app={app} />
+          {u?.minutes_30d ? <><span aria-hidden>·</span><span>{u.minutes_30d} min</span></> : null}
+          {app.value_multiple !== undefined && <><span aria-hidden>·</span><span>{app.value_multiple}x value</span></>}
+          <span aria-hidden>·</span><HealthDot app={app} />
         </span>
       </button>
       {open && (
@@ -88,9 +89,9 @@ function AppRow({ app, vaultPath, open, onToggle }: { app: StackApp; vaultPath: 
           {app.price_up && detail("Price", `up from ${money(app.price_up.from)} to ${money(app.price_up.to)} on ${app.price_up.date}`)}
           {app.api_equivalent_month !== undefined && detail("AI use", `${money(app.api_equivalent_month)} at API prices this month${app.value_multiple !== undefined ? `, ${app.value_multiple}x what you pay` : ""}`)}
           {app.health && app.health !== "ok" && detail("Health", app.health_detail ?? HEALTH_LABEL[app.health])}
-          <div className="pt-1">
+          <div className="pt-1.5">
             <button type="button" onClick={() => void offboard()} disabled={busy || isBrowser()} data-testid="stack-offboard" title="Draft offboarding: a checklist and a message, never sent" aria-label={`Draft offboarding for ${app.name}`}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45">
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-45 disabled:no-underline">
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Draft offboarding
             </button>
           </div>
@@ -106,20 +107,21 @@ function CardRow({ card, vaultPath, onDone }: { card: StackCard; vaultPath: stri
     setBusy(a);
     try {
       const r = await invoke<{ draft?: string; archived?: string }>("engine_apps_card", { vault: vaultPath, key: card.key, answer: a });
-      if (r?.draft) toast.success(`Drafted ${r.draft}. Nothing was cancelled or sent.`);
-      else if (r?.archived) toast.success(`Moved to ${r.archived}`);
+      if (r?.draft) toast.success("Drafted the cancel steps in the app's notes. Nothing was cancelled or sent.");
+      else if (r?.archived) toast.success("Archived. It stays in the vault.");
       onDone();
     } catch (e) { toast.error(String(e)); } finally { setBusy(null); }
   };
   return (
-    <li data-testid="stack-card" data-kind={card.kind} className="flex items-start gap-3 border-b border-border-subtle py-3 last:border-b-0">
-      {card.urgent ? <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-err" /> : <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />}
+    <li data-testid="stack-card" data-kind={card.kind} className="group flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
+      {card.urgent ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-err" /> : <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />}
       <div className="min-w-0 flex-1">
-        <p className="break-words text-[15px] font-semibold text-text-primary">{card.title}</p>
-        <p className={`${META} mt-0.5 break-words`}>{card.why}</p>
+        <p title={card.title} className={`${ROW_TITLE} line-clamp-2 break-words`}>{card.title}</p>
+        <p title={card.why} className={`${META} mt-0.5 truncate`}>{card.why}</p>
       </div>
-      <span className="flex shrink-0 flex-wrap items-center justify-end gap-0.5">
-        {card.actions.map((a) => {
+      {/* Progressive reveal: the first answer on hover (always on touch), the rest in the menu. */}
+      <span className={`flex shrink-0 items-center gap-0.5 ${REVEAL}`}>
+        {card.actions.slice(0, 1).map((a) => {
           const Icon = ACTION_ICON[a] ?? Check;
           return (
             <button key={a} type="button" onClick={() => void answer(a)} disabled={!!busy || isBrowser()} title={ACTION_LABEL[a] ?? a} aria-label={`${ACTION_LABEL[a] ?? a}: ${card.title}`} data-testid={`card-${a}`} className={iconBtn}>
@@ -127,6 +129,7 @@ function CardRow({ card, vaultPath, onDone }: { card: StackCard; vaultPath: stri
             </button>
           );
         })}
+        {card.actions.length > 1 && <RowMenu items={card.actions.slice(1).map((a) => ({ icon: ACTION_ICON[a] ?? Check, label: ACTION_LABEL[a] ?? a, disabled: !!busy || isBrowser(), onClick: () => void answer(a) }))} />}
       </span>
     </li>
   );
@@ -141,13 +144,13 @@ function UnknownRow({ sig, apps, vaultPath, onDone }: { sig: UnknownSignal; apps
     catch (e) { toast.error(String(e)); } finally { setBusy(false); }
   };
   return (
-    <li data-testid="stack-unknown" className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle py-3 last:border-b-0">
+    <li data-testid="stack-unknown" className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle py-2.5 last:border-b-0">
       <div className="min-w-0 flex-1 basis-56">
-        <p className="break-all text-[15px] font-semibold text-text-primary">{sig.value}</p>
-        <p className={META}>{sig.kind}, {sig.days} day{sig.days === 1 ? "" : "s"}{sig.freq ? `, ${sig.freq}` : ""}, last {sig.last}</p>
+        <p title={sig.value} className={`${ROW_TITLE} truncate`}>{sig.value}</p>
+        <p className={META}>{sig.kind === "domain" ? "Website" : sig.kind === "merchant" ? "Card charge" : sig.kind} · {sig.days} day{sig.days === 1 ? "" : "s"}{sig.freq ? ` · ${sig.freq}` : ""} · last {sig.last}</p>
       </div>
       <select aria-label={`Which app is ${sig.value}`} data-testid="unknown-map" disabled={busy || isBrowser()} defaultValue="" onChange={(e) => void map(e.target.value)}
-        className="h-9 min-w-0 max-w-full rounded-md border border-border bg-background px-2 text-[14px] text-text-primary">
+        className="h-8 min-w-0 max-w-full rounded-md border border-border bg-background px-2 text-[13px] text-text-primary">
         <option value="">{sig.suggestion ? `Maybe ${sig.suggestion}` : "Which app is this?"}</option>
         {sig.suggestion && <option value={sig.suggestion}>{sig.suggestion}</option>}
         {apps.filter((a) => a.id !== sig.suggestion).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -186,7 +189,7 @@ export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: Rea
     <nav className="space-y-0.5 p-2" aria-label="Stack">
       {row("needs", "Needs you", Inbox, cards.length)}
       {row("all", "All apps", Layers, s?.apps.length ?? 0)}
-      <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Categories</div>
+      {(s?.categories ?? []).length > 0 && <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Categories</div>}
       {(s?.categories ?? []).map((c) => row(`cat:${c.id}`, c.title, Plug, c.count))}
       <div className="pt-2" />
       {row("unknown", "Unknown", HelpCircle, unknown.length)}
@@ -207,7 +210,7 @@ export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: Rea
       <h2 className={DETAIL_TITLE}>Needs you</h2>
       <p className={`${META} mt-1`}>Only a broken capture interrupts you; the rest waits here, in the weekly review and the monthly stack review.</p>
       {cards.length ? <ul className="mt-3 max-w-5xl">{cards.map((c) => <CardRow key={c.key} card={c} vaultPath={vaultPath} onDone={refresh} />)}</ul>
-        : <p className={`${BODY} mt-4 text-text-muted`}>Nothing needs you.</p>}
+        : <p className={`${META} mt-3`}>Nothing needs you.</p>}
     </section>
   );
   else if (sel === "unknown") body = (
@@ -215,7 +218,7 @@ export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: Rea
       <h2 className={DETAIL_TITLE}>Unknown</h2>
       <p className={`${META} mt-1`}>Signals that matched no app. Mapping one makes a rule on that app's record.</p>
       {unknown.length ? <ul className="mt-3 max-w-5xl">{unknown.map((u) => <UnknownRow key={`${u.kind}:${u.value}`} sig={u} apps={recordIds} vaultPath={vaultPath} onDone={refresh} />)}</ul>
-        : <p className={`${BODY} mt-4 text-text-muted`}>Every signal matched an app.</p>}
+        : <p className={`${META} mt-3`}>Every signal matched an app.</p>}
     </section>
   );
   else {

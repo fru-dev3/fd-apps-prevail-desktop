@@ -605,7 +605,9 @@ test("23 · Context: one click shows Memory, a Source file previews inline, the 
   await view.getByTestId("ctx-item-source/goals.md").click();
   await expect(view.getByTestId("ctx-preview")).toContainText("Ship the foo.");
   const folder = view.getByTestId("ctx-folder");
-  await expect(folder).toHaveText("tmp/smoke-vault");
+  // An icon, the path only on hover: no raw path on the page.
+  await expect(folder).toHaveAttribute("title", /\/tmp\/smoke-vault/);
+  await expect(view).not.toContainText("tmp/smoke-vault");
   await folder.click();
   await expect.poll(() => invokedCommands(page)).toContain("open_in_finder");
   const args = await page.evaluate(() =>

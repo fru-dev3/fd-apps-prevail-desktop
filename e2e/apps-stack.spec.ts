@@ -91,7 +91,10 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect(page.getByTestId("stack-card")).toHaveCount(3);
       await noOverflow(page);
       await shot(page, "stack-needs");
-      await page.getByTestId("stack-card").nth(1).getByTestId("card-cancel-steps").click();
+      // One answer shows on the row; the rest are in its menu.
+      await expect(page.getByTestId("stack-card").nth(1).getByTestId("card-keep")).toHaveCount(1);
+      await page.getByTestId("stack-card").nth(1).getByRole("button", { name: "More actions" }).click();
+      await page.getByRole("menuitem", { name: "Draft cancel steps" }).click();
       await expect.poll(() => calls(page, "engine_apps_card")).toEqual([{ vault: "/tmp/smoke-vault", key: "aaaaaaaaaaa2", answer: "cancel-steps" }]);
       if (phone) await page.getByRole("button", { name: "Stack", exact: true }).click();
       await page.getByTestId("stack-spine-all").click();

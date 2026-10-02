@@ -8,19 +8,14 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { toast } from "./toast";
-import { BODY, META, SECTION_TITLE } from "./typescale";
+import { BODY, META, ROW_TITLE } from "./typescale";
+import { Toggle as Switch } from "./ui";
 import { WAVE_LABEL, needsConfirm, sourceState, type SourceRow } from "./stackmodel";
 
-const chip = "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[12px] text-text-secondary";
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 
 function Toggle({ on, label, disabled, onChange }: { on: boolean; label: string; disabled?: boolean; onChange: () => void }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={onChange} data-testid="source-toggle"
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-45 ${on ? "bg-accent" : "bg-surface-strong"}`}>
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-[left] ${on ? "left-[22px]" : "left-0.5"}`} />
-    </button>
-  );
+  return <span data-testid="source-toggle" className="inline-flex"><Switch on={on} label={label} disabled={disabled} onChange={onChange} /></span>;
 }
 
 function SourceItem({ s, vaultPath, onChanged }: { s: SourceRow; vaultPath: string; onChanged: () => void }) {
@@ -38,21 +33,18 @@ function SourceItem({ s, vaultPath, onChanged }: { s: SourceRow; vaultPath: stri
     try { const r = await invoke<{ state?: string; note?: string }>("engine_source_sync", { vault: vaultPath, id: s.id }); toast.success(`${s.title}: ${r?.note ?? r?.state ?? "done"}`); onChanged(); }
     catch (e) { toast.error(String(e)); } finally { setBusy(null); }
   };
+  // One muted meta line: state, last read, and where it stays; no pills.
+  const state = sourceState(s);
+  const meta = [state, s.last_sync ? `last read ${s.last_sync.slice(0, 10)}` : "", s.localOnly ? "Stays on this Mac" : "", s.localModel ? "Local model" : "", s.fda && state !== "Needs Full Disk Access" ? "Needs Full Disk Access" : ""].filter(Boolean);
+  const warn = s.on && s.state !== "ok" && s.state !== "not synced yet";
   return (
-    <li data-testid={`consent-row-${s.id}`} className="border-b border-border-subtle py-3 last:border-b-0">
+    <li data-testid={`consent-row-${s.id}`} className="border-b border-border-subtle py-2.5 last:border-b-0">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <h3 className={SECTION_TITLE}>{s.title}</h3>
-            <span className={META}>{sourceState(s)}{s.last_sync ? `, last read ${s.last_sync.slice(0, 10)}` : ""}</span>
-          </div>
-          <p className={`${BODY} mt-0.5 break-words text-text-secondary`}>Reads {s.reads}. Never {s.never}.</p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {s.localOnly && <span className={chip}>Stays on this Mac</span>}
-            {s.localModel && <span className={chip}>Local model</span>}
-            {s.fda && <span className={chip}>Needs Full Disk Access</span>}
-          </div>
-          {s.note && s.on && <p className={`${META} mt-1 break-words`}>{s.note}</p>}
+          <p className={ROW_TITLE}>{s.title}</p>
+          <p className={`${META} mt-0.5`}>{meta.map((m, i) => <span key={m} className={i === 0 && warn ? "text-warn" : ""}>{i ? " · " : ""}{m}</span>)}</p>
+          <p className={`${META} mt-0.5 break-words`}>Reads {s.reads}. Never {s.never}.</p>
+          {s.note && s.on && <p className={`${META} mt-0.5 break-words`}>{s.note}</p>}
         </div>
         <span className="flex shrink-0 items-center gap-1">
           {s.on && s.wave >= 2 && (
@@ -64,12 +56,12 @@ function SourceItem({ s, vaultPath, onChanged }: { s: SourceRow; vaultPath: stri
         </span>
       </div>
       {asking && (
-        <div data-testid="source-confirm" className="mt-2 rounded-lg border border-accent-border bg-accent-soft p-3">
+        <div data-testid="source-confirm" className="mt-2 border-l-2 border-accent pl-3">
           <p className={`${BODY} break-words text-text-primary`}>Turn on {s.title} on this Mac? It reads {s.reads}. It never reads {s.never}.{s.localOnly ? " Its numbers stay on this Mac." : ""}</p>
           {s.connect && <p className={`${META} mt-1 break-words`}>Then: {s.connect}</p>}
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" onClick={() => void consent(true)} disabled={!!busy} data-testid="source-confirm-on" className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-[14px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-45">Turn it on</button>
-            <button type="button" onClick={() => setAsking(false)} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-[14px] text-text-secondary">Not now</button>
+          <div className="mt-2 flex flex-wrap items-center gap-4">
+            <button type="button" onClick={() => void consent(true)} disabled={!!busy} data-testid="source-confirm-on" className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-45">Turn it on</button>
+            <button type="button" onClick={() => setAsking(false)} className="text-[13px] text-text-muted hover:text-text-primary">Not now</button>
           </div>
         </div>
       )}
@@ -86,8 +78,8 @@ export function SourcesConsent({ vaultPath }: { vaultPath: string }) {
     <div data-testid="sources-consent" className="max-w-4xl">
       {!!q.error && <p className="text-[13px] text-err">Could not read the sources: {String(q.error)}</p>}
       {waves.map(({ w, rows: rs }) => (
-        <section key={w} className="mt-5">
-          <h3 className="text-[15px] font-semibold text-text-secondary">{WAVE_LABEL[w]}</h3>
+        <section key={w} className="mt-6 first:mt-3">
+          <h3 className="text-[13px] font-semibold text-text-secondary">{WAVE_LABEL[w]}</h3>
           <ul>{rs.map((s) => <SourceItem key={s.id} s={s} vaultPath={vaultPath} onChanged={changed} />)}</ul>
         </section>
       ))}
