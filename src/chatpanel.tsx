@@ -942,15 +942,19 @@ export function ChatPanel({
     window.addEventListener("prevail:compose", on);
     return () => window.removeEventListener("prevail:compose", on);
   }, [domain]);
+  // The specialist a message is handed to: a chip like the others, with the
+  // specialist's face; at send the text starts "@Name " (one per message).
+  const [handoffSpec, setHandoffSpec] = useState<string | null>(null);
   function applyRef(item: RefCandidate | undefined) {
     if (!atMatch || !item) return;
-    // A specialist is a handoff, not a chip: the message starts "@Name ".
     if (item.kind === "specialist") {
-      const rest = `${input.slice(0, atMatch.start)}${input.slice(atMatch.end)}`.replace(/^\s+/, "");
-      const next = `@${item.label} ${rest}`;
+      const head = input.slice(0, atMatch.start).replace(/\s$/, "");
+      const tail = input.slice(atMatch.end).replace(/^\s+/, "");
+      const next = `${head}${head && tail ? " " : ""}${tail}`;
       setInput(next);
-      setCaretPos(next.length);
-      restoreCaret(next, next.length);
+      setHandoffSpec(item.label);
+      setCaretPos(head.length);
+      restoreCaret(next, head.length);
       return;
     }
     const head = input.slice(0, atMatch.start).replace(/\s$/, "");
@@ -966,11 +970,10 @@ export function ChatPanel({
   // opens this chat leaves it pending for the panel that opens.
   const dropRef = useRef<HTMLDivElement>(null);
   const handOff = useCallback((label: string) => {
-    setInput((cur) => {
-      const next = withHandoff(cur, label);
-      requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(next.length, next.length); } });
-      return next;
-    });
+    setHandoffSpec(label);
+    // Text that already starts "@Name " for this specialist loses the prefix: the chip carries it.
+    setInput((cur) => { const at = `@${label.toLowerCase()} `; return cur.toLowerCase().startsWith(at) ? cur.slice(at.length) : cur; });
+    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } });
   }, []);
   useEffect(() => {
     const onDrop = (e: Event) => {
@@ -1005,12 +1008,13 @@ export function ChatPanel({
       quiet: isAutoContextLabel(c.label),
       onRemove: () => setPrimedContext((cur) => cur.filter((_, j) => j !== i)),
     })),
+    ...(handoffSpec ? [refItem({ kind: "specialist", id: handoffSpec.toLowerCase().replace(/[^a-z0-9]+/g, "-"), label: handoffSpec }, () => setHandoffSpec(null))] : []),
     ...refs.map((r) => refItem(r, () => setRefs((cur) => cur.filter((x) => !(x.kind === r.kind && x.id === r.id))))),
     ...attachments.map((p, i): AttachItem => ({
       key: `file:${i}:${p}`,
       label: p.split("/").pop() || p,
       title: `Attached file: ${p}`,
-      icon: /\.(png|jpe?g|gif|webp)$/i.test(p) ? <ImageIcon className="h-3 w-3 text-ai" /> : <FileText className="h-3 w-3 text-text-muted" />,
+      icon: /\.(png|jpe?g|gif|webp)$/i.test(p) ? <ImageIcon className="h-3 w-3" /> : <FileText className="h-3 w-3" />,
       onRemove: () => setAttachments((cur) => cur.filter((_, j) => j !== i)),
     })),
   ];
@@ -2091,7 +2095,15 @@ export function ChatPanel({
     </button>
   ) : null;
 
+  // A specialist chip hands the message to that specialist: the engine
+  // contract is unchanged, the text it receives starts "@Name ".
   async function send() {
+    const text = handoffSpec ? withHandoff(input, handoffSpec) : input;
+    if (!text.trim() || !selectedCli) return;
+    if (handoffSpec) setHandoffSpec(null);
+    return sendText(text);
+  }
+  async function sendText(input: string) {
     if (!input.trim() || !selectedCli) return;
     // Auto-council: this domain convenes the full council on every send
     // instead of a single model. Route the question to the Council tab and

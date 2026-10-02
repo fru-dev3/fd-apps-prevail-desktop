@@ -117,10 +117,14 @@ test.describe("drag a specialist into the chat", () => {
     await composer(page).fill("compare the foo carriers");
     const box = (await composer(page).boundingBox())!;
     await drag(page, "[data-testid=sidebar-specialist-researcher]", { x: box.x + 40, y: box.y - 120 });
-    await expect(composer(page)).toHaveValue("@Researcher compare the foo carriers");
+    // A chip with the face, never text in the box.
+    await expect(composer(page)).toHaveValue("compare the foo carriers");
+    await expect(page.getByTestId("ref-chip-specialist")).toContainText("@Researcher");
+    await expect(page.getByTestId("ref-chip-specialist").locator("[data-specialist=researcher]")).toBeVisible();
     // Again: never twice.
     await drag(page, "[data-testid=sidebar-specialist-researcher]", { x: box.x + 40, y: box.y - 120 });
-    await expect(composer(page)).toHaveValue("@Researcher compare the foo carriers");
+    await expect(page.getByTestId("ref-chip-specialist")).toHaveCount(1);
+    await expect(composer(page)).toHaveValue("compare the foo carriers");
     // A drop back on the sidebar does nothing; a click still opens the page.
     await page.getByTestId("sidebar-specialist-scout").click();
     await expect(page.getByTestId("specialist-detail")).toHaveAttribute("data-id", "scout");
@@ -132,7 +136,8 @@ test.describe("drag a specialist into the chat", () => {
     await expect(page.getByTestId("specialists-page")).toBeVisible();
     const h = (await page.getByTestId("nav-home").boundingBox())!;
     await drag(page, "[data-testid='specialists-row-spec:writer']", { x: h.x + h.width / 2, y: h.y + h.height / 2 });
-    await expect(composer(page)).toHaveValue("@Writer ", { timeout: 10_000 });
+    await expect(page.getByTestId("ref-chip-specialist")).toContainText("@Writer", { timeout: 10_000 });
+    await expect(composer(page)).toHaveValue("");
   });
 });
 
@@ -210,3 +215,30 @@ test.describe("a project by talking", () => {
     expect(await page.evaluate(() => localStorage.getItem("prevail.missions.newMode"))).toBe("fields");
   });
 });
+
+// Every chip kind in the composer's context row shares one style and shows
+// its real icon or face. Shots with CHIP_SHOTS=<dir> at 390 and 1280.
+for (const width of [390, 1280]) {
+  test(`composer chips: a person, a domain, an app, a project and a specialist, one style (${width})`, async ({ page }) => {
+    await home(page, width);
+    await page.evaluate(() => {
+      const add = (window as unknown as { __prevailAddRef: (r: { kind: string; id: string; label: string }) => void }).__prevailAddRef;
+      add({ kind: "entity", id: "person/sam-foo", label: "Sam Foo" });
+      add({ kind: "domain", id: "career", label: "Career" });
+      add({ kind: "app", id: "posthog", label: "PostHog" });
+      add({ kind: "mission", id: "learn-the-foo", label: "Learn the foo" });
+    });
+    await composer(page).fill("compare the foo carriers @Res");
+    await page.getByTestId("ref-option-specialist-researcher").click();
+    for (const k of ["entity", "domain", "app", "mission", "specialist"]) {
+      const chip = page.getByTestId(`ref-chip-${k}`);
+      if (await chip.count()) await expect(chip).toHaveClass(/bg-accent-soft/);
+    }
+    // On a phone the row folds into "+N"; opening it shows every chip.
+    const more = page.getByTestId("attach-more");
+    if (await more.isVisible()) await more.click();
+    for (const k of ["entity", "domain", "app", "mission", "specialist"]) await expect(page.getByTestId(`ref-chip-${k}`)).toBeVisible();
+    await expect(page.getByTestId("ref-chip-entity")).toContainText("SF");
+    if (process.env.CHIP_SHOTS) await page.screenshot({ path: `${process.env.CHIP_SHOTS}/composer-chips-${width}.png` });
+  });
+}
