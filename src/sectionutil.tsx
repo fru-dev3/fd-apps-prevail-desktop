@@ -171,9 +171,9 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
       <div data-settings-header className="flex flex-wrap items-center gap-2">
         {subtitle && <p className="min-w-0 flex-1 basis-40 text-[13px] text-text-muted">{subtitle}</p>}
         {right && <div className="min-w-0 max-w-full">{right}</div>}
-        {tabs && <div className="basis-full" data-shell="tabs">{tabs}</div>}
+        {tabs && <div className="min-w-0 basis-full" data-shell="tabs">{tabs}</div>}
       </div>
-    ) : tabs ? <div data-settings-header className="flex flex-wrap items-center gap-2"><div className="basis-full" data-shell="tabs">{tabs}</div></div> : null
+    ) : tabs ? <div data-settings-header className="flex flex-wrap items-center gap-2"><div className="min-w-0 basis-full" data-shell="tabs">{tabs}</div></div> : null
   ) : (
     // Same header as Intent: the icon and a big title, controls on the
     // right, one calm line under it.
@@ -184,7 +184,7 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
       </h1>
       {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
       {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
-      {tabs && <div className="mt-2 basis-full" data-shell="tabs">{tabs}</div>}
+      {tabs && <div className="mt-2 min-w-0 basis-full" data-shell="tabs">{tabs}</div>}
     </div>
   );
   if (!body) return null;

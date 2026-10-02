@@ -58,11 +58,11 @@ test("entities · tabs switch in place without remounting", async ({ page }) => 
   expect((await args(page, "entities_show")).length).toBe(1);
 });
 
-test("entities · the composer is fully visible at 1440x900 and the kind filter is one line", async ({ page }) => {
+test("entities · the composer is fully visible at 1440x900 and the kind filter (icons and labels) fits in two lines", async ({ page }) => {
   await openEntities(page);
   const tabs = page.getByTestId("entity-kind-filter").getByRole("tab");
   const tops = await tabs.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-  expect(new Set(tops).size).toBe(1);
+  expect(new Set(tops).size).toBeLessThanOrEqual(2);
   await page.getByTestId("entity-tab-chat").click();
   const composer = page.getByTestId("entity-chat").locator("[data-tour=composer]");
   await expect(composer).toBeVisible({ timeout: 10_000 });

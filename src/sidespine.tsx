@@ -1,5 +1,9 @@
 import { useState, type ReactNode } from "react";
-import { ArrowLeft, ChevronsLeft, ChevronsRight } from "lucide-react";
+import {
+  Archive, ArrowLeft, BarChart3, CheckCircle2, ChevronsLeft, ChevronsRight, CircleDot, Compass, Cpu, Eye, FileText, FolderKanban, Grid3x3,
+  HelpCircle, Hourglass, History, Inbox as InboxIcon, KeyRound, Layers, LayoutGrid, ListChecks, Mail, Network, Pause, Play, Plug, Repeat,
+  Snowflake, Sparkles, Target, Trash2, Users, Workflow, Newspaper, type LucideIcon,
+} from "lucide-react";
 
 // THE secondary column. Every screen that lists things on the left and shows
 // the picked one on the right uses this (Intent's Noticed, History and
@@ -140,21 +144,37 @@ export function SideSpine({ storageKey, detail, phone = false, phoneDetail = fal
 
 // The segmented tabs above a SideSpine page (Intent's Noticed / History /
 // Projects look): they pick what the column lists.
+// Every tab row shows an icon before its label (owner, 2026-10-02). A tab may
+// name its own; otherwise its id picks one here, so the same view reads the
+// same everywhere (All, Done, Archived, History...).
+export const TAB_ICON: Record<string, LucideIcon> = {
+  all: LayoutGrid, active: Play, open: CircleDot, done: CheckCircle2, completed: CheckCircle2, paused: Pause, archived: Archive,
+  waiting: Hourglass, trash: Trash2, icebox: Snowflake, compass: Compass, goals: Target, ideals: Sparkles,
+  clis: Cpu, api: Network, direct: KeyRound, briefing: Newspaper, actions: Play, google: Mail, automations: Repeat, tasks: ListChecks,
+  results: Workflow, current: FileText, versions: History, noticed: Eye, history: History, projects: FolderKanban, entities: Users,
+  metrics: BarChart3, stack: Layers, connectors: Plug, summary: FileText, domains: Grid3x3, questions: HelpCircle, inbox: InboxIcon,
+};
+
 export function SpineTabs<T extends string>({ tabs, value, onChange, label }: {
-  tabs: { id: T; label: string; count?: number }[];
+  tabs: { id: T; label: string; count?: number; icon?: LucideIcon }[];
   value: T;
   onChange: (id: T) => void;
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="flex w-fit items-center rounded-lg bg-surface-warm p-1 max-sm:w-full">
-      {tabs.map((t) => (
-        <button key={t.id} role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)} data-testid={`tab-${t.id}`}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-2 ${value === t.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
-          {t.label}
-          {t.count !== undefined && <span className="text-[12px] font-normal tabular-nums text-text-muted">{t.count}</span>}
-        </button>
-      ))}
+    <div role="tablist" aria-label={label} data-scroll-x className="flex w-fit min-w-0 max-w-full items-center overflow-x-auto rounded-lg bg-surface-warm p-1 max-sm:w-full">
+      {tabs.map((t) => {
+        const I = t.icon ?? TAB_ICON[t.id];
+        const on = value === t.id;
+        return (
+          <button key={t.id} role="tab" aria-selected={on} onClick={() => onChange(t.id)} data-testid={`tab-${t.id}`}
+            className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-2 ${on ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
+            {I && <I aria-hidden className={`h-3.5 w-3.5 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />}
+            {t.label}
+            {t.count !== undefined && <span className="text-[12px] font-normal tabular-nums text-text-muted">{t.count}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
