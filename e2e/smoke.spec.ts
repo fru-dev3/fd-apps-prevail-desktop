@@ -1185,3 +1185,62 @@ test("42 · Compass: with nothing yet, one button drafts it from the vault", asy
   await page.getByTestId("compass-draft").click();
   await expect.poll(async () => (await invokedCommands(page)).includes("engine_compass_bootstrap")).toBe(true);
 });
+
+// ── Insights > Metrics: the week against your normal, with sources ─────────
+const N = (lo: number, hi: number, learning = false) => ({ median: (lo + hi) / 2, lo, hi, weeks: learning ? 2 : 8, learning, learningWeeksLeft: learning ? 2 : 0 });
+const METRICS_FX = {
+  glance: {
+    week: "2026-09-28", through: "2026-10-02", computed: 1, surprise: "Commits: 40 this week, above your normal of 5 to 12.",
+    rows: [
+      { id: "m-ai-spend", title: "AI spend", unit: "usd", tier: "measured", family: "AI and building", value: 42.5, normal: N(20, 50), spark: [10, 20, 30, 25, 40, 35, 30, 20, 45, 50, 30, 42.5], documentary: false, coverage: "one Mac (foo-mac), 2026-08-01 to 2026-10-02", citations: [{ file: "build/_meta/events/claude/2026-10.foo-mac.jsonl", note: "12 records this week" }] },
+      { id: "m-shipped", title: "Things shipped", unit: "count", tier: "derived", family: "AI and building", value: 3, normal: N(0, 2, true), spark: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3], documentary: false, coverage: "one Mac (foo-mac)", citations: [] },
+      { id: "m-trips", title: "Trips", unit: "count", tier: "measured", family: "Exploration", value: 0, normal: N(0, 0, true), spark: [], documentary: true, coverage: "your vault; trip atlas scanned 2026-09-25", citations: [{ file: "data/domains/content/memory/skills/foo-atlas/trips.json", note: "2026-09-12" }], record: "Latest: Hike, Foo Valley on 2026-09-12" },
+    ],
+  },
+  list: [
+    { id: "m-ai-spend", title: "AI spend", family: "AI and building", per: "week", unit: "usd", tier: "measured", documentary: false, status: "tracking", from: "every AI tool's own records", thisWeek: 42.5, normal: N(20, 50), coverage: "one Mac", citations: [], spark: [1, 2, 3] },
+    { id: "m-commits", title: "Commits", family: "AI and building", per: "week", unit: "count", tier: "measured", documentary: false, status: "tracking", from: "git", thisWeek: 40, normal: N(5, 12), coverage: "one Mac", citations: [], spark: [5, 9, 40] },
+    { id: "m-trips", title: "Trips", family: "Exploration", per: "month", unit: "count", tier: "measured", documentary: true, status: "tracking", from: "the trip atlas", thisWeek: 0, normal: N(0, 0, true), coverage: "your vault", citations: [], spark: [] },
+  ],
+  rhythm: [{ day: "2026-10-01", hour: 9.5, kind: "prompt" }, { day: "2026-10-01", hour: 22, kind: "commit" }, { day: "2026-09-30", hour: 14, kind: "prompt" }],
+  sources: [{ id: "ai", kind: "machine", files: [], events: 120, first: "2026-08-01", last: "2026-10-02", hosts: ["foo-mac"] }, { id: "trips", kind: "vault", files: [], events: 3, note: "trip atlas scanned 2026-09-25" }],
+};
+
+test("43 · Insights > Metrics: the week against your normal, tiers, coverage and sources; families, rhythm, sources", async ({ page }) => {
+  await mockTauri(page);
+  await page.addInitScript((fx) => {
+    (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_metrics = (a: { view: string }) => (fx as Record<string, unknown>)[a.view];
+  }, METRICS_FX);
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByTestId("app-sidebar").getByRole("button", { name: "Insights" }).click();
+  await page.getByTestId("tab-metrics").click();
+  const week = page.getByTestId("metrics-week");
+  await expect(week).toContainText("This week, Sep 28 to Oct 2", { timeout: 10_000 });
+  const spend = week.locator("[data-testid=glance-row][data-id=m-ai-spend]");
+  await expect(spend.getByTestId("glance-value")).toHaveText("$42.50");
+  await expect(spend.getByTestId("glance-tier")).toHaveText("Measured");
+  await expect(spend).toContainText("normal $20.00 to $50.00");
+  await expect(spend.getByTestId("glance-coverage")).toHaveText("one Mac (foo-mac), 2026-08-01 to 2026-10-02");
+  await expect(spend.getByTestId("normal-band")).toHaveCount(1);
+  await spend.getByTestId("metric-sources-toggle").click();
+  await expect(spend.getByTestId("metric-sources")).toContainText("build/_meta/events/claude/2026-10.foo-mac.jsonl, 12 records this week");
+  await expect(week.locator("[data-testid=glance-row][data-id=m-shipped]")).toContainText("learning your normal, 2 more weeks");
+  const trips = week.locator("[data-testid=glance-row][data-id=m-trips]");
+  await expect(trips).toContainText("A record, no target");
+  await expect(trips).toContainText("Latest: Hike, Foo Valley on 2026-09-12");
+  await expect(trips.getByTestId("glance-value")).toHaveCount(0);
+  await expect(page.getByTestId("glance-surprise")).toContainText("Commits: 40 this week");
+  // A family: small multiples.
+  await page.getByTestId("metrics-row-family:AI and building").click();
+  await expect(page.getByTestId("metrics-family").getByTestId("metric-card")).toHaveCount(2);
+  // Rhythm: one dot per prompt and commit.
+  await page.getByTestId("metrics-row-rhythm").click();
+  await expect(page.getByTestId("rhythm-plot").locator("circle")).toHaveCount(3);
+  await expect(page.getByTestId("metrics-rhythm")).toContainText("2 prompts, 1 commits");
+  // Sources.
+  await page.getByTestId("metrics-row-sources").click();
+  await expect(page.getByTestId("source-row")).toHaveCount(2);
+  await expect(page.getByTestId("metrics-sources")).toContainText("On foo-mac");
+  expect(await invokeArgs(page, "engine_metrics")).toContainEqual({ vault: "/tmp/smoke-vault", view: "glance", week: null });
+});

@@ -105,7 +105,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     "reminders_daemon_status", "headless_learn_status", "activity_read",
     "engine_skills_report", "telegram_bridge_status", "hooks_read",
     // Usage + retrospect analytics (the same numbers the desktop shows).
-    "usage_entries", "engine_ai_usage", "retrospect_rollup",
+    "usage_entries", "engine_ai_usage", "engine_metrics", "retrospect_rollup",
     // Projects: the index and a project's replay prompt (read side; building
     // runs the synthesis model, so it stays on the desktop).
     "projects_index", "projects_replay",

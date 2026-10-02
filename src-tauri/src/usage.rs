@@ -173,6 +173,27 @@ pub(crate) fn engine_ai_usage(vault: String, month: Option<String>) -> Result<se
     engine::run_engine_json(&args)
 }
 
+/// Metrics (engine `prevail metrics`): this week at a glance, every metric
+/// with its tier, coverage and sources, or the rhythm plot's dots. The engine
+/// reads the per-host events and the vault's own files and computes them.
+#[tauri::command(async)]
+pub(crate) fn engine_metrics(vault: String, view: String, week: Option<String>) -> Result<serde_json::Value, String> {
+    let sub = match view.as_str() {
+        "glance" | "list" | "rhythm" | "sources" => view.as_str(),
+        _ => return Err(format!("unknown metrics view: {view}")),
+    };
+    let mut args: Vec<&str> = vec!["--vault", &vault, "metrics", sub, "--json"];
+    let w = week.unwrap_or_default();
+    if sub == "glance" && !w.is_empty() {
+        if !(w.len() == 10 && w.as_bytes()[4] == b'-' && w.as_bytes()[7] == b'-') {
+            return Err(format!("week must be YYYY-MM-DD: {w}"));
+        }
+        args.push("--week");
+        args.push(&w);
+    }
+    engine::run_engine_json(&args)
+}
+
 #[tauri::command(async)]
 pub(crate) fn usage_summary(vault: String) -> Result<UsageSummary, String> {
     usage_summary_inner(&vault, None)

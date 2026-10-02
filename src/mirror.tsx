@@ -28,6 +28,7 @@ import { ProjectsView } from "./projectsview";
 import { EntitiesView } from "./entitiesview";
 import { useIsPhone } from "./useisphone";
 import { SideSpine, SpineTabs } from "./sidespine";
+import { MetricsView } from "./metricsview";
 import { HeaderSlot, SettingsHeader } from "./sectionutil";
 import { META } from "./typescale";
 import { RowAction, RowActions } from "./rowaction";
@@ -64,9 +65,9 @@ export interface PeriodDoc {
 }
 export type PeriodSel = { kind: "week" | "day"; key: string };
 
-export type MirrorView = "noticed" | "history" | "projects" | "entities" | "capture";
+export type MirrorView = "noticed" | "history" | "projects" | "entities" | "metrics" | "capture";
 const VIEWS: { id: MirrorView; label: string }[] = [
-  { id: "noticed", label: "Noticed" }, { id: "history", label: "History" }, { id: "projects", label: "Projects" }, { id: "entities", label: "Entities" },
+  { id: "noticed", label: "Noticed" }, { id: "history", label: "History" }, { id: "projects", label: "Projects" }, { id: "entities", label: "Entities" }, { id: "metrics", label: "Metrics" },
 ];
 const VIEW_KEY = "prevail.mirror.view";
 const FOCUS_KEY = "prevail.intent.focus";
@@ -130,7 +131,7 @@ export function MirrorPanel({ vaultPath, title = "Insights" }: { vaultPath: stri
     try {
       if (localStorage.getItem(FOCUS_KEY)) return "history";
       const v = localStorage.getItem(VIEW_KEY);
-      return v === "history" || v === "projects" || v === "entities" || v === "capture" ? v : "noticed";
+      return v === "history" || v === "projects" || v === "entities" || v === "metrics" || v === "capture" ? v : "noticed";
     } catch { return "noticed"; }
   });
   const setView = (v: MirrorView) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage off */ } };
@@ -241,6 +242,7 @@ export function MirrorPanel({ vaultPath, title = "Insights" }: { vaultPath: stri
         {periodView && body}
         {view === "projects" && <ProjectsView vaultPath={vaultPath} initialSlug={projectSlug?.slug} key={projectSlug?.n ?? 0} />}
         {view === "entities" && <EntitiesView vaultPath={vaultPath} embedded />}
+        {view === "metrics" && <MetricsView vaultPath={vaultPath} phone={phone} />}
         {view === "capture" && (
           <div className={phone ? "p-4" : "w-full px-8 py-8"} data-testid="capture-view">
             <button onClick={() => setView("noticed")} className="mb-4 inline-flex items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">

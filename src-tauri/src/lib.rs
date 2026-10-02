@@ -426,6 +426,7 @@ pub fn run() {
             usage::usage_summary,
             usage::usage_entries,
             usage::engine_ai_usage,
+            usage::engine_metrics,
             usage::usage_summary_domain,
             usage::engine_budget_status,
             intents::intent_append,
