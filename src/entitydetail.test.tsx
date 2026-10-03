@@ -40,7 +40,7 @@ vi.mock("./bridge", () => ({
   },
 }));
 let phone = false;
-vi.mock("./useisphone", () => ({ useIsPhone: () => phone, PHONE_MAX_PX: 767 }));
+vi.mock("./useisphone", () => ({ useIsPhone: () => phone, useStacked: () => false, PHONE_MAX_PX: 767 }));
 
 import { EntitiesView } from "./entitiesview";
 import { openEntity } from "./entities";
@@ -55,13 +55,18 @@ async function openOn(kind: string, value: string) {
 }
 
 describe("entity chips open the Entities view", () => {
-  it("navigates to the Entities section when no view is on screen, and the view opens on that entity", async () => {
+  it("navigates to the Entities page on the kind's tab, and the view opens on that entity", async () => {
     const nav: unknown[] = [];
+    const kinds: unknown[] = [];
     const on = (e: Event) => nav.push((e as CustomEvent).detail);
-    window.addEventListener("prevail:open-settings", on);
+    const onKind = (e: Event) => kinds.push((e as CustomEvent).detail);
+    window.addEventListener("prevail:work-section", on);
+    window.addEventListener("prevail:ia-kind", onKind);
     act(() => openEntity({ kind: "place", value: "Maple St" }));
-    window.removeEventListener("prevail:open-settings", on);
+    window.removeEventListener("prevail:work-section", on);
+    window.removeEventListener("prevail:ia-kind", onKind);
     expect(nav).toEqual(["entities"]);
+    expect(kinds).toEqual(["places"]);
     render(<EntitiesView vaultPath="/v" />);
     await screen.findByText("No conversations mention it yet.");
     expect(calls.find((c) => c.cmd === "entities_show")?.args).toEqual({ vault: "/v", id: "place/Maple St" });
@@ -148,7 +153,7 @@ describe("Entities view", () => {
     render(<EntitiesView vaultPath="/v2" />);
     await screen.findByRole("heading", { name: /people/i });
     expect(screen.getByRole("heading", { name: /places/i })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /^companies/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^products/i })).toBeTruthy();
     await screen.findByText("You asked Sam about the roof.");
     // The list lives in the canonical SideSpine, and the vault marker is the
     // green ok token, never the accent.
@@ -162,7 +167,7 @@ describe("Entities view", () => {
     fireEvent.change(screen.getByLabelText("Search entities"), { target: { value: "map" } });
     expect(screen.getAllByTestId("entity-row")).toHaveLength(1);
     fireEvent.change(screen.getByLabelText("Search entities"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("tab", { name: "Companies" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Products" }));
     expect(screen.getAllByTestId("entity-row").map((r) => r.textContent)).toEqual([expect.stringContaining("acme")]);
     fireEvent.click(screen.getAllByTestId("entity-row")[0]);
     await waitFor(() => expect(calls.filter((c) => c.cmd === "entities_show").pop()?.args).toEqual({ vault: "/v2", id: "org/acme" }));

@@ -14,15 +14,20 @@ for (const width of [390, 768, 1280, 1920]) {
     await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
     const side = page.getByTestId("app-sidebar");
     if (!(await side.isVisible())) return; // the phone shell has no rail
-    for (const k of ["work", "projects", "domains"]) await expect(page.getByTestId(`sidebar-head-${k}`).locator("button[aria-expanded]")).toHaveAttribute("aria-expanded", "false");
+    for (const k of ["work", "entities", "activities", "domains"]) await expect(page.getByTestId(`sidebar-head-${k}`).locator("button[aria-expanded]")).toHaveAttribute("aria-expanded", "false");
     await expect(page.getByTestId("sidebar-missions")).toHaveCount(0);
     await page.mouse.move(width - 10, 450);
     await expect(page.getByTestId("sidebar-add-domains")).toHaveCSS("opacity", "0");
     await page.getByTestId("sidebar-head-domains").hover();
     await expect(page.getByTestId("sidebar-add-domains")).toHaveCSS("opacity", "1");
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/sidebar-fresh-${width}.png` });
-    await page.getByTestId("sidebar-head-projects").locator("button[aria-expanded]").click();
+    await page.getByTestId("sidebar-head-entities").locator("button[aria-expanded]").click();
+    await page.getByTestId("sidebar-head-activities").locator("button[aria-expanded]").click();
     await page.getByTestId("sidebar-head-work").locator("button[aria-expanded]").click();
+    // Each kind is a row with its icon; its chevron lists a few of that kind.
+    for (const k of ["people", "places", "products", "things", "events", "projects"]) await expect(page.getByTestId(`sidebar-kind-${k}`).locator("svg")).toBeVisible();
+    await page.getByTestId("sidebar-kind-projects").hover();
+    await page.getByTestId("sidebar-kind-toggle-projects").click();
     await expect(page.getByTestId("sidebar-missions")).toBeVisible();
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/sidebar-open-${width}.png` });
     // Home: the arrow toggle and ⌘B.

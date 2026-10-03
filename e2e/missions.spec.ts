@@ -191,7 +191,8 @@ test.describe("projects · actions", () => {
     await openMissions(page);
     const col = page.getByTestId("missions-list");
     await expect(col.getByTestId("mission-row")).toHaveCount(1);
-    await page.getByTestId("tab-paused").click();
+    // Inside Activities > Projects the status is one choice at the top of the list.
+    await page.getByTestId("missions-status").selectOption("paused");
     await expect(col.getByTestId("mission-row")).toContainText("Paint the shed");
     await expect(col.getByTestId("suggested-mission")).toContainText("Bar Garden");
     await page.getByTestId("mission-new").click();
