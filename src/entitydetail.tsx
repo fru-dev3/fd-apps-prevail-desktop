@@ -21,7 +21,7 @@ import { EntityFiles } from "./entityfiles";
 import { AppActivity } from "./appactivity";
 import type { EntityChatRequest } from "./entitychat";
 import { AcrossYourLife, DomainChip, isYours, setRelation, type Relation } from "./linking";
-import { EventDetails, LinksPane, ProductApps, ThingDetails } from "./objectparts";
+import { EventDetails, LinksPane, ProductApps, ProductConnection, ThingDetails } from "./objectparts";
 import type { AppRecord, ObjectFields } from "./ia";
 
 // The chat is the whole chat panel, so it is its own chunk. A detail starts
@@ -434,6 +434,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             {kind === "event" && <EventDetails vaultPath={vaultPath} id={writeId} fields={d.found ? d.fields ?? {} : {}} onChanged={load} />}
             {kind === "thing" && <ThingDetails vaultPath={vaultPath} id={writeId} fields={d.found ? d.fields ?? {} : {}} onChanged={load} />}
             {kind === "org" && d.found && <ProductApps apps={d.apps ?? []} />}
+            {kind === "org" && <ProductConnection vaultPath={vaultPath} name={displayName} apps={d.apps ?? []} />}
             <Section title="In your vault">
               {d.found && d.digest
                 ? <div className="text-[14px] leading-normal text-text-primary"><Markdown source={d.digest} /></div>

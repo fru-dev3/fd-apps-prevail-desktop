@@ -12,7 +12,10 @@ import { CalendarCheck, CalendarX, ExternalLink, FolderKanban, Link2, Loader2, P
 import { invoke } from "./bridge";
 import { requestEntity, slugifyName, useEntityStore, type EntityKindName } from "./entitystore";
 import { openMission, useMissions } from "./missions";
-import { AppLogo } from "./appsmirror-parts";
+import { AppLogo, SigninHelp, StatusPill } from "./appsmirror-parts";
+import { RUNTIME_LABEL, RUNTIME_MARK, type MirrorApp, type MirrorList } from "./appsmirror-model";
+import { ProviderMark } from "./marks";
+import { useInvokeQuery } from "./query";
 import { openApp } from "./appscope";
 import { META } from "./typescale";
 import { fmtDay, kindOfId, KINDS, todayYmd, type AppRecord, type KindId, type LinkView, type ObjectFields } from "./ia";
@@ -304,6 +307,48 @@ export function ProductApps({ apps }: { apps: AppRecord[] }) {
               <span className={`${META} shrink-0`}>{[a.kind, a.category].filter(Boolean).join(" · ")}</span>
               <ExternalLink aria-hidden className="h-3.5 w-3.5 shrink-0 text-text-muted" />
             </button>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "");
+/** The connectors (from the user's AI runtimes) that are this product's apps: by id, or by name. */
+export function connectorsFor(all: MirrorApp[], productName: string, apps: AppRecord[]): MirrorApp[] {
+  const names = new Set([productName, ...apps.map((a) => a.title)].map(norm).filter(Boolean));
+  const ids = new Set(apps.map((a) => a.id));
+  return all.filter((m) => ids.has(m.id) || ids.has(m.id.split(":").pop() ?? "") || names.has(norm(m.name)));
+}
+
+/**
+ * A product's connection (ux ask 6: the sidebar's APPS folded into Products):
+ * each connector it has in an AI runtime, with its status, the runtime it
+ * comes through, how to sign in when it needs to, and the app's full page.
+ */
+export function ProductConnection({ vaultPath, name, apps }: { vaultPath: string; name: string; apps: AppRecord[] }) {
+  const q = useInvokeQuery<MirrorList>("apps_mirror_list", { vault: vaultPath }, { staleMs: Infinity });
+  const found = connectorsFor(Array.isArray(q.data?.apps) ? q.data!.apps : [], name, apps);
+  if (!found.length) return null;
+  return (
+    <Section title="Connection" testId="product-connection">
+      <ul className="-mx-2">
+        {found.map((m) => (
+          <li key={m.id} data-testid="product-connector" data-id={m.id} className="rounded-lg px-2 py-1.5">
+            <div className="flex items-center gap-3">
+              <span className="relative inline-flex shrink-0">
+                <AppLogo name={m.name} url={m.url} size={22} />
+                <span className="absolute -bottom-1 -right-1 rounded-[3px] ring-2 ring-surface" aria-hidden><ProviderMark vendor={RUNTIME_MARK[m.runtime] ?? m.runtime} size={9} /></span>
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary">{m.name}<span className={`${META} ml-2 font-normal`}>via {RUNTIME_LABEL[m.runtime] ?? m.runtime}</span></span>
+              <StatusPill status={m.status} compact />
+              <button type="button" onClick={() => openApp({ id: m.id, tab: "connection" })} title={`Open ${m.name} in Apps`} aria-label={`Open ${m.name} in Apps`}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent">
+                <ExternalLink className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {m.status !== "connected" && <div className="mt-1.5 pl-[34px]"><SigninHelp app={m} compact /></div>}
           </li>
         ))}
       </ul>
