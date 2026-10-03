@@ -129,6 +129,10 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_entities_duplicates",
     // An entity's files list (read). Pictures, websites and files are writes.
     "engine_entities_files",
+    // Entities and Activities: products, an object's links and the calendar
+    // strip (reads). Fields, links, the calendar question and new objects
+    // are writes, desktop only.
+    "ia_products", "ia_links", "ia_events",
     // Linking: what other conversations noted for a domain or entity (read).
     // Setting a relation and the autosave mode are writes, desktop only.
     "engine_updates",
