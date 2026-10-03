@@ -45,6 +45,37 @@ pub struct ThreadMeta {
     // App chat: the app whose own space this conversation lives in
     // (frontmatter `app: <id>`). None for an ordinary thread.
     pub app: Option<String>,
+    // Group chat: the specialists who are members of this thread (frontmatter
+    // `members: researcher, planner`), and when each joined or left
+    // (`member_log: +researcher@2;-planner@6`, a turn index each, opaque to Rust).
+    #[serde(default)]
+    pub members: Vec<String>,
+    #[serde(default)]
+    pub member_log: String,
+}
+
+// A specialist id as the engine accepts it; anything else is dropped.
+pub(crate) fn clean_members(v: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for m in v {
+        let m = m.trim().to_lowercase();
+        let ok = !m.is_empty() && m.len() <= 41 && m.chars().next().map(|c| c.is_ascii_lowercase()).unwrap_or(false)
+            && m.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        if ok && !out.contains(&m) { out.push(m); }
+    }
+    out
+}
+
+// The marker that carries a reply's metadata at the top of its turn. Only a
+// JSON object survives, written back compactly, with "-->" escaped so the
+// comment can never close early.
+const TURN_META: &str = "<!-- prevail:turn ";
+pub(crate) fn clean_turn_meta(v: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(v.trim()).ok()?;
+    if !parsed.is_object() { return None; }
+    let out = serde_json::to_string(&parsed).ok()?.replace("-->", "--\\u003e");
+    if out.len() > 4000 { return None; }
+    Some(out)
 }
 
 // An app id as the engine accepts it (^[a-z0-9][a-z0-9-]{0,80}$); anything
@@ -83,6 +114,10 @@ pub struct ThreadTurn {
     pub cli: Option<String>,
     pub model: Option<String>,
     pub content: String,
+    // The reply's metadata as JSON (speaker, members, scope, context),
+    // recorded when it was written and kept with the turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -204,12 +239,18 @@ fn parse_thread_body(body: &str) -> Vec<ThreadTurn> {
         if header.is_empty() && content.is_empty() {
             return;
         }
+        // A reply's metadata line, when the turn starts with one.
+        let (meta, content) = match content.strip_prefix(TURN_META).and_then(|r| r.split_once(" -->")) {
+            Some((json, rest)) => (clean_turn_meta(json), rest.trim_start_matches('\n').to_string()),
+            None => (None, content),
+        };
         if header.eq_ignore_ascii_case("You") {
             turns.push(ThreadTurn {
                 role: "user".into(),
                 cli: None,
                 model: None,
                 content,
+                meta: None,
             });
         } else {
             // Assistant header may be "<cli>" or "<cli> · <model>".
@@ -222,6 +263,7 @@ fn parse_thread_body(body: &str) -> Vec<ThreadTurn> {
                 cli: if cli.is_empty() { None } else { Some(cli) },
                 model,
                 content,
+                meta,
             });
         }
     };
@@ -323,7 +365,13 @@ fn thread_meta_from(
         route_turns: meta.get("route_turns").cloned().unwrap_or_default(),
         entity: clean_entity(meta.get("entity").map(|s| s.as_str())),
         app: clean_app(meta.get("app").map(|s| s.as_str())),
+        members: clean_members(&meta.get("members").map(|s| s.split(',').map(|x| x.to_string()).collect::<Vec<_>>()).unwrap_or_default()),
+        member_log: clean_log(meta.get("member_log").map(|s| s.as_str()).unwrap_or("")),
     }
+}
+
+fn clean_log(v: &str) -> String {
+    v.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '+' | '@' | ';')).take(2000).collect()
 }
 
 // A thread's turn "signature" for prefix comparison: role + trimmed content per
@@ -606,6 +654,10 @@ pub(crate) fn save_thread(
     // App chat: tag the thread as the app's own (`app: <id>`). None keeps
     // whatever tag the file already carries.
     app: Option<String>,
+    // Group chat: the thread's members and their join/leave log. None keeps
+    // what the file already carries.
+    members: Option<Vec<String>>,
+    member_log: Option<String>,
 ) -> Result<String, String> {
     let _serial = crate::vaultio::serial();
     // A thread opened from a domain's list may be a linked General thread. Its
@@ -780,6 +832,14 @@ pub(crate) fn save_thread(
         Some(a) => clean_app(Some(&a)),
         None => clean_app(existing_fm.as_ref().and_then(|m| m.get("app")).map(|s| s.as_str())),
     };
+    let members: Vec<String> = match members {
+        Some(m) => clean_members(&m),
+        None => clean_members(&existing_fm.as_ref().and_then(|m| m.get("members")).map(|s| s.split(',').map(|x| x.to_string()).collect::<Vec<_>>()).unwrap_or_default()),
+    };
+    let member_log: String = clean_log(&match member_log {
+        Some(l) => l,
+        None => existing_fm.as_ref().and_then(|m| m.get("member_log").cloned()).unwrap_or_default(),
+    });
     let (created_secs, preserved_title) = if file_path.exists() {
         let fm = existing_fm.clone();
         let created = fm
@@ -829,6 +889,12 @@ pub(crate) fn save_thread(
     if let Some(a) = &app {
         body.push_str(&format!("app: {}\n", a));
     }
+    if !members.is_empty() {
+        body.push_str(&format!("members: {}\n", members.join(", ")));
+    }
+    if !member_log.is_empty() {
+        body.push_str(&format!("member_log: {}\n", member_log));
+    }
     body.push_str("---\n\n");
     for t in &turns {
         let speaker = if t.role == "user" {
@@ -842,7 +908,11 @@ pub(crate) fn save_thread(
                 .unwrap_or_default();
             format!("{cli}{model}")
         };
-        body.push_str(&format!("## {speaker}\n\n{}\n\n", t.content.trim()));
+        let meta = if t.role == "user" { None } else { t.meta.as_deref().and_then(clean_turn_meta) };
+        match meta {
+            Some(m) => body.push_str(&format!("## {speaker}\n\n{TURN_META}{m} -->\n{}\n\n", t.content.trim())),
+            None => body.push_str(&format!("## {speaker}\n\n{}\n\n", t.content.trim())),
+        }
     }
     fs::write(&file_path, &body).map_err(|e| format!("write thread: {e}"))?;
     // Fire chat.reply hooks only when a real assistant reply just landed (not on
@@ -983,10 +1053,10 @@ mod tests {
         d.to_string_lossy().to_string()
     }
     fn user(s: &str) -> ThreadTurn {
-        ThreadTurn { role: "user".into(), cli: None, model: None, content: s.into() }
+        ThreadTurn { role: "user".into(), cli: None, model: None, content: s.into(), meta: None }
     }
     fn asst(s: &str) -> ThreadTurn {
-        ThreadTurn { role: "assistant".into(), cli: Some("claude".into()), model: None, content: s.into() }
+        ThreadTurn { role: "assistant".into(), cli: Some("claude".into()), model: None, content: s.into(), meta: None }
     }
     fn turn_count_on_disk(path: &str) -> usize {
         read_turns_at(Path::new(path)).len()
@@ -998,8 +1068,8 @@ mod tests {
     fn distinct_first_messages_never_collide() {
         let v = fresh_vault("distinct");
         let dom = Some("health".to_string());
-        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("weather?"), asst("sunny")], None, None, None, None).unwrap();
-        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("stocks?"), asst("up")], None, None, None, None).unwrap();
+        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("weather?"), asst("sunny")], None, None, None, None, None, None).unwrap();
+        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("stocks?"), asst("up")], None, None, None, None, None, None).unwrap();
         assert_ne!(pa, pb, "different openers -> different files");
         assert_eq!(load_thread(pa).unwrap().turns[0].content, "weather?");
         assert_eq!(load_thread(pb).unwrap().turns[0].content, "stocks?");
@@ -1014,8 +1084,8 @@ mod tests {
     fn same_opener_distinct_conversation_does_not_clobber() {
         let v = fresh_vault("sameopener");
         let dom = Some("health".to_string());
-        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("hi"), asst("hello, I am A")], None, None, None, None).unwrap();
-        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("hi"), asst("hello, I am B")], None, None, None, None).unwrap();
+        let pa = save_thread(v.clone(), dom.clone(), None, "A".into(), vec![user("hi"), asst("hello, I am A")], None, None, None, None, None, None).unwrap();
+        let pb = save_thread(v.clone(), dom.clone(), None, "B".into(), vec![user("hi"), asst("hello, I am B")], None, None, None, None, None, None).unwrap();
         assert_ne!(pa, pb, "same opener but distinct convo -> distinct files, no reuse");
         assert_eq!(load_thread(pa.clone()).unwrap().turns[1].content, "hello, I am A", "A not clobbered");
         assert_eq!(load_thread(pb.clone()).unwrap().turns[1].content, "hello, I am B");
@@ -1030,9 +1100,9 @@ mod tests {
     fn same_conversation_extended_reuses_file() {
         let v = fresh_vault("extend");
         let dom = Some("work".to_string());
-        let p1 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week")], None, None, None, None).unwrap();
+        let p1 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week")], None, None, None, None, None, None).unwrap();
         // Same conversation, now with the assistant reply appended.
-        let p2 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week"), asst("here is a plan")], None, None, None, None).unwrap();
+        let p2 = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("plan my week"), asst("here is a plan")], None, None, None, None, None, None).unwrap();
         assert_eq!(p1, p2, "extension of the same conversation reuses the file");
         assert_eq!(turn_count_on_disk(&p2), 2);
         assert_eq!(list_threads(v, dom).unwrap().len(), 1, "no duplicate row");
@@ -1044,8 +1114,8 @@ mod tests {
     fn empty_stub_never_overwrites_real_thread() {
         let v = fresh_vault("stub");
         let dom = Some("health".to_string());
-        let real = save_thread(v.clone(), dom.clone(), None, "real".into(), vec![user("important"), asst("noted")], None, None, None, None).unwrap();
-        let stub = save_thread(v.clone(), dom.clone(), None, "Untitled".into(), vec![], None, None, None, None).unwrap();
+        let real = save_thread(v.clone(), dom.clone(), None, "real".into(), vec![user("important"), asst("noted")], None, None, None, None, None, None).unwrap();
+        let stub = save_thread(v.clone(), dom.clone(), None, "Untitled".into(), vec![], None, None, None, None, None, None).unwrap();
         assert_ne!(real, stub);
         assert_eq!(turn_count_on_disk(&real), 2, "real thread untouched by the empty stub");
     }
@@ -1056,10 +1126,10 @@ mod tests {
     fn create_never_reduces_disk_turns() {
         let v = fresh_vault("noreduce");
         let dom = Some("work".to_string());
-        let p = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a1"), asst("a2")], None, None, None, None).unwrap();
+        let p = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a1"), asst("a2")], None, None, None, None, None, None).unwrap();
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
         // A KNOWN-slug update MAY shrink (edit / retry rewinds) - same live convo.
-        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "t".into(), vec![user("q")], None, None, None, None).unwrap();
+        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "t".into(), vec![user("q")], None, None, None, None, None, None).unwrap();
         assert_eq!(p, p2);
         assert_eq!(turn_count_on_disk(&p2), 1, "known-slug edit legitimately rewinds");
     }
@@ -1077,7 +1147,7 @@ mod tests {
         fs::write(dpath.join(crate::paths::V4_MARKER), "1").unwrap();
         let dom = Some("health".to_string());
         // A save lands in memory/threads and round-trips through list + load.
-        let p = save_thread(v.clone(), dom.clone(), None, "new".into(), vec![user("hello v4"), asst("hi")], None, None, None, None).unwrap();
+        let p = save_thread(v.clone(), dom.clone(), None, "new".into(), vec![user("hello v4"), asst("hi")], None, None, None, None, None, None).unwrap();
         assert!(p.contains("memory/threads"), "v4 save goes to memory/threads: {p}");
         assert_eq!(load_thread(p.clone()).unwrap().turns[0].content, "hello v4");
         // A pre-existing legacy thread sitting in the flat _threads/ dir.
@@ -1099,7 +1169,7 @@ mod tests {
     fn list_hides_prefix_duplicates_only() {
         let v = fresh_vault("prefixdup");
         let dom = Some("work".to_string());
-        let full = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a")], None, None, None, None).unwrap();
+        let full = save_thread(v.clone(), dom.clone(), None, "t".into(), vec![user("q"), asst("a")], None, None, None, None, None, None).unwrap();
         let dir = Path::new(&full).parent().unwrap().to_path_buf();
         let fm = |t: &str| format!("---\ntitle: {t}\ndomain: work\ncreated: 2020-01-01T00:00:00Z\nupdated: 2020-01-01T00:00:00Z\nturns: 1\n---\n\n");
         fs::write(dir.join("2020-01-01_00-00-00_aaaaaaaa.md"), fm("Short") + "## You\n\nq\n\n").unwrap();
@@ -1116,13 +1186,13 @@ mod tests {
     #[test]
     fn entity_tag_round_trips_and_persists() {
         let v = fresh_vault("entity");
-        let p = save_thread(v.clone(), None, None, "Foo".into(), vec![user("about foo"), asst("ok")], None, None, Some("person/foo".into()), None).unwrap();
+        let p = save_thread(v.clone(), None, None, "Foo".into(), vec![user("about foo"), asst("ok")], None, None, Some("person/foo".into()), None, None, None).unwrap();
         assert!(fs::read_to_string(&p).unwrap().contains("\nentity: person/foo\n"));
         assert_eq!(load_thread(p.clone()).unwrap().meta.entity.as_deref(), Some("person/foo"));
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
-        let p2 = save_thread(v.clone(), None, Some(slug), "Foo".into(), vec![user("about foo"), asst("ok"), user("more")], None, None, None, None).unwrap();
+        let p2 = save_thread(v.clone(), None, Some(slug), "Foo".into(), vec![user("about foo"), asst("ok"), user("more")], None, None, None, None, None, None).unwrap();
         assert_eq!(load_thread(p2).unwrap().meta.entity.as_deref(), Some("person/foo"));
-        let p3 = save_thread(v.clone(), None, None, "Bar".into(), vec![user("bar")], None, None, Some("nope\ntitle: x".into()), None).unwrap();
+        let p3 = save_thread(v.clone(), None, None, "Bar".into(), vec![user("bar")], None, None, Some("nope\ntitle: x".into()), None, None, None).unwrap();
         assert!(load_thread(p3).unwrap().meta.entity.is_none());
     }
 
@@ -1135,13 +1205,13 @@ mod tests {
         fs::create_dir_all(PathBuf::from(&v).join("data/apps")).unwrap();
         fs::create_dir_all(PathBuf::from(&v).join("data/domains")).unwrap();
         let dom = Some("_app-foo-mail".to_string());
-        let p = save_thread(v.clone(), dom.clone(), None, "Foo".into(), vec![user("any news?"), asst("two")], None, None, None, Some("foo-mail".into())).unwrap();
+        let p = save_thread(v.clone(), dom.clone(), None, "Foo".into(), vec![user("any news?"), asst("two")], None, None, None, Some("foo-mail".into()), None, None).unwrap();
         assert!(p.contains("/data/apps/foo-mail/_scope/"), "app threads live with the app: {p}");
         assert!(fs::read_to_string(&p).unwrap().contains("\napp: foo-mail\n"));
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
-        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "Foo".into(), vec![user("any news?"), asst("two"), user("more")], None, None, None, None).unwrap();
+        let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "Foo".into(), vec![user("any news?"), asst("two"), user("more")], None, None, None, None, None, None).unwrap();
         assert_eq!(load_thread(p2).unwrap().meta.app.as_deref(), Some("foo-mail"));
-        let p3 = save_thread(v.clone(), None, None, "Bar".into(), vec![user("bar")], None, None, None, Some("Bad\ntitle: x".into())).unwrap();
+        let p3 = save_thread(v.clone(), None, None, "Bar".into(), vec![user("bar")], None, None, None, Some("Bad\ntitle: x".into()), None, None).unwrap();
         assert!(load_thread(p3).unwrap().meta.app.is_none());
     }
 
@@ -1153,7 +1223,7 @@ mod tests {
         let v = fresh_vault("routed");
         fs::create_dir_all(PathBuf::from(&v).join("real-estate")).unwrap();
         let p = save_thread(v.clone(), None, None, "Lease".into(), vec![user("renew the lease"), asst("ok")],
-            Some(vec!["Real-Estate".into(), "../x".into()]), Some("0:real-estate".into()), None, None).unwrap();
+            Some(vec!["Real-Estate".into(), "../x".into()]), Some("0:real-estate".into()), None, None, None, None).unwrap();
         let meta = load_thread(p.clone()).unwrap().meta;
         assert_eq!(meta.routed, vec!["real-estate".to_string()], "unsafe slug dropped, case folded");
         assert_eq!(meta.route_turns, "0:real-estate");
@@ -1165,7 +1235,7 @@ mod tests {
         // Continue from the domain view with no routing passed.
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
         let p2 = save_thread(v.clone(), Some("real-estate".into()), Some(slug), "Lease".into(),
-            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], None, None, None, None).unwrap();
+            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], None, None, None, None, None, None).unwrap();
         assert_eq!(p2, p, "written back to General");
         let again = load_thread(p2).unwrap();
         assert_eq!(again.turns.len(), 3);
@@ -1173,7 +1243,7 @@ mod tests {
         assert!(again.meta.domain.is_none(), "still a General thread");
         // Untagging removes it from the domain list.
         save_thread(v.clone(), None, Some(Path::new(&p).file_stem().unwrap().to_string_lossy().to_string()), "Lease".into(),
-            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], Some(vec![]), Some(String::new()), None, None).unwrap();
+            vec![user("renew the lease"), asst("ok"), user("and the deposit?")], Some(vec![]), Some(String::new()), None, None, None, None).unwrap();
         assert!(list_threads(v, Some("real-estate".into())).unwrap().is_empty());
     }
 
@@ -1185,7 +1255,7 @@ mod tests {
         let v = fresh_vault("filing");
         for d in ["health", "finance"] { fs::create_dir_all(PathBuf::from(&v).join(d)).unwrap(); }
         let p = save_thread(v.clone(), Some("health".into()), None, "Foo".into(), vec![user("foo  plan\n\n"), asst("ok")],
-            None, None, None, None).unwrap();
+            None, None, None, None, None, None).unwrap();
         let body_of = |raw: &str| raw.splitn(3, "\n---\n").nth(1).unwrap().to_string();
         let before = fs::read_to_string(&p).unwrap();
         assert_eq!(thread_set_filing(v.clone(), p.clone(), vec!["Finance".into(), "../x".into()]).unwrap(), vec!["finance".to_string()]);
@@ -1210,7 +1280,7 @@ mod tests {
         thread_set_filing(v.clone(), slug.clone(), vec!["finance".into()]).unwrap();
         assert!(thread_set_filing(v.clone(), "no-such".into(), vec![]).is_err());
         let p2 = save_thread(v, Some("finance".into()), Some(slug), "Foo".into(), vec![user("foo  plan"), asst("ok"), user("more")],
-            None, None, None, None).unwrap();
+            None, None, None, None, None, None).unwrap();
         assert_eq!(p2, p, "no fork into finance");
     }
 
@@ -1229,5 +1299,33 @@ mod tests {
         assert!(turns[1].content.contains("## Council Verdict: Real Estate"));
         assert!(turns[1].content.contains("## The math"));
         assert!(turns[1].content.contains("**Consensus.**"));
+    }
+
+    // Group chat: each reply keeps its metadata with the turn, the members and
+    // their log live in the frontmatter, and a crafted value never escapes.
+    #[test]
+    fn reply_metadata_and_members_round_trip() {
+        let v = fresh_vault("members");
+        let mut a = asst("Researcher says foo.");
+        a.meta = Some(r#"{"speaker":"researcher","name":"Researcher","members":["researcher","planner"],"scope":"general","context":["app/foo"]}"#.into());
+        let mut bad = asst("plain");
+        bad.meta = Some("not json --> ## You".into());
+        let p = save_thread(v.clone(), None, None, "t".into(), vec![user("find foo"), a, bad], None, None, None, None,
+            Some(vec!["researcher".into(), "Planner".into(), "--evil".into()]), Some("+researcher@0;+planner@0\ntitle: x".into())).unwrap();
+        let raw = std::fs::read_to_string(&p).unwrap();
+        assert!(raw.contains("members: researcher, planner\n"));
+        assert!(raw.contains("member_log: +researcher@0;+planner@0titlex\n"));
+        let t = load_thread(p.clone()).unwrap();
+        assert_eq!(t.turns.len(), 3);
+        assert_eq!(t.turns[1].content, "Researcher says foo.");
+        assert!(t.turns[1].meta.as_deref().unwrap().contains("\"speaker\":\"researcher\""));
+        assert!(t.turns[2].meta.is_none());
+        assert_eq!(t.turns[2].content, "plain");
+        assert_eq!(t.meta.members, vec!["researcher".to_string(), "planner".to_string()]);
+        // A later save without members keeps them.
+        let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
+        let p2 = save_thread(v.clone(), None, Some(slug), "t".into(), t.turns.clone(), None, None, None, None, None, None).unwrap();
+        assert_eq!(load_thread(p2).unwrap().meta.members.len(), 2);
+        assert_eq!(clean_turn_meta(r#"{"name":"a-->b"}"#).unwrap(), r#"{"name":"a--\u003eb"}"#);
     }
 }
