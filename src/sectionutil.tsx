@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useIsPhone } from "./useisphone";
 import { Activity, Award, Brain, Briefcase, Coins, Compass, Folder, Github, Globe, GraduationCap, Heart, Home, Layers, Lightbulb, MessagesSquare, Monitor, Plug, Scale, Settings as SettingsIcon, Shield, ShieldCheck, Sparkles, Target, Users, Wrench } from "lucide-react";
 import { DETAIL_TITLE } from "./typescale";
+import { TintIcon } from "./tint";
 
 export const CLI_LOGIN_CMD: Record<string, string> = {
   claude: "claude",
@@ -150,7 +151,10 @@ export function ScrollPage({ children, testId, flush = false }: { children: Reac
 
 // `tabs`: a page's view switch (a SpineTabs), in the standard place: the
 // header's last row, under the title and subtitle.
-export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: string; subtitle?: ReactNode; icon?: typeof Folder; right?: ReactNode; tabs?: ReactNode }) {
+// The header icon is the page's concept in its palette color (tint.tsx):
+// `tint` names the concept when the icon alone does not, `color` overrides
+// it (a domain page keeps its domain's color).
+export function SettingsHeader({ title, subtitle, icon, right, tabs, tint, color: tintColorOverride }: { title: string; subtitle?: ReactNode; icon?: typeof Folder; right?: ReactNode; tabs?: ReactNode; tint?: string; color?: string }) {
   const Icon = icon ?? settingsHeaderIcon(title);
   const phone = useIsPhone();
   const slot = useContext(HeaderSlot);
@@ -179,7 +183,7 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
     // right, one calm line under it.
     <div data-settings-header className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
       <h1 className="flex min-w-0 items-center gap-2.5 font-display text-[26px] font-semibold tracking-tight text-text-primary">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><Icon className="h-5 w-5" /></span>
+        <TintIcon icon={Icon} tint={tint} color={tintColorOverride} lg />
         <span className="min-w-0 truncate">{title}</span>
       </h1>
       {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}

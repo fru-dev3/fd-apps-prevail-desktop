@@ -4,6 +4,7 @@ import {
   HelpCircle, Hourglass, History, Inbox as InboxIcon, KeyRound, Layers, LayoutGrid, ListChecks, Mail, Network, Pause, Play, Plug, Repeat,
   Snowflake, Sparkles, Target, Trash2, Users, Workflow, Newspaper, type LucideIcon,
 } from "lucide-react";
+import { TintIcon } from "./tint";
 
 // THE secondary column. Every screen that lists things on the left and shows
 // the picked one on the right uses this (Intent's Noticed, History and
@@ -166,7 +167,8 @@ export function SideSpine({ storageKey, detail, phone = false, phoneDetail = fal
 
 // The segmented tabs above a SideSpine page (Intent's Noticed / History /
 // Projects look): they pick what the column lists.
-// Every tab row shows an icon before its label (owner, 2026-10-02). A tab may
+// Every tab row shows an icon before its label (owner, 2026-10-02), in its
+// view's color from the one palette (tint.tsx). A tab may
 // name its own; otherwise its id picks one here, so the same view reads the
 // same everywhere (All, Done, Archived, History...).
 export const TAB_ICON: Record<string, LucideIcon> = {
@@ -191,7 +193,7 @@ export function SpineTabs<T extends string>({ tabs, value, onChange, label }: {
         return (
           <button key={t.id} role="tab" aria-selected={on} onClick={() => onChange(t.id)} data-testid={`tab-${t.id}`}
             className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-2 ${on ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
-            {I && <I aria-hidden className={`h-3.5 w-3.5 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />}
+            {I && <TintIcon icon={I} tint={t.id} square={false} />}
             {t.label}
             {t.count !== undefined && <span className="text-[12px] font-normal tabular-nums text-text-muted">{t.count}</span>}
           </button>

@@ -567,8 +567,8 @@
 [data-rail] button:not(:has(svg)) { display: none; }
 [data-rail] *:not(button):not(button *):not(:has(button)) { display: none; }
 
-/* Sidebar tints (owner, 2026-10-02: "colorful icons make it look
-   interesting"): a lucide icon on a small tinted square, one harmonious
+/* Icon tints (owner, 2026-10-02 and 10-03: colorful, playful icons
+   everywhere): a lucide icon on a small tinted square, one harmonious
    palette (src/tint.tsx) that reads in light and dark. --tint is the hue's
    colour; the square mixes it toward the surface, the icon toward the ink. */
 .tint-sq {
@@ -578,6 +578,8 @@
   background: color-mix(in oklab, var(--tint) 14%, transparent);
 }
 .tint-sq svg { width: 14px; height: 14px; }
+.tint-sq-lg { width: 36px; height: 36px; border-radius: 10px; }
+.tint-sq-lg svg { width: 20px; height: 20px; }
 .tint-ic { color: color-mix(in oklab, var(--tint) 82%, black); flex-shrink: 0; }
 :root[data-theme="dark"] .tint-sq { color: color-mix(in oklab, var(--tint) 70%, white); background: color-mix(in oklab, var(--tint) 22%, transparent); }
 :root[data-theme="dark"] .tint-ic { color: color-mix(in oklab, var(--tint) 70%, white); }
