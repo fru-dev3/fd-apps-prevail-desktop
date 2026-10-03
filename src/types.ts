@@ -34,6 +34,9 @@ export interface ThreadMeta {
   route_turns?: string;
   // Entity chat: the entity (kind/slug) this conversation is about.
   entity?: string | null;
+  // Group chat: the specialists who are members, and when each joined or left.
+  members?: string[];
+  member_log?: string;
 }
 
 export interface ThreadTurn {
@@ -41,6 +44,8 @@ export interface ThreadTurn {
   cli: string | null;
   model: string | null;
   content: string;
+  // A reply's metadata (groupchat.ts TurnMeta) as JSON, kept with the turn.
+  meta?: string | null;
 }
 
 export interface DomainLogEntry {
@@ -351,6 +356,9 @@ export interface ChatMessage {
   // The message sounded like a mission (the engine's `mission_start` event):
   // a Start card, never started without the user's yes.
   missionDraft?: { name: string; outcome: string; owner?: string; consulted: string[]; specialists: string[]; target?: string };
+  // Who wrote this reply, the members present, its scope and context, recorded
+  // when it was sent and stored with the turn (groupchat.ts).
+  meta?: import("./groupchat").TurnMeta;
 }
 
 export type AppNotice =
@@ -400,6 +408,10 @@ export interface ChatEvent {
   // Present only on the `touched` event (linking).
   domains?: { slug: string; fact?: string }[];
   entities?: string[];
+  // Group chat: who writes the next reply (`speaker` event), and the stored
+  // metadata on an assistant event.
+  speaker?: { id: string; name: string; why?: string };
+  meta?: import("./groupchat").TurnMeta;
 }
 
 // One step in the live execution checklist shown while a chat turn runs.
