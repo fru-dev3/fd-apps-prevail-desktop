@@ -494,21 +494,16 @@ test("18 · the Inbox approves a queued Google write with the token spine", asyn
   expect(args).toMatchObject({ id: "gws_smoke1", approval: "smoke-approval-token" });
 });
 
-test("19 · the sidebar lists your apps; a click opens the Apps page in Home with it picked", async ({ page }) => {
+test("19 · apps live in Products: no APPS section; Products opens the Apps page in Home", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  const apps = page.getByTestId("sidebar-apps");
-  await expect(apps.getByTestId("sidebar-app-claude:foo")).toContainText("Foo", { timeout: 10_000 });
-  // A connector that needs sign-in carries a small dot.
-  await expect(apps.getByTestId("sidebar-app-claude:bar").getByTestId("app-signin-dot")).toBeVisible();
-  await expect(apps.getByTestId("sidebar-app-claude:foo").getByTestId("app-signin-dot")).toHaveCount(0);
-  await apps.getByTestId("sidebar-app-claude:bar").click();
+  await expect(page.getByTestId("sidebar-apps")).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "products" })));
+  await page.getByTestId("products-open-apps").click();
   await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByTestId("mirror-row-claude:bar")).toHaveAttribute("aria-current", "true");
   // Still Home: the sidebar did not flip into Settings.
   await expect(page.getByTestId("nav-home")).toBeVisible();
   await expect(page.getByRole("button", { name: /Back to Home/ })).toHaveCount(0);
-  await expect(apps.getByTestId("sidebar-app-claude:bar")).toHaveAttribute("aria-current", "page");
-  // The Settings group no longer carries a duplicate Apps row.
+  // The Settings group carries no duplicate Apps row.
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByRole("button", { name: "Connections", exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Apps", exact: true })).toHaveCount(0);

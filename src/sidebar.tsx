@@ -5,8 +5,9 @@
 //   profile header (switcher + settings button), search (opens the command
 //   palette), Home / Inbox / the Home surfaces, WORK (tasks, Compass,
 //   decisions, playbooks), ENTITIES (People, Places, Products, Things),
-//   ACTIVITIES (Events, Projects), SPECIALISTS, APPS (the connectors you
-//   use), DOMAINS (Pinned / All / Archived).
+//   ACTIVITIES (Events, Projects), SPECIALISTS, DOMAINS (Pinned / All /
+//   Archived). Apps are Products now: each product's page carries its
+//   connection, and Products links to the Apps page (ux ask 6).
 // Editor mode keeps the same header and swaps the list for the configuration
 // nav, with a way back to Home at the top.
 import { Fragment, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -25,9 +26,6 @@ import { lsGet, lsSet } from "./storage";
 import { SidebarGatewayLive, SidebarMcpLive } from "./panels";
 import { ProfileSwitcher } from "./profileswitcher";
 import { EDITOR_NAV, WORK_NAV, navSection, workSection } from "./navdefs";
-import { AppLogo, MIRROR_SELECT_KEY } from "./appsmirror-parts";
-import { RUNTIME_LABEL, RUNTIME_MARK, type MirrorApp, type MirrorList } from "./appsmirror-model";
-import { ProviderMark } from "./marks";
 import { domainIcon } from "./icons";
 import { SidebarBackupActive, SidebarBenchmarkRuns, SidebarProcesses } from "./cards";
 import { useProcesses } from "./processes";
@@ -435,12 +433,6 @@ export function Sidebar({
     return () => window.clearInterval(id);
   }, [vaultPath]);
   const workCounts: Record<string, number> = { "task-list": openTasks };
-  // Apps: the connectors from your AI runtimes, read from the same list the
-  // Apps page shows. A click opens that page with the app picked.
-  const appsList = useInvokeQuery<MirrorList>("apps_mirror_list", vaultPath ? { vault: vaultPath } : null, { staleMs: Infinity });
-  const apps: MirrorApp[] = Array.isArray(appsList.data?.apps) ? appsList.data!.apps : [];
-  const [appsOpen, setAppsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.appsOpen") === "1");
-  useEffect(() => { lsSet("prevail.sidebar.appsOpen", appsOpen ? "1" : "0"); }, [appsOpen]);
   // Specialists: only the ones that are on, like Apps. A click opens the
   // Specialists page on that specialist; the section count is running jobs.
   const specsList = useInvokeQuery<{ id: string; name: string; on: boolean }[]>("engine_specialists", vaultPath ? { vault: vaultPath } : null, { staleMs: 5 * 60_000 });
@@ -452,44 +444,6 @@ export function Sidebar({
     try { localStorage.setItem("prevail.specialists.focus", focus); } catch { /* storage off */ }
     selectWork("specialists");
     window.dispatchEvent(new Event("prevail:specialists-focus"));
-  };
-  const [activeApp, setActiveApp] = useState<string | null>(null);
-  useEffect(() => {
-    const onPick = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (typeof id === "string") setActiveApp(id); };
-    window.addEventListener("prevail:mirror-select", onPick);
-    return () => window.removeEventListener("prevail:mirror-select", onPick);
-  }, []);
-  const openApp = (id: string) => {
-    try { sessionStorage.setItem(MIRROR_SELECT_KEY, id); } catch { /* storage off */ }
-    selectWork("apps");
-    window.dispatchEvent(new CustomEvent("prevail:mirror-select", { detail: id }));
-  };
-  const appRow = (a: MirrorApp) => {
-    const active = tab === "work" && workActive === "apps" && activeApp === a.id;
-    const signin = a.status === "needs_auth";
-    return (
-      <li key={a.id}>
-        <button
-          onClick={() => openApp(a.id)}
-          onMouseDown={(e) => startAppDrag(e, a)}
-          title={`${a.name}, via ${RUNTIME_LABEL[a.runtime] ?? a.runtime}${signin ? ": needs sign-in" : ""}`}
-          aria-current={active ? "page" : undefined}
-          data-testid={`sidebar-app-${a.id}`}
-          className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${collapsed ? "h-10 justify-center" : "h-9 gap-3 pl-3 pr-3"} ${active ? ACTIVE_ROW : IDLE_ROW}`}
-        >
-          {/* A tiny mark of the runtime the connection comes through (Claude,
-              Codex, Gemini, Antigravity), pinned to the logo corner. */}
-          <span className="relative inline-flex shrink-0">
-            <AppLogo name={a.name} url={a.url} size={collapsed ? 22 : 18} />
-            <span data-testid={`app-runtime-${a.id}`} className="absolute -bottom-1 -right-1 rounded-[3px] ring-2 ring-surface-strong" aria-hidden>
-              <ProviderMark vendor={RUNTIME_MARK[a.runtime] ?? a.runtime} size={collapsed ? 10 : 9} />
-            </span>
-          </span>
-          {!collapsed && <span className="min-w-0 flex-1 truncate">{a.name}</span>}
-          {signin && <span data-testid="app-signin-dot" className={`h-2 w-2 shrink-0 rounded-full bg-warn ${collapsed ? "absolute right-1.5 top-1.5" : ""}`} aria-label="Needs sign-in" />}
-        </button>
-      </li>
-    );
   };
   // What is waiting on you, counted per domain for the domain rows.
   const waiting = useWaiting(vaultPath);
@@ -561,11 +515,6 @@ export function Sidebar({
     const hook = (window as unknown as { __prevailAttach?: (n: string, mode?: "light" | "full" | "folder") => void }).__prevailAttach;
     if (hook) hook(name, ev.altKey ? "folder" : ev.shiftKey ? "full" : "light");
     else console.warn("[prevail/drag] no attach hook registered: drop fell outside chat panel");
-  });
-  // An app row dragged onto a chat becomes an @-chip there.
-  const startAppDrag = (e: ReactMouseEvent, a: MirrorApp) => startDrag(e, `@${a.name}`, () => {
-    const hook = (window as unknown as { __prevailAddRef?: (r: { kind: "app"; id: string; label: string }) => void }).__prevailAddRef;
-    if (hook) hook({ kind: "app", id: a.id, label: a.name });
   });
   const startDrag = (e: ReactMouseEvent, label: string, drop: (ev: MouseEvent) => void) =>
     startPillDrag(e, label, (ev) => { if (!inSidebar(ev)) drop(ev); });
@@ -917,19 +866,6 @@ export function Sidebar({
               </>
             )}
 
-            {apps.length > 0 && (
-              <>
-                <Divider />
-                <section>
-                {!collapsed && <SectionHeader label="Apps" count={apps.length} open={appsOpen} onToggle={() => setAppsOpen((v) => !v)} />}
-                {(collapsed || appsOpen) && (
-                  <ul aria-label="Apps" data-testid="sidebar-apps" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
-                    {apps.map(appRow)}
-                  </ul>
-                )}
-                </section>
-              </>
-            )}
 
             <Divider />
             <section>
@@ -963,7 +899,7 @@ export function Sidebar({
             {collapsed ? (
               <ul className="space-y-0.5 px-2">{sortedDomains.map(domainRow)}</ul>
             ) : domainsOpen && (
-              <ul className="space-y-0.5 px-3">
+              <ul data-testid="sidebar-domains-list" className="space-y-0.5 px-3">
                 {pinnedDomains.length > 0 && (
                   <Fragment>
                     {groupHeader("Pinned", pinnedOpen, () => setPinnedOpen((v) => !v), pinnedCount)}

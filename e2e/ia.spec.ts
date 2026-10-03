@@ -33,6 +33,8 @@ const EVENTS = { events: [
 const FIX: Record<string, unknown> = {
   read_ideal_state: "", read_omega: "", read_user_md: "", read_memory_md: "",
   entities_list: LIST, ia_products: PRODUCTS, ia_events: EVENTS,
+  // A connector in an AI runtime that is the Foo Bank app: its connection shows on the product's page.
+  apps_mirror_list: { generated_at: 1, runtimes: [], apps: [{ id: "claude:foo-bank", name: "Foo Bank", runtime: "claude", server: "foo-bank", status: "needs_auth", signin_hint: "https://claude.ai/settings/connectors", syncable: true, domains: [] }] },
   ia_links: { id: "event/foo-dinner", links: [
     { id: "person/sam-foo", name: "Sam Foo", kind: "people", via: "link" },
     { id: "place/foo-house", name: "Foo House", kind: "places", via: "field", role: "place" },
@@ -125,6 +127,11 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect(page.getByTestId("entities-list")).toContainText("Bar Notes");
       if (stacked) await rows.first().click();
       await expect(page.getByTestId("product-apps")).toContainText("Foo Bank", { timeout: 10_000 });
+      // The old sidebar APPS row lives here now: status, runtime and sign-in.
+      const conn = page.getByTestId("product-connection");
+      await expect(conn.getByTestId("product-connector")).toHaveAttribute("data-id", "claude:foo-bank");
+      await expect(conn).toContainText("via Claude");
+      if (!stacked) await expect(page.getByTestId("products-open-apps")).toBeVisible();
       await shot(page, "ia-products", width);
       await fire(page, "prevail:work-section", "things");
       if (stacked) await page.getByTestId("entity-row").first().click();

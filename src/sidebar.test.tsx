@@ -79,32 +79,15 @@ describe("Sidebar", () => {
     expect(screen.queryByText(/^Apps$/)).toBeNull();
   });
 
-  it("lists your apps, marks one that needs sign-in, and opens the Apps page with it picked", async () => {
+  it("has no APPS section: apps are Products now, each with its connection on its page", async () => {
     appsList = { generated_at: 1, runtimes: [], apps: [
       { id: "claude:foo", name: "Foo", runtime: "claude", server: "foo", status: "connected", signin_hint: "", syncable: true, domains: [] },
-      { id: "claude:bar", name: "Bar", runtime: "claude", server: "bar", status: "needs_auth", signin_hint: "", syncable: true, domains: [] },
     ] };
-    const sections: string[] = [];
-    const picks: string[] = [];
-    const onSection = (e: Event) => sections.push((e as CustomEvent<string>).detail);
-    const onPick = (e: Event) => picks.push((e as CustomEvent<string>).detail);
-    window.addEventListener("prevail:work-section", onSection);
-    window.addEventListener("prevail:mirror-select", onPick);
     renderSidebar();
-    const foo = await screen.findByTestId("sidebar-app-claude:foo");
-    expect(screen.getByText("Apps")).toBeTruthy();
-    expect(foo.querySelector("[data-testid=app-signin-dot]")).toBeNull();
-    expect(screen.getByTestId("sidebar-app-claude:bar").querySelector("[data-testid=app-signin-dot]")).toBeTruthy();
-    fireEvent.click(foo);
-    window.removeEventListener("prevail:work-section", onSection);
-    window.removeEventListener("prevail:mirror-select", onPick);
-    expect(sections).toEqual(["apps"]);
-    expect(picks).toEqual(["claude:foo"]);
-    expect(sessionStorage.getItem("prevail.apps.mirror.select")).toBe("claude:foo");
-    // The header folds the list away, and the choice is remembered.
-    fireEvent.click(screen.getByText("Apps"));
+    await screen.findByTestId("nav-home");
     expect(screen.queryByTestId("sidebar-apps")).toBeNull();
-    expect(localStorage.getItem("prevail.sidebar.appsOpen")).toBe("0");
+    expect(screen.queryByTestId("sidebar-head-apps")).toBeNull();
+    expect(screen.queryByTestId("sidebar-app-claude:foo")).toBeNull();
   });
 
   it("every section starts collapsed for a new user; the chevron and + wait for a hover", () => {

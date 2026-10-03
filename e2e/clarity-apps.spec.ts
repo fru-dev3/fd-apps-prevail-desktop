@@ -219,13 +219,13 @@ for (const width of [1440, 390]) {
   });
 }
 
-test("sidebar · the Apps chevron sits at the right, shows on hover, and the row toggles the section", async ({ page }) => {
+test("sidebar · the Domains chevron sits at the right, shows on hover, and the row toggles the section", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockTauri(page, FIX);
   await home(page);
-  const head = page.getByTestId("sidebar-head-apps");
+  const head = page.getByTestId("sidebar-head-domains");
   const toggle = head.locator("button[aria-expanded]");
-  const chevron = page.getByTestId("sidebar-toggle-apps");
+  const chevron = page.getByTestId("sidebar-toggle-domains");
   const hb = (await head.boundingBox())!;
   const cb = (await chevron.boundingBox())!;
   expect(hb.x + hb.width - (cb.x + cb.width)).toBeLessThan(12);
@@ -234,11 +234,11 @@ test("sidebar · the Apps chevron sits at the right, shows on hover, and the row
   await expect(chevron).toHaveCSS("opacity", "0");
   await head.hover();
   await expect(chevron).toHaveCSS("opacity", "1");
-  await expect(page.getByTestId("sidebar-apps")).toBeVisible();
+  await expect(page.getByTestId("sidebar-domains-list")).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await toggle.click();
-  await expect(page.getByTestId("sidebar-apps")).toHaveCount(0);
+  await expect(page.getByTestId("sidebar-domains-list")).toHaveCount(0);
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await toggle.click();
-  await expect(page.getByTestId("sidebar-apps")).toBeVisible();
+  await expect(page.getByTestId("sidebar-domains-list")).toBeVisible();
 });

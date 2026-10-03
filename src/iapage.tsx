@@ -5,7 +5,7 @@
 // template: one entity kind per tab, Events with their calendar strip, and
 // Projects (the missions page without its own header).
 import { useEffect, useState } from "react";
-import { CalendarRange, ChevronRight, Shapes } from "lucide-react";
+import { CalendarRange, ChevronRight, Plug, Shapes } from "lucide-react";
 import { SettingsHeader } from "./sectionutil";
 import { SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
@@ -59,9 +59,18 @@ export function GroupPage({ vaultPath, group, initial }: { vaultPath: string; gr
       tabs={kinds.map((k) => ({ id: k.id, label: k.label, icon: k.icon }))} />
   );
   const ek = ENTITY_KIND_OF[kind];
+  // Products carry the connectors (the old sidebar APPS): the Apps page, with
+  // the stack, every connector and its sign-in, is one tap from here.
+  const appsLink = kind === "products" && !(phone && selName) ? (
+    <button type="button" data-testid="products-open-apps" title="Apps and connections: the stack, every connector, sign-in and runtimes"
+      onClick={() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "apps" }))}
+      className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-accent">
+      <Plug aria-hidden className="h-4 w-4" />{!phone && <span>Apps and connections</span>}
+    </button>
+  ) : undefined;
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid={`ia-page-${group}`}>
-      <SettingsHeader title={GROUP_LABEL[group]} icon={group === "entities" ? Shapes : CalendarRange} subtitle={phone ? undefined : crumbs} tabs={phone && selName ? undefined : tabs} />
+      <SettingsHeader title={GROUP_LABEL[group]} icon={group === "entities" ? Shapes : CalendarRange} subtitle={phone ? undefined : crumbs} right={appsLink} tabs={phone && selName ? undefined : tabs} />
       <div className="flex min-h-0 flex-1 flex-col" data-testid={`ia-kind-${kind}`} key={kind}>
         {kind === "projects" ? <MissionsPage vaultPath={vaultPath} bare onSelected={setSelName} clearN={clearN} />
           : kind === "events" ? <EventsView vaultPath={vaultPath} onSelected={setSelName} clearN={clearN} />
