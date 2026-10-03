@@ -2645,8 +2645,13 @@ pub async fn engine_chat(
     // Output format only: the engine puts it in the system channel, so a
     // domain turn's context stays what its scope resolver built.
     #[allow(non_snake_case)] outputHint: Option<String>,
+    // Group chat: specialists named on this turn (--to, routed in code before
+    // any model call) and the thread's members (--member). Ids only.
+    to: Option<Vec<String>>,
+    members: Option<Vec<String>>,
 ) -> Result<(), String> {
-    let refs = chat_ref_args(entity, apps, entities, ref_domains, scope_app)?;
+    let mut refs = chat_ref_args(entity, apps, entities, ref_domains, scope_app)?;
+    refs.extend(member_args(to, members));
     // Build the arg vector. `--vault V` goes BEFORE the subcommand,
     // matching every other engine command here.
     let mut args: Vec<String> = vec![
@@ -2733,6 +2738,15 @@ pub async fn engine_chat(
     args.extend(refs);
 
     run_engine_stream_stdin(app, session, args, message, "engine-chat", extra_env).await
+}
+
+/// The group chat flags for one turn: each id checked so a crafted one can
+/// never pose as a flag (a leading dash fails the id shape).
+pub(crate) fn member_args(to: Option<Vec<String>>, members: Option<Vec<String>>) -> Vec<String> {
+    let mut out = Vec::new();
+    for id in crate::threads::clean_members(&to.unwrap_or_default()) { out.push("--to".to_string()); out.push(id); }
+    for id in crate::threads::clean_members(&members.unwrap_or_default()) { out.push("--member".to_string()); out.push(id); }
+    out
 }
 
 /// The scope and @-reference flags for one chat turn, each value checked so a
