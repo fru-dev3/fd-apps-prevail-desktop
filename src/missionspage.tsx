@@ -10,7 +10,7 @@ import { SpecialistAvatar } from "./specialistavatar";
 import { NewMission } from "./missionnew";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  Archive, CalendarDays, Check, CheckCircle2, CircleDollarSign, Clock, FileText, Flag, ListChecks, Loader2, MessageSquare,
+  Archive, CalendarDays, Check, CheckCircle2, CircleDollarSign, Clock, FileText, Flag, FolderKanban, ListChecks, Loader2, MessageSquare,
   Pause, Play, Plus, RotateCcw, Settings2, Target, Undo2, X,
 } from "lucide-react";
 import { useInvokeQuery } from "./query";
@@ -67,7 +67,10 @@ export function missionMeta(m: Mission): string {
 
 // ── The page ────────────────────────────────────────────────────────────────
 
-export function MissionsPage({ vaultPath }: { vaultPath: string }) {
+// `bare`: inside Activities > Projects, whose page header (the group's kind
+// tabs and breadcrumbs) is drawn by the Activities page; the status tabs then
+// sit at the top of the list column.
+export function MissionsPage({ vaultPath, bare = false, onSelected, clearN = 0 }: { vaultPath: string; bare?: boolean; onSelected?: (name: string | null) => void; clearN?: number }) {
   const isPhone = useIsPhone();
   const stacked = useStacked();
   const phone = isPhone || stacked;
@@ -99,6 +102,9 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
   const cur = adding ? null : (missions.find((m) => m.slug === sel) ?? (phone || sel ? null : shown[0] ?? null));
   const curSlug = adding ? null : sel ?? cur?.slug ?? null;
   useEffect(() => { window.dispatchEvent(new CustomEvent("prevail:mission-shown", { detail: curSlug })); }, [curSlug]);
+  const selName = adding ? "New project" : cur?.name ?? null;
+  useEffect(() => { onSelected?.(selName); }, [selName]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (clearN) { setSel(null); setPicked(false); setAdding(false); } }, [clearN]);
   const pick = (slug: string) => { setSel(slug); setPicked(true); setAdding(false); };
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -119,7 +125,7 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
         const left = daysLeftLabel(m);
         return (
           <button key={m.slug} data-testid="mission-row" aria-current={on ? "true" : undefined} onClick={() => pick(m.slug)} className={rowCls(on)}>
-            <Target aria-hidden className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <FolderKanban aria-hidden className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{m.name}</span>
               <span className="block truncate text-[12px] text-text-muted">{m.progress?.milestones?.total ? `${m.progress.milestones.done} of ${m.progress.milestones.total} milestones` : titleCase(m.status)}</span>
@@ -157,17 +163,28 @@ export function MissionsPage({ vaultPath }: { vaultPath: string }) {
       </div>
     );
 
+  const statusTabs = ([
+    { id: "active", label: "Active", count: count("active") },
+    { id: "paused", label: "Paused", count: count("paused") },
+    { id: "completed", label: phone || bare ? "Done" : "Completed", count: count("completed") },
+    { id: "archived", label: "Archived", count: count("archived") },
+    { id: "all", label: "All", count: missions.length },
+  ] as { id: Tab; label: string; count?: number }[]);
+  // Inside Activities the list column carries the status as one compact choice.
+  const statusPick = (
+    <label className="flex h-9 items-center gap-2 rounded-lg bg-surface-warm px-2.5 text-[13px] text-text-secondary">
+      <span className="shrink-0 text-text-muted">Show</span>
+      <select aria-label="Which projects" data-testid="missions-status" value={tab} onChange={(e) => { setTab(e.target.value as Tab); setAdding(false); }}
+        className="min-w-0 flex-1 bg-transparent font-medium text-text-primary outline-none">
+        {statusTabs.map((t) => <option key={t.id} value={t.id}>{t.label}{t.count !== undefined ? ` (${t.count})` : ""}</option>)}
+      </select>
+    </label>
+  );
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="missions-page">
-      <SettingsHeader title="Projects" icon={Target} subtitle="Efforts with an outcome and an end. Talk to each one; it files what it learns back to your domains."
-        tabs={<SpineTabs label="Projects" value={tab} onChange={(t) => { setTab(t); setAdding(false); }} tabs={([
-          { id: "active", label: "Active", count: count("active") },
-          { id: "paused", label: "Paused", count: count("paused") },
-          { id: "completed", label: phone ? "Done" : "Completed", count: count("completed") },
-          { id: "archived", label: "Archived", count: count("archived") },
-          { id: "all", label: "All", count: missions.length },
-        ] as { id: Tab; label: string; count?: number }[]).map((t) => (phone ? { id: t.id, label: t.label } : t))} />} />
-      <SideSpine storageKey="prevail.missions.spine" title="Projects" label="missions" testId="missions-list"
+      {!bare && <SettingsHeader title="Projects" icon={FolderKanban} subtitle="Efforts with an outcome and an end. Talk to each one; it files what it learns back to your domains."
+        tabs={<SpineTabs label="Projects" value={tab} onChange={(t) => { setTab(t); setAdding(false); }} tabs={statusTabs.map((t) => (phone ? { id: t.id, label: t.label } : t))} />} />}
+      <SideSpine storageKey="prevail.missions.spine" title="Projects" label="missions" testId="missions-list" toolbar={bare ? statusPick : undefined}
         actions={<button onClick={() => { setAdding(true); setPicked(true); }} title="New project" aria-label="New project" data-testid="mission-new" className={iconBtn}><Plus className="h-4 w-4" /></button>}
         phone={phone} phoneDetail={phone && picked && (adding || !!curSlug)} onBack={() => { setPicked(false); setAdding(false); }} backLabel="All projects"
         detail={detail}>

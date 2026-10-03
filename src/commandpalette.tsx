@@ -15,6 +15,8 @@ export interface Command {
   group: string;        // section header in the list
   keywords?: string;    // extra match text not shown
   icon?: LucideIcon;
+  /** Listed only once something is typed (people, products, events: there are many). */
+  searchOnly?: boolean;
   run: () => void;
 }
 
@@ -28,7 +30,7 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return commands;
+    if (!q) return commands.filter((c) => !c.searchOnly);
     // Simple subsequence-tolerant contains match over label + group + keywords,
     // ranked so label-prefix hits sort first.
     const scored = commands
@@ -78,7 +80,7 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search actions, pages, and domains…"
+            placeholder="Search actions, pages, domains, people, products, events and projects"
             className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
           />
         </div>

@@ -3,7 +3,7 @@
 // Everything comes from `prevail entities show`; the owner's notes are edited
 // here and written back to the page's "Your notes" section only.
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
-import { Bookmark, BookOpen, Boxes, Building2, Check, Copy, FileText, FolderKanban, FolderOpen, Globe, Image as ImageIcon, Loader2, MapPin, MessageSquare, MessagesSquare, Plus, RefreshCw, Terminal, User } from "lucide-react";
+import { Bookmark, BookOpen, CalendarDays, Check, Copy, FileText, FolderKanban, FolderOpen, Globe, Image as ImageIcon, Loader2, MapPin, MessageSquare, MessagesSquare, Package, Plus, RefreshCw, Terminal, User, Watch } from "lucide-react";
 import { invoke } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
 import { CARD_KINDS, EntityChip, OrgMark, entityIdOf, openMap, type EntityKind } from "./entities";
@@ -21,15 +21,17 @@ import { EntityFiles } from "./entityfiles";
 import { AppActivity } from "./appactivity";
 import type { EntityChatRequest } from "./entitychat";
 import { AcrossYourLife, DomainChip, isYours, setRelation, type Relation } from "./linking";
+import { EventDetails, LinksPane, ProductApps, ThingDetails } from "./objectparts";
+import type { AppRecord, ObjectFields } from "./ia";
 
 // The chat is the whole chat panel, so it is its own chunk. A detail starts
 // fetching it as it mounts, so the Chat tab paints at once when clicked.
 const loadChat = () => import("./entitychat");
 const EntityChat = lazy(() => loadChat().then((m) => ({ default: m.EntityChat })));
 
-type Tab = "overview" | "chat" | "notes" | "conversations" | "files" | "brief";
+type Tab = "overview" | "chat" | "links" | "notes" | "conversations" | "files" | "brief";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "Overview" }, { id: "chat", label: "Chat" }, { id: "notes", label: "Notes" },
+  { id: "overview", label: "Overview" }, { id: "chat", label: "Chat" }, { id: "links", label: "Links" }, { id: "notes", label: "Notes" },
   { id: "conversations", label: "Conversations" }, { id: "files", label: "Files" },
 ];
 // A project's detail: its own Overview, and a Brief tab when it came from Intent.
@@ -77,10 +79,13 @@ export interface EntityDetail {
   // A project (kind "project"): its frontmatter and the goals that name it.
   status?: string; outcome?: string; target?: string; domains?: string[]; intent_project?: string;
   goals?: { title: string; status: string; domain: string }[];
+  // Entities and Activities: a thing's or an event's fields, a product's app records.
+  fields?: ObjectFields;
+  apps?: AppRecord[];
 }
 
-export const KIND_LABEL: Record<string, string> = { person: "Person", place: "Place", org: "Company", thing: "Thing", project: "Project" };
-const KIND_ICON = { person: User, place: MapPin, org: Building2, thing: Boxes, project: FolderKanban } as const;
+export const KIND_LABEL: Record<string, string> = { person: "Person", place: "Place", org: "Product", thing: "Thing", event: "Event", project: "Project" };
+const KIND_ICON = { person: User, place: MapPin, org: Package, thing: Watch, event: CalendarDays, project: FolderKanban } as const;
 
 // Aliases worth showing: those that differ from the name (and each other)
 // beyond case, punctuation and spacing.
@@ -104,7 +109,7 @@ export function KindBadge({ kind, name, domain, size = 44, entity }: { kind: Ent
     return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-full font-bold" style={{ ...box, backgroundColor: bg, color: fg, fontSize: size * 0.36 }}>{ini}</span>;
   }
   if (kind === "org") return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-xl border border-border bg-surface-warm text-text-secondary" style={box}><OrgMark name={name} host={domain} size={Math.round(size * 0.6)} /></span>;
-  const Icon = kind === "place" ? MapPin : Boxes;
+  const Icon = kind === "place" ? MapPin : kind === "event" ? CalendarDays : Watch;
   return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-xl border border-accent-border bg-accent-soft text-accent" style={box}><Icon style={{ width: size * 0.5, height: size * 0.5 }} /></span>;
 }
 
@@ -194,7 +199,8 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
   const [dropping, setDropping] = useState(false);
   const [filesSeen, setFilesSeen] = useState(false);
   const [briefSeen, setBriefSeen] = useState(false);
-  useEffect(() => { if (tab === "files") setFilesSeen(true); if (tab === "brief") setBriefSeen(true); }, [tab]);
+  const [linksSeen, setLinksSeen] = useState(false);
+  useEffect(() => { if (tab === "files") setFilesSeen(true); if (tab === "brief") setBriefSeen(true); if (tab === "links") setLinksSeen(true); }, [tab]);
   // The website field (orgs), open while not null.
   const [site, setSite] = useState<string | null>(null);
   // null until the Chat tab is first opened; then the panel stays mounted so
@@ -289,7 +295,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
   const kind = (d?.found ? d.kind : target.kind) as EntityKind;
   const hasPage = !!(d?.found && d.page_path);
   const notesDirty = notes !== (d?.found ? d.notes : "");
-  const KindIcon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? Boxes;
+  const KindIcon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? Watch;
   const isProject = kind === "project";
   const tabs = isProject ? [...TABS.filter((t) => PROJECT_TABS.includes(t.id)), ...(brief ? [{ id: "brief" as Tab, label: "Brief" }] : [])] : TABS;
   const aliases = d?.found ? distinctAliases(d.name, d.aliases) : [];
@@ -314,7 +320,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
       { icon: Copy, label: "Copy path", onClick: () => { void navigator.clipboard?.writeText(absPath).catch(() => {}); } },
     ] : []),
     ...(kind === "place" ? [{ icon: MapPin, label: "Open map", onClick: () => openMap(displayName) }] : []),
-    ...(isProject ? [] : [relation === "reference"
+    ...(isProject || kind === "event" ? [] : [relation === "reference"
       ? { icon: Bookmark, label: "This is mine", onClick: () => { void markAs("yours"); } }
       : { icon: BookOpen, label: "Just a reference", onClick: () => { void markAs("reference"); } }]),
     { icon: RefreshCw, label: "Refresh", onClick: () => { void load(); void pullThreads(); } },
@@ -379,7 +385,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
                 onClick={() => (t.id === "chat" ? openChat() : setTab(t.id))}
                 onMouseEnter={t.id === "chat" ? () => { void loadChat(); } : undefined}
                 className={`h-10 shrink-0 border-b-2 ${phone ? "px-2 text-[13px]" : "px-3 text-[14px]"} font-medium transition-colors ${tab === t.id ? "border-accent text-text-primary" : "border-transparent text-text-muted hover:text-text-secondary"}`}>
-                {t.label}{t.id === "conversations" && threads && threads.length > 0 && <span className="ml-1.5 text-[12px] font-normal text-text-muted">{threads.length}</span>}
+                {phone && t.id === "conversations" ? "History" : t.label}{t.id === "conversations" && threads && threads.length > 0 && <span className="ml-1.5 text-[12px] font-normal text-text-muted">{threads.length}</span>}
               </button>
             ))}
           </div>
@@ -425,6 +431,9 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             )}
             {homeDomain && phone && <div className="mt-3"><DomainChip slug={homeDomain} /></div>}
             {kind === "place" && <div className="mt-5"><PlaceMap name={displayName} /></div>}
+            {kind === "event" && <EventDetails vaultPath={vaultPath} id={writeId} fields={d.found ? d.fields ?? {} : {}} onChanged={load} />}
+            {kind === "thing" && <ThingDetails vaultPath={vaultPath} id={writeId} fields={d.found ? d.fields ?? {} : {}} onChanged={load} />}
+            {kind === "org" && d.found && <ProductApps apps={d.apps ?? []} />}
             <Section title="In your vault">
               {d.found && d.digest
                 ? <div className="text-[14px] leading-normal text-text-primary"><Markdown source={d.digest} /></div>
@@ -480,6 +489,10 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             </div>
           </div>
         )}
+      </div>
+
+      <div className={pane("links")}>
+        {tab === "links" || linksSeen ? <LinksPane vaultPath={vaultPath} id={writeId} /> : null}
       </div>
 
       <div className={pane("files")}>
