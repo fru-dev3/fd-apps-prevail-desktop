@@ -22,7 +22,7 @@ import { kindOfId, takeNew, type ProductRow } from "./ia";
 import { SideSpine } from "./sidespine";
 import { SettingsHeader } from "./sectionutil";
 import { useIsPhone, useStacked } from "./useisphone";
-import { DomainChip, isYours } from "./linking";
+import { isYours } from "./linking";
 
 const GROUPS: { kind: EntityKindName; label: string }[] = [
   { kind: "person", label: "People" },
@@ -50,6 +50,7 @@ const targetOf = (e: EntitySummary): EntityTarget => ({ kind: e.kind, value: e.i
 const rowIdOf = (t: EntityTarget): string => lookupEntity(t.kind, t.value)?.id ?? `${t.kind}/${slugifyName(t.value)}`;
 
 function EntityRow({ e, on, onPick }: { e: Row; on: boolean; onPick: (e: EntitySummary) => void }) {
+  const aka = e.aliases.filter((a) => a.toLowerCase() !== e.name.toLowerCase());
   const app = e.apps?.length ? (e.company ? (e.apps.length === 1 ? "Company and its app" : `Company and ${e.apps.length} apps`) : e.apps[0]!.kind === "service" ? "Service" : "App") : "";
   return (
     <li>
@@ -61,11 +62,12 @@ function EntityRow({ e, on, onPick }: { e: Row; on: boolean; onPick: (e: EntityS
             <span className={`truncate text-[14px] ${on ? "font-semibold text-text-primary" : "font-medium text-text-primary"}`}>{e.name}</span>
             {e.saved && <span title="Saved to your vault" aria-label="Saved to your vault" className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" data-vault-dot />}
           </span>
-          {(e.home_domain || e.aliases.length > 0 || app) && (
-            <span className="flex min-w-0 items-center gap-1.5">
-              {e.home_domain && <DomainChip slug={e.home_domain} still />}
-              {app && <span className="shrink-0 text-[12px] text-text-muted" data-testid="entity-row-app">{app}</span>}
-              {e.aliases.length > 0 && <span className="min-w-0 truncate text-[12px] text-text-muted">{e.aliases.slice(0, 3).join(", ")}</span>}
+          {/* One quiet line, per kind: a product says what it carries, the rest
+              their other names. Never the domains they came up in (a person
+              can be in ten). */}
+          {(app || aka.length > 0) && (
+            <span className="block min-w-0 truncate text-[12px] text-text-muted" data-testid={app ? "entity-row-app" : "entity-row-aka"}>
+              {app || aka.slice(0, 3).join(", ")}
             </span>
           )}
         </span>

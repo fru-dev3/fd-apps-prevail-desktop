@@ -744,6 +744,7 @@ pub fn run() {
             entities_bridge::engine_entities_not_same,
             entities_bridge::engine_entities_set_picture,
             entities_bridge::engine_entities_set_website,
+            entities_bridge::engine_entities_rename,
             entities_bridge::engine_entities_files,
             entities_bridge::engine_entities_add_file,
             entities_bridge::engine_entity_picture,

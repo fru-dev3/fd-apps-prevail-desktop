@@ -1578,7 +1578,7 @@ mod tests {
             "bunker_set", "vault_lock_set", "engine_acts_approve", "engine_gws_approve",
             "engine_acts_deny", "engine_acts_rule_revoke",
             "engine_entity_note_append", "engine_entities_merge", "engine_entities_not_same",
-            "engine_entities_set_picture", "engine_entities_set_website", "engine_entities_add_file", "entities_note", "entities_save", "goals_file_write",
+            "engine_entities_set_picture", "engine_entities_set_website", "engine_entities_rename", "engine_entities_add_file", "entities_note", "entities_save", "goals_file_write",
             "engine_entities_set_relation", "engine_config_autosave_set", "engine_config_autosave_get",
             "engine_projects_create", "engine_projects_set", "engine_suggest_accept", "engine_suggest_dismiss",
             "engine_missions_create", "engine_missions_set", "engine_missions_attach", "engine_missions_milestone",
