@@ -1,16 +1,18 @@
 // Specialists: the team the chief of staff staffs jobs with. SideSpine:
-//   Jobs        Running, Waiting on you, Done (each job opens as its card)
 //   Setup       the chief of staff: name, handoff, limits, never pull in, what
 //               they learned
 //   families    Know, Decide, Do, Grow, Deliver (the built-in specialists)
 //   Yours       the user's own: made by talking, presets from a pack, outside agents
 //   Off         any specialist turned off
-// A specialist's detail: what it is for, how it works, its ceiling, budget
-// and tools, its notebooks per domain, and the jobs it worked on.
+// A specialist's detail opens on its own chat (owner feedback round 1: its
+// mandate, notebooks and recent work are its context); About has what it is
+// for, how it works, its ceiling, budget and tools, its notebooks per domain,
+// the conversations it took part in and the jobs it worked on. Jobs live in
+// the Inbox (they are work, not specialists).
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChiefAvatar, SpecialistAvatar, useWorkingSpecialists } from "./specialistavatar";
 import { dropSpecialist, startPillDrag } from "./dragref";
-import { AlertTriangle, Archive, BookOpen, Briefcase, Check, ChevronRight, Clock, Globe, Hourglass, Loader2, Pencil, Plus, RotateCcw, Search, UserCog } from "lucide-react";
+import { AlertTriangle, Archive, BookOpen, Check, ChevronRight, Globe, Loader2, Pencil, Plus, RotateCcw, UserCog } from "lucide-react";
 import { NewSpecialist, originLine } from "./specialistnew";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
@@ -20,18 +22,25 @@ import { useIsPhone } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import { RowMenu, StatusDot } from "./ui";
 import { JobCard } from "./jobcard";
+import { EmbeddedChat } from "./embeddedchat";
+import { openUpdateThread } from "./linking";
 import { AppRowLogo } from "./panels3";
 import { useChiefOfStaff } from "./chiefofstaff";
-import { CEILINGS, CEILING_LABEL, CEILING_SAYS, FAMILY_LABEL, HANDOFF_LABEL, RUNTIME_LABEL, SPECIALIST_TOOLS, ceilingRank, draftOf, editOf, jobGroups, jobStatusLabel, jobTone, label, loosens, scopeLabel, toolLabel, type Job, type Specialist, type SpecialistDraft } from "./plansmodel";
+import { CEILINGS, CEILING_LABEL, CEILING_SAYS, FAMILY_LABEL, HANDOFF_LABEL, RUNTIME_LABEL, SPECIALIST_TOOLS, ceilingRank, draftOf, editOf, jobStatusLabel, jobTone, label, loosens, scopeLabel, toolLabel, type Job, type Specialist, type SpecialistDraft } from "./plansmodel";
 
 export const SPECIALISTS_FOCUS_KEY = "prevail.specialists.focus";
 const input = "h-9 w-full max-w-sm rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary";
 
-type Sel = "jobs:running" | "jobs:waiting" | "jobs:done" | "setup" | "new" | `spec:${string}`;
+type Sel = "setup" | "new" | `spec:${string}`;
 
 function readFocus(): Sel {
-  try { const f = localStorage.getItem(SPECIALISTS_FOCUS_KEY); localStorage.removeItem(SPECIALISTS_FOCUS_KEY); if (f) return f as Sel; } catch { /* storage off */ }
-  return "jobs:running";
+  try {
+    const f = localStorage.getItem(SPECIALISTS_FOCUS_KEY); localStorage.removeItem(SPECIALISTS_FOCUS_KEY);
+    // Jobs moved to the Inbox: an old jobs link opens it there.
+    if (f?.startsWith("jobs:")) { try { localStorage.setItem("prevail.inbox.category", "jobs"); } catch { /* storage off */ } window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "inbox" })); return "setup"; }
+    if (f) return f as Sel;
+  } catch { /* storage off */ }
+  return "setup";
 }
 
 export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
@@ -47,7 +56,6 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   const jobsQ = useInvokeQuery<Job[]>("engine_jobs", { vault: vaultPath }, { staleMs: 5_000 });
   const specs = useMemo(() => (Array.isArray(specsQ.data) ? specsQ.data : []), [specsQ.data]);
   const jobs = useMemo(() => (Array.isArray(jobsQ.data) ? jobsQ.data : []), [jobsQ.data]);
-  const groups = jobGroups(jobs);
   const on = specs.filter((s) => s.on);
   const working = useWorkingSpecialists(vaultPath);
   const chief = useChiefOfStaff(vaultPath);
@@ -55,7 +63,6 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   const [offOpen, setOffOpen] = useState(false);
   const choose = (s: Sel) => { setSel(s); setPicked(true); };
   const isOn = (s: Sel) => sel === s && (!phone || picked);
-  const icon = (s: Sel, I: typeof Search) => <I className={`h-4 w-4 shrink-0 ${isOn(s) ? "text-accent" : "text-text-muted"}`} />;
   const row = (s: Sel, text: string, lead: ReactNode, count?: number, sub?: string, drag?: string) => (
     <button key={s} data-testid={`specialists-row-${s}`} aria-current={isOn(s) ? "true" : undefined} onClick={() => choose(s)}
       onMouseDown={drag ? (e) => startPillDrag(e, `@${drag}`, (ev) => { dropSpecialist(ev, drag); }) : undefined}
@@ -75,10 +82,6 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   const families = (["know", "decide", "do", "grow", "deliver"] as const).filter((f) => builtOn.some((s) => s.family === f));
   const column = (
     <nav className="space-y-0.5 p-2" aria-label="Specialists">
-      {head("Jobs")}
-      {row("jobs:running", "Running", icon("jobs:running", Clock), groups.running.length)}
-      {row("jobs:waiting", "Waiting on you", icon("jobs:waiting", Hourglass), groups.waiting.length)}
-      {row("jobs:done", "Done", icon("jobs:done", Briefcase), groups.done.length)}
       {row("setup", chief ?? "Chief of staff", <ChiefAvatar size={24} />, undefined, chief ? "Your chief of staff" : "Name, limits, handoff")}
       {families.map((f) => (
         <div key={f}>
@@ -103,21 +106,10 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   );
 
   let detail: React.ReactNode = null;
-  if (sel.startsWith("jobs:")) {
-    const k = sel.slice(5) as "running" | "waiting" | "done";
-    const list = groups[k];
-    detail = (
-      <section data-testid="specialists-jobs">
-        <h2 className={DETAIL_TITLE}>{k === "running" ? "Running" : k === "waiting" ? "Waiting on you" : "Done"}</h2>
-        <p className={`${META} mt-1`}>Jobs your chief of staff staffed, and playbook runs.</p>
-        {!list.length && <p className={`${META} mt-4`}>{k === "running" ? "Nothing is running." : k === "waiting" ? "Nothing waits on you." : "No finished jobs yet."}</p>}
-        <ul className="mt-3 max-w-3xl">{list.map((j) => <JobRow key={j.id} job={j} vaultPath={vaultPath} />)}</ul>
-      </section>
-    );
-  } else if (sel === "setup") {
+  if (sel === "setup") {
     detail = <ChiefSetup vaultPath={vaultPath} />;
   } else if (sel === "new") {
-    detail = <NewSpecialist vaultPath={vaultPath} onCancel={() => choose("jobs:running")} onMade={(id) => { void specsQ.refresh(); choose(`spec:${id}`); }} />;
+    detail = <NewSpecialist vaultPath={vaultPath} onCancel={() => choose("setup")} onMade={(id) => { void specsQ.refresh(); choose(`spec:${id}`); }} />;
   } else {
     const s = specs.find((x) => `spec:${x.id}` === sel);
     detail = s ? <SpecialistDetail s={s} vaultPath={vaultPath} jobs={jobs.filter((j) => j.team.some((t) => t.specialists.includes(s.id)))} /> : <p className={`${BODY} text-text-muted`}>Pick a specialist.</p>;
@@ -136,7 +128,7 @@ export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   );
 }
 
-function JobRow({ job, vaultPath }: { job: Job; vaultPath: string }) {
+export function JobRow({ job, vaultPath }: { job: Job; vaultPath: string }) {
   const [open, setOpen] = useState(false);
   const when = new Date(job.created).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
@@ -170,7 +162,8 @@ function Segmented({ value, options, onChange, label: aria, disabledAbove }: { v
   );
 }
 
-type SpecShow = { spec?: Specialist; notebooks?: { domain: string; lines: number; notes: boolean }[] };
+type Involvement = { ts: number; specialist: string; name: string; method: string; domain: string; thread?: string; job?: string; ask?: string };
+type SpecShow = { spec?: Specialist; notebooks?: { domain: string; lines: number; notes: boolean }[]; involvement?: Involvement[] };
 type SaveReply = { ok?: boolean; error?: string; needsConfirm?: boolean; moved?: string | null };
 
 function SpecialistDetail({ s, vaultPath, jobs }: { s: Specialist; vaultPath: string; jobs: Job[] }) {
@@ -179,7 +172,9 @@ function SpecialistDetail({ s, vaultPath, jobs }: { s: Specialist; vaultPath: st
   const notebooks = show.data?.notebooks ?? [];
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  useEffect(() => { setEditing(false); setMsg(null); }, [s.id]);
+  const [view, setView] = useState<"chat" | "about">("chat");
+  useEffect(() => { setEditing(false); setMsg(null); setView("chat"); }, [s.id]);
+  const involvement = (show.data?.involvement ?? []).filter((x) => x.thread);
   const refresh = async () => { invalidateQueries("engine_specialists"); invalidateQueries("engine_specialist_show"); await show.refresh(); };
   const reset = async () => {
     setMsg(null);
@@ -213,9 +208,22 @@ function SpecialistDetail({ s, vaultPath, jobs }: { s: Specialist; vaultPath: st
         )}
       </div>
       {full.mandate && !editing && <p className={`${BODY} mt-3 text-text-secondary`}>{full.mandate}</p>}
+      {s.on && !editing && (
+        <div className="mt-4 flex gap-1" role="tablist" aria-label={`${s.name} views`}>
+          {(["chat", "about"] as const).map((v) => (
+            <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} data-testid={`specialist-tab-${v}`}
+              className={`h-8 rounded-md px-3 text-[13px] ${view === v ? "bg-surface-warm font-semibold text-text-primary" : "text-text-secondary hover:text-text-primary"}`}>{v === "chat" ? "Chat" : "About"}</button>
+          ))}
+        </div>
+      )}
+      {s.on && !editing && view === "chat" && (
+        <div className="mt-3 flex h-[min(64vh,600px)] min-h-[340px] flex-col" data-testid="specialist-chat">
+          <EmbeddedChat vaultPath={vaultPath} storageKey={`prevail.specialist.thread.${s.id}`} defaultMembers={[s.id]} label={`With the ${s.name}: its mandate, notebooks and recent work come along`} testId="specialist-chat-panel" />
+        </div>
+      )}
       {msg && <p className={`${META} mt-2`} data-testid="specialist-msg">{msg}</p>}
       {s.on && editing && <SpecialistEditor s={full} vaultPath={vaultPath} onDone={async (m) => { setEditing(false); setMsg(m); await refresh(); }} onCancel={() => setEditing(false)} />}
-      {s.on && !editing && (
+      {s.on && !editing && view === "about" && (
         <>
           <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:flex-wrap sm:gap-x-10" data-testid="specialist-summary">
             {summary.map(([k, v, tip]) => (
@@ -243,6 +251,17 @@ function SpecialistDetail({ s, vaultPath, jobs }: { s: Specialist; vaultPath: st
             </details>
           )}
           <Notebooks s={full} vaultPath={vaultPath} notebooks={notebooks} onSaved={refresh} />
+          <h3 className={`${SECTION_TITLE} mt-7`}>Conversations it took part in</h3>
+          {involvement.length ? (
+            <ul className="mt-1" data-testid="specialist-involvement">{involvement.slice(0, 20).map((x, i) => (
+              <li key={i} className="border-b border-border-subtle py-2 last:border-b-0">
+                <button type="button" onClick={() => void openUpdateThread(vaultPath, { ts: x.ts, from_domain: x.domain, thread: x.thread!, fact: "" })} className="block w-full text-left">
+                  <span className="line-clamp-2 break-words text-[14px] text-text-primary hover:text-accent" title={x.ask}>{x.ask || "A conversation"}</span>
+                  <span className={`${META} mt-0.5 block`}>{label(x.method)} · {scopeLabel(x.domain)} · {new Date(x.ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                </button>
+              </li>
+            ))}</ul>
+          ) : <p className={`${META} mt-1`}>None yet. Bring the {s.name} into any chat with @{s.name}.</p>}
           <h3 className={`${SECTION_TITLE} mt-7`}>Runs</h3>
           {jobs.length ? <ul className="mt-1">{jobs.slice(0, 20).map((j) => <JobRow key={j.id} job={j} vaultPath={vaultPath} />)}</ul>
             : <p className={`${META} mt-1`}>No runs yet. Type @{s.name} in any chat to hand it something.</p>}

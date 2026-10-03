@@ -100,8 +100,10 @@ test("a draft is adopted; a playbook with a domain runs there", async ({ page })
 
 test("Save as playbook on a finished job, and a Builder's file in the Filed list", async ({ page }) => {
   await setup(page, 1280);
-  await fire(page, "prevail:work-section", "specialists");
-  await page.getByTestId("specialists-row-jobs:done").click();
+  await fire(page, "prevail:work-section", "inbox");
+  // Jobs live in the Inbox now.
+  await page.getByTestId("tab-jobs").click();
+  await page.getByTestId("inbox-jobs-done").click();
   await page.getByTestId("job-row").first().getByRole("button").first().click();
   const card = page.getByTestId("job-card").first();
   await expect(card.getByTestId("job-filed")).toContainText("nothing ran");

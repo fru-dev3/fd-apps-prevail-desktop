@@ -121,8 +121,10 @@ for (const width of [390, 768, 1280, 1920]) {
 
     test("a job card shows what it serves, what to watch and the rules it touches", async ({ page }) => {
       await setup(page, width);
-      await work(page, "specialists");
-      await page.getByTestId("specialists-row-jobs:waiting").click();
+      await work(page, "inbox");
+      // Jobs live in the Inbox now.
+      await page.getByTestId("tab-jobs").click();
+      await page.getByTestId("inbox-jobs-waiting").click();
       await page.getByTestId("job-row").first().getByRole("button").first().click();
       const chips = page.getByTestId("job-compass");
       await expect(chips.getByTestId("job-serves")).toHaveText(["Serves Foo independence, Freedom"]);

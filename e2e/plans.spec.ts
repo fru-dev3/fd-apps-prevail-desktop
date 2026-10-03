@@ -98,7 +98,8 @@ async function noOverflow(page: Page) {
     const vw = document.documentElement.clientWidth;
     return [...document.querySelectorAll("[data-testid]")].filter((e) => {
       const r = (e as HTMLElement).getBoundingClientRect();
-      return r.width > 0 && (r.right > vw + 1 || r.left < -1);
+      // The tab bars scroll sideways by design (data-scroll-x).
+      return r.width > 0 && (r.right > vw + 1 || r.left < -1) && !(e as HTMLElement).closest("[data-scroll-x]");
     }).map((e) => (e as HTMLElement).dataset.testid).slice(0, 5);
   });
   expect(over).toEqual([]);
@@ -173,8 +174,10 @@ test("a job in chat: the card shows the team, then the result, Open page, and Un
 test("a proposed job asks first: Start, Adjust inside the card, Not now", async ({ page }) => {
   await setup(page, 1280, { engine_job_show: { ...JOB_VIEW, job: { ...JOB, id: "b-job", status: "proposed", startsAlone: false, askReason: "over your limit of $1 and 10 minutes", result: undefined }, filed: [], body: "" }, engine_job_adjust: { ok: true }, engine_job_action: { ok: true } });
   await openBriefing(page);
-  await fire(page, "prevail:work-section", "specialists");
-  await page.getByTestId("specialists-row-jobs:waiting").click();
+  await fire(page, "prevail:work-section", "inbox");
+  // Jobs live in the Inbox now.
+  await page.getByTestId("tab-jobs").click();
+  await page.getByTestId("inbox-jobs-waiting").click();
   await page.getByTestId("job-row").first().getByRole("button").first().click();
   const card = page.getByTestId("job-card").first();
   await expect(card).toContainText("Asking first: over your limit");
@@ -195,6 +198,9 @@ test("Specialists: families, a specialist's ceiling and notebooks, the chief of 
   await expect(page.getByTestId("specialists-page")).toBeVisible({ timeout: 10_000 });
   await page.getByTestId("specialists-row-spec:researcher").click();
   const d = page.getByTestId("specialist-detail");
+  // A specialist opens on its own chat; About has the rest.
+  await expect(d.getByTestId("specialist-chat")).toBeVisible();
+  await d.getByTestId("specialist-tab-about").click();
   await expect(d).toContainText("Returns findings");
   await expect(d.getByTestId("specialist-ceiling")).toContainText("Read");
   await expect(d.getByTestId("specialist-notebooks")).toContainText("Insurance");
@@ -223,6 +229,7 @@ test("Specialists: Edit saves the specialist in place; a ceiling raise asks firs
   await fire(page, "prevail:work-section", "specialists");
   await page.getByTestId("specialists-row-spec:researcher").click();
   const d = page.getByTestId("specialist-detail");
+  await d.getByTestId("specialist-tab-about").click();
   await expect(d).toContainText("Your version");
   await expect(d.getByTestId("specialist-ceiling")).toHaveText("Reads only");
   await d.getByTestId("specialist-edit").click();
@@ -306,9 +313,10 @@ for (const width of [390, 768, 1280, 1920]) {
     await openBriefing(page);
     await noOverflow(page);
     if (SHOTS) { await page.waitForTimeout(300); await page.screenshot({ path: `${SHOTS}/today-${width}.png`, fullPage: true }); }
-    await fire(page, "prevail:work-section", "specialists");
-    await expect(page.getByTestId("specialists-page")).toBeVisible({ timeout: 10_000 });
-    await page.getByTestId("specialists-row-jobs:done").click();
+    await fire(page, "prevail:work-section", "inbox");
+    // Jobs live in the Inbox now.
+    await page.getByTestId("tab-jobs").click();
+    await page.getByTestId("inbox-jobs-done").click();
     await page.getByTestId("job-row").first().getByRole("button").first().click();
     await expect(page.getByTestId("job-card").first()).toBeVisible();
     await noOverflow(page);
