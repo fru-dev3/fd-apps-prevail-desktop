@@ -50,10 +50,13 @@ async function shot(page: Page, name: string) {
 async function home(page: Page, width: number, extra: Record<string, unknown> = {}) {
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
-  await page.addInitScript(() => { localStorage.setItem("prevail.desktop.defaultChatCli", "claude"); localStorage.setItem("prevail.sidebar.specialistsOpen", "1"); });
+  await page.addInitScript(() => { localStorage.setItem("prevail.desktop.defaultChatCli", "claude"); });
   await mockTauri(page, { ...FIX, ...extra });
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  // Sections start collapsed at each launch: open Specialists.
+  const head = page.getByTestId("sidebar-head-specialists").locator("[aria-expanded]");
+  if (await head.isVisible().catch(() => false) && (await head.getAttribute("aria-expanded")) === "false") await head.click();
 }
 const composer = (page: Page) => page.locator("[data-tour=composer] textarea").first();
 
