@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Archive, ArrowLeft, BarChart3, CheckCircle2, ChevronsLeft, ChevronsRight, CircleDot, Compass, Cpu, Eye, FileText, FolderKanban, Grid3x3,
   HelpCircle, Hourglass, History, Inbox as InboxIcon, KeyRound, Layers, LayoutGrid, ListChecks, Mail, Network, Pause, Play, Plug, Repeat,
@@ -64,13 +64,35 @@ const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md te
 // The column on its own, for screens whose detail area is laid out by the
 // caller (the chat Threads column sits beside the whole chat). Most screens
 // want SideSpine below, which adds the detail pane.
+/** Gives every icon-only rail button its row's text as a tooltip and accessible name. */
+function RailTitles({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const name = () => el.querySelectorAll("button").forEach((b) => {
+      const t = (b.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (t && !b.title) b.title = t;
+      if (t && !b.getAttribute("aria-label")) b.setAttribute("aria-label", t);
+    });
+    name();
+    const mo = new MutationObserver(name);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
+  return <div ref={ref} className="flex min-h-0 w-full flex-1 flex-col">{children}</div>;
+}
+
 export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, actions, toolbar, footer, children }: Omit<ColumnProps, "storageKey"> & { collapsed: boolean; onToggle: () => void }) {
   if (collapsed) {
     return (
-      <div data-testid="spine-collapsed" className="flex w-9 shrink-0 flex-col items-center border-r border-border bg-surface/40 py-2">
+      <div data-testid="spine-collapsed" className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-surface/40 py-2">
         <button onClick={onToggle} title={`Show ${label}`} aria-label={`Show ${label}`} className={iconBtn}>
           <ChevronsRight className="h-3.5 w-3.5" />
         </button>
+        {/* Collapsed, the column keeps its rows as an icon rail (owner, 2026-10-02):
+            the same buttons, text hidden by CSS ([data-rail] in index.css), names on hover. */}
+        <RailTitles><div data-rail className="mt-1 min-h-0 w-full flex-1 overflow-y-auto">{children}</div></RailTitles>
       </div>
     );
   }

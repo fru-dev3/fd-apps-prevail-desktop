@@ -559,3 +559,10 @@
 @media (prefers-reduced-motion: reduce) {
   .sa *, .sa[data-state] * { animation: none !important; }
 }
+
+/* SideSpine collapsed into an icon rail: rows keep only their icon. */
+[data-rail] nav { padding: 0.25rem; }
+[data-rail] button { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; width: 100%; }
+[data-rail] button > :not(svg):not(:has(svg)) { display: none; }
+[data-rail] button:not(:has(svg)) { display: none; }
+[data-rail] *:not(button):not(button *):not(:has(button)) { display: none; }
