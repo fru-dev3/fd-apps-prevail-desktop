@@ -15,6 +15,7 @@ const SAM = {
   ],
   co_mentions: [{ id: "place/maple-st", name: "Maple St", kind: "place", count: 2 }],
   page_path: "data/entities/people/sam-rivera.md", saved: false, digest: "You asked Sam about the roof.", notes: "Prefers text.",
+  merged_from: [{ id: "person/sammy-r", name: "Sammy R", ts: "2026-09-20T12:00:00Z", auto: false }],
 };
 const LIST = {
   generated_ts: 1, total: 3, entities: [
@@ -29,6 +30,7 @@ vi.mock("./bridge", () => ({
     calls.push({ cmd, args });
     if (cmd === "entities_show") return String(args?.id).startsWith("person/") ? SAM : { found: false, query: args?.id };
     if (cmd === "entities_save") return { ...SAM, saved: true };
+    if (cmd === "engine_entities_rename") return { ...SAM, name: "Samuel Rivera", aliases: ["Sam Rivera", "Sam"] };
     if (cmd === "entities_note") return { ...SAM, notes: String(args?.text) };
     if (cmd === "entities_list") return LIST;
     if (cmd === "app_favicon") return "";
@@ -103,6 +105,17 @@ describe("entity detail", () => {
     expect(chip.closest("[data-entity]")?.getAttribute("data-entity")).toBe("place");
     // The file path lives in the "..." menu, not on the page.
     expect(screen.queryByText("data/entities/people/sam-rivera.md")).toBeNull();
+  });
+
+  it("shows what was merged into it, and renames with the old name kept", async () => {
+    await openOn("person", "Sam Rivera");
+    expect((await screen.findByTestId("entity-merged-from")).textContent).toContain("Merged from Sammy R");
+    fireEvent.click(screen.getByRole("button", { name: "More entity actions" }));
+    fireEvent.click(await screen.findByText("Rename"));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "samuel rivera" } });
+    fireEvent.submit(screen.getByTestId("entity-rename-form"));
+    await waitFor(() => expect(calls.find((c) => c.cmd === "engine_entities_rename")?.args).toEqual({ vault: "/v", id: "person/sam-rivera", name: "samuel rivera" }));
+    await screen.findByRole("heading", { name: "Samuel Rivera", level: 2 });
   });
 
   it("saves to the vault and writes only the notes", async () => {
