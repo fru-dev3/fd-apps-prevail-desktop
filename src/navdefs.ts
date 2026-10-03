@@ -6,7 +6,7 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, Blocks, BookUser, Compass, Database, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Workflow } from "lucide-react";
+import { Activity, Blocks, Compass, Database, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Workflow } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
 export type NavGroup = { heading: string; items: NavItem[] };
@@ -35,13 +35,19 @@ export const WORK_NAV: NavGroup[] = [
 // Every WorkPanel section: the nav rows plus Inbox and Apps, which the sidebar
 // draws itself.
 // Specialists and Missions have their own sidebar sections, like Apps.
-export const WORK_SECTION_IDS: string[] = ["inbox", "apps", "specialists", "missions", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
+// Entities and Activities (ia-plan.md) are the two group pages; Missions are
+// Activities > Projects.
+export const WORK_SECTION_IDS: string[] = ["inbox", "apps", "specialists", "missions", "entities", "activities", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
 // Old ids that still arrive from deep links and saved state. The Work board
 // ("tasks") is the Tasks list now; the Settings Apps page ("connectors") is
 // the Home Apps page.
 // Goals and Ideals are views of the Compass page now.
 // Work > Projects became the MISSIONS section.
-const WORK_ALIASES: Record<string, string> = { projects: "missions", tasks: "task-list", connectors: "apps", goals: "compass", "ideal-state": "compass", ideals: "compass", omega: "compass" };
+// A kind's id opens its group page on that kind's tab (ia.ts noteIaKind).
+const WORK_ALIASES: Record<string, string> = {
+  projects: "missions", tasks: "task-list", connectors: "apps", goals: "compass", "ideal-state": "compass", ideals: "compass", omega: "compass",
+  people: "entities", places: "entities", products: "entities", things: "entities", companies: "entities", events: "activities",
+};
 // Which Compass view an old id asks for (read by the page on open).
 const COMPASS_FOCUS: Record<string, string> = { goals: "goals", "ideal-state": "ideals", ideals: "ideals", omega: "ideals:omega" };
 /** Remember the Compass view an old Goals or Ideals link asked for. */
@@ -67,9 +73,9 @@ export const EDITOR_NAV: NavGroup[] = [
     { id: "toolkit", label: "Toolkit", icon: Blocks },
     { id: "benchmark", label: "Arena", icon: Swords },
   ]},
+  // Entities are a top-level group in the Home sidebar now (ia-plan.md).
   { heading: "Context & Memory", items: [
     { id: "intent", label: "Intent", icon: ScanFace },
-    { id: "entities", label: "Entities", icon: BookUser },
     { id: "activity", label: "Activity", icon: Activity },
   ]},
   // Each of these is one page whose side column lists what used to be

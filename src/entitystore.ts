@@ -5,8 +5,9 @@
 import { useSyncExternalStore } from "react";
 import { invoke } from "./bridge";
 import { openMission } from "./missions";
+import { noteIaKind } from "./ia";
 
-export type EntityKindName = "person" | "place" | "org" | "thing" | "project";
+export type EntityKindName = "person" | "place" | "org" | "thing" | "project" | "event";
 
 export interface EntitySummary {
   id: string;
@@ -112,9 +113,10 @@ export function savedEntitiesForDirective(cap = 40): { name: string; id: string 
 }
 
 // Opening an entity. There is no side card: an entity chip anywhere goes to
-// the Entities view (main pane) with that entity selected. When an Entities
-// view is already on screen it selects in place; otherwise the app navigates
-// to the Entities section, which picks the request up as it mounts.
+// its kind's tab (Entities > People, Places, Products, Things; Activities >
+// Events) with that entity selected. A view of that kind already on screen
+// selects in place; otherwise the page opens on the kind and the view picks
+// the request up as it mounts.
 export interface EntityTarget { kind: EntityKindName; value: string }
 const OPEN_KEY = "prevail.entities.open";
 let mountedViews = 0;
@@ -130,8 +132,17 @@ export function requestEntity(t: EntityTarget) {
   if (t.kind === "project" || (t.kind as string) === "mission") { openMission(t.value); return; }
   pending = t;
   try { localStorage.setItem(OPEN_KEY, JSON.stringify(t)); } catch { /* storage off */ }
+  const kind = KIND_SECTION[t.kind] ?? "people";
+  noteIaKind(kind);
   window.dispatchEvent(new CustomEvent("prevail:open-entity", { detail: t }));
-  if (!mountedViews) window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "entities" }));
+  window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: kind === "events" ? "activities" : "entities" }));
+}
+const KIND_SECTION: Partial<Record<EntityKindName, string>> = { person: "people", place: "places", org: "products", thing: "things", event: "events" };
+
+/** The request waiting for a view, without taking it (a view of another kind leaves it). */
+export function peekRequestedEntity(): EntityTarget | null {
+  if (pending) return pending;
+  try { const raw = localStorage.getItem(OPEN_KEY); return raw ? JSON.parse(raw) as EntityTarget : null; } catch { return null; }
 }
 
 // The view takes a pending request once, on mount or on the event.

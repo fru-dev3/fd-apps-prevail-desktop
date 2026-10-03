@@ -150,7 +150,7 @@ export function ScrollPage({ children, testId, flush = false }: { children: Reac
 
 // `tabs`: a page's view switch (a SpineTabs), in the standard place: the
 // header's last row, under the title and subtitle.
-export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: string; subtitle?: string; icon?: typeof Folder; right?: ReactNode; tabs?: ReactNode }) {
+export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: string; subtitle?: ReactNode; icon?: typeof Folder; right?: ReactNode; tabs?: ReactNode }) {
   const Icon = icon ?? settingsHeaderIcon(title);
   const phone = useIsPhone();
   const slot = useContext(HeaderSlot);
@@ -159,7 +159,7 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
       <div data-pane-heading className="mb-5 flex flex-wrap items-start gap-x-5 gap-y-1.5">
         <h2 className={`${DETAIL_TITLE} min-w-0`}>{title}</h2>
         {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
-        {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
+        {subtitle && (typeof subtitle === "string" ? <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p> : <div className="basis-full">{subtitle}</div>)}
       </div>
     );
   }
@@ -169,7 +169,7 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
   const body = phone ? (
     subtitle || right ? (
       <div data-settings-header className="flex flex-wrap items-center gap-2">
-        {subtitle && <p className="min-w-0 flex-1 basis-40 text-[13px] text-text-muted">{subtitle}</p>}
+        {subtitle && (typeof subtitle === "string" ? <p className="min-w-0 flex-1 basis-40 text-[13px] text-text-muted">{subtitle}</p> : <div className="min-w-0 flex-1 basis-40">{subtitle}</div>)}
         {right && <div className="min-w-0 max-w-full">{right}</div>}
         {tabs && <div className="min-w-0 basis-full" data-shell="tabs">{tabs}</div>}
       </div>
@@ -183,7 +183,7 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
         <span className="min-w-0 truncate">{title}</span>
       </h1>
       {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
-      {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
+      {subtitle && (typeof subtitle === "string" ? <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p> : <div className="min-w-0 basis-full">{subtitle}</div>)}
       {tabs && <div className="mt-2 min-w-0 basis-full" data-shell="tabs">{tabs}</div>}
     </div>
   );

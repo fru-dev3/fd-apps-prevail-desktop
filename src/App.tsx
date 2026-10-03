@@ -46,7 +46,9 @@ import { migrateModelPrefs } from "./helpers2";
 import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin, WebVaultLinking } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
 import { EDITOR_NAV, REMOVED_SECTIONS, WORK_NAV, noteCompassFocus, noteToolkitGroup, workSection } from "./navdefs";
-import { setEntityVault } from "./entitystore";
+import { GROUP_LABEL as IA_GROUP_LABEL, KINDS as IA_KINDS, kindOfId, noteIaKind, openKind } from "./ia";
+import { loadEntities, requestEntity, setEntityVault, useEntityStore } from "./entitystore";
+import { openMission, useMissions } from "./missions";
 
 // Single source of truth for the version chip in title bar.
 
@@ -1171,6 +1173,7 @@ export default function App() {
   const [workJump, setWorkJump] = useState<{ section: string; n: number } | null>(null);
   const openWorkAt = (raw: string) => {
     noteCompassFocus(raw);
+    noteIaKind(raw);
     const section = workSection(raw) ?? raw;
     setWorkJump((j) => ({ section, n: (j?.n ?? 0) + 1 }));
     setTab("work");
@@ -1420,6 +1423,9 @@ export default function App() {
 
   // F1: the command palette's item list - actions, navigation to every section,
   // and every domain. Rebuilt when the domains change.
+  const iaStore = useEntityStore();
+  const iaMissions = useMissions(cmdPaletteOpen ? vaultPath : null);
+  useEffect(() => { if (cmdPaletteOpen && vaultPath) void loadEntities(vaultPath); }, [cmdPaletteOpen, vaultPath]);
   const paletteCommands = useMemo<Command[]>(() => {
     const cmds: Command[] = [];
     // Actions.
@@ -1442,9 +1448,24 @@ export default function App() {
     for (const d of domains) {
       cmds.push({ id: `dom:${d.name}`, label: titleCase(d.name), hint: "Domain", group: "Domains", icon: Compass, keywords: d.name, run: () => openDomain(d.name) });
     }
+    // Entities and Activities: each kind's page, then (as you type) the
+    // objects themselves under their kind, each with its icon.
+    for (const k of IA_KINDS) {
+      cmds.push({ id: `kind:${k.id}`, label: k.label, hint: "Go to", group: `Go to · ${IA_GROUP_LABEL[k.group]}`, icon: k.icon, keywords: `${k.singular} ${IA_GROUP_LABEL[k.group]}`, run: () => openKind(k.id) });
+    }
+    const objects = (iaStore.list?.entities ?? []).filter((e) => e.kind !== "project" && e.relation !== "reference")
+      .sort((a, b) => Number(b.saved) - Number(a.saved) || b.conversations - a.conversations).slice(0, 400);
+    for (const e of objects) {
+      const k = kindOfId(e.kind);
+      if (!k) continue;
+      cmds.push({ id: `obj:${e.id}`, label: e.name, hint: k.singular, group: k.label, icon: k.icon, keywords: e.aliases.join(" "), searchOnly: true, run: () => requestEntity({ kind: e.kind, value: e.id.slice(e.id.indexOf("/") + 1) }) });
+    }
+    for (const m of iaMissions.missions.filter((x) => x.status !== "archived")) {
+      cmds.push({ id: `obj:mission/${m.slug}`, label: m.name, hint: "Project", group: "Projects", icon: kindOfId("mission")!.icon, keywords: m.outcome ?? "", searchOnly: true, run: () => openMission(m.slug) });
+    }
     return cmds;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domains]);
+  }, [domains, iaStore.list, iaMissions.missions]);
 
   // Keyboard shortcuts - global. Skip when a text input has focus
   // (so typing ⌘B in the composer doesn't toggle the sidebar).
