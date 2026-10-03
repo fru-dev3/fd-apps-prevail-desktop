@@ -6,7 +6,8 @@
 // and a drafted offboarding checklist. Everything comes from
 // `prevail apps stack`; answers go back through the engine.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, Archive, Check, ChevronDown, ChevronRight, Clock, FileText, HelpCircle, Inbox, Layers, Loader2, Plug, RefreshCw, Stethoscope, Wrench, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Archive, Check, ChevronDown, ChevronRight, Clock, Download, FileDiff, FileText, HelpCircle, Inbox, Layers, Loader2, Plug, RefreshCw, Stethoscope, Wrench, type LucideIcon } from "lucide-react";
+import { ImportsView, StackDiffView } from "./appsimports";
 import { AppsMirrorPanel } from "./appsmirror";
 import { MIRROR_SELECT_KEY } from "./appsmirror-parts";
 import { SpineTabs } from "./sidespine";
@@ -164,7 +165,8 @@ function UnknownRow({ sig, apps, vaultPath, onDone }: { sig: UnknownSignal; apps
 export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: ReactNode }) {
   const phone = useIsPhone();
   const desktop = !isBrowser();
-  const [sel, setSel] = useState("needs");
+  // A review line can open a section here ("Said vs used"); read once.
+  const [sel, setSel] = useState(() => { try { const k = localStorage.getItem("prevail.apps.stack.sel"); localStorage.removeItem("prevail.apps.stack.sel"); return k || "needs"; } catch { return "needs"; } });
   const [picked, setPicked] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -175,6 +177,8 @@ export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: Rea
   const unknown = Array.isArray(uq.data) ? uq.data : [];
   const refresh = () => { invalidateQueries("engine_apps_stack"); invalidateQueries("engine_apps_unknown"); void q.refresh(); void uq.refresh(); };
   const fda = needsFda(s);
+  const dq = useInvokeQuery<{ items?: unknown[]; accepted?: number } | null>("engine_apps_stack_diff", { vault: vaultPath }, { staleMs: 5 * 60_000 });
+  const diffWaiting = dq.data && !dq.data.accepted ? dq.data.items?.length ?? 0 : 0;
   const choose = (k: string) => { setSel(k); setPicked(true); };
   const isOn = (k: string) => sel === k && (!phone || picked);
   const row = (k: string, label: string, Icon: LucideIcon, count?: number) => (
@@ -193,6 +197,8 @@ export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: Rea
       {(s?.categories ?? []).map((c) => row(`cat:${c.id}`, c.title, Plug, c.count))}
       <div className="pt-2" />
       {row("unknown", "Unknown", HelpCircle, unknown.length)}
+      {row("said", "Said vs used", FileDiff, diffWaiting || undefined)}
+      {row("imports", "Imports", Download)}
     </nav>
   );
   const recordIds = useMemo(() => (s?.apps ?? []).map((a) => ({ id: a.id, name: a.name })).sort((a, b) => a.name.localeCompare(b.name)), [s]);
@@ -213,6 +219,8 @@ export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: Rea
         : <p className={`${META} mt-3`}>Nothing needs you.</p>}
     </section>
   );
+  else if (sel === "said") body = <StackDiffView vaultPath={vaultPath} />;
+  else if (sel === "imports") body = <ImportsView vaultPath={vaultPath} />;
   else if (sel === "unknown") body = (
     <section data-testid="stack-unknown-list">
       <h2 className={DETAIL_TITLE}>Unknown</h2>
