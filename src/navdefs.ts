@@ -6,10 +6,11 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, Blocks, Compass, Database, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Workflow } from "lucide-react";
+import { Activity, Blocks, Brain, Compass, Cpu, Database, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Workflow } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
-export type NavGroup = { heading: string; items: NavItem[] };
+// A group shown under its own header carries that header's icon and tint key (tint.tsx).
+export type NavGroup = { heading: string; items: NavItem[]; icon?: typeof Database; tint?: string };
 
 // Home sidebar: the operational surfaces, in two groups. The top group sits
 // directly under Home and Inbox (which the sidebar renders itself, since they
@@ -67,14 +68,14 @@ export function workSection(id: string): string | null {
 
 // Editor mode: configuration.
 export const EDITOR_NAV: NavGroup[] = [
-  { heading: "Intelligence", items: [
+  { heading: "Intelligence", icon: Cpu, tint: "intelligence", items: [
     { id: "models", label: "Models", icon: Layers },
     { id: "council", label: "Council", icon: Scale },
     { id: "toolkit", label: "Toolkit", icon: Blocks },
     { id: "benchmark", label: "Arena", icon: Swords },
   ]},
   // Entities are a top-level group in the Home sidebar now (ia-plan.md).
-  { heading: "Context & Memory", items: [
+  { heading: "Context & Memory", icon: Brain, tint: "memory", items: [
     { id: "intent", label: "Intent", icon: ScanFace },
     { id: "activity", label: "Activity", icon: Activity },
   ]},

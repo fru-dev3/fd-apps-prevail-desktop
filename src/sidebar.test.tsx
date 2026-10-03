@@ -54,6 +54,9 @@ describe("Sidebar", () => {
     }
     // Rows carry their colored icon.
     expect(screen.getByTestId("nav-inbox").querySelector(".tint-sq")).toBeTruthy();
+    // Section headers sit one step in from the top rows (owner, 2026-10-03).
+    expect(screen.getByTestId("sidebar-head-work").className).toContain("pl-6");
+    expect(screen.getByRole("navigation", { name: "Work" }).className).toContain("pl-6");
     // MISSIONS: the active ones with days left, soonest first; paused fold into one row.
     await waitFor(() => expect(screen.getByTestId("sidebar-missions").textContent).toContain("Foo 1"));
     expect(screen.getByTestId("sidebar-mission-foo-1").textContent).toContain("10d");

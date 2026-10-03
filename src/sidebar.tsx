@@ -46,6 +46,10 @@ const TASKS_CHANGED = ["prevail:tasks-changed"];
 const ACTIVE_ROW = "bg-accent-soft font-semibold text-accent before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-accent";
 const IDLE_ROW = "text-text-secondary hover:bg-surface-warm hover:text-text-primary";
 const SECTION_LABEL = "text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted";
+// Sections sit one step in from the top rows (owner, 2026-10-03: Work,
+// Entities... "not on the same line as Inbox, Insights"): a section's header
+// and its rows share a left edge 12px right of Home, Inbox and Insights.
+const SECTION_PAD = "pl-6 pr-3";
 // Readable names for the side rows old Settings ids open (navdefs EDITOR_SUBS),
 // so "Search settings" finds them too.
 const SUB_LABELS: Record<string, string> = {
@@ -101,7 +105,7 @@ function NavRow({ icon: Icon, lead, tint, label, title, active, count = 0, loud 
         collapsed ? "h-10 justify-center" : "h-9 gap-3 px-3"
       } ${active ? ACTIVE_ROW : IDLE_ROW}`}
     >
-      {lead ?? (tint ? <TintIcon icon={Icon} tint={tint} /> : <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />)}
+      {lead ?? <TintIcon icon={Icon} tint={tint} />}
       {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
       {!collapsed && <CountPill n={count} active={active} loud={loud} />}
       {collapsed && count > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
@@ -191,9 +195,10 @@ function SectionHeader({ label, icon, tint, count, open, onToggle, onAdd, addTit
   dot?: { count: number; title: string; onClick: () => void };
 }) {
   return (
-    // Aligned with the rows: the same left edge as their icons (mx-3 + px-3),
+    // Aligned with its own rows (mx-3 + pl-6 = SECTION_PAD + a row's px-3),
+    // one step in from the top rows,
     // the icon in the same 22px column, the + and chevron where a row's are.
-    <div data-tour={tour} data-sticky-head data-testid={`sidebar-head-${label.toLowerCase()}`} className={`group/h mx-3 flex h-8 items-center gap-0.5 pb-0.5 pl-3 pr-1 pt-0.5 ${SIDEBAR_STICKY}`}>
+    <div data-tour={tour} data-sticky-head data-testid={`sidebar-head-${label.toLowerCase()}`} className={`group/h mx-3 flex h-8 items-center gap-0.5 pb-0.5 pl-6 pr-1 pt-0.5 ${SIDEBAR_STICKY}`}>
       <button onClick={onToggle} aria-expanded={open} title={open ? `Hide ${label}` : `Show ${label}`}
         className={`flex h-7 min-w-0 flex-1 items-center gap-3 rounded-md pl-0 text-left transition-colors hover:text-text-secondary focus-visible:text-text-secondary ${SECTION_LABEL}`}>
         <span className="flex w-[22px] shrink-0 justify-center" data-testid="sidebar-head-icon"><TintIcon icon={icon} tint={tint} square={false} size={14} /></span>
@@ -791,17 +796,19 @@ export function Sidebar({
                       onClick={() => toggleNavGroup(group.heading)}
                       aria-expanded={open}
                       data-sticky-head
-                      className={`mb-0.5 mt-2 flex w-full items-center gap-1.5 px-3 py-0.5 transition-colors hover:text-text-secondary ${SECTION_LABEL} ${SIDEBAR_STICKY}`}
+                      data-testid={`settings-group-${group.heading.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                      className={`mb-0.5 mt-2 flex h-8 w-full items-center gap-3 pl-6 pr-3 transition-colors hover:text-text-secondary ${SECTION_LABEL} ${SIDEBAR_STICKY}`}
                     >
+                      {group.icon && <span className="flex w-[22px] shrink-0 justify-center"><TintIcon icon={group.icon} tint={group.tint} square={false} size={14} /></span>}
                       <span className="flex-1 text-left">{group.heading}</span>
                       {!open && <span className="font-medium tabular-nums text-text-muted/70">{group.items.length}</span>}
                       <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
                     </button>
                   )}
                   {open && (
-                    <div className="space-y-0.5">
+                    <div className={`space-y-0.5 ${!collapsed && !single ? "pl-3" : ""}`}>
                       {group.items.map((it) => (
-                        <NavRow key={it.id} icon={it.icon} label={it.label} active={editorActive === it.id} collapsed={collapsed} onClick={() => selectEditor(it.id)} onPrefetch={() => prefetchSection("settings", it.id, vaultPath)} />
+                        <NavRow key={it.id} icon={it.icon} tint={it.id} label={it.label} active={editorActive === it.id} collapsed={collapsed} onClick={() => selectEditor(it.id)} onPrefetch={() => prefetchSection("settings", it.id, vaultPath)} />
                       ))}
                     </div>
                   )}
@@ -811,7 +818,7 @@ export function Sidebar({
             {subMatches.length > 0 && (
               <div data-testid="settings-sub-matches" className="space-y-0.5">
                 {subMatches.map((m) => (
-                  <NavRow key={m.id} icon={m.page!.icon} label={`${m.label} in ${m.page!.label}`} active={false} collapsed={collapsed} onClick={() => openSub(m.id)} />
+                  <NavRow key={m.id} icon={m.page!.icon} tint={m.page!.id} label={`${m.label} in ${m.page!.label}`} active={false} collapsed={collapsed} onClick={() => openSub(m.id)} />
                 ))}
               </div>
             )}
@@ -833,7 +840,7 @@ export function Sidebar({
             <section>
             {!collapsed && <SectionHeader label="Work" icon={Briefcase} tint="work" count={openTasks} open={workOpen} onToggle={() => setWorkOpen((v) => !v)} onAdd={newTask} addTitle="New task" />}
             {(collapsed || workOpen) && (
-              <nav aria-label="Work" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+              <nav aria-label="Work" className={`space-y-0.5 ${collapsed ? "px-2" : SECTION_PAD}`}>
                 {WORK_NAV.slice(1).flatMap((g) => g.items).map((it) => (
                   <NavRow key={it.id} icon={it.icon} tint={it.id} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
                 ))}
@@ -850,7 +857,7 @@ export function Sidebar({
                   <section data-testid={`sidebar-${g}`}>
                     {!collapsed && <SectionHeader label={g === "entities" ? "Entities" : "Activities"} icon={g === "entities" ? Shapes : CalendarRange} tint={g} count={g === "entities" ? entityCount : activityCount} open={open} onToggle={() => setOpen((v) => !v)} />}
                     {(collapsed || open) && (
-                      <nav aria-label={g === "entities" ? "Entities" : "Activities"} className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+                      <nav aria-label={g === "entities" ? "Entities" : "Activities"} className={`space-y-0.5 ${collapsed ? "px-2" : SECTION_PAD}`}>
                         {kindsOf(g).map((k) => (
                           <KindRow key={k.id} def={k} collapsed={collapsed} count={kindCount(k.id)} active={kindActive(k.id)} open={kindOpen.has(k.id)}
                             onOpen={() => { setOpenMissionSlug(null); openKind(k.id); }} onToggle={() => toggleKind(k.id)} onAdd={() => newOfKind(k.id)}>
@@ -870,7 +877,7 @@ export function Sidebar({
                 <section>
                 {!collapsed && <SectionHeader label="Specialists" icon={Sparkles} tint="specialists" count={specialists.length} open={specsOpen} onToggle={() => setSpecsOpen((v) => !v)} />}
                 {(collapsed || specsOpen) && (
-                  <nav aria-label="Specialists" data-testid="sidebar-specialists" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+                  <nav aria-label="Specialists" data-testid="sidebar-specialists" className={`space-y-0.5 ${collapsed ? "px-2" : SECTION_PAD}`}>
                     {!collapsed && specialists.map((x) => (
                       <NavRow key={x.id} icon={UserCog} lead={<SpecialistAvatar id={x.id} size={22} state={working.has(x.id) ? "working" : "idle"} />} label={x.name} title={`${x.name}: click to open, drag into a chat to hand it a message`} active={false} collapsed={collapsed}
                         onClick={() => openSpecialist(`spec:${x.id}`)} onMouseDown={(e) => startSpecialistDrag(e, x.name)} testId={`sidebar-specialist-${x.id}`} />
@@ -899,10 +906,10 @@ export function Sidebar({
               />
             )}
             {vaultError && !collapsed && domainsOpen && (
-              <div className="mx-3 my-2 rounded-lg border border-warn/40 bg-warn/10 p-2 text-[13px] text-warn">{vaultError}</div>
+              <div className="my-2 ml-6 mr-3 rounded-lg border border-warn/40 bg-warn/10 p-2 text-[13px] text-warn">{vaultError}</div>
             )}
             {sortedDomains.length === 0 && !vaultError && !collapsed && domainsOpen && (
-              <div className="px-3 py-2">
+              <div className={`${SECTION_PAD} py-2`}>
                 <p className="mb-2 text-[13px] text-text-muted">No domains yet. Let Prevail suggest a starter set, or add one with the + above.</p>
                 <button
                   onClick={onOpenOnboarding}
@@ -916,7 +923,7 @@ export function Sidebar({
             {collapsed ? (
               <ul className="space-y-0.5 px-2">{sortedDomains.map(domainRow)}</ul>
             ) : domainsOpen && (
-              <ul data-testid="sidebar-domains-list" className="space-y-0.5 px-3">
+              <ul data-testid="sidebar-domains-list" className={`space-y-0.5 ${SECTION_PAD}`}>
                 {pinnedDomains.length > 0 && (
                   <Fragment>
                     {groupHeader("Pinned", pinnedOpen, () => setPinnedOpen((v) => !v), pinnedCount)}
@@ -952,7 +959,7 @@ export function Sidebar({
               </ul>
             )}
             {!collapsed && domainsOpen && adding && (
-              <div className="mt-2 px-3">
+              <div className={`mt-2 ${SECTION_PAD}`}>
                 <div className="rounded-lg border border-border bg-background p-2">
                   <input
                     autoFocus
