@@ -62,9 +62,9 @@ export function useToolList(): Tool[] {
       manage: { label: "Privacy settings", section: "privacy" },
     },
     {
-      name: "Loops", glyph: "↻",
-      desc: "Schedule recurring work (a Sunday briefing, a weekly review) as durable Prevail loops.",
-      governance: "Each loop has an autonomy dial: suggest (propose, you approve) up to auto.",
+      name: "Playbooks", glyph: "↻",
+      desc: "Schedule recurring work (a Sunday briefing, a weekly review) as playbooks that run on their own.",
+      governance: "Each scheduled playbook has an autonomy dial: suggest (propose, you approve) up to auto.",
       state: "governed",
       manage: { label: "Autonomy dial", section: "autonomy" },
     },

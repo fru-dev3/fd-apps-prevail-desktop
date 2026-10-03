@@ -9,7 +9,8 @@ import { PrevailLogo } from "./PrevailLogo";
 import { invoke, listen } from "./bridge";
 import { addNote } from "./notesstore";
 import { toast } from "./toast";
-import { readLoops, writeLoops, newLoopId, type Loop } from "./loops";
+import { addLoop, newLoopId, type Loop } from "./loops";
+import { openPlaybook, scheduleLine, type PlaybookRow } from "./plansmodel";
 import { MODELS, isHarnessRuntime } from "./constants";
 import { relTime, scoreColor, titleCase } from "./format";
 import { startProcess, endProcess } from "./processes";
@@ -27,7 +28,6 @@ import { ProviderMark } from "./marks";
 import { DomainHome, DomainStatusBar, MessageList } from "./chatviews";
 import { FilingChips } from "./routechips";
 import { ROUTE_WAIT_MS, buildRoutedContext, decodeRouteTurns, encodeRouteTurns, filingOf, mergeRoute, routeText, routeThreshold, routedOf, routingEnabled, saveFiling, splitRoute, threadIdOf, type Filing, type RouteResult } from "./routing";
-import { LoopsPanel } from "./loopspanel";
 import { ActApprovalCard } from "./actcard";
 import { mergeExternalTurns } from "./threadmerge";
 import { SchedulePanel } from "./convschedule";
@@ -607,18 +607,13 @@ export function ChatPanel({
     } catch (e) { setSoulDraftErr(String(e)); }
     finally { setSoulDrafting(false); }
   }, [vaultPath, domain]);
-  // Loops preview for the Welcome dashboard - active standing loops for this
-  // domain. Read cheaply from _loops.json; refreshed on domain switch.
+  // Playbooks on a schedule in this domain (playbooks replace loops), for the
+  // Welcome dashboard.
   type LoopPreview = { id: string; name: string; purpose: string; active: boolean };
-  const [domainLoops, setDomainLoops] = useState<LoopPreview[] | null>(null);
-  useEffect(() => {
-    if (!domainPath) { setDomainLoops(null); return; }
-    let mounted = true;
-    readLoops(domainPath)
-      .then((doc) => { if (mounted) setDomainLoops(doc.loops.map((l) => ({ id: l.id, name: l.name, purpose: l.purpose, active: l.status === "active" && l.enabled }))); })
-      .catch(() => { if (mounted) setDomainLoops([]); });
-    return () => { mounted = false; };
-  }, [domainPath, domain]);
+  const pbRowsQ = useInvokeQuery<PlaybookRow[]>("engine_playbook_rows", domainPath && vaultPath ? { vault: vaultPath } : null, { staleMs: 60_000 });
+  const domainLoops: LoopPreview[] | null = useMemo(() => (Array.isArray(pbRowsQ.data)
+    ? pbRowsQ.data.filter((r) => r.schedule && r.schedule.space === (domain || "general")).map((r) => ({ id: r.id, name: r.name, purpose: scheduleLine(r.schedule!), active: !!r.schedule?.enabled }))
+    : null), [pbRowsQ.data, domain]);
   // I7: "Save as skill" - the composer dispatches this with the typed prompt;
   // we jump to the Skills tab and pre-fill the new-skill form.
   const [newSkillSeed, setNewSkillSeed] = useState<string | null>(null);
@@ -2070,17 +2065,17 @@ export function ChatPanel({
       toast.success(`Saved "${name}" as a skill.`);
     } catch (e) { toast.error(`Could not save the skill: ${String(e)}`); }
   }, [vaultPath, tDomain, domain]);
-  // X9: turn a message's intent into a recurring automation (loop) in this
-  // domain, seeded from the text, then open the domain's Loops tab to refine it.
+  // X9: turn a message's intent into a recurring automation in this domain: a
+  // loop line the engine carries straight into a scheduled playbook (playbooks
+  // replace loops), then the Playbooks page opens on it to refine.
   const makeLoopFromChat = useCallback(async (text: string) => {
     const intent = text.trim().replace(/\s+/g, " ");
     if (!intent || !domainPath) {
       if (!domainPath) toast.error("Open a domain first to create an automation.");
       return;
     }
-    const name = intent.length > 48 ? intent.slice(0, 45).trimEnd() + "…" : intent;
+    const name = intent.length > 48 ? intent.slice(0, 45).trimEnd() + "..." : intent;
     try {
-      const doc = await readLoops(domainPath);
       const loop: Loop = {
         id: newLoopId(name),
         name,
@@ -2097,12 +2092,14 @@ export function ChatPanel({
         lastRunTs: null,
         createdTs: Date.now(),
       };
-      await writeLoops(domainPath, { ...doc, loops: [loop, ...doc.loops] });
-      window.dispatchEvent(new Event("prevail:loops-changed"));
-      window.dispatchEvent(new CustomEvent("prevail:domain-tab", { detail: "loops" }));
-      toast.success("Created an automation. Opening it to refine…");
+      await addLoop(domainPath, loop);
+      const r = await invoke<{ migrated?: { loop: string; playbook: string }[] }>("engine_playbooks_migrate_loops", { vault: vaultPath }).catch(() => null);
+      const pb = r?.migrated?.find((m) => m.loop === loop.id)?.playbook;
+      pbRowsQ.refresh();
+      toast.success("Scheduled weekly as a playbook. Opening it to refine.");
+      if (pb) openPlaybook(pb);
     } catch (e) { toast.error(`Could not create the automation: ${String(e)}`); }
-  }, [domainPath]);
+  }, [domainPath, vaultPath]);
   const retryFromHere = useCallback((index: number) => {
     // Find the user message that produced this assistant slot.
     let userIdx = index;
@@ -2771,7 +2768,6 @@ export function ChatPanel({
     { id: "soul", label: "Ideal State", icon: Sparkles },
     { id: "journal", label: "Journal", icon: BookOpen },
     { id: "skills", label: "Skills", icon: Boxes, count: domainCtx?.skills.length || undefined },
-    { id: "loops", label: "Loops", icon: Repeat },
     { id: "work", label: "Work", icon: Briefcase },
     { id: "insights", label: "Insights", icon: Lightbulb },
     ...(domain ? [{ id: "apps" as const, label: "Apps", icon: Plug }] : []),
@@ -3071,7 +3067,7 @@ export function ChatPanel({
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     <StatTile icon={Boxes} label="Skills" value={skillsN} onClick={() => setDomainTab("skills")} />
                     <StatTile icon={FileText} label="Sessions" value={sessionsN} onClick={() => setDomainTab("journal")} />
-                    <StatTile icon={Repeat} label="Active loops" value={loopsActive.length} onClick={() => setDomainTab("loops")} />
+                    <StatTile icon={CalendarClock} label="On a schedule" value={loopsActive.length} onClick={() => openPlaybook(loopsAll[0]?.id ?? "")} />
                     <StatTile icon={Briefcase} label="Work" value={<Briefcase className="h-6 w-6 text-text-secondary" />} hint="Open board" onClick={() => setDomainTab("work")} />
                     <StatTile icon={Plug} label="Apps" value={appsFeeding.length} onClick={() => setDomainTab("apps")} />
                     <StatTile icon={BookOpen} label="Journal" value={journalN} onClick={() => setDomainTab("journal")} />
@@ -3134,12 +3130,12 @@ export function ChatPanel({
                       <span className="mt-auto pt-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-text-muted opacity-0 transition-opacity group-hover:opacity-100">Open Insights <ArrowUpRight className="h-3 w-3" /></span>
                     </button>
 
-                    {/* Active loops -> Loops. */}
+                    {/* Playbooks on a schedule here -> Playbooks. */}
                     <button
-                      onClick={() => setDomainTab("loops")}
+                      onClick={() => openPlaybook(loopsActive[0]?.id ?? loopsAll[0]?.id ?? "")}
                       className="group flex flex-col rounded-2xl border border-border-subtle bg-surface/50 p-5 text-left transition-colors hover:border-accent-border hover:bg-surface-warm/40"
                     >
-                      <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Repeat className="h-4 w-4 text-accent" /> Active loops{loopsActive.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{loopsActive.length}</span>}</h3>
+                      <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><CalendarClock className="h-4 w-4 text-accent" /> On a schedule{loopsActive.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{loopsActive.length}</span>}</h3>
                       {loopsActive.length > 0 ? (
                         <ul className="mt-3 space-y-2">
                           {loopsActive.slice(0, 4).map((l) => (
@@ -3150,9 +3146,9 @@ export function ChatPanel({
                           ))}
                         </ul>
                       ) : (
-                        <div className="mt-3 rounded-lg border border-dashed border-border bg-background/40 p-3 text-[12px] text-text-muted">No standing loops yet. Loops keep this domain moving on their own.</div>
+                        <div className="mt-3 rounded-lg border border-dashed border-border bg-background/40 p-3 text-[12px] text-text-muted">Nothing runs here on a schedule yet. Schedule a playbook to keep this domain moving on its own.</div>
                       )}
-                      <span className="mt-auto pt-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-text-muted opacity-0 transition-opacity group-hover:opacity-100">Open Loops <ArrowUpRight className="h-3 w-3" /></span>
+                      <span className="mt-auto pt-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-text-muted opacity-0 transition-opacity group-hover:opacity-100">Open Playbooks <ArrowUpRight className="h-3 w-3" /></span>
                     </button>
 
                     {/* Recent activity -> Journal. */}
@@ -3311,9 +3307,6 @@ export function ChatPanel({
             )}
             {domainTab === "apps" && domain && (
               <DomainAppsTab domain={domain} vaultPath={vaultPath} />
-            )}
-            {domainTab === "loops" && domainPath && (
-              <LoopsPanel domain={domain || "general"} vaultPath={vaultPath} domainPath={domainPath} />
             )}
             {domainTab === "work" && (
               <BoardPanel vaultPath={vaultPath} initialDomain={domain || "general"} />

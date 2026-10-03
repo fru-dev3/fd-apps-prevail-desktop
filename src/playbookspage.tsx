@@ -1,23 +1,25 @@
-// Playbooks: the workflow layer (specialists-plan Phase 2). SideSpine groups
-// Running, Yours, Drafts (saved from chat) and Built in. A playbook's detail:
-// its goal and domain, what runs it (a loop, or by hand), the steps as
+// Playbooks: the workflow layer (specialists-plan Phase 2). Playbooks replace
+// loops (owner, 2026-10-02): every loop is now a playbook on a schedule.
+// SideSpine groups Running, On a schedule (by space, folded), Yours, Drafts
+// (saved from chat) and Built in. A playbook's detail: its goal and domain,
+// its schedule (next run, last run, approvals) or what runs it, the steps as
 // numbered rows with the specialists, GATE and ASK markers and the typed
 // result each returns, Run (in a domain, for a playbook that names none),
 // Adopt for a draft, and its run history (each step's job opens its card).
 // Data: `prevail playbook rows | show <id>`; the engine owns every file.
 import { useEffect, useMemo, useState } from "react";
-import { Check, CircleDot, FilePen, Hand, Library, Loader2, Play, Workflow } from "lucide-react";
+import { CalendarClock, Check, ChevronRight, CircleDot, FilePen, Hand, Library, Loader2, Pause, Play, Workflow } from "lucide-react";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { SettingsHeader } from "./sectionutil";
 import { SideSpine } from "./sidespine";
 import { useIsPhone, useStacked } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
-import { StatusDot } from "./ui";
+import { RowMenu, StatusDot } from "./ui";
 import { JobCard } from "./jobcard";
-import { label, scopeLabel, PLAYBOOKS_FOCUS_KEY, PLAYBOOK_GROUPS, playbookGroups, RADAR_EVENT_LABEL, triggerLine, type PlaybookGroup, type PlaybookRow, type PlaybookView } from "./plansmodel";
+import { bySpace, label, scopeLabel, scheduleLine, PLAYBOOKS_FOCUS_KEY, PLAYBOOK_GROUPS, playbookGroups, RADAR_EVENT_LABEL, triggerLine, type PlaybookGroup, type PlaybookRow, type PlaybookView } from "./plansmodel";
 
-const GROUP_ICON: Record<PlaybookGroup, typeof Workflow> = { running: CircleDot, yours: Workflow, drafts: FilePen, "built-in": Library };
+const GROUP_ICON: Record<PlaybookGroup, typeof Workflow> = { running: CircleDot, scheduled: CalendarClock, yours: Workflow, drafts: FilePen, "built-in": Library };
 const textLink = "inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-50 disabled:no-underline";
 
 function takeFocus(): string | null {
@@ -40,26 +42,46 @@ export function PlaybooksPage({ vaultPath }: { vaultPath: string }) {
   }, []);
   const current = sel ?? rows[0]?.id ?? null;
   const isOn = (id: string) => current === id && (!phone || picked);
+  // Spaces under "On a schedule" start folded; the one holding the open playbook unfolds.
+  const [openSpace, setOpenSpace] = useState<Record<string, boolean>>({});
+  const rowButton = (r: PlaybookRow) => (
+    <button key={r.id} data-testid={`playbook-row-${r.id}`} aria-current={isOn(r.id) ? "true" : undefined} onClick={() => { setSel(r.id); setPicked(true); }}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${isOn(r.id) ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
+      <span className="min-w-0 flex-1">
+        <span className={`block truncate text-[14px] ${isOn(r.id) ? "font-semibold text-text-primary" : r.schedule && !r.schedule.enabled ? "text-text-muted" : "text-text-secondary"}`}>{r.name}</span>
+        <span className="block truncate text-[12px] text-text-muted" title={r.schedule ? scheduleLine(r.schedule) : undefined}>
+          {r.schedule ? scheduleLine(r.schedule) : `${r.steps} step${r.steps === 1 ? "" : "s"}${r.domain ? ` · ${scopeLabel(r.domain)}` : ""}`}
+        </span>
+      </span>
+      {r.running && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />}
+    </button>
+  );
   const column = (
     <nav className="space-y-0.5 p-2" aria-label="Playbooks">
       {PLAYBOOK_GROUPS.map((g) => {
         const Icon = GROUP_ICON[g.id];
         const list = groups[g.id];
+        if (g.id === "scheduled" && !list.length) return null;
         return (
           <div key={g.id}>
             <div className="flex items-center gap-2 px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">
               <Icon className="h-3.5 w-3.5" />{g.label}<span className="ml-auto tabular-nums text-text-muted">{list.length}</span>
             </div>
-            {list.map((r) => (
-              <button key={r.id} data-testid={`playbook-row-${r.id}`} aria-current={isOn(r.id) ? "true" : undefined} onClick={() => { setSel(r.id); setPicked(true); }}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${isOn(r.id) ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-                <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-[14px] ${isOn(r.id) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{r.name}</span>
-                  <span className="block truncate text-[12px] text-text-muted">{r.steps} step{r.steps === 1 ? "" : "s"}{r.domain ? ` · ${scopeLabel(r.domain)}` : ""}</span>
-                </span>
-                {r.running && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />}
-              </button>
-            ))}
+            {g.id !== "scheduled" ? list.map(rowButton) : bySpace(list).map(({ space, rows: rs }) => {
+              const open = openSpace[space] ?? rs.some((r) => r.id === current);
+              const on = rs.filter((r) => r.schedule?.enabled).length;
+              return (
+                <div key={space} data-testid={`playbook-space-${space}`}>
+                  <button type="button" onClick={() => setOpenSpace((o) => ({ ...o, [space]: !open }))} aria-expanded={open}
+                    className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] text-text-secondary hover:bg-surface-warm/50">
+                    <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
+                    <span className="min-w-0 flex-1 truncate">{scopeLabel(space)}</span>
+                    <span className="shrink-0 text-[12px] tabular-nums text-text-muted" title={`${on} on, ${rs.length - on} off`}>{on}/{rs.length}</span>
+                  </button>
+                  {open && <div className="ml-4 border-l border-border-subtle pl-1.5">{rs.map(rowButton)}</div>}
+                </div>
+              );
+            })}
           </div>
         );
       })}
@@ -107,13 +129,32 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
     catch (e) { setMsg(`Not adopted: ${String(e)}`); } finally { setBusy(null); }
   };
   const needsDomain = !pb.domain;
+  const sched = pb.schedule;
+  // Switch a schedule off or back on; the cadence and the run history stay.
+  const toggle = async (off: boolean) => {
+    if (!sched) return;
+    setBusy("toggle"); setMsg(null);
+    try { await invoke("engine_playbook_trigger", { vault: vaultPath, id, domain: sched.space, cadence: null, on: null, off }); await q.refresh(); onChanged(); setMsg(off ? "Switched off. Nothing runs until you switch it back on." : "Back on its schedule."); }
+    catch (e) { setMsg(`Not changed: ${String(e)}`); } finally { setBusy(null); }
+  };
   return (
     <section data-testid="playbook-detail" data-id={pb.id} className="max-w-3xl">
       <h2 className={`${DETAIL_TITLE} break-words`}>{pb.name}</h2>
       <p className={`${META} mt-1`} title={pb.from ? `Saved from job ${pb.from}` : undefined}>
         {[pb.draft ? "Draft" : "", pb.source === "built-in" ? "Built in" : "", pb.domain ? scopeLabel(pb.domain) : "Runs in the domain you pick"].filter(Boolean).join(" · ")}
-        {" · "}<span data-testid="playbook-triggers">{triggerLine(pb.triggers)}</span>
+        {!sched && <>{" · "}<span data-testid="playbook-triggers">{triggerLine(pb.triggers)}</span></>}
       </p>
+      {sched && (
+        <div className="group mt-3 flex items-start gap-2" data-testid="playbook-schedule-line">
+          <CalendarClock className={`mt-0.5 h-4 w-4 shrink-0 ${sched.enabled ? "text-accent" : "text-text-muted"}`} aria-hidden />
+          <p className={`${BODY} min-w-0 flex-1 ${sched.enabled ? "text-text-primary" : "text-text-muted"}`}>
+            {scheduleLine(sched)}<span className={`${META} ml-1.5`}>in {scopeLabel(sched.space)}</span>
+          </p>
+          <RowMenu label={`More for ${pb.name}`} items={sched.enabled
+            ? [{ icon: Pause, label: "Switch off", hint: "Keeps its schedule and history", onClick: () => void toggle(true) }]
+            : [{ icon: Play, label: "Switch on", hint: "Runs again on its schedule", onClick: () => void toggle(false) }]} />
+        </div>
+      )}
       {pb.goal && <p className={`${BODY} mt-3 break-words text-text-secondary`}>{pb.goal}</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -128,7 +169,7 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
         </button>
         {pb.draft && <button onClick={() => void adopt()} disabled={!!busy} data-testid="playbook-adopt" className={textLink}>{busy === "adopt" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Adopt</button>}
       </div>
-      <ScheduleRow id={pb.id} home={pb.domain} domains={domains} vaultPath={vaultPath} onSaved={() => { void q.refresh(); onChanged(); }} />
+      <ScheduleRow id={pb.id} home={sched?.space ?? pb.domain} change={!!sched} domains={domains} vaultPath={vaultPath} onSaved={() => { void q.refresh(); onChanged(); }} />
       {busy === "run" && <p className={`${META} mt-1`}>Running each step in turn. A specialist step can take a few minutes.</p>}
       {msg && <p className={`${META} mt-1`} data-testid="playbook-msg">{msg}</p>}
 
@@ -173,10 +214,10 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
 /**
  * Standing work (Specialists Phase 3): run this playbook on a clock (daily,
  * weekly, monthly) or when the radar flags something (the Sentinel's
- * events), in a domain. A loop in that domain's _loops.json; results land in
- * the Inbox.
+ * events), in a domain. The schedule lives on the playbook (playbooks
+ * replace loops); results land in the Inbox.
  */
-function ScheduleRow({ id, home, domains, vaultPath, onSaved }: { id: string; home?: string; domains: string[]; vaultPath: string; onSaved: () => void }) {
+function ScheduleRow({ id, home, change = false, domains, vaultPath, onSaved }: { id: string; home?: string; change?: boolean; domains: string[]; vaultPath: string; onSaved: () => void }) {
   const [when, setWhen] = useState("");
   const [kind, setKind] = useState("admin");
   const [words, setWords] = useState("");
@@ -196,7 +237,7 @@ function ScheduleRow({ id, home, domains, vaultPath, onSaved }: { id: string; ho
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="playbook-schedule">
       <select value={when} onChange={(e) => setWhen(e.target.value)} aria-label="When it runs" data-testid="playbook-when" className={sel}>
-        <option value="">Schedule it...</option>
+        <option value="">{change ? "Change the schedule..." : "Schedule it..."}</option>
         <option value="daily">Every day</option>
         <option value="weekly">Every week</option>
         <option value="monthly">Every month</option>
