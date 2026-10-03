@@ -10,7 +10,7 @@
 // Inbox first; Settings opens every Editor section. Nothing in this shell is allowed to reflow the conversation
 // when it opens: the tab bar expands as an overlay, sheets float.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Briefcase, ChevronLeft, ChevronRight, ChevronUp, History, Inbox, Layers, LayoutGrid, MessageSquare, Plug, Plus, Scale, Settings as SettingsIcon, UserCog, X, type LucideIcon, Target } from "lucide-react";
+import { Briefcase, ChevronLeft, ChevronRight, ChevronUp, History, Inbox, Layers, LayoutGrid, MessageSquare, Plug, Plus, Scale, Settings as SettingsIcon, UserCog, X, type LucideIcon, Shapes, CalendarRange } from "lucide-react";
 import { invoke } from "./bridge";
 import { scoreColor, titleCase } from "./format";
 import { domainBlurb, isUserDomain } from "./helpers";
@@ -35,7 +35,8 @@ const PHONE_TABS: { id: PhoneScreen; label: string; icon: LucideIcon }[] = [
 const PHONE_TOP: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "apps", label: "Apps", icon: Plug },
-  { id: "missions", label: "Projects", icon: Target },
+  { id: "entities", label: "Entities", icon: Shapes },
+  { id: "activities", label: "Activities", icon: CalendarRange },
   { id: "specialists", label: "Specialists", icon: UserCog },
 ];
 
@@ -235,7 +236,7 @@ export function PhoneShell({
       setScreen(id);
     }
   };
-  const workSectionLabel = [...PHONE_TOP, ...WORK_NAV.flatMap((g) => g.items)].find((it) => it.id === workJump?.section)?.label ?? "Work";
+  const workSectionLabel = [...PHONE_TOP, { id: "missions", label: "Projects" }, ...WORK_NAV.flatMap((g) => g.items)].find((it) => it.id === workJump?.section)?.label ?? "Work";
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-background text-text-primary">
