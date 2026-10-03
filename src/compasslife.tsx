@@ -4,13 +4,10 @@
 //   YearlyReview      the yearly review page: values, roles, purpose and three
 //                     odyssey lives; "Sketch from my notes" asks the engine,
 //                     which keeps a sketch only when its quote is in the notes
-//   Household         members with consent per person (only the member can say
-//                     yes, by typing their own name), shared goals and the
-//                     conflicts between people, each with its evidence
 //   exportCompass     the confirmed Compass as a constitution file
 // The engine owns every rule; this file shows and asks.
 import { useState } from "react";
-import { AlertTriangle, Check, Loader2, Plus, Sparkles, Trash2, UserPlus } from "lucide-react";
+import { Check, Loader2, Sparkles } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
 import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
@@ -92,122 +89,6 @@ export function YearlyReview({ vaultPath }: { vaultPath: string }) {
           );
         })}
       </ol>
-    </section>
-  );
-}
-
-interface HMember { id: string; name: string; relation: string; added: string; consent: Record<"compass" | "metrics", boolean>; hasCompass: boolean }
-interface HShared { id: string; title: string; members: string[]; names: string[]; hours?: number; done: boolean }
-interface HConflict { kind: string; who: string; goal: string; question: string; evidence: string[] }
-interface HView { members: HMember[]; shared: HShared[]; conflicts: HConflict[]; projects?: { slug: string; name: string; members: string[] }[] }
-
-const field = "h-9 min-w-0 rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
-
-export function Household({ vaultPath }: { vaultPath: string }) {
-  const q = useInvokeQuery<HView>("engine_household", { vault: vaultPath }, { staleMs: 10_000 });
-  const v: HView = q.data ?? { members: [], shared: [], conflicts: [] };
-  const [name, setName] = useState("");
-  const [goal, setGoal] = useState("");
-  const [with_, setWith] = useState<string[]>([]);
-  const [asking, setAsking] = useState<{ id: string; scope: "compass" | "metrics" } | null>(null);
-  const [typed, setTyped] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const call = async (cmd: string, args: Record<string, unknown>, ok?: string) => {
-    setMsg(null);
-    try {
-      const r = await invoke<{ ok?: boolean; error?: string }>(cmd, { vault: vaultPath, ...args });
-      if (r && r.ok === false) throw new Error(r.error);
-      if (ok) setMsg(ok);
-      await q.refresh();
-      return true;
-    } catch (e) { setMsg(String(e).replace(/^Error:\s*/, "")); return false; }
-  };
-  const SCOPE = { compass: "Their Compass", metrics: "Their numbers" } as const;
-  return (
-    <section data-testid="compass-detail-household" className="max-w-3xl">
-      <h2 className={DETAIL_TITLE}>Household</h2>
-      <p className={`${META} mt-1`}>Each person keeps their own Compass. Nothing of theirs is read until they say yes themselves, and they can take it back any time.</p>
-      {msg && <p className={`${META} mt-3`} data-testid="household-msg">{msg}</p>}
-      <ul className="mt-3">
-        {v.members.map((m) => (
-          <li key={m.id} data-testid="household-member" className="group border-b border-border-subtle py-2.5 last:border-b-0">
-            <div className="flex items-start gap-3">
-              <span aria-hidden className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[12px] font-semibold text-accent">{m.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
-              <div className="min-w-0 flex-1">
-                <p className={ROW_TITLE}>{m.name}</p>
-                <p className={`${META} mt-0.5`}>{m.relation} · {(["compass", "metrics"] as const).map((s) => `${SCOPE[s]}: ${m.consent[s] ? "yes" : "not shared"}`).join(" · ")}</p>
-                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-                  {(["compass", "metrics"] as const).map((s) => m.consent[s]
-                    ? <button key={s} onClick={() => void call("engine_household_consent", { id: m.id, scope: s, on: false, confirm: null }, `${SCOPE[s]} is no longer read.`)} data-testid={`consent-off-${s}`} className="text-[13px] text-text-muted hover:text-text-primary">Stop sharing {s === "compass" ? "their Compass" : "their numbers"}</button>
-                    : <button key={s} onClick={() => { setAsking({ id: m.id, scope: s }); setTyped(""); }} data-testid={`consent-ask-${s}`} className="text-[13px] font-medium text-accent hover:underline">Ask {m.name.split(" ")[0]} to share {s === "compass" ? "their Compass" : "their numbers"}</button>)}
-                </div>
-                {asking?.id === m.id && (
-                  <form className="mt-2 flex flex-wrap items-center gap-2" data-testid="consent-form" onSubmit={(e) => { e.preventDefault(); void call("engine_household_consent", { id: m.id, scope: asking.scope, on: true, confirm: typed }, `${m.name} said yes.`).then((ok) => ok && setAsking(null)); }}>
-                    <span className={`${BODY} basis-full text-text-secondary`}>Hand the device to {m.name}. {m.name.split(" ")[0]}, type your name to agree:</span>
-                    <input aria-label={`${m.name} types their name`} value={typed} onChange={(e) => setTyped(e.target.value)} className={`${field} w-56`} autoFocus />
-                    <button type="submit" disabled={!typed.trim()} data-testid="consent-agree" className="h-9 rounded-md bg-accent px-3 text-[13px] font-semibold text-on-accent disabled:opacity-50">I agree</button>
-                    <button type="button" onClick={() => setAsking(null)} className="h-9 px-2 text-[13px] text-text-muted hover:text-text-primary">Not now</button>
-                  </form>
-                )}
-              </div>
-              <span className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
-                <RowMenu items={[{ icon: Trash2, label: `Remove ${m.name}`, hint: "Their folder is kept in an archive", onClick: () => void call("engine_household_remove", { id: m.id }, `${m.name} is out of the household; their folder is archived.`) }]} />
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <form className="mt-3 flex flex-wrap items-center gap-2" data-testid="household-add" onSubmit={(e) => { e.preventDefault(); if (name.trim()) void call("engine_household_add", { name: name.trim(), relation: null }, `Added ${name.trim()}. Nothing of theirs is read until they say yes.`).then((ok) => ok && setName("")); }}>
-        <UserPlus className="h-4 w-4 shrink-0 text-text-muted" />
-        <input aria-label="Someone in your household" value={name} onChange={(e) => setName(e.target.value)} placeholder="Add someone: their name" className={`${field} min-w-0 flex-1`} />
-      </form>
-
-      <h3 className={`${SECTION_TITLE} mt-7`}>Shared goals</h3>
-      {v.shared.length ? (
-        <ul className="mt-1">{v.shared.map((g) => (
-          <li key={g.id} data-testid="shared-goal" className="border-b border-border-subtle py-2 last:border-b-0">
-            <p className={`${ROW_TITLE} ${g.done ? "text-text-muted line-through" : ""}`}>{g.title}</p>
-            <p className={`${META} mt-0.5`}>{g.names.join(", ")}{g.hours ? ` · ${g.hours} hours a week` : ""}</p>
-          </li>
-        ))}</ul>
-      ) : <p className={`${META} mt-1`}>None yet.</p>}
-      {v.members.length > 0 && (
-        <form className="mt-2 flex flex-wrap items-center gap-2" data-testid="shared-add" onSubmit={(e) => { e.preventDefault(); if (goal.trim() && with_.length) void call("engine_household_shared_add", { title: goal.trim(), members: with_, hours: null }, "Shared goal added.").then((ok) => { if (ok) { setGoal(""); setWith([]); } }); }}>
-          <Plus className="h-4 w-4 shrink-0 text-text-muted" />
-          <input aria-label="A shared goal" value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Say a goal you share" className={`${field} min-w-0 flex-1 basis-56`} />
-          <span className="flex flex-wrap gap-1.5">{v.members.map((m) => (
-            <button key={m.id} type="button" aria-pressed={with_.includes(m.id)} onClick={() => setWith((w) => (w.includes(m.id) ? w.filter((x) => x !== m.id) : [...w, m.id]))}
-              className={`h-7 rounded-full border px-2.5 text-[12px] ${with_.includes(m.id) ? "border-accent-border bg-accent-soft font-medium text-accent" : "border-border text-text-secondary"}`}>{m.name.split(" ")[0]}</button>
-          ))}</span>
-          <button type="submit" disabled={!goal.trim() || !with_.length} className="h-9 rounded-md px-3 text-[13px] font-medium text-accent hover:bg-accent-soft disabled:opacity-40">Add</button>
-        </form>
-      )}
-
-      {(v.projects ?? []).length > 0 && (
-        <>
-          <h3 className={`${SECTION_TITLE} mt-7`}>Shared projects</h3>
-          <ul className="mt-1">{v.projects!.map((p) => (
-            <li key={p.slug} data-testid="shared-project" className="border-b border-border-subtle py-2 last:border-b-0">
-              <p className={ROW_TITLE}>{p.name}</p>
-              <p className={`${META} mt-0.5`}>With {p.members.map((id) => v.members.find((m) => m.id === id)?.name ?? id).join(", ")}</p>
-            </li>
-          ))}</ul>
-        </>
-      )}
-      {v.conflicts.length > 0 && (
-        <>
-          <h3 className={`${SECTION_TITLE} mt-7`}>Between people</h3>
-          <ul className="mt-1">{v.conflicts.map((c, i) => (
-            <li key={i} data-testid="people-conflict" className="flex items-start gap-2.5 border-b border-border-subtle py-2 last:border-b-0">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
-              <div className="min-w-0">
-                <p className={`${BODY} text-text-primary`}>{c.question}</p>
-                <p className={`${META} mt-0.5 line-clamp-2`} title={c.evidence.join("\n")}>{c.evidence.join(" · ")}</p>
-              </div>
-            </li>
-          ))}</ul>
-        </>
-      )}
     </section>
   );
 }

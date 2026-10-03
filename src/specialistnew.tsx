@@ -6,19 +6,13 @@
 // line shows what is settled. Nothing is made until the user says go. An
 // address the user pastes makes an outside agent: it gets only the brief and
 // asks before every call. A toggle shows the same draft as fields.
-//
-// Packs: the starting sets per vertical (investors, creators, consultants,
-// new parents). Each adds presets built on a core specialist, Compass lines
-// as suggestions to confirm, and metrics to track. Install is one tap; the
-// menu installs one part or takes the pack's specialists out again.
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Globe, ListChecks, Loader2, MessageSquare, Package, Plus } from "lucide-react";
+import { ArrowUp, Globe, ListChecks, Loader2, MessageSquare, Plus } from "lucide-react";
 import { invoke } from "./bridge";
-import { invalidateQueries, useInvokeQuery } from "./query";
-import { BODY, DETAIL_TITLE, META, ROW_TITLE } from "./typescale";
+import { invalidateQueries } from "./query";
+import { BODY, DETAIL_TITLE, META } from "./typescale";
 import { ChiefAvatar, SpecialistAvatar } from "./specialistavatar";
 import { useChiefOfStaff } from "./chiefofstaff";
-import { RowMenu } from "./ui";
 import { CEILING_SAYS, FAMILY_LABEL, label } from "./plansmodel";
 
 export interface SpecDraft {
@@ -33,7 +27,6 @@ const STARTERS = ["A specialist that ", "Someone who checks ", "Add the outside 
 const inputCls = "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
 const startBtn = "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-50";
 
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const host = (u?: string) => { try { return u ? new URL(u).host : ""; } catch { return ""; } };
 
 /** The settled fields as one quiet line. */
@@ -183,75 +176,10 @@ function FieldsForm({ draft, onDraft, busy, onMake, onCancel, err }: { draft: Sp
   );
 }
 
-// ── Packs ───────────────────────────────────────────────────────────────────
-
-interface PackRow {
-  id: string; name: string; who: string;
-  specialists: { id: string; name: string; base: string; mandate: string }[];
-  compass: { kind: string; title: string }[];
-  metrics: { track: string[]; define: { id: string; title: string }[] };
-  installed: { specialists: string[]; compass: string[]; metrics: string[] };
-}
-
-/** All of a pack, or (from the Compass or Metrics) only its Compass lines or its metrics. */
-export function PacksView({ vaultPath, only }: { vaultPath: string; only?: "compass" | "metrics" }) {
-  const q = useInvokeQuery<PackRow[]>("engine_packs", { vault: vaultPath }, { staleMs: 30_000 });
-  const packs = Array.isArray(q.data) ? q.data : [];
-  const [busy, setBusy] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const act = async (cmd: "engine_pack_install" | "engine_pack_uninstall", id: string, only?: string) => {
-    setBusy(id); setMsg(null);
-    try {
-      const r = await invoke<{ added?: { what: string }[]; moved?: string[]; error?: string }>(cmd, { vault: vaultPath, id, only: only ?? null });
-      if (r?.error) throw new Error(r.error);
-      setMsg(cmd === "engine_pack_install" ? (r.added?.length ? `Added ${r.added.map((a) => a.what).join(", ")}. Compass lines wait for your yes.` : "Nothing new to add.") : (r.moved?.length ? "Its specialists are out; their files are kept in the vault." : "Nothing to take out."));
-      invalidateQueries("engine_specialists"); invalidateQueries("engine_packs");
-      await q.refresh();
-    } catch (e) { setMsg(`Not done: ${String(e).replace(/^Error:\s*/, "")}`); } finally { setBusy(null); }
-  };
-  return (
-    <section data-testid="packs-view" className="max-w-3xl">
-      <h2 className={DETAIL_TITLE}>{only === "compass" ? "Compass packs" : only === "metrics" ? "Metric packs" : "Packs"}</h2>
-      <p className={`${META} mt-1`}>{only === "metrics" ? "Metrics people like you track. They start under Tracking; nothing is pinned for you." : "A starting set for one kind of life or work. Compass lines arrive as suggestions; nothing is yours until you say yes."}</p>
-      {msg && <p className={`${META} mt-3`} data-testid="packs-msg">{msg}</p>}
-      <ul className="mt-3">
-        {packs.map((p) => {
-          const nMetrics = p.metrics.track.length + p.metrics.define.length;
-          const total = only === "compass" ? p.compass.length : only === "metrics" ? nMetrics : p.specialists.length + p.compass.length + nMetrics;
-          const have = only === "compass" ? p.installed.compass.length : only === "metrics" ? p.installed.metrics.length : p.installed.specialists.length + p.installed.compass.length + p.installed.metrics.length;
-          const what = only === "compass" ? p.compass.map((c) => c.title).join(", ") : only === "metrics" ? [...p.metrics.define.map((m) => m.title), ...p.metrics.track].join(", ") : `${p.specialists.map((s) => s.name).join(", ")} · ${plural(p.compass.length, "Compass line")} · ${plural(nMetrics, "metric")}`;
-          const all = have >= total;
-          return (
-            <li key={p.id} data-testid="pack-row" data-pack={p.id} className="group flex items-start gap-3 border-b border-border-subtle py-3 last:border-b-0">
-              <Package className="mt-0.5 h-5 w-5 shrink-0 text-text-muted" />
-              <div className="min-w-0 flex-1">
-                <p className={`${ROW_TITLE} line-clamp-2`}>{p.name}</p>
-                <p className={`${META} mt-0.5 truncate`} title={[...p.specialists.map((s) => `${s.name}: ${s.mandate}`), ...p.compass.map((c) => `${label(c.kind)}: ${c.title}`)].join("\n")}>
-                  {p.who} · {what}{have ? ` · ${all ? "added" : `${have} of ${total} added`}` : ""}
-                </p>
-                {!only && <div className="mt-1.5 flex -space-x-1">{p.specialists.map((s) => <SpecialistAvatar key={s.id} id={s.id} size={18} label={s.name} className="rounded-full ring-1 ring-background" />)}</div>}
-              </div>
-              <span className="flex shrink-0 items-center gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
-                {!all && <button type="button" disabled={busy === p.id} onClick={() => void act("engine_pack_install", p.id, only)} data-testid="pack-install" className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-accent hover:bg-accent-soft disabled:opacity-50">{busy === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Add</button>}
-                {!only && <RowMenu items={[
-                  { icon: Plus, label: "Add only its specialists", onClick: () => void act("engine_pack_install", p.id, "specialists") },
-                  { icon: Plus, label: "Add only its Compass lines", hint: "As suggestions", onClick: () => void act("engine_pack_install", p.id, "compass") },
-                  { icon: Plus, label: "Add only its metrics", onClick: () => void act("engine_pack_install", p.id, "metrics") },
-                  ...(p.installed.specialists.length ? [{ icon: Package, label: "Take its specialists out", hint: "Files are kept", onClick: () => void act("engine_pack_uninstall", p.id) }] : []),
-                ]} />}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
 /** The one line under an outside agent's or a preset's name. */
-export function originLine(s: { base?: string; pack?: string; outside?: { endpoint: string; perDay: number } }): string | null {
+export function originLine(s: { base?: string; outside?: { endpoint: string; perDay: number } }): string | null {
   if (s.outside) return `Outside agent at ${host(s.outside.endpoint)} · gets only the brief · asks before every call · ${s.outside.perDay} a day at most`;
-  if (s.base) return `Built on the ${label(s.base)}${s.pack ? ` · from the ${label(s.pack)} pack` : ""}`;
+  if (s.base) return `Built on the ${label(s.base)}`;
   return null;
 }
 

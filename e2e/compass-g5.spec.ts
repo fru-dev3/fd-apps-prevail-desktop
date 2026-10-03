@@ -1,7 +1,5 @@
 // Goals G5 on the Compass page: values and roles over the years, the yearly
-// review with odyssey lives sketched from the notes, a household with
-// consent per person (only the member says yes, by typing their name), shared
-// goals and conflicts between people, Compass packs, and the export. Invented
+// review with odyssey lives sketched from the notes, and the export. Invented
 // people and data only. COMPASS_SHOTS=<dir> captures 390, 768, 1280, 1920.
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
@@ -15,14 +13,6 @@ const HISTORY = [
 const YEARLY = { year: 2026, file: "/v/data/domains/general/memory/reviews/year-2026.md", purpose: "Live a calm foo life.", sketches: [],
   text: "# Your yearly review, 2026\n\n## Three odyssey lives\n\n### Life one: the current path\nFive years on this road. What does a good year look like, and what does it cost?\nYour answer:\n\n### Life two: if that path vanished\nYour current work or plan is gone tomorrow. What would you do instead?\nYour answer:\n\n### Life three: if money did not matter\nMoney and what people think do not matter. What would you do with these years?\nYour answer:\n\n## One small prototype\n" };
 const YEARLY2 = { ...YEARLY, sketches: [{ key: "free", sketch: "Summers at the foo lake, writing.", quote: "spend summers by the foo lake", from: "build/ideal-state.md" }] };
-const HOUSE = {
-  members: [{ id: "ada-foo", name: "Ada Foo", relation: "partner", added: "2026-10-01", consent: { compass: true, metrics: false }, hasCompass: true }],
-  shared: [{ id: "sg-move-abroad-for-a-year", title: "Move abroad for a year", members: ["me", "ada-foo"], names: ["You", "Ada Foo"], hours: 2, done: false }],
-  projects: [{ slug: "kitchen-foo", name: "Kitchen foo", members: ["ada-foo"] }],
-  conflicts: [{ kind: "rule", who: "You", goal: "Move abroad for a year", question: "Your non-negotiable \"Never move abroad\" and the shared goal \"Move abroad for a year\": how do they fit together?", evidence: ["rule: Never move abroad", "shared goal: Move abroad for a year", "words in both: move, abroad"] }],
-};
-const PACKS = [{ id: "investors", name: "Investors", who: "People who manage their own investments", specialists: [], compass: [{ kind: "value", title: "Financial independence" }, { kind: "rule", title: "Keep six months of costs in cash" }], metrics: { track: [], define: [] }, installed: { specialists: [], compass: [], metrics: [] } }];
-
 const calls = (page: Page, cmd: string) => page.evaluate((c) =>
   ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? []).filter((e) => e.cmd === c).map((e) => e.args), cmd);
 async function setup(page: Page, width: number) {
@@ -31,8 +21,6 @@ async function setup(page: Page, width: number) {
   await mockTauri(page, {
     engine_today: null, engine_review: null, compass_read: COMPASS, compass_versions: [], compass_ledger: [], engine_compass_align: null,
     engine_compass_history: HISTORY, engine_compass_yearly: YEARLY, engine_compass_fresh: { starts: [{ kind: "new-quarter", text: "A new quarter: keep, switch or drop each initiative." }] },
-    engine_household: HOUSE, engine_household_add: { id: "bo-bar", name: "Bo Bar" }, engine_household_consent: { ok: true }, engine_household_shared_add: { id: "sg-x" },
-    engine_packs: PACKS, engine_pack_install: { pack: "investors", added: [{ part: "compass", what: "Financial independence" }], skipped: [] },
     engine_compass_export: { file: "/v/build/exports/compass-constitution-2026-10-02.md", text: "# My constitution\n" },
   });
   await page.goto("/");
@@ -76,27 +64,8 @@ for (const width of [390, 768, 1280, 1920]) {
       await shot(page, "g5-yearly", width);
     });
 
-    test("household: only the member says yes; shared goals; conflicts with evidence; packs and the export", async ({ page }) => {
+    test("the export", async ({ page }) => {
       await setup(page, width);
-      await page.getByTestId("compass-row-household").click();
-      await expect(page.getByTestId("household-member")).toContainText("Their Compass: yes");
-      await page.getByTestId("consent-ask-metrics").click();
-      await expect(page.getByTestId("consent-agree")).toBeDisabled();
-      await page.getByLabel("Ada Foo types their name").fill("Ada Foo");
-      await page.getByTestId("consent-agree").click();
-      await expect.poll(async () => (await calls(page, "engine_household_consent"))[0]).toMatchObject({ id: "ada-foo", scope: "metrics", on: true, confirm: "Ada Foo" });
-      await expect(page.getByTestId("people-conflict")).toContainText("Never move abroad");
-      await expect(page.getByTestId("shared-project")).toContainText("With Ada Foo");
-      await page.getByLabel("Someone in your household").fill("Bo Bar");
-      await page.getByLabel("Someone in your household").press("Enter");
-      await expect.poll(async () => (await calls(page, "engine_household_add"))[0]).toMatchObject({ name: "Bo Bar" });
-      await noOverflow(page);
-      await shot(page, "g5-household", width);
-      await list(page);
-      await page.getByTestId("compass-row-packs").click();
-      await page.getByTestId("pack-row").first().hover();
-      await page.getByTestId("pack-install").click();
-      await expect.poll(async () => (await calls(page, "engine_pack_install"))[0]).toMatchObject({ id: "investors", only: "compass" });
       await page.getByTestId("compass-export").click();
       await expect(page.getByTestId("compass-note")).toContainText("compass-constitution-2026-10-02.md");
       await noOverflow(page);
