@@ -130,7 +130,7 @@ export function TouchedLine({ touched, onUndo, undone = false }: { touched: Touc
   );
 }
 
-// Under a reply: "Saved a decision: Learn piano · Open · Undo".
+// Under a reply: "Saved a decision: Learn cello · Open · Undo".
 export function DecisionReceipt({ decision, onUndo, undone = false }: { decision: { domain: string; slug: string; what: string }; onUndo?: () => Promise<void> | void; undone?: boolean }) {
   const [busy, setBusy] = useState(false);
   if (undone) return <p data-testid="decision-receipt" className="mt-1 px-1 text-[12px] text-text-muted">Decision taken back.</p>;

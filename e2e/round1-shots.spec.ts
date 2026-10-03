@@ -35,14 +35,14 @@ const FIX: Record<string, unknown> = {
   domain_context: { state: "", decisions: "", journal: "", recent_logs: [], skills: [], layoutV4: true },
   compass_read: COMPASS, compass_ledger: LEDGER, compass_versions: [], engine_compass_tree: TREE, engine_compass_links: [], engine_compass_align: null,
   engine_compass_yearly_list: [YEARLY(2026), YEARLY(2025)],
-  engine_decisions: [{ slug: "learn-the-foo-piano", domain: "learning", file: "/v/x.md", question: "Learn the foo piano", status: "decided", owner: "learning", consulted: [], serves: [], decided: "2026-10-02", chose: "Learn the foo piano", thread: "t-foo", source: "chat", sections: { Context: "Said in a conversation: \"I've decided to learn the foo piano.\"" } }],
-  engine_specialists: [SPEC], engine_specialist_show: { spec: SPEC, notebooks: [], involvement: [{ ts: NOW - DAY, specialist: "researcher", name: "Researcher", method: "answered", domain: "learning", thread: "t-foo", ask: "Which foo piano teachers are near me?" }] }, engine_jobs: [],
+  engine_decisions: [{ slug: "learn-the-foo-cello", domain: "learning", file: "/v/x.md", question: "Learn the foo cello", status: "decided", owner: "learning", consulted: [], serves: [], decided: "2026-10-02", chose: "Learn the foo cello", thread: "t-foo", source: "chat", sections: { Context: "Said in a conversation: \"I've decided to learn the foo cello.\"" } }],
+  engine_specialists: [SPEC], engine_specialist_show: { spec: SPEC, notebooks: [], involvement: [{ ts: NOW - DAY, specialist: "researcher", name: "Researcher", method: "answered", domain: "learning", thread: "t-foo", ask: "Which foo cello teachers are near me?" }] }, engine_jobs: [],
   engine_playbook_rows: ROWS, engine_playbook_show: { ...ROWS[0], triggers: [], rows: [{ n: 1, kind: "loop", label: "Watch the foo bills", specialists: [], returns: ["tasks"], gate: false, ask: false }], runs: [] },
   entities_list: { generated_ts: 1, total: 1, entities: [WAY] },
   entities_show: { found: true, ...WAY, kinds: ["place"], mentions: [], co_mentions: [], digest: "", notes: "", merged_from: [{ id: "place/foo-way-house", name: "Foo Way House", ts: new Date(NOW - 20 * DAY).toISOString(), auto: false }, { id: "place/the-foo-house", name: "The Foo House", ts: new Date(NOW - 3 * DAY).toISOString(), auto: true }] },
   engine_entity_threads: [], engine_entities_duplicates: [], engine_updates: [],
   engine_after_turn: { ok: true, events: [
-    { type: "decision_saved", thread: "t-foo", ts: NOW, decisionSaved: { domain: "learning", slug: "learn-the-foo-piano", what: "Learn the foo piano" } },
+    { type: "decision_saved", thread: "t-foo", ts: NOW, decisionSaved: { domain: "learning", slug: "learn-the-foo-cello", what: "Learn the foo cello" } },
     { type: "touched", thread: "t-foo", ts: NOW, by: "code", domains: [{ slug: "content", fact: "Making a foo video" }, { slug: "real-estate", fact: "Tenant renewal" }], entities: [] },
   ] },
 };
@@ -82,7 +82,7 @@ for (const width of [390, 768, 1280, 1920]) {
     await compassRow(page, "history");
     await shot(page, "compass-history", width);
 
-    await work(page, "decisions", ["prevail.decisions.focus", "learning/learn-the-foo-piano"]);
+    await work(page, "decisions", ["prevail.decisions.focus", "learning/learn-the-foo-cello"]);
     await expect(page.getByTestId("decision-chat")).toBeVisible({ timeout: 10_000 });
     await shot(page, "decisions-chat", width);
 
@@ -110,7 +110,7 @@ for (const width of [390, 768, 1280, 1920]) {
   test(`a thread with its receipts at ${width}`, async ({ page }) => {
     await boot(page, width);
     const box = page.locator("[data-tour=composer] textarea").first();
-    await box.fill("I've decided to learn the foo piano. Also making a YouTube video, and the tenant wants to renew.");
+    await box.fill("I've decided to learn the foo cello. Also making a YouTube video, and the tenant wants to renew.");
     await box.press("Enter");
     const send = await page.evaluate(() => ((window as unknown as { __invokeLog: Array<{ cmd: string; args: { args?: { session_id?: string } } }> }).__invokeLog).find((e) => e.cmd === "chat_send")?.args.args?.session_id);
     await page.evaluate((s) => { const emit = (window as unknown as { __emit: (e: string, p: unknown) => void }).__emit; emit("chat:chunk", { session: s, cli: "claude", stream: "stdout", data: "Good plan. Ten minutes a day to start." }); emit("chat:done", { session: s, cli: "claude", code: 0 }); }, send);

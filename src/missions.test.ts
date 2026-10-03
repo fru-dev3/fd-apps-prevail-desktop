@@ -33,10 +33,10 @@ describe("missions", () => {
   });
 
   it("a goal keeps its ~project link through a parse and a write", () => {
-    const [g] = goalsOf(parseGoals("general", "- [ ] Play a foo song ~id:g-1 ~status:active ~project:foo-piano\n"));
+    const [g] = goalsOf(parseGoals("general", "- [ ] Play a foo song ~id:g-1 ~status:active ~project:foo-cello\n"));
     expect(g.title).toBe("Play a foo song");
-    expect(g.project).toBe("foo-piano");
-    expect(goalLine(g)).toBe("- [ ] Play a foo song ~id:g-1 ~status:active ~project:foo-piano");
+    expect(g.project).toBe("foo-cello");
+    expect(goalLine(g)).toBe("- [ ] Play a foo song ~id:g-1 ~status:active ~project:foo-cello");
     expect(goalLine({ ...g, project: null })).toBe("- [ ] Play a foo song ~id:g-1 ~status:active");
   });
 });

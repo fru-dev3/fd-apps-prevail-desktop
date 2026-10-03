@@ -21,8 +21,8 @@ const FIX = {
   chief_of_staff_read: "---\nname: Quill\nhandoff: offer\n---\n",
   engine_missions_list: [],
   save_thread: "/tmp/smoke-vault/data/domains/general/_threads/foo-group.md",
-  entities_list: { generated_ts: 1, total: 1, entities: [{ id: "person/ben-foo", name: "Ben Foo", kind: "person", aliases: [], mention_count: 3, conversations: 2, last_ts: 1, saved: true, has_page: true, relation: "yours", relation_confidence: 0.9 }] },
-  entities_show: { found: true, id: "person/ben-foo", name: "Ben Foo", kind: "person", kinds: ["person"], aliases: [], mention_count: 3, conversations: 2, mentions: [], co_mentions: [], digest: "", notes: "", relation: "yours" },
+  entities_list: { generated_ts: 1, total: 1, entities: [{ id: "person/kai-foo", name: "Kai Foo", kind: "person", aliases: [], mention_count: 3, conversations: 2, last_ts: 1, saved: true, has_page: true, relation: "yours", relation_confidence: 0.9 }] },
+  entities_show: { found: true, id: "person/kai-foo", name: "Kai Foo", kind: "person", kinds: ["person"], aliases: [], mention_count: 3, conversations: 2, mentions: [], co_mentions: [], digest: "", notes: "", relation: "yours" },
   engine_entity_threads: [],
   engine_entities_duplicates: [],
   engine_specialist_show: { spec: spec("researcher", "Researcher", "know"), notebooks: [], involvement: [] },
@@ -145,13 +145,13 @@ test("a specialist's own chat sends every message to it; one brought into a pers
 
   // A person's chat: bring the Planner in, then take it out; the next turn goes without it.
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "entities" })));
-  await page.getByTestId("entity-row").filter({ hasText: "Ben Foo" }).first().click();
+  await page.getByTestId("entity-row").filter({ hasText: "Kai Foo" }).first().click();
   await page.getByTestId("entity-tab-chat").click();
   const box = page.getByTestId("entity-chat").locator("textarea").first();
   await expect(box).toBeVisible({ timeout: 10_000 });
   await box.pressSequentially("@Pla");
   await page.getByTestId("ref-option-specialist-planner").click();
-  await box.pressSequentially("plan a foo dinner with Ben");
+  await box.pressSequentially("plan a foo dinner with Kai");
   await box.press("Enter");
   await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(2);
   expect((await calls(page, "engine_chat"))[1]).toMatchObject({ members: ["planner"] });
