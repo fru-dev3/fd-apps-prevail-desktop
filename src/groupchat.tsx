@@ -22,6 +22,14 @@ export interface TurnMeta {
   context?: string[];
   /** The model behind the reply (shown on hover only). */
   model?: string;
+  /** Receipts kept with the turn (owner feedback round 1): the domains this
+   *  turn was noted in (with the touch time, for Undo), a decision it saved,
+   *  and which of them the user undid. */
+  noted?: { slug: string; fact?: string }[];
+  notedTs?: number;
+  notedThread?: string;
+  decision?: { domain: string; slug: string; what: string };
+  undone?: ("noted" | "decision")[];
 }
 
 const ID = /^[a-z][a-z0-9-]{0,40}$/;
@@ -39,6 +47,11 @@ export function decodeTurnMeta(raw: string | null | undefined): TurnMeta | undef
       ...(typeof m.scope === "string" ? { scope: m.scope } : {}),
       ...(Array.isArray(m.context) ? { context: m.context.filter((x) => typeof x === "string").slice(0, 40) } : {}),
       ...(typeof m.model === "string" ? { model: m.model } : {}),
+      ...(Array.isArray(m.noted) ? { noted: m.noted.filter((d) => d && typeof d.slug === "string").map((d) => ({ slug: d.slug, ...(typeof d.fact === "string" ? { fact: d.fact } : {}) })) } : {}),
+      ...(typeof m.notedTs === "number" ? { notedTs: m.notedTs } : {}),
+      ...(typeof m.notedThread === "string" ? { notedThread: m.notedThread } : {}),
+      ...(m.decision && typeof m.decision.slug === "string" && typeof m.decision.domain === "string" ? { decision: { domain: m.decision.domain, slug: m.decision.slug, what: String(m.decision.what ?? "") } } : {}),
+      ...(Array.isArray(m.undone) ? { undone: m.undone.filter((x) => x === "noted" || x === "decision") } : {}),
     };
   } catch { return undefined; }
 }

@@ -42,7 +42,7 @@ import { MemberBar, appendMemberLog, decodeTurnMeta, parseMemberLog, type TurnMe
 import type { MirrorList } from "./appsmirror-model";
 import { savedEntitiesForDirective } from "./entitystore";
 import { ContextButton, ContextCanvas, DomainContextView, DomainPrefsPanel } from "./domainpanels";
-import { TOUCHED_EVENT, parseTouched } from "./linking";
+import { RECEIPT_UNDONE, TOUCHED_EVENT, parseTouched, type Touched } from "./linking";
 import { HomeBriefing } from "./recommendationspanel";
 import type { AppNotice, ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
@@ -105,6 +105,19 @@ function ScoreDimRow({ label, dim }: { label: string; dim: { score: number; deta
 // them on mount, so caching would double them up.
 type PrimedEntry = { label: string; body: string };
 type PrimedBinding = { id: string; account: string };
+// Receipts land on the newest reply (the stream may already be closed) and
+// are kept with the turn's meta, so the saved thread shows them too.
+export function withReceipt(m: ChatMessage[], r: { touched?: Touched; decision?: { domain: string; slug: string; what: string } }): ChatMessage[] {
+  let i = m.length - 1;
+  while (i >= 0 && m[i].role !== "assistant") i--;
+  if (i < 0) return m;
+  const cur = m[i];
+  const meta: TurnMeta = { ...(cur.meta ?? { speaker: "chief" }) };
+  if (r.touched && r.touched.domains.length) { meta.noted = r.touched.domains.map((d) => ({ slug: d.slug, ...(d.fact ? { fact: d.fact } : {}) })); if (r.touched.ts) meta.notedTs = r.touched.ts; if (r.touched.thread) meta.notedThread = r.touched.thread; }
+  if (r.decision) meta.decision = r.decision;
+  return [...m.slice(0, i), { ...cur, ...(r.touched ? { touched: r.touched } : {}), ...(r.decision ? { decisionSaved: r.decision } : {}), meta }, ...m.slice(i + 1)];
+}
+
 const primedContextCache = new Map<string, { ctx: PrimedEntry[]; bindings: Record<string, PrimedBinding> }>();
 const isAutoContextLabel = (label: string) => label.startsWith("auto:") || label.startsWith("auto-app:");
 
@@ -137,7 +150,15 @@ export function ChatPanel({
   mission = null,
   scopeGoogleAccount = null,
   scope,
+  defaultMembers,
+  initialInput,
 }: {
+  /// A specialist's own chat: a new conversation starts with these members,
+  /// so every message goes to them (they answer as themselves).
+  defaultMembers?: string[];
+  /// Text waiting in the composer of a new conversation (a decision's or a
+  /// line's context), for the user to add their words and send.
+  initialInput?: string;
   /// The space this chat runs in (chatscope.ts). For a domain or a project the
   /// engine builds the context and the desktop sends only what the composer
   /// adds. Derived from domain, mission, scopeApp and entity when absent.
@@ -226,6 +247,8 @@ export function ChatPanel({
   // domain manifest's configured engine, privacy (localOnly) and skills.
   // When it's absent we fall back to the native chat_send path below.
   // This is purely additive - neither path is removed.
+  // A chat inside a page (a decision's, a specialist's): its own conversation.
+  const embedded = defaultMembers !== undefined || initialInput !== undefined;
   const [engineAvailable, setEngineAvailable] = useState(false);
   // General is the chief of staff's home: it carries their name once named.
   const chief = useChiefOfStaff(vaultPath);
@@ -351,8 +374,8 @@ export function ChatPanel({
   // AI"): prefill the prompt + jump to the chat tab so the user can just hit send.
   useEffect(() => {
     const onSeed = (e: Event) => {
-      // An entity chat is its own conversation; seeds are for the main chat.
-      if (entity || scopeApp || mission) return;
+      // An entity chat (or one inside a page) is its own conversation; seeds are for the main chat.
+      if (entity || scopeApp || mission || embedded) return;
       const text = (e as CustomEvent<string>).detail;
       if (typeof text === "string" && text) {
         setInput(text); setDomainTab("chat");
@@ -365,7 +388,7 @@ export function ChatPanel({
     // Pending seed from a view that wasn't mounted when it fired (e.g. a task's
     // "Discuss with AI"): pick it up on mount so it reliably lands here.
     try {
-      const pending = entity || scopeApp || mission ? null : localStorage.getItem("prevail.compose.pending");
+      const pending = entity || scopeApp || mission || embedded ? null : localStorage.getItem("prevail.compose.pending");
       if (pending) { localStorage.removeItem("prevail.compose.pending"); setInput(pending); setDomainTab("chat"); }
     } catch { /* ignore */ }
     return () => window.removeEventListener("prevail:compose-seed", onSeed as EventListener);
@@ -965,7 +988,7 @@ export function ChatPanel({
   useEffect(() => {
     const on = (e: Event) => {
       const t = (e as CustomEvent<string>).detail;
-      if (typeof t !== "string" || domain) return;
+      if (typeof t !== "string" || domain || embedded) return;
       setInput(t);
       requestAnimationFrame(() => taRef.current?.focus());
     };
@@ -1346,6 +1369,54 @@ export function ChatPanel({
       .catch((e) => console.error("thread_set_filing", e));
   }, [vaultPath, updateFiling]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Receipts undone (Undo under a reply): the turn keeps a note of it, so the
+  // saved thread shows "taken back" instead of offering Undo again.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ kind: "noted" | "decision"; ts?: number; slug?: string }>).detail;
+      if (!d) return;
+      setMessages((m) => m.map((x) => {
+        const meta = x.meta;
+        const hit = d.kind === "noted" ? (meta?.notedTs ?? x.touched?.ts) === d.ts : (meta?.decision?.slug ?? x.decisionSaved?.slug) === d.slug;
+        if (!hit) return x;
+        return { ...x, meta: { ...(meta ?? { speaker: "chief" }), undone: [...new Set([...(meta?.undone ?? []), d.kind])] } };
+      }));
+    };
+    window.addEventListener(RECEIPT_UNDONE, on);
+    return () => window.removeEventListener(RECEIPT_UNDONE, on);
+  }, []);
+
+  // A turn the desktop ran itself (the native path, most General chats): the
+  // engine runs the same after-turn steps a turn through it gets, a decision
+  // the user stated is saved and the domains the words concern are noted,
+  // and the receipts land on the reply. Never blocks or fails the chat.
+  const afterNativeTurnRef = useRef<() => Promise<void>>(async () => {});
+  afterNativeTurnRef.current = async () => {
+    if (!engineAvailable || incognitoActive("chat") || !vaultPath) return;
+    const msgs = messagesRef.current;
+    const last = msgs[msgs.length - 1];
+    const user = [...msgs].reverse().find((x) => x.role === "user");
+    if (!last || last.role !== "assistant" || !user || !last.content.trim()) return;
+    // The thread's file name, once its first save has run.
+    let thread = threadIdOf(activeThreadRef.current);
+    for (let i = 0; !thread && i < 15; i++) { await new Promise((r) => setTimeout(r, 200)); thread = threadIdOf(activeThreadRef.current); }
+    const r = await invoke<{ events?: { type?: string; ts?: number; thread?: string; domains?: unknown; entities?: unknown; decisionSaved?: { domain?: string; slug?: string; what?: string } }[] }>("engine_after_turn", {
+      vault: vaultPath, domain: domain || "general", thread: thread ?? sessionRef.current, message: user.content, reply: last.content,
+    }).catch(() => null);
+    for (const ev of r?.events ?? []) {
+      if (ev.type === "touched") {
+        const t = parseTouched(ev);
+        if (!t) continue;
+        setMessages((m) => withReceipt(m, { touched: t }));
+        window.dispatchEvent(new CustomEvent(TOUCHED_EVENT, { detail: t }));
+      } else if (ev.type === "decision_saved" && ev.decisionSaved?.slug && ev.decisionSaved.domain && /^[a-z0-9-]+$/.test(ev.decisionSaved.slug)) {
+        const d = ev.decisionSaved;
+        setMessages((m) => withReceipt(m, { decision: { domain: d.domain!, slug: d.slug!, what: d.what ?? d.slug! } }));
+        window.dispatchEvent(new Event("prevail:decisions-changed"));
+      }
+    }
+  };
   // Any thread pick returns to the chat view - even re-clicking the active
   // thread (which doesn't change activeThreadPath), so you can always escape
   // the Preferences view by clicking a thread. Skips the initial mount.
@@ -1359,7 +1430,13 @@ export function ChatPanel({
     // Picking a thread (or starting a new one) always returns to the chat view,
     // even if Preferences was open - otherwise the click appears to do nothing.
     setDomainTab("chat");
-    if (!activeThreadPath) { setMessages([]); setThreadTitle(""); setThreadEntity(null); filingRef.current = null; setFilingState(null); displayedPathRef.current = null; setMembers([]); setMemberLog(""); return; }
+    if (!activeThreadPath) {
+      const dm = (defaultMembers ?? []).filter((x) => /^[a-z][a-z0-9-]{0,40}$/.test(x));
+      membersRef.current = dm;
+      setMessages([]); setThreadTitle(""); setThreadEntity(null); filingRef.current = null; setFilingState(null); displayedPathRef.current = null; setMembers(dm); { const ml = dm.map((id) => `+${id}@0`).join(";"); memberLogRef.current = ml; setMemberLog(ml); }
+      if (initialInput) setInput(initialInput);
+      return;
+    }
     if (selfSetPathRef.current === activeThreadPath) {
       selfSetPathRef.current = null;
       displayedPathRef.current = activeThreadPath;
@@ -1679,6 +1756,8 @@ export function ChatPanel({
           // the turn still counts). code===0 (or null timeout) → ok.
           persistUsage(e.payload.session, e.payload.code === 0);
           if (e.payload.session !== sessionRef.current) return;
+          // Decisions said and domains noted, for this turn too (after the bubble settles).
+          if (e.payload.code === 0) setTimeout(() => { void afterNativeTurnRef.current(); }, 50);
           setMessages((m) => {
             const last = m[m.length - 1];
             if (last && last.streaming) return [...m.slice(0, -1), { ...last, streaming: false }];
@@ -1890,11 +1969,7 @@ export function ChatPanel({
               // list refetches. No toast.
               const t = parseTouched(ev);
               if (!t) break;
-              setMessages((m) => {
-                const i = m.length - 1;
-                if (i < 0 || m[i].role !== "assistant") return m;
-                return [...m.slice(0, i), { ...m[i], touched: t }];
-              });
+              setMessages((m) => withReceipt(m, { touched: t }));
               window.dispatchEvent(new CustomEvent(TOUCHED_EVENT, { detail: t }));
               if (t.entities.length) window.dispatchEvent(new CustomEvent("prevail:entities-changed"));
               break;
@@ -1920,6 +1995,14 @@ export function ChatPanel({
                 if (!last || last.role !== "assistant") return m;
                 return [...m.slice(0, -1), { ...last, decisionOffer: { question: o.question!, domain: o.domain!, due: o.due ?? "" } }];
               });
+              break;
+            }
+            case "decision_saved": {
+              // A decision the user stated, saved by code: a quiet receipt with Undo.
+              const d = (ev as { decisionSaved?: { domain?: string; slug?: string; what?: string } }).decisionSaved;
+              if (!d?.domain || !d.slug || !/^[a-z0-9-]+$/.test(d.slug)) break;
+              setMessages((m) => withReceipt(m, { decision: { domain: d.domain!, slug: d.slug!, what: d.what ?? d.slug! } }));
+              window.dispatchEvent(new Event("prevail:decisions-changed"));
               break;
             }
             case "filed": {
@@ -2930,7 +3013,12 @@ export function ChatPanel({
             Talk to {mission.name}. Its domains, apps, people and notes come along; anything outside it asks you first.
           </div>
         )}
-        {messages.length === 0 && !domain && !entity && !scopeApp && !mission && domainTab === "chat" && (
+        {messages.length === 0 && embedded && domainTab === "chat" && (
+          <div data-testid="embedded-chat-empty" className="flex h-full items-center justify-center px-6 py-10 text-center text-[14px] text-text-muted">
+            {defaultMembers?.length ? "Ask anything. Its mandate, notebooks and recent work come along." : "Add context or talk it through; the conversation is kept with it."}
+          </div>
+        )}
+        {messages.length === 0 && !embedded && !domain && !entity && !scopeApp && !mission && domainTab === "chat" && (
           <TodayHome vaultPath={vaultPath} phone={phone} onAsk={(text) => { setInput(text); requestAnimationFrame(() => taRef.current?.focus()); }} fallback={
           <div className={`flex h-full flex-col items-center justify-center ${phone ? "px-5 py-4" : "px-6 py-8"}`} style={{ justifyContent: "safe center" }}>
             {/* Starred apps as a horizontal strip at the top of home - same

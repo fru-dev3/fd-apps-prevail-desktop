@@ -6,7 +6,7 @@ import { filedIdOf, jobIdOf, toldIdOf } from "./plansmodel";
 import { DecisionOfferCard, FiledCard, ToldCard } from "./filedcard";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ReplyApps } from "./chatrefs";
-import { AcrossCard, TouchedLine } from "./linking";
+import { AcrossCard, DecisionReceipt, TouchedLine, undoDecision, undoTouched } from "./linking";
 import { ArrowRight, BookmarkPlus, Check, ChevronDown, ChevronRight, ListPlus, NotebookPen, Pin, Repeat, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { FRAMEWORKS, LENSES, MODELS } from "./constants";
@@ -505,7 +505,20 @@ export function ChatBubble({
           )}
           {msg.streaming && msg.content && <span className="cursor-blink text-accent">▌</span>}
         </div>
-        {msg.role === "assistant" && msg.touched && <TouchedLine touched={msg.touched} />}
+        {msg.role === "assistant" && (() => {
+          // Receipts: what this turn noted in other domains and a decision it
+          // saved, live from the stream or kept with the turn; each with Undo.
+          const m = msg.meta;
+          const touched = msg.touched ?? (m?.noted?.length ? { thread: m.notedThread, ts: m.notedTs, domains: m.noted, entities: [] } : null);
+          const decision = msg.decisionSaved ?? m?.decision ?? null;
+          const undone = m?.undone ?? [];
+          return (
+            <>
+              {touched && <TouchedLine touched={touched} undone={undone.includes("noted")} onUndo={() => undoTouched(touched)} />}
+              {decision && <DecisionReceipt decision={decision} undone={undone.includes("decision")} onUndo={() => undoDecision(decision)} />}
+            </>
+          );
+        })()}
         {msg.content && (
           <div className="mt-1 flex h-5 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <ActionButton

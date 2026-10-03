@@ -339,6 +339,9 @@ export interface ChatMessage {
   // Linking: the other domains and your entities this turn touched (the
   // engine's `touched` event), drawn as a quiet line under the reply.
   touched?: import("./linking").Touched;
+  // A decision the user stated in this turn, saved as a decided record (the
+  // engine's decision_saved event); Undo moves the record aside.
+  decisionSaved?: { domain: string; slug: string; what: string };
   // A job the chief of staff staffed from this turn (the engine's `job`
   // event). The final reply also ends with "[job:<id>]" so a saved thread
   // keeps it.

@@ -1,4 +1,4 @@
-// Linking: a reply's "Also noted in" line (from the engine's `touched`
+// Linking: a reply's "Noted in" line (from the engine's `touched`
 // event), Across your life and Your things on a domain's Context, the same
 // updates on an entity's Overview, the Yours / Reference filter, marking an
 // entity as yours, and the "Save entities as you chat" setting. With
@@ -83,7 +83,7 @@ for (const width of [1440, 390]) {
         { type: "touched", thread: "t1", domains: [{ slug: "insurance", fact: "Claim open" }, { slug: "legal", fact: "Lawyer involved" }], entities: ["place/foo-way"] },
       ]);
       const line = page.getByTestId("touched-line");
-      await expect(line).toHaveText(/Also noted in\s*Insurance,\s*Legal\s*·\s*Foo Way/);
+      await expect(line).toHaveText(/Noted in\s*Insurance,\s*Legal\s*·\s*Foo Way/);
       await shot(page, "touched-chips");
       await line.getByTestId("touched-entity").click();
       await expect(page.getByTestId("entity-detail")).toContainText("Foo Way", { timeout: 10_000 });

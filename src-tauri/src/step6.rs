@@ -107,3 +107,50 @@ pub(crate) async fn engine_apps_stack_diff(vault: String) -> Result<serde_json::
 pub(crate) async fn engine_apps_stack_diff_accept(vault: String) -> Result<serde_json::Value, String> {
     blocking(v(&["--vault", &vault, "apps", "stack-diff", "accept"])).await
 }
+
+// ── Round 1: after a turn, and Undo for its receipts ──────────────────────
+
+fn ok_thread(t: &str) -> Result<&str, String> {
+    if t.is_empty() || t.len() > 120 || !t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') { return Err("not a thread id".into()); }
+    Ok(t)
+}
+
+/// A turn the desktop ran itself: the engine saves a decision the user stated
+/// and notes the domains the words concern. Returns { ok, events }.
+#[tauri::command]
+pub(crate) async fn engine_after_turn(vault: String, domain: String, thread: String, message: String, reply: String) -> Result<serde_json::Value, String> {
+    let d = if domain.trim().is_empty() { "general".to_string() } else { ok_id(&domain)?.to_string() };
+    let t = ok_thread(&thread)?.to_string();
+    let m: String = message.chars().take(20_000).collect();
+    let r: String = reply.chars().take(8_000).collect();
+    let body = serde_json::json!({ "message": m, "reply": r }).to_string();
+    blocking_stdin(v(&["--vault", &vault, "chat", "--domain", &d, "--thread", &t, "--after-turn"]), body).await
+}
+
+/// Undo a turn's notes in other domains: exactly the lines written at `ts`.
+#[tauri::command]
+pub(crate) async fn engine_touch_undo(vault: String, thread: String, ts: f64, domains: Vec<String>) -> Result<serde_json::Value, String> {
+    if !ts.is_finite() || ts <= 0.0 { return Err("not a time".into()); }
+    let t = ok_thread(&thread)?.to_string();
+    let ds: Result<Vec<&str>, String> = domains.iter().map(|d| ok_id(d)).collect();
+    let joined = ds?.join(",");
+    let n = format!("{}", ts as i64);
+    blocking(v(&["--vault", &vault, "updates", "undo", "--thread", &t, "--ts", &n, "--domains", &joined])).await
+}
+
+/// Undo a decision saved from a conversation (the record moves aside, never deleted).
+#[tauri::command]
+pub(crate) async fn engine_decision_undo(vault: String, domain: String, slug: String) -> Result<serde_json::Value, String> {
+    let target = format!("{}/{}", ok_id(&domain)?, ok_id(&slug)?);
+    blocking(v(&["--vault", &vault, "decide", "undo", &target])).await
+}
+
+#[cfg(test)]
+mod round1_tests {
+    #[test]
+    fn thread_ids_are_plain() {
+        assert!(super::ok_thread("2026-10-02_foo-bar").is_ok());
+        assert!(super::ok_thread("../x").is_err());
+        assert!(super::ok_thread("").is_err());
+    }
+}
