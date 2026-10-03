@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, Clock, Loader2, Play, ShieldAlert, X } from "lucide-react";
 import { RowMenu, type RowMenuItem } from "./ui";
-import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { BODY, META, SECTION_TITLE } from "./typescale";
 import { invoke } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
 
@@ -29,6 +29,16 @@ type GwsPending = { id: string; domain: string; summary: string; args?: string[]
 // Action Gateway queue (PendingAct, from ./waiting): connector writes a
 // PreToolUse hook held. Approval mints a single-use grant; the CHAT retries
 // the tool to actually run it.
+
+/** A long request reads as a short headline (its first clause) and the rest as body text. */
+export function splitHeadline(t: string): { head: string; rest: string } {
+  const text = t.trim();
+  if (text.length <= 90) return { head: text, rest: "" };
+  const m = /^(.{12,90}?)([:.?!])\s+(.+)$/s.exec(text);
+  if (m) return { head: m[2] === ":" ? m[1] : m[1] + m[2], rest: m[3] };
+  const cut = text.lastIndexOf(" ", 80);
+  return { head: text.slice(0, cut > 40 ? cut : 80) + "...", rest: text };
+}
 
 function readSnoozed(): Record<string, number> {
   try { return JSON.parse(localStorage.getItem(SNOOZE_KEY) || "{}"); } catch { return {}; }
@@ -279,10 +289,13 @@ export function DecisionInbox({ vaultPath, category = "all", onCounts, selected,
   const detail = (o: {
     id: string; title: string; meta: string[]; says?: string; raw?: string; warn?: string; working: boolean;
     primary: { label: string; onClick: () => void; warn?: boolean }; links?: { label: string; onClick: () => void; title?: string; danger?: boolean }[]; menu?: RowMenuItem[];
-  }) => (
+  }) => {
+    const { head, rest } = splitHeadline(o.title);
+    return (
     <section key={o.id} className="max-w-3xl">
-      <h2 className={`${DETAIL_TITLE} break-words`}>{o.title}</h2>
+      <h2 className="break-words text-[17px] font-semibold leading-snug text-text-primary" title={o.title}>{head}</h2>
       <p className={`${META} mt-1`}>{o.meta.filter(Boolean).join(" · ")}</p>
+      {rest && <p className={`${BODY} mt-3 break-words text-text-secondary`}>{rest}</p>}
       {o.says && <p className={`${BODY} mt-3 break-words text-text-secondary`}>{o.says}</p>}
       {o.warn && <p className={`${BODY} mt-3 flex items-start gap-2 text-warn`}><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /><span className="text-text-secondary">{o.warn}</span></p>}
       {o.raw && (
@@ -307,7 +320,8 @@ export function DecisionInbox({ vaultPath, category = "all", onCounts, selected,
         )}
       </div>
     </section>
-  );
+    );
+  };
 
   const actCard = (a: PendingAct) => {
     const sensitive = (a.categories?.length ?? 0) > 0;
