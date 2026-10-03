@@ -34,6 +34,7 @@ import { ChainUpList, ChainView, LEVEL_LABEL, chainBits, linkAction, notLinkedLi
 import { AddLine, Group, LineRow, Meta, type LineActions } from "./compasslines";
 import { chatAbout } from "./chatabout";
 import type { RowMenuItem } from "./ui";
+import { TintIcon } from "./tint";
 
 type View = "compass" | "goals" | "ideals";
 type Sel = "overview" | "chain" | "mission" | "values" | "statement" | "vision" | "objectives" | "roles" | "goals" | "rules" | "routines" | "history" | "yearly";
@@ -170,7 +171,7 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
   const row = (s: Sel, label: string, Icon: typeof Compass, count?: number, sub?: string) => (
     <button key={s} data-testid={`compass-row-${s}`} aria-current={isOn(s) ? "true" : undefined} onClick={() => choose(s)}
       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${isOn(s) ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-      <Icon className={`h-4 w-4 shrink-0 ${isOn(s) ? "text-accent" : "text-text-muted"}`} />
+      <TintIcon icon={Icon} />
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-[14px] ${isOn(s) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{label}</span>
         {sub && <span className="block truncate text-[12px] text-text-muted">{sub}</span>}

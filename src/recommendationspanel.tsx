@@ -31,6 +31,7 @@ import {
   SPINE, setDomainModel, spineCounts, START_N, storeSet, visibleRecs, normalizeRec,
   type Rec, type RecCategory, type RecRow, type SpineKey,
 } from "./recmodel";
+import { TintIcon } from "./tint";
 
 export { applyRec } from "./recmodel";
 export type { Rec } from "./recmodel";
@@ -171,7 +172,7 @@ function SpineList({ counts, sel, onSelect }: { counts: Record<SpineKey, number>
         return (
           <button key={key} onClick={() => onSelect(key)} aria-current={on ? "page" : undefined} data-testid={`spine-${key}`}
             className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={Icon} />
             <span className={`min-w-0 flex-1 truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{label}</span>
             <span className="text-[13px] tabular-nums text-text-muted">{counts[key]}</span>
           </button>

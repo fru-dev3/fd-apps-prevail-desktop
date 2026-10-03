@@ -35,6 +35,7 @@ import {
   missionMilestone, missionState, OPEN_MISSION_EVENT, ownerOf, rolesOf, setMissionField, takeOpenMission, useMission, useMissions,
   type CloseoutPlan, type Mission, type MissionStatus, type MissionTask, type Receipt,
 } from "./missions";
+import { TintIcon } from "./tint";
 
 type Tab = MissionStatus | "all";
 type DTab = "chat" | "milestones" | "tasks" | "calendar" | "budget" | "artifacts" | "timeline" | "setup";
@@ -125,7 +126,7 @@ export function MissionsPage({ vaultPath, bare = false, onSelected, clearN = 0 }
         const left = daysLeftLabel(m);
         return (
           <button key={m.slug} data-testid="mission-row" aria-current={on ? "true" : undefined} onClick={() => pick(m.slug)} className={rowCls(on)}>
-            <FolderKanban aria-hidden className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={FolderKanban} tint="projects" />
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{m.name}</span>
               <span className="block truncate text-[12px] text-text-muted">{m.progress?.milestones?.total ? `${m.progress.milestones.done} of ${m.progress.milestones.total} milestones` : titleCase(m.status)}</span>
