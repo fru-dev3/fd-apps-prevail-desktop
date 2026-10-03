@@ -148,10 +148,11 @@ for (const width of [1440, 390]) {
       const yours = page.getByTestId("entity-relation-yours");
       const ref = page.getByTestId("entity-relation-reference");
       await expect(yours).toHaveAttribute("aria-selected", "true");
-      await expect(yours).toContainText("3");
+      // Entities > People: the counts are this kind's.
+      await expect(yours).toContainText("1");
       await expect(ref).toContainText("1");
       const list = page.getByTestId("entities-list");
-      await expect(list.getByTestId("entity-row")).toHaveCount(3);
+      await expect(list.getByTestId("entity-row")).toHaveCount(1);
       await expect(list).not.toContainText("Foo the Elder");
       await expect(list.getByTestId("domain-chip").first()).toBeVisible();
       await shot(page, "entities-yours");

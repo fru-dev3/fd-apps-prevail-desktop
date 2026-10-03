@@ -22,7 +22,7 @@ import type { Domain, TabId } from "./types";
 
 const domains = [{ name: "health", path: "/v/health" }, { name: "wealth", path: "/v/wealth" }] as unknown as Domain[];
 
-const OPEN = ["workOpen", "missionsOpen", "appsOpen", "domainsOpen"];
+const OPEN = ["workOpen", "activitiesOpen", "missionsOpen", "appsOpen", "domainsOpen"];
 function renderSidebar(tab: TabId = "chat", setTab = vi.fn(), fresh = false) {
   // A new user sees every section collapsed; most tests open them.
   for (const k of OPEN) { if (fresh) localStorage.removeItem(`prevail.sidebar.${k}`); else if (localStorage.getItem(`prevail.sidebar.${k}`) === null) localStorage.setItem(`prevail.sidebar.${k}`, "1"); }
@@ -109,7 +109,7 @@ describe("Sidebar", () => {
 
   it("every section starts collapsed for a new user; the chevron and + wait for a hover", () => {
     renderSidebar("chat", vi.fn(), true);
-    for (const k of ["work", "projects", "domains"]) {
+    for (const k of ["work", "entities", "activities", "domains"]) {
       const head = screen.getByTestId(`sidebar-head-${k}`);
       expect(head.querySelector("[aria-expanded]")!.getAttribute("aria-expanded")).toBe("false");
       expect(screen.getByTestId(`sidebar-toggle-${k}`).className).toContain("opacity-0");
@@ -117,7 +117,12 @@ describe("Sidebar", () => {
     }
     expect(screen.getByTestId("sidebar-add-work").className).toContain("[@media(pointer:coarse)]:opacity-100");
     expect(screen.queryByTestId("sidebar-missions")).toBeNull();
-    fireEvent.click(screen.getByText("Projects"));
+    fireEvent.click(screen.getByText("Activities"));
+    expect(localStorage.getItem("prevail.sidebar.activitiesOpen")).toBe("1");
+    // Each kind is a row; its + and chevron wait for a hover too.
+    expect(screen.getByTestId("sidebar-kind-toggle-projects").className).toContain("opacity-0");
+    expect(screen.getByTestId("sidebar-kind-add-events").className).toContain("[@media(pointer:coarse)]:opacity-100");
+    fireEvent.click(screen.getByTestId("sidebar-kind-toggle-projects"));
     expect(screen.getByTestId("sidebar-missions")).toBeTruthy();
     expect(localStorage.getItem("prevail.sidebar.missionsOpen")).toBe("1");
   });

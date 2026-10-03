@@ -116,9 +116,9 @@ test("perf · a sidebar click never blocks the main thread for more than 50 ms",
   // Warm pass (chunks load, caches fill), then the measured pass.
   await clicks(["Tasks", "Projects", "Compass", "Insights"]);
   await nav.getByRole("button", { name: "Settings", exact: true }).click();
-  await clicks(["Models", "Toolkit", "Entities", "Activity", "Intent"]);
+  await clicks(["Models", "Toolkit", "Council", "Activity", "Intent"]);
   await page.evaluate(() => { (window as unknown as { __longTasks: number[] }).__longTasks = []; });
-  await clicks(["Models", "Toolkit", "Entities", "Activity", "Intent"]);
+  await clicks(["Models", "Toolkit", "Council", "Activity", "Intent"]);
   await nav.getByTestId("settings-back").click();
   await page.waitForTimeout(400);
   await clicks(["Tasks", "Projects", "Compass", "Insights"]);

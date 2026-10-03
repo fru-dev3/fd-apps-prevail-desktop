@@ -862,9 +862,10 @@ test("31b · Usage leads with every AI tool's own records: API price, paid, and 
 });
 
 // Ideals moved into the Compass (a Home page) in Goals G1.
-const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Entities", "Activity", "Connections", "Privacy & Safety", "Settings"];
+// Entities left Settings for the Home sidebar (ia-plan.md).
+const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Activity", "Connections", "Privacy & Safety", "Settings"];
 
-test("32 · the Settings nav is 10 rows, and each opens a header above a side column", async ({ page }) => {
+test("32 · the Settings nav is 9 rows, and each opens a header above a side column", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Settings" }).click();
   const nav = page.getByTestId("app-sidebar");
