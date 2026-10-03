@@ -1,11 +1,10 @@
 // Step 6 of the plans, desktop side: thin, validated passthroughs to the
-// engine for custom specialists and packs (Specialists Phase 4), the
-// lifetime and household Compass (Goals G5), family metrics and the phone
-// glance (Metrics M6), and imports and the stated stack (Apps A5). The engine
+// engine for custom specialists (Specialists Phase 4), the lifetime Compass
+// (Goals G5), a number logged by hand (Metrics M6), and imports and the stated stack (Apps A5). The engine
 // owns every file these touch and enforces every limit; nothing here writes
 // the vault itself.
 
-use crate::plans::{blocking, blocking_stdin, ok_id, one_of, v};
+use crate::plans::{blocking, blocking_stdin, ok_id, v};
 
 /// One turn of the New specialist conversation: the engine drafts, code checks.
 #[tauri::command]
@@ -25,27 +24,7 @@ pub(crate) async fn engine_specialist_create(vault: String, draft: serde_json::V
     blocking_stdin(a, draft.to_string()).await
 }
 
-/// The packs per vertical, with what of each is already in the vault.
-#[tauri::command]
-pub(crate) async fn engine_packs(vault: String) -> Result<serde_json::Value, String> {
-    blocking(v(&["--vault", &vault, "packs", "list"])).await
-}
-
-/// Install a pack, or one part of it (specialists, compass, metrics).
-#[tauri::command]
-pub(crate) async fn engine_pack_install(vault: String, id: String, only: Option<String>) -> Result<serde_json::Value, String> {
-    let mut a = v(&["--vault", &vault, "packs", "install", ok_id(&id)?]);
-    if let Some(o) = only.filter(|o| !o.is_empty()) { a.push("--only".into()); a.push(one_of(&o, &["specialists", "compass", "metrics"])?.to_string()); }
-    blocking(a).await
-}
-
-/// Take a pack's specialists out (their files move aside, never deleted).
-#[tauri::command]
-pub(crate) async fn engine_pack_uninstall(vault: String, id: String) -> Result<serde_json::Value, String> {
-    blocking(v(&["--vault", &vault, "packs", "uninstall", ok_id(&id)?])).await
-}
-
-// ── Goals G5: over a lifetime, and beyond one person ───────────────────────
+// ── Goals G5: over a lifetime ───────────────────────
 
 /// Every value and role over the years (from the Compass versions and ledger).
 #[tauri::command]
@@ -74,68 +53,14 @@ pub(crate) async fn engine_compass_export(vault: String) -> Result<serde_json::V
     blocking(v(&["--vault", &vault, "compass", "export"])).await
 }
 
-/// The household: members and consent, shared goals, conflicts (nothing unconsented is read).
-#[tauri::command]
-pub(crate) async fn engine_household(vault: String) -> Result<serde_json::Value, String> {
-    blocking(v(&["--vault", &vault, "compass", "household", "list"])).await
-}
+// ── Metrics M6: a number logged by hand ───────────────────────────────────
 
+/// Log one number for an asked metric.
 #[tauri::command]
-pub(crate) async fn engine_household_add(vault: String, name: String, relation: Option<String>) -> Result<serde_json::Value, String> {
-    let n: String = name.chars().take(60).collect();
-    if n.trim().is_empty() { return Err("a member needs a name".into()); }
-    let mut a = v(&["--vault", &vault, "compass", "household", "add", "--name", &n]);
-    if let Some(r) = relation.filter(|r| !r.trim().is_empty()) { a.push("--relation".into()); a.push(r.chars().take(30).collect()); }
-    blocking(a).await
-}
-
-/// Consent per person: on needs the member's own name typed (checked by the engine); off always works.
-#[tauri::command]
-pub(crate) async fn engine_household_consent(vault: String, id: String, scope: String, on: bool, confirm: Option<String>) -> Result<serde_json::Value, String> {
-    let sc = one_of(&scope, &["compass", "metrics"])?.to_string();
-    let mut a = v(&["--vault", &vault, "compass", "household", "consent", ok_id(&id)?, &sc, if on { "on" } else { "off" }]);
-    if let Some(c) = confirm.filter(|c| !c.trim().is_empty()) { a.push("--confirm".into()); a.push(c.chars().take(60).collect()); }
-    blocking(a).await
-}
-
-#[tauri::command]
-pub(crate) async fn engine_household_remove(vault: String, id: String) -> Result<serde_json::Value, String> {
-    blocking(v(&["--vault", &vault, "compass", "household", "remove", ok_id(&id)?])).await
-}
-
-#[tauri::command]
-pub(crate) async fn engine_household_shared_add(vault: String, title: String, members: Vec<String>, hours: Option<f64>) -> Result<serde_json::Value, String> {
-    let t: String = title.chars().take(140).collect();
-    if t.trim().is_empty() { return Err("a shared goal needs a title".into()); }
-    let ms: Result<Vec<&str>, String> = members.iter().map(|m| ok_id(m)).collect();
-    let joined = ms?.join(",");
-    let mut a = v(&["--vault", &vault, "compass", "household", "shared", "add", "--title", &t, "--members", &joined]);
-    if let Some(h) = hours.filter(|h| *h > 0.0 && *h < 200.0) { a.push("--hours".into()); a.push(format!("{h}")); }
-    blocking(a).await
-}
-
-// ── Metrics M6: family metrics with consent per person ────────────────────
-
-#[tauri::command]
-pub(crate) async fn engine_metrics_family(vault: String) -> Result<serde_json::Value, String> {
-    blocking(v(&["--vault", &vault, "metrics", "family"])).await
-}
-
-#[tauri::command]
-pub(crate) async fn engine_metrics_family_add(vault: String, title: String) -> Result<serde_json::Value, String> {
-    let t: String = title.chars().take(60).collect();
-    if t.trim().is_empty() { return Err("a family metric needs a title".into()); }
-    blocking(v(&["--vault", &vault, "metrics", "family", "add", "--title", &t])).await
-}
-
-/// Log one number; for a household member the engine checks they share their numbers.
-#[tauri::command]
-pub(crate) async fn engine_metrics_say(vault: String, id: String, value: f64, member: Option<String>) -> Result<serde_json::Value, String> {
+pub(crate) async fn engine_metrics_say(vault: String, id: String, value: f64) -> Result<serde_json::Value, String> {
     if !value.is_finite() || value < 0.0 || value > 1e7 { return Err("a number between 0 and 10,000,000".into()); }
     let n = format!("{value}");
-    let mut a = v(&["--vault", &vault, "metrics", "say", ok_id(&id)?, &n]);
-    if let Some(m) = member.filter(|m| !m.is_empty()) { a.push("--member".into()); a.push(ok_id(&m)?.to_string()); }
-    blocking(a).await
+    blocking(v(&["--vault", &vault, "metrics", "say", ok_id(&id)?, &n])).await
 }
 
 // ── Apps A5: imports and the stated stack ─────────────────────────────────

@@ -12,9 +12,8 @@
 //   Goals    each domain's goals (source/goals.md), as the Goals page had them.
 //   Ideals   the constitution, Omega and every domain's ideal state.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CalendarHeart, Check, CheckCheck, Compass, Download, Eye, Flag, GitFork, History, Home, LayoutList, Link2, Loader2, MessageSquare, Milestone, Package, Repeat, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
-import { Household, ValueRoleHistory, YearlyReview, exportCompass } from "./compasslife";
-import { PacksView } from "./specialistnew";
+import { CalendarHeart, Check, CheckCheck, Compass, Download, Eye, Flag, GitFork, History, LayoutList, Link2, Loader2, MessageSquare, Milestone, Repeat, Scale, Sparkles, Star, Target, Users, X } from "lucide-react";
+import { ValueRoleHistory, YearlyReview, exportCompass } from "./compasslife";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { SettingsHeader } from "./sectionutil";
@@ -35,7 +34,7 @@ import { ChainView, chainBits, linkAction, notLinkedLine, useChainLinks, useChai
 import { RowMenu, REVEAL } from "./ui";
 
 type View = "compass" | "goals" | "ideals";
-type Sel = "overview" | "chain" | "mission" | "values" | "statement" | "vision" | "objectives" | "roles" | "goals" | "rules" | "routines" | "history" | "yearly" | "household" | "packs";
+type Sel = "overview" | "chain" | "mission" | "values" | "statement" | "vision" | "objectives" | "roles" | "goals" | "rules" | "routines" | "history" | "yearly";
 export const COMPASS_FOCUS_KEY = "prevail.compass.focus";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -183,8 +182,6 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       {row("history", "History", History, undefined, "Values and roles over the years")}
       <div className="mx-2.5 my-1.5 border-t border-border-subtle" aria-hidden />
       {row("yearly", "Yearly review", CalendarHeart, undefined, "Three possible lives")}
-      {row("household", "Household", Home, undefined, "Shared goals, with consent")}
-      {row("packs", "Packs", Package, undefined, "Starting lines for your kind of life")}
     </nav>
   );
 
@@ -431,8 +428,6 @@ export function CompassPage({ vaultPath }: { vaultPath: string }) {
       {sel === "rules" && <section data-testid="compass-detail-rules"><h2 className={DETAIL_TITLE}>Rules</h2>{section("Non-negotiables", rules, false, "None yet.")}{section("Negotiables", negotiables, false, "None yet.")}<AlignRules vaultPath={vaultPath} /></section>}
       {sel === "history" && historyView}
       {sel === "yearly" && <YearlyReview vaultPath={vaultPath} />}
-      {sel === "household" && <Household vaultPath={vaultPath} />}
-      {sel === "packs" && <PacksView vaultPath={vaultPath} only="compass" />}
     </div>
   );
 
