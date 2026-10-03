@@ -468,23 +468,20 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             {kind === "thing" && <ThingDetails vaultPath={vaultPath} id={writeId} fields={d.found ? d.fields ?? {} : {}} onChanged={load} />}
             {kind === "org" && d.found && <ProductApps apps={d.apps ?? []} />}
             {kind === "org" && <ProductConnection vaultPath={vaultPath} name={displayName} apps={d.apps ?? []} />}
-            <Section title="In your vault">
-              {d.found && d.digest
-                ? <div className="text-[14px] leading-normal text-text-primary"><Markdown source={d.digest} /></div>
-                : <p className={META}>{!hasPage ? "Not in your vault yet. Save it, or add a note, to give it a page."
-                    : d.saved || d.conversations >= 3 ? "No summary yet. It is written on the next refresh."
-                    : "No summary yet. One is written once it comes up in 3 conversations, or when you save it."}</p>}
-            </Section>
-            {relation === "yours" && (
-              <Section title="Across your life">
-                <AcrossYourLife vaultPath={vaultPath} target={{ entity: writeId }} emptyName={displayName} />
+            {/* Empty sections render nothing (owner, 2026-10-02). */}
+            {d.found && d.digest && (
+              <Section title="In your vault">
+                <div className="text-[14px] leading-normal text-text-primary"><Markdown source={d.digest} /></div>
               </Section>
             )}
-            <Section title="Mentioned in">
-              {d.found && d.mentions.length
-                ? <ul className="-mx-2">{d.mentions.slice(0, 40).map((m, i) => <MentionRow key={`${m.source}:${m.ref}:${i}`} m={m} />)}</ul>
-                : <p className={META}>No conversations mention it yet.</p>}
-            </Section>
+            {relation === "yours" && (
+              <AcrossYourLife vaultPath={vaultPath} target={{ entity: writeId }} emptyName={displayName} wrap={(n) => <Section title="Across your life">{n}</Section>} />
+            )}
+            {d.found && d.mentions.length > 0 && (
+              <Section title="Mentioned in">
+                <ul className="-mx-2">{d.mentions.slice(0, 40).map((m, i) => <MentionRow key={`${m.source}:${m.ref}:${i}`} m={m} />)}</ul>
+              </Section>
+            )}
             <AppsUsed vaultPath={vaultPath} entity={writeId} />
             {d.found && d.co_mentions.length > 0 && (
               <Section title="Often mentioned with">

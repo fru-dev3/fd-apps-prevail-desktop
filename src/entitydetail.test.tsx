@@ -70,7 +70,7 @@ describe("entity chips open the Entities view", () => {
     expect(nav).toEqual(["entities"]);
     expect(kinds).toEqual(["places"]);
     render(<EntitiesView vaultPath="/v" />);
-    await screen.findByText("No conversations mention it yet.");
+    await waitFor(() => expect(screen.queryByText("Mentioned in")).toBeNull());
     expect(calls.find((c) => c.cmd === "entities_show")?.args).toEqual({ vault: "/v", id: "place/Maple St" });
     expect(screen.getByRole("heading", { name: "Maple St", level: 2 })).toBeTruthy();
   });
@@ -155,7 +155,7 @@ describe("entity detail", () => {
 
   it("an unknown place still gets a detail with a map and Save", async () => {
     await openOn("place", "Maple St");
-    await screen.findByText("No conversations mention it yet.");
+    await waitFor(() => expect(screen.queryByText("Mentioned in")).toBeNull());
     expect(screen.getByTestId("entity-map")).toBeTruthy();
     expect(screen.getByTestId("entity-save")).toBeTruthy();
   });

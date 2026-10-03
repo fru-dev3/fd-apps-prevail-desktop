@@ -4,7 +4,7 @@
 // (`prevail updates`). This file draws that reach: the quiet "Also noted in"
 // line under a reply, "Across your life" on a domain and an entity, "Your
 // things" on a domain, and the Yours / Reference split of entities.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowRight, MessagesSquare } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery, invalidateQueries } from "./query";
@@ -169,8 +169,10 @@ function UpdateRow({ u, vaultPath, showSource }: { u: UpdateLine; vaultPath: str
 }
 
 // "Across your life": what conversations elsewhere noted for this domain or entity.
-export function AcrossYourLife({ vaultPath, target, emptyName }: { vaultPath: string; target: { domain: string } | { entity: string }; emptyName: string }) {
+export function AcrossYourLife({ vaultPath, target, emptyName, wrap }: { vaultPath: string; target: { domain: string } | { entity: string }; emptyName: string; wrap?: (n: ReactNode) => ReactNode }) {
   const { lines, loading } = useUpdates(vaultPath, target);
+  // Wrapped (an entity page), it shows only once there is something to show.
+  if (wrap) return loading || !lines.length ? null : <>{wrap(<ul data-testid="across-list" className="max-w-3xl">{lines.map((u, i) => <UpdateRow key={`${u.ts}:${u.thread}:${i}`} u={u} vaultPath={vaultPath} showSource />)}</ul>)}</>;
   if (loading) return <p className={META}>Reading updates</p>;
   if (!lines.length) {
     return <p data-testid="across-empty" className={META}>Nothing from other domains yet. When a conversation somewhere else touches {emptyName}, it shows here.</p>;
