@@ -153,7 +153,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     // specialists, decisions and metric proposals are read here; starting,
     // stopping, undoing and answering stay on the Mac.
     "engine_today", "engine_today_tap", "engine_review", "engine_review_checkin",
-    "engine_jobs", "engine_job_show", "engine_specialists", "engine_packs", "engine_compass_history", "engine_household", "engine_metrics_family", "engine_decisions", "engine_metric_proposals",
+    "engine_jobs", "engine_job_show", "engine_specialists", "engine_packs", "engine_compass_history", "engine_household", "engine_metrics_family", "engine_apps_imports", "engine_apps_stack_diff", "engine_decisions", "engine_metric_proposals",
     // Missions are read on the phone; starting, changing and closing one stay on the Mac.
     "engine_missions_list", "engine_missions_show", "engine_missions_progress",
     // Playbooks are read on the phone; running, saving and adopting stay on the Mac.

@@ -49,6 +49,9 @@ export interface ReviewCard {
   interruptions: { used: number; budget: number };
   /** One line about the stack (apps plan A4); null when there is nothing to say. */
   apps?: string | null;
+  /** Apps A5: the quarterly export reminder (when turned on) and a said vs used diff waiting for a yes. */
+  exportReminder?: string | null;
+  stackDiff?: string | null;
   /** Metrics M4: the quarterly ladder and the optional monthly WHO-5 when due, one hypothesis, slipping guardrails. */
   asked?: { ladder: boolean; who5: boolean };
   hypothesis?: { key: string; text: string } | null;

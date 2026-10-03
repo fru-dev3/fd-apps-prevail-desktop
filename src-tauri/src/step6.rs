@@ -137,3 +137,33 @@ pub(crate) async fn engine_metrics_say(vault: String, id: String, value: f64, me
     if let Some(m) = member.filter(|m| !m.is_empty()) { a.push("--member".into()); a.push(ok_id(&m)?.to_string()); }
     blocking(a).await
 }
+
+// ── Apps A5: imports and the stated stack ─────────────────────────────────
+
+#[tauri::command]
+pub(crate) async fn engine_apps_imports(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "apps", "imports", "status"])).await
+}
+
+#[tauri::command]
+pub(crate) async fn engine_apps_imports_run(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "apps", "imports", "run"])).await
+}
+
+/// The quarterly export reminder (off unless the user turns it on).
+#[tauri::command]
+pub(crate) async fn engine_apps_imports_reminder(vault: String, on: bool) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "apps", "imports", "reminder", if on { "on" } else { "off" }])).await
+}
+
+/// The said vs used diff for tool-stack.md (the one waiting, or computed now).
+#[tauri::command]
+pub(crate) async fn engine_apps_stack_diff(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "apps", "stack-diff", "show"])).await
+}
+
+/// Accept the diff: the engine keeps the prior file and updates the stated stack.
+#[tauri::command]
+pub(crate) async fn engine_apps_stack_diff_accept(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "apps", "stack-diff", "accept"])).await
+}

@@ -41,6 +41,18 @@ const FIX = {
   engine_apps_card: { ok: true, draft: "data/apps/bar-notes/offboarding-2026-10-02.md" }, engine_apps_map: { ok: true, app: "foo-notes" },
   engine_apps_offboard: { ok: true, path: "data/apps/foo-notes/offboarding-2026-10-02.md" }, engine_apps_doctor: {},
   engine_sources: SOURCES, engine_source_consent: { ok: true }, engine_source_sync: { state: "ok", note: "read" },
+  engine_apps_stack_diff: { month: "2026-10", items: [
+    { kind: "missing", tool: "Qux Term", detail: "used on 9 of the last 30 days, not in your stack", proposed: "add Qux Term" },
+    { kind: "unused", tool: "Bar Notes", detail: "listed, no use in the last 30 days", proposed: "mark Bar Notes unused" },
+    { kind: "status", tool: "Foo Edit", detail: "the doctor finds it needing sign-in", proposed: "connected to needs sign-in" },
+  ] },
+  engine_apps_stack_diff_accept: { ok: true, applied: 3, backup: "data/domains/general/source/tool-stack.md.pre-diff-2026-10-02" },
+  engine_apps_imports: { reminder: false, line: null, last: [], apps: [
+    { id: "chatgpt", name: "ChatGPT", how: "Settings, Data controls, Export data", url: "https://chatgpt.com/", inbox: "data/apps/chatgpt/inbox", waiting: 1 },
+    { id: "claude-ai", name: "claude.ai", how: "Settings, Privacy, Export data", url: "https://claude.ai/", inbox: "data/apps/claude-ai/inbox", waiting: 0 },
+    { id: "gemini", name: "Gemini", how: "Google Takeout, My Activity, Gemini Apps", url: "https://takeout.google.com/", inbox: "data/apps/gemini/inbox", waiting: 0 },
+  ] },
+  engine_apps_imports_run: [{ app: "chatgpt", written: 12, prompts: 14 }], engine_apps_imports_reminder: { reminder: true },
 
 };
 
@@ -139,3 +151,31 @@ for (const width of [390, 768, 1280, 1920]) {
     });
   });
 }
+
+// Apps A5: said vs used for the stated stack (nothing changes until Accept),
+// and imports of the official exports with the quarterly reminder off.
+for (const width of [390, 768, 1280, 1920]) {
+  test(`apps A5 · said vs used and imports (${width})`, async ({ page }) => {
+    await openApps(page, width);
+    const back = async () => { if (width < 500) await page.getByRole("button", { name: "Stack", exact: true }).click().catch(() => {}); };
+    await expect(page.getByTestId("stack-spine-said")).toContainText("3");
+    await page.getByTestId("stack-spine-said").click();
+    await expect(page.getByTestId("stack-diff-item")).toHaveCount(3);
+    await noOverflow(page);
+    await shot(page, "a5-said");
+    await page.getByTestId("stack-diff-accept").click();
+    await expect.poll(() => calls(page, "engine_apps_stack_diff_accept")).toEqual([{ vault: "/tmp/smoke-vault" }]);
+    await expect(page.getByTestId("stack-diff-msg")).toContainText("Applied 3");
+    await back();
+    await page.getByTestId("stack-spine-imports").click();
+    await expect(page.getByTestId("import-app")).toHaveCount(3);
+    await expect(page.getByTestId("imports-reminder-toggle")).toHaveAttribute("aria-checked", "false");
+    await page.getByTestId("imports-reminder-toggle").click();
+    await expect.poll(() => calls(page, "engine_apps_imports_reminder")).toEqual([{ vault: "/tmp/smoke-vault", on: true }]);
+    await page.getByTestId("imports-run").click();
+    await expect(page.getByTestId("imports-msg")).toContainText("chatgpt: 12 new of 14 prompts");
+    await noOverflow(page);
+    await shot(page, "a5-imports");
+  });
+}
+
