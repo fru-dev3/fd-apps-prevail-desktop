@@ -18,6 +18,7 @@ const YEARLY2 = { ...YEARLY, sketches: [{ key: "free", sketch: "Summers at the f
 const HOUSE = {
   members: [{ id: "ada-foo", name: "Ada Foo", relation: "partner", added: "2026-10-01", consent: { compass: true, metrics: false }, hasCompass: true }],
   shared: [{ id: "sg-move-abroad-for-a-year", title: "Move abroad for a year", members: ["me", "ada-foo"], names: ["You", "Ada Foo"], hours: 2, done: false }],
+  projects: [{ slug: "kitchen-foo", name: "Kitchen foo", members: ["ada-foo"] }],
   conflicts: [{ kind: "rule", who: "You", goal: "Move abroad for a year", question: "Your non-negotiable \"Never move abroad\" and the shared goal \"Move abroad for a year\": how do they fit together?", evidence: ["rule: Never move abroad", "shared goal: Move abroad for a year", "words in both: move, abroad"] }],
 };
 const PACKS = [{ id: "investors", name: "Investors", who: "People who manage their own investments", specialists: [], compass: [{ kind: "value", title: "Financial independence" }, { kind: "rule", title: "Keep six months of costs in cash" }], metrics: { track: [], define: [] }, installed: { specialists: [], compass: [], metrics: [] } }];
@@ -85,6 +86,7 @@ for (const width of [390, 768, 1280, 1920]) {
       await page.getByTestId("consent-agree").click();
       await expect.poll(async () => (await calls(page, "engine_household_consent"))[0]).toMatchObject({ id: "ada-foo", scope: "metrics", on: true, confirm: "Ada Foo" });
       await expect(page.getByTestId("people-conflict")).toContainText("Never move abroad");
+      await expect(page.getByTestId("shared-project")).toContainText("With Ada Foo");
       await page.getByLabel("Someone in your household").fill("Bo Bar");
       await page.getByLabel("Someone in your household").press("Enter");
       await expect.poll(async () => (await calls(page, "engine_household_add"))[0]).toMatchObject({ name: "Bo Bar" });

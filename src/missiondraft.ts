@@ -19,17 +19,23 @@ export interface DraftReply {
   question: string | null; reply: string; ready: boolean; missing: string[]; go: boolean;
 }
 
-export const draftTurn = (vault: string, turns: DraftTurn[], draft: MissionDraft) =>
-  invoke<DraftReply>("engine_missions_draft", { vault, turns, draft });
+export const draftTurn = (vault: string, turns: DraftTurn[], draft: MissionDraft, kind: StarterKind | null = null) =>
+  invoke<DraftReply>("engine_missions_draft", { vault, turns, draft, kind });
 
 export const NEW_MODE_KEY = "prevail.missions.newMode";
 
-/** Starters: tappable openings that go into the composer for the user to finish. */
-export const STARTERS = [
-  "I want to learn to ",
-  "Plan a trip to ",
-  "Fix up the ",
-  "Ship my side project by ",
+/**
+ * Starters per kind: a tap puts the opening in the composer for the user to
+ * finish, and the kind travels with the first message so the engine seeds
+ * the usual milestones and specialists and asks what matters first.
+ */
+export type StarterKind = "trip" | "purchase" | "learning" | "build" | "remodel";
+export const STARTERS: { kind: StarterKind; label: string; opening: string }[] = [
+  { kind: "trip", label: "A trip", opening: "Plan a trip to " },
+  { kind: "purchase", label: "A purchase", opening: "Buy a " },
+  { kind: "learning", label: "Learning", opening: "Learn to " },
+  { kind: "build", label: "A build", opening: "Ship " },
+  { kind: "remodel", label: "A remodel", opening: "Remodel the " },
 ];
 
 export function fmtDate(ymd: string): string {

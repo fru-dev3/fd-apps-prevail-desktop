@@ -84,10 +84,12 @@ pub(crate) async fn engine_missions_create(vault: String, name: String, outcome:
 /// and returns the checked draft and the next question. It never creates.
 /// The body is bounded here; the engine checks every field.
 #[tauri::command]
-pub(crate) async fn engine_missions_draft(vault: String, turns: serde_json::Value, draft: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+pub(crate) async fn engine_missions_draft(vault: String, turns: serde_json::Value, draft: Option<serde_json::Value>, kind: Option<String>) -> Result<serde_json::Value, String> {
     let list = turns.as_array().ok_or("turns must be a list")?;
     if list.len() > 40 { return Err("too many turns".into()); }
-    let body = serde_json::json!({ "turns": list, "draft": draft.unwrap_or(serde_json::json!({})) }).to_string();
+    // A starter's kind (trip, purchase, learning, build, remodel) seeds the draft; the engine checks it.
+    let k = kind.filter(|k| ["trip", "purchase", "learning", "build", "remodel"].contains(&k.as_str()));
+    let body = serde_json::json!({ "turns": list, "draft": draft.unwrap_or(serde_json::json!({})), "kind": k }).to_string();
     if body.len() > 64_000 { return Err("the conversation is too long".into()); }
     tokio::task::spawn_blocking(move || run_engine_json_stdin(&["--vault", &vault, "missions", "draft"], &body))
         .await
