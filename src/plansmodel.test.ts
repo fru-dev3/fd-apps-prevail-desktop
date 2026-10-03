@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { elapsed, fmtDue, jobGroups, jobIdOf, jobStatusLabel, playbookGroups, stepState, triggerLine, type Job, type PlaybookRow, type StepRecord } from "./plansmodel";
+import { bySpace, elapsed, fmtDue, jobGroups, jobIdOf, jobStatusLabel, playbookGroups, scheduleLine, stepState, triggerLine, type Job, type PlaybookRow, type StepRecord } from "./plansmodel";
 import { addStep } from "./jobcard";
 import { parseChief } from "./specialistspage";
 import { calibrate } from "./decisionspage";
@@ -59,6 +59,16 @@ describe("playbooks", () => {
     expect(g.running).toEqual([]);
     expect(g["built-in"].map((r) => r.id)).toEqual(["a", "d"]);
     expect(g.drafts.map((r) => r.id)).toEqual(["b"]);
+  });
+  test("a schedule in one quiet line, and scheduled playbooks by space with General first", () => {
+    const now = Date.parse("2026-10-02T12:00:00");
+    const s = { space: "foo", cadence: "weekly", enabled: true, status: "active", autonomy: "ask", lastRunTs: Date.parse("2026-09-30T08:00:00"), nextRunTs: Date.parse("2026-10-07T08:00:00") };
+    expect(scheduleLine(s, now)).toBe("Weekly · next Oct 7 · last Sep 30 · asks first");
+    expect(scheduleLine({ ...s, nextRunTs: now - 1, lastRunTs: null, autonomy: "auto" }, now)).toBe("Weekly · due now · runs on its own");
+    expect(scheduleLine({ ...s, on: "admin:renew", nextRunTs: null, lastRunTs: null, autonomy: "suggest" }, now)).toBe('When the radar flags an admin deadline that says "renew" · suggests');
+    expect(scheduleLine({ ...s, enabled: false }, now)).toBe("Off");
+    const r = (id: string, space: string, enabled = true): PlaybookRow => ({ ...row(id, "scheduled"), schedule: { ...s, space, enabled } });
+    expect(bySpace([r("b", "zed"), r("a", "foo", false), r("c", "foo"), r("d", "general")]).map((g) => [g.space, g.rows.map((x) => x.id)])).toEqual([["general", ["d"]], ["foo", ["c", "a"]], ["zed", ["b"]]]);
   });
   test("says what runs a playbook", () => {
     expect(triggerLine([])).toBe("By hand");
