@@ -3,7 +3,7 @@
 // Everything comes from `prevail entities show`; the owner's notes are edited
 // here and written back to the page's "Your notes" section only.
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
-import { Bookmark, BookOpen, CalendarDays, Check, Copy, FileText, FolderKanban, FolderOpen, Globe, Image as ImageIcon, Loader2, MapPin, MessageSquare, MessagesSquare, Package, Plus, RefreshCw, Terminal, User, Watch } from "lucide-react";
+import { Bookmark, BookOpen, CalendarDays, Check, Copy, FileText, FolderKanban, FolderOpen, GitMerge, Globe, Image as ImageIcon, Loader2, PenLine, MapPin, MessageSquare, MessagesSquare, Package, Plus, RefreshCw, Terminal, User, Watch } from "lucide-react";
 import { invoke } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
 import { CARD_KINDS, EntityChip, OrgMark, entityIdOf, openMap, type EntityKind } from "./entities";
@@ -82,6 +82,8 @@ export interface EntityDetail {
   // Entities and Activities: a thing's or an event's fields, a product's app records.
   fields?: ObjectFields;
   apps?: AppRecord[];
+  // What was merged into it, oldest first (the engine's provenance).
+  merged_from?: { id: string; name: string; ts: string; auto: boolean }[];
 }
 
 export const KIND_LABEL: Record<string, string> = { person: "Person", place: "Place", org: "Product", thing: "Thing", event: "Event", project: "Project" };
@@ -203,6 +205,8 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
   useEffect(() => { if (tab === "files") setFilesSeen(true); if (tab === "brief") setBriefSeen(true); if (tab === "links") setLinksSeen(true); }, [tab]);
   // The website field (orgs), open while not null.
   const [site, setSite] = useState<string | null>(null);
+  // The rename field, open while not null.
+  const [rename, setRename] = useState<string | null>(null);
   // null until the Chat tab is first opened; then the panel stays mounted so
   // switching tabs never loses the conversation or a draft.
   const [chatReq, setChatReq] = useState<EntityChatRequest | null>(null);
@@ -253,6 +257,16 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
     setErr(null);
     try { await invoke("engine_entities_set_website", { vault: vaultPath, id: writeId, url: (site ?? "").trim() }); setSite(null); await afterWrite(); }
     catch (e) { setErr(String(e)); }
+  };
+  const saveName = async () => {
+    const name = (rename ?? "").trim();
+    if (!name) return;
+    setErr(null);
+    try {
+      const r = await invoke<EntityDetail>("engine_entities_rename", { vault: vaultPath, id: writeId, name });
+      setD({ ...r, found: true }); setRename(null);
+      fire("prevail:entities-changed");
+    } catch (e) { setErr(String(e)); }
   };
   const save = async () => {
     setBusy("save");
@@ -313,6 +327,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
   };
   const menu: RowMenuItem[] = [
     ...(phone ? [{ icon: MessageSquare, label: "Chat", onClick: () => openChat() }] : []),
+    ...(isProject ? [] : [{ icon: PenLine, label: "Rename", hint: "The old name stays as another name", onClick: () => setRename(displayName) }]),
     { icon: ImageIcon, label: "Set picture", hint: encrypted ? "Off for encrypted vaults" : undefined, disabled: encrypted !== false, onClick: () => { void pickPicture(); } },
     ...(kind === "org" ? [{ icon: Globe, label: d?.found && d.website ? "Change website" : "Set website", hint: d?.found ? d.website || undefined : undefined, onClick: () => setSite(d?.found ? d.website ?? "" : "") }] : []),
     ...(absFolder ? [{ icon: FolderOpen, label: "Reveal folder", hint: "Its folder in your vault", onClick: () => { void invoke("open_in_finder", { path: absFolder }).catch(() => {}); } }] : []),
@@ -370,6 +385,14 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             <RowMenu label="More entity actions" items={menu} />
           </div>
         </div>
+        {rename !== null && (
+          <form data-testid="entity-rename-form" className="mt-3 flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); void saveName(); }}>
+            <input autoFocus value={rename} onChange={(e) => setRename(e.target.value)} aria-label="Name" maxLength={120}
+              className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 text-[14px] text-text-primary outline-none focus:border-accent-border" />
+            <button type="submit" disabled={!rename.trim()} className="inline-flex h-8 items-center px-2 text-[13px] font-medium text-accent hover:underline disabled:opacity-50">Save</button>
+            <button type="button" onClick={() => setRename(null)} className="inline-flex h-8 items-center rounded-lg px-2 text-[13px] text-text-muted hover:text-text-secondary">Cancel</button>
+          </form>
+        )}
         {site !== null && (
           <form data-testid="entity-website-form" className="mt-3 flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); void saveWebsite(); }}>
             <input autoFocus value={site} onChange={(e) => setSite(e.target.value)} placeholder="foo.com" aria-label="Website"
@@ -419,6 +442,16 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
               <p className={`${META} mt-4`} data-testid="entity-aliases">
                 Also known as {aliases.join(", ")}
               </p>
+            )}
+            {d.found && (d.merged_from ?? []).length > 0 && (
+              <ul data-testid="entity-merged-from" className="mt-2 space-y-0.5">
+                {d.merged_from!.map((m) => (
+                  <li key={m.id} className={`${META} flex items-center gap-1.5`} title={`${m.id}${m.auto ? ", merged on its own as a clear duplicate" : ""}`}>
+                    <GitMerge className="h-3 w-3 shrink-0" aria-hidden />
+                    <span className="truncate">Merged from {m.name} · {fmtDay(Date.parse(m.ts))}</span>
+                  </li>
+                ))}
+              </ul>
             )}
             {relation === "reference" && (
               <div data-testid="entity-reference-note" className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
