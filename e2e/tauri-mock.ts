@@ -109,7 +109,7 @@ export async function mockTauri(page: Page, overrides: Record<string, unknown> =
     // The sidebar's sections start collapsed for a new user; the ring opens
     // them (once, so a test's own toggles stick) unless a test asks for the
     // fresh state with the __fresh_sidebar fixture.
-    if (!fx.__fresh_sidebar) for (const k of ["workOpen", "activitiesOpen", "missionsOpen", "appsOpen", "domainsOpen"]) if (localStorage.getItem(`prevail.sidebar.${k}`) === null) localStorage.setItem(`prevail.sidebar.${k}`, "1");
+    if (!fx.__fresh_sidebar) (window as unknown as { __sidebarOpen?: string[] }).__sidebarOpen = ["work", "activities", "kind.projects", "domains"];
     const log: Array<{ cmd: string; args: unknown }> = [];
     (window as unknown as Record<string, unknown>).__invokeLog = log;
     // The live fixture table, so a test can change what a command answers

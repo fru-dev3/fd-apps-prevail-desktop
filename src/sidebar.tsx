@@ -15,7 +15,7 @@ import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { useChiefOfStaff } from "./chiefofstaff";
 import { dropSpecialist, inSidebar, startPillDrag } from "./dragref";
 import { ChiefAvatar, SpecialistAvatar, useWorkingSpecialists } from "./specialistavatar";
-import { Activity, Archive, ArrowLeft, Briefcase, ChevronRight, ChevronsLeft, ChevronsRight, Folder, FolderKanban, Hourglass, House, Inbox, Loader2, MoreVertical, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Sparkles, UserCog, X } from "lucide-react";
+import { Activity, Archive, ArrowLeft, Briefcase, CalendarRange, ChevronRight, ChevronsLeft, ChevronsRight, Folder, FolderKanban, Hourglass, House, Inbox, LayoutGrid, Loader2, MoreVertical, Pin, Plus, RotateCcw, Search, Settings as SettingsIcon, Shapes, Sparkles, UserCog, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
 import { daysLeftLabel, openMission, useMissions } from "./missions";
@@ -26,6 +26,7 @@ import { lsGet, lsSet } from "./storage";
 import { SidebarGatewayLive, SidebarMcpLive } from "./panels";
 import { ProfileSwitcher } from "./profileswitcher";
 import { EDITOR_NAV, WORK_NAV, navSection, workSection } from "./navdefs";
+import { TintIcon } from "./tint";
 import { domainIcon } from "./icons";
 import { SidebarBackupActive, SidebarBenchmarkRuns, SidebarProcesses } from "./cards";
 import { useProcesses } from "./processes";
@@ -33,7 +34,7 @@ import { useBenchBatches } from "./bench";
 import { BACKUP_CFG } from "./backup";
 import type { Domain, TabId } from "./types";
 import { useWaiting, waitingByDomain } from "./waiting";
-import { isUserDomain } from "./helpers";
+import { domainColor, isUserDomain } from "./helpers";
 import { STICKY_GROUP_HEAD, markStuck } from "./sidespine";
 import { ENTITY_KIND_OF, fmtDay, kindsOf, newOfKind, openKind, todayYmd, type EventRow, type KindDef, type KindId } from "./ia";
 import { loadEntities, requestEntity, useEntityStore, type EntityKindName } from "./entitystore";
@@ -55,6 +56,21 @@ const SUB_LABELS: Record<string, string> = {
 };
 const cap99 = (n: number) => (n > 99 ? "99+" : String(n));
 
+// Which sidebar sections are open, for this run of the app only (owner,
+// 2026-10-02): every section starts collapsed at launch, and what the user
+// opens or closes holds while they move around. In memory, never stored.
+const SESSION_OPEN = new Map<string, boolean>();
+function useSessionOpen(key: string): [boolean, (v: boolean | ((cur: boolean) => boolean)) => void] {
+  // The e2e ring opens some sections from the start (window.__sidebarOpen).
+  const [open, setOpen] = useState<boolean>(() => SESSION_OPEN.get(key) ?? ((window as unknown as { __sidebarOpen?: string[] }).__sidebarOpen?.includes(key) ?? false));
+  const set = useCallback((v: boolean | ((cur: boolean) => boolean)) => setOpen((cur) => { const next = typeof v === "function" ? v(cur) : v; SESSION_OPEN.set(key, next); return next; }), [key]);
+  return [open, set];
+}
+/** A fresh launch (tests): every section collapsed again. */
+export function resetSidebarSession() { SESSION_OPEN.clear(); }
+/** Open sections for this session (tests, and a deep link that must show its row). */
+export function openSidebarSections(keys: string[]) { for (const k of keys) SESSION_OPEN.set(k, true); }
+
 function CountPill({ n, active, loud = false }: { n: number; active: boolean; loud?: boolean }) {
   if (n <= 0) return null;
   return (
@@ -67,8 +83,8 @@ function CountPill({ n, active, loud = false }: { n: number; active: boolean; lo
 // One nav row. Collapsed, it is an icon button with the label as its tooltip.
 // `loud`: the count is something to act on (the Inbox), so it is always in
 // the accent colour rather than muted.
-function NavRow({ icon: Icon, lead, label, title, active, count = 0, loud = false, collapsed, onClick, onPrefetch, onMouseDown, chatTarget, testId }: {
-  icon: typeof House; lead?: ReactNode; label: string; title?: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; onPrefetch?: () => void;
+function NavRow({ icon: Icon, lead, tint, label, title, active, count = 0, loud = false, collapsed, onClick, onPrefetch, onMouseDown, chatTarget, testId }: {
+  icon: typeof House; lead?: ReactNode; tint?: string; label: string; title?: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; onPrefetch?: () => void;
   onMouseDown?: (e: ReactMouseEvent) => void; chatTarget?: boolean; testId?: string;
 }) {
   return (
@@ -85,7 +101,7 @@ function NavRow({ icon: Icon, lead, label, title, active, count = 0, loud = fals
         collapsed ? "h-10 justify-center" : "h-9 gap-3 px-3"
       } ${active ? ACTIVE_ROW : IDLE_ROW}`}
     >
-      {lead ?? <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />}
+      {lead ?? (tint ? <TintIcon icon={Icon} tint={tint} /> : <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />)}
       {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
       {!collapsed && <CountPill n={count} active={active} loud={loud} />}
       {collapsed && count > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
@@ -99,7 +115,7 @@ function MissionRow({ name, left, active, collapsed, onClick, testId }: { name: 
   return (
     <button onClick={onClick} data-chat-target="" title={collapsed ? `${name}${left ? `, ${left} left` : ""}` : undefined} aria-current={active ? "page" : undefined} data-testid={testId}
       className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${collapsed ? "h-10 justify-center" : "h-8 gap-2.5 pl-9 pr-3"} ${active ? ACTIVE_ROW : IDLE_ROW}`}>
-      {collapsed && <FolderKanban className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />}
+      {collapsed && <TintIcon icon={FolderKanban} tint="projects" />}
       {!collapsed && <span className="min-w-0 flex-1 truncate">{name}</span>}
       {!collapsed && left && <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{left}</span>}
     </button>
@@ -116,7 +132,7 @@ function KindRow({ def, count, active, open, collapsed, onOpen, onToggle, onAdd,
     return (
       <button onClick={onOpen} title={def.label} aria-label={def.label} aria-current={active ? "page" : undefined} data-testid={`sidebar-kind-${def.id}`}
         className={`relative flex h-10 w-full items-center justify-center rounded-lg transition-colors ${active ? ACTIVE_ROW : IDLE_ROW}`}>
-        <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+        <TintIcon icon={Icon} tint={def.id} />
       </button>
     );
   }
@@ -125,7 +141,7 @@ function KindRow({ def, count, active, open, collapsed, onOpen, onToggle, onAdd,
       <div className="group/h relative flex items-center">
         <button onClick={onOpen} aria-current={active ? "page" : undefined} data-testid={`sidebar-kind-${def.id}`} data-chat-target={def.id === "projects" ? "" : undefined}
           className={`relative flex h-9 min-w-0 flex-1 items-center gap-3 rounded-lg pl-3 pr-16 text-left text-[14px] transition-colors ${active ? ACTIVE_ROW : IDLE_ROW}`}>
-          <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
+          <TintIcon icon={Icon} tint={def.id} />
           <span className="min-w-0 flex-1 truncate">{def.label}</span>
           {typeof count === "number" && count > 0 && <span className="shrink-0 text-[12px] tabular-nums text-text-muted group-hover/h:opacity-0">{cap99(count)}</span>}
         </button>
@@ -135,7 +151,7 @@ function KindRow({ def, count, active, open, collapsed, onOpen, onToggle, onAdd,
             <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
           </button>
           <button onClick={onToggle} aria-expanded={open} title={open ? `Hide ${def.label.toLowerCase()}` : `Show ${def.label.toLowerCase()}`} aria-label={open ? `Hide ${def.label.toLowerCase()}` : `Show ${def.label.toLowerCase()}`} data-testid={`sidebar-kind-toggle-${def.id}`}
-            className={`flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-text-primary ${open ? "opacity-100" : REVEAL}`}>
+            className={`flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-text-primary ${REVEAL}`}>
             <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.2} />
           </button>
         </span>
@@ -168,18 +184,21 @@ const SIDEBAR_STICKY = `${STICKY_GROUP_HEAD} bg-surface-strong`;
 // the label and count in the same muted ink, the row is the toggle, and the
 // + and the chevron stay hidden until the row is hovered or focused
 // (progressive reveal); on touch they are always there.
-const REVEAL = "opacity-0 transition-opacity group-hover/h:opacity-100 group-focus-within/h:opacity-100 [@media(pointer:coarse)]:opacity-100";
-function SectionHeader({ label, count, open, onToggle, onAdd, addTitle, tour, dot }: {
-  label: string; count?: number; open: boolean; onToggle: () => void; onAdd?: () => void; addTitle?: string; tour?: string;
+const REVEAL = "opacity-0 transition-opacity group-hover/h:opacity-100 group-has-[:focus-visible]/h:opacity-100 [@media(pointer:coarse)]:opacity-100";
+function SectionHeader({ label, icon, tint, count, open, onToggle, onAdd, addTitle, tour, dot }: {
+  label: string; icon: typeof House; tint: string; count?: number; open: boolean; onToggle: () => void; onAdd?: () => void; addTitle?: string; tour?: string;
   // A small count dot after the label (a pending suggestion), with its own click.
   dot?: { count: number; title: string; onClick: () => void };
 }) {
   return (
-    <div data-tour={tour} data-sticky-head data-testid={`sidebar-head-${label.toLowerCase()}`} className={`group/h flex h-8 items-center gap-0.5 pb-0.5 pl-3 pr-1.5 pt-0.5 ${SIDEBAR_STICKY}`}>
+    // Aligned with the rows: the same left edge as their icons (mx-3 + px-3),
+    // the icon in the same 22px column, the + and chevron where a row's are.
+    <div data-tour={tour} data-sticky-head data-testid={`sidebar-head-${label.toLowerCase()}`} className={`group/h mx-3 flex h-8 items-center gap-0.5 pb-0.5 pl-3 pr-1 pt-0.5 ${SIDEBAR_STICKY}`}>
       <button onClick={onToggle} aria-expanded={open} title={open ? `Hide ${label}` : `Show ${label}`}
-        className={`flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md pl-0 text-left transition-colors hover:text-text-secondary focus-visible:text-text-secondary ${SECTION_LABEL}`}>
+        className={`flex h-7 min-w-0 flex-1 items-center gap-3 rounded-md pl-0 text-left transition-colors hover:text-text-secondary focus-visible:text-text-secondary ${SECTION_LABEL}`}>
+        <span className="flex w-[22px] shrink-0 justify-center" data-testid="sidebar-head-icon"><TintIcon icon={icon} tint={tint} square={false} size={14} /></span>
         <span className="truncate">{label}</span>
-        {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70">{count}</span>}
+        {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70" data-testid="sidebar-head-count">{count}</span>}
       </button>
       {dot && (
         <button onClick={dot.onClick} title={dot.title} aria-label={dot.title} data-testid={`sidebar-dot-${label.toLowerCase()}`}
@@ -249,12 +268,10 @@ export function Sidebar({
     } catch { return new Set(); }
   });
   // Group collapse - Pinned vs All. Persisted so collapsing survives restarts.
-  const [pinnedOpen, setPinnedOpen] = useState<boolean>(() => lsGet("prevail.sidebar.pinnedOpen") !== "0");
+  const [pinnedOpen, setPinnedOpen] = useSessionOpen("pinned");
   // "All" starts collapsed so Domains opens one level deep (Pinned + the All
   // header with its count) rather than listing every domain.
-  const [allOpen, setAllOpen] = useState<boolean>(() => lsGet("prevail.sidebar.allOpen") === "1");
-  useEffect(() => { lsSet("prevail.sidebar.pinnedOpen", pinnedOpen ? "1" : "0"); }, [pinnedOpen]);
-  useEffect(() => { lsSet("prevail.sidebar.allOpen", allOpen ? "1" : "0"); }, [allOpen]);
+  const [allOpen, setAllOpen] = useSessionOpen("all");
   const togglePin = (name: string) => {
     setPinned((cur) => {
       const next = new Set(cur);
@@ -285,10 +302,8 @@ export function Sidebar({
     }
   }
 
-  const [domainsOpen, setDomainsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.domainsOpen") === "1");
-  useEffect(() => { lsSet("prevail.sidebar.domainsOpen", domainsOpen ? "1" : "0"); }, [domainsOpen]);
-  const [workOpen, setWorkOpen] = useState<boolean>(() => lsGet("prevail.sidebar.workOpen") === "1");
-  useEffect(() => { lsSet("prevail.sidebar.workOpen", workOpen ? "1" : "0"); }, [workOpen]);
+  const [domainsOpen, setDomainsOpen] = useSessionOpen("domains");
+  const [workOpen, setWorkOpen] = useSessionOpen("work");
 
   // Which Editor / Work section is active, kept in sync with the events the
   // content panels listen to.
@@ -363,16 +378,14 @@ export function Sidebar({
   const pausedMissions = missionsQ.missions.filter((m) => m.status === "paused").length;
   // ENTITIES and ACTIVITIES (ia-plan.md): both collapsed for a new user; each
   // kind row opens its page, and its chevron lists a few of that kind.
-  const [entitiesOpen, setEntitiesOpen] = useState<boolean>(() => lsGet("prevail.sidebar.entitiesOpen") === "1");
-  const [activitiesOpen, setActivitiesOpen] = useState<boolean>(() => lsGet("prevail.sidebar.activitiesOpen") === "1");
-  useEffect(() => { lsSet("prevail.sidebar.entitiesOpen", entitiesOpen ? "1" : "0"); }, [entitiesOpen]);
-  useEffect(() => { lsSet("prevail.sidebar.activitiesOpen", activitiesOpen ? "1" : "0"); }, [activitiesOpen]);
-  const kindKey = (k: KindId) => (k === "projects" ? "prevail.sidebar.missionsOpen" : `prevail.sidebar.kind.${k}`);
-  const [kindOpen, setKindOpen] = useState<Set<KindId>>(() => new Set([...kindsOf("entities"), ...kindsOf("activities")].filter((k) => lsGet(kindKey(k.id)) === "1").map((k) => k.id)));
+  const [entitiesOpen, setEntitiesOpen] = useSessionOpen("entities");
+  const [activitiesOpen, setActivitiesOpen] = useSessionOpen("activities");
+  const kindKey = (k: KindId) => `kind.${k}`;
+  const [kindOpen, setKindOpen] = useState<Set<KindId>>(() => new Set([...kindsOf("entities"), ...kindsOf("activities")].filter((k) => SESSION_OPEN.get(kindKey(k.id)) ?? (window as unknown as { __sidebarOpen?: string[] }).__sidebarOpen?.includes(kindKey(k.id))).map((k) => k.id)));
   const toggleKind = (k: KindId) => setKindOpen((cur) => {
     const next = new Set(cur);
     if (next.has(k)) next.delete(k); else next.add(k);
-    lsSet(kindKey(k), next.has(k) ? "1" : "0");
+    SESSION_OPEN.set(kindKey(k), next.has(k));
     return next;
   });
   const [iaShown, setIaShown] = useState<KindId | null>(null);
@@ -386,9 +399,14 @@ export function Sidebar({
   const wantEntities = entitiesOpen && (["people", "places", "things"] as KindId[]).some((k) => kindOpen.has(k));
   useEffect(() => { if (wantEntities && vaultPath) void loadEntities(vaultPath); }, [wantEntities, vaultPath]);
   const productsQ = useInvokeQuery<{ products: { id: string; name: string; relation: string; apps: unknown[] }[] } | null>("ia_products", vaultPath && entitiesOpen && kindOpen.has("products") ? { vault: vaultPath } : null, { staleMs: 5 * 60_000, invalidateOn: ["prevail:entities-changed"] });
-  const eventsQ = useInvokeQuery<{ events: EventRow[] } | null>("ia_events", vaultPath && activitiesOpen ? { vault: vaultPath } : null, { staleMs: 5 * 60_000, invalidateOn: ["prevail:events-changed", "prevail:entities-changed", "prevail:missions-changed"] });
+  const eventsQ = useInvokeQuery<{ events: EventRow[] } | null>("ia_events", vaultPath ? { vault: vaultPath } : null, { staleMs: 5 * 60_000, invalidateOn: ["prevail:events-changed", "prevail:entities-changed", "prevail:missions-changed"] });
   const today0 = todayYmd();
   const upcoming = (Array.isArray(eventsQ.data?.events) ? eventsQ.data!.events : []).filter((e) => e.date && (e.end ?? e.date) >= today0);
+  // Every section header shows a count (owner, 2026-10-02): entities from the
+  // shared store, activities as upcoming events plus active projects.
+  useEffect(() => { if (vaultPath) void loadEntities(vaultPath); }, [vaultPath]);
+  const entityCount = entStore.list?.entities?.length ?? 0;
+  const activityCount = upcoming.length + activeMissions.length;
   const kindCount = (k: KindId): number | undefined => (k === "projects" ? activeMissions.length : k === "events" && eventsQ.data ? upcoming.length : undefined);
   const openEntity = (kind: EntityKindName, id: string) => requestEntity({ kind, value: id.slice(id.indexOf("/") + 1) });
   const kindItems = (k: KindId): ReactNode => {
@@ -438,8 +456,7 @@ export function Sidebar({
   const specsList = useInvokeQuery<{ id: string; name: string; on: boolean }[]>("engine_specialists", vaultPath ? { vault: vaultPath } : null, { staleMs: 5 * 60_000 });
   const specialists = Array.isArray(specsList.data) ? specsList.data.filter((x) => x.on) : [];
   const working = useWorkingSpecialists(vaultPath || null);
-  const [specsOpen, setSpecsOpen] = useState<boolean>(() => lsGet("prevail.sidebar.specialistsOpen") === "1");
-  useEffect(() => { lsSet("prevail.sidebar.specialistsOpen", specsOpen ? "1" : "0"); }, [specsOpen]);
+  const [specsOpen, setSpecsOpen] = useSessionOpen("specialists");
   const openSpecialist = (focus: string) => {
     try { localStorage.setItem("prevail.specialists.focus", focus); } catch { /* storage off */ }
     selectWork("specialists");
@@ -452,8 +469,7 @@ export function Sidebar({
   // Archived domains - fetched from the engine, shown under Domains, each with
   // a Restore action.
   const [archived, setArchived] = useState<string[]>([]);
-  const [archivedOpen, setArchivedOpen] = useState<boolean>(() => lsGet("prevail.sidebar.archivedOpen") === "1");
-  useEffect(() => { lsSet("prevail.sidebar.archivedOpen", archivedOpen ? "1" : "0"); }, [archivedOpen]);
+  const [archivedOpen, setArchivedOpen] = useSessionOpen("archived");
   const [restoring, setRestoring] = useState<string | null>(null);
   // Which domain's kebab menu is open (one at a time).
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
@@ -614,7 +630,7 @@ export function Sidebar({
             title={titleCase(d.name)}
             className={`relative flex h-10 w-full items-center justify-center rounded-lg transition-colors ${active ? ACTIVE_ROW : IDLE_ROW}`}
           >
-            {Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} /> : (
+            {Icon ? <TintIcon icon={Icon} color={domainColor(d.name)} /> : (
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-warm text-[11px] font-semibold text-text-secondary ring-1 ring-border">
                 {titleCase(d.name).charAt(0)}
               </span>
@@ -635,7 +651,7 @@ export function Sidebar({
           aria-current={active ? "page" : undefined}
           className={`relative flex h-9 min-w-0 flex-1 cursor-grab items-center gap-3 rounded-lg pl-8 pr-9 text-left text-[14px] transition-colors active:cursor-grabbing ${active ? ACTIVE_ROW : IDLE_ROW}`}
         >
-          {Icon ? <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} /> : <span className="h-[18px] w-[18px] shrink-0 rounded-full bg-surface-warm ring-1 ring-border" />}
+          {Icon ? <TintIcon icon={Icon} color={domainColor(d.name)} /> : <span className="h-[22px] w-[22px] shrink-0 rounded-md bg-surface-warm ring-1 ring-border" />}
           <span className="min-w-0 flex-1 truncate">{titleCase(d.name)}</span>
           {runningDomains.has(d.name) ? (
             <span className="pulse-soft inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="A reply is streaming in this domain" />
@@ -806,20 +822,20 @@ export function Sidebar({
         ) : (
           <>
             <nav aria-label="Home" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
-              <NavRow icon={House} lead={<ChiefAvatar size={20} />} chatTarget label={chief ?? "Home"} title={chief ? `${chief}, your chief of staff` : undefined} active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
-              <NavRow icon={Inbox} label="Inbox" count={waiting.total} loud active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} onPrefetch={() => prefetchSection("work", "inbox", vaultPath)} testId="nav-inbox" />
+              <NavRow icon={House} lead={<ChiefAvatar size={22} />} chatTarget label={chief ?? "Home"} title={chief ? `${chief}, your chief of staff` : undefined} active={homeActive} collapsed={collapsed} onClick={goHome} testId="nav-home" />
+              <NavRow icon={Inbox} tint="inbox" label="Inbox" count={waiting.total} loud active={tab === "work" && workActive === "inbox"} collapsed={collapsed} onClick={() => selectWork("inbox")} onPrefetch={() => prefetchSection("work", "inbox", vaultPath)} testId="nav-inbox" />
               {WORK_NAV[0].items.map((it) => (
-                <NavRow key={it.id} icon={it.icon} label={it.label} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
+                <NavRow key={it.id} icon={it.icon} tint={it.id} label={it.label} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
               ))}
             </nav>
 
             <Divider />
             <section>
-            {!collapsed && <SectionHeader label="Work" open={workOpen} onToggle={() => setWorkOpen((v) => !v)} onAdd={newTask} addTitle="New task" />}
+            {!collapsed && <SectionHeader label="Work" icon={Briefcase} tint="work" count={openTasks} open={workOpen} onToggle={() => setWorkOpen((v) => !v)} onAdd={newTask} addTitle="New task" />}
             {(collapsed || workOpen) && (
               <nav aria-label="Work" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
                 {WORK_NAV.slice(1).flatMap((g) => g.items).map((it) => (
-                  <NavRow key={it.id} icon={it.icon} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
+                  <NavRow key={it.id} icon={it.icon} tint={it.id} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
                 ))}
               </nav>
             )}
@@ -832,7 +848,7 @@ export function Sidebar({
                 <Fragment key={g}>
                   <Divider />
                   <section data-testid={`sidebar-${g}`}>
-                    {!collapsed && <SectionHeader label={g === "entities" ? "Entities" : "Activities"} open={open} onToggle={() => setOpen((v) => !v)} />}
+                    {!collapsed && <SectionHeader label={g === "entities" ? "Entities" : "Activities"} icon={g === "entities" ? Shapes : CalendarRange} tint={g} count={g === "entities" ? entityCount : activityCount} open={open} onToggle={() => setOpen((v) => !v)} />}
                     {(collapsed || open) && (
                       <nav aria-label={g === "entities" ? "Entities" : "Activities"} className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
                         {kindsOf(g).map((k) => (
@@ -852,12 +868,11 @@ export function Sidebar({
               <>
                 <Divider />
                 <section>
-                {!collapsed && <SectionHeader label="Specialists" count={specialists.length} open={specsOpen} onToggle={() => setSpecsOpen((v) => !v)} />}
+                {!collapsed && <SectionHeader label="Specialists" icon={Sparkles} tint="specialists" count={specialists.length} open={specsOpen} onToggle={() => setSpecsOpen((v) => !v)} />}
                 {(collapsed || specsOpen) && (
                   <nav aria-label="Specialists" data-testid="sidebar-specialists" className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
-                    <NavRow icon={Briefcase} label="Jobs" active={tab === "work" && workActive === "specialists"} collapsed={collapsed} onClick={() => openSpecialist("jobs:running")} testId="sidebar-jobs" />
                     {!collapsed && specialists.map((x) => (
-                      <NavRow key={x.id} icon={UserCog} lead={<SpecialistAvatar id={x.id} size={20} state={working.has(x.id) ? "working" : "idle"} />} label={x.name} title={`${x.name}: click to open, drag into a chat to hand it a message`} active={false} collapsed={collapsed}
+                      <NavRow key={x.id} icon={UserCog} lead={<SpecialistAvatar id={x.id} size={22} state={working.has(x.id) ? "working" : "idle"} />} label={x.name} title={`${x.name}: click to open, drag into a chat to hand it a message`} active={false} collapsed={collapsed}
                         onClick={() => openSpecialist(`spec:${x.id}`)} onMouseDown={(e) => startSpecialistDrag(e, x.name)} testId={`sidebar-specialist-${x.id}`} />
                     ))}
                   </nav>
@@ -872,6 +887,8 @@ export function Sidebar({
             {!collapsed && (
               <SectionHeader
                 label="Domains"
+                icon={LayoutGrid}
+                tint="domains"
                 count={sortedDomains.length}
                 open={domainsOpen}
                 onToggle={() => setDomainsOpen((v) => !v)}

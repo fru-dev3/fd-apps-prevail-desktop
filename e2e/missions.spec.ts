@@ -7,6 +7,7 @@
 // label on the Compass. Invented names only. With MISSION_SHOTS=<dir>, each
 // view is captured at 390, 768, 1280 and 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openSidebar } from "./sidebar-open";
 import { mockTauri } from "./tauri-mock";
 
 const T = Date.parse("2026-10-02T12:00:00Z");
