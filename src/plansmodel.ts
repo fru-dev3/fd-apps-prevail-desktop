@@ -272,8 +272,10 @@ export function jobIdOf(text: string): string | null {
 
 // ── Specialists Phase 2: playbooks (prevail playbook rows | show) ──
 
-export type PlaybookGroup = "running" | "yours" | "drafts" | "built-in";
-export interface PlaybookRow { id: string; name: string; goal: string; domain?: string; group: PlaybookGroup; source: "yours" | "built-in"; draft: boolean; steps: number; running: boolean; lastRun?: { ts: number; status: string } }
+export type PlaybookGroup = "running" | "scheduled" | "yours" | "drafts" | "built-in";
+/** When a playbook runs on its own (playbooks replace loops; engine playbooks.ts ScheduleView). */
+export interface PlaybookSchedule { space: string; cadence: string; on?: string; enabled: boolean; status: string; autonomy: string; lastRunTs: number | null; nextRunTs: number | null; loop?: string }
+export interface PlaybookRow { id: string; name: string; goal: string; domain?: string; group: PlaybookGroup; source: "yours" | "built-in"; draft: boolean; steps: number; running: boolean; lastRun?: { ts: number; status: string }; schedule?: PlaybookSchedule }
 export interface PlaybookStepRow { n: number; kind: string; label: string; specialists: string[]; returns: string[]; gate: boolean; ask: boolean; domain?: string }
 export interface PlaybookView extends PlaybookRow {
   rows: PlaybookStepRow[];
@@ -283,12 +285,12 @@ export interface PlaybookView extends PlaybookRow {
 }
 
 export const PLAYBOOK_GROUPS: { id: PlaybookGroup; label: string }[] = [
-  { id: "running", label: "Running" }, { id: "yours", label: "Yours" }, { id: "drafts", label: "Drafts" }, { id: "built-in", label: "Built in" },
+  { id: "running", label: "Running" }, { id: "scheduled", label: "On a schedule" }, { id: "yours", label: "Yours" }, { id: "drafts", label: "Drafts" }, { id: "built-in", label: "Built in" },
 ];
 
 /** Rows by group, in the page's order; empty groups stay (they show a count of 0). */
 export function playbookGroups(rows: PlaybookRow[]): Record<PlaybookGroup, PlaybookRow[]> {
-  const out: Record<PlaybookGroup, PlaybookRow[]> = { running: [], yours: [], drafts: [], "built-in": [] };
+  const out: Record<PlaybookGroup, PlaybookRow[]> = { running: [], scheduled: [], yours: [], drafts: [], "built-in": [] };
   for (const r of rows) (out[r.group] ?? out["built-in"]).push(r);
   return out;
 }
@@ -315,12 +317,38 @@ export function triggerLine(t: PlaybookView["triggers"]): string {
   return `${what.charAt(0).toUpperCase()}${what.slice(1)} in ${doms.length > 1 ? `${doms.slice(0, -1).join(", ")} and ${doms[doms.length - 1]}` : doms[0]}`;
 }
 
+/** Scheduled playbooks by the space they run in (General first, then A to Z). */
+export function bySpace(rows: PlaybookRow[]): { space: string; rows: PlaybookRow[] }[] {
+  const m = new Map<string, PlaybookRow[]>();
+  for (const r of rows) { const k = r.schedule?.space ?? r.domain ?? "general"; m.set(k, [...(m.get(k) ?? []), r]); }
+  return [...m].map(([space, rs]) => ({ space, rows: rs.sort((a, b) => Number(b.schedule?.enabled ?? 0) - Number(a.schedule?.enabled ?? 0) || a.name.localeCompare(b.name)) }))
+    .sort((a, b) => (a.space === "general" ? -1 : b.space === "general" ? 1 : scopeLabel(a.space).localeCompare(scopeLabel(b.space))));
+}
+
+const AUTONOMY_WORDS: Record<string, string> = { suggest: "suggests", tasks: "files tasks", ask: "asks first", auto: "runs on its own" };
+const day = (ts: number, now: number) => {
+  const d = new Date(ts);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
+};
+
+/** One quiet line for a schedule: "Weekly · next Oct 9 · last Oct 2 · asks first", or "Off". */
+export function scheduleLine(s: PlaybookSchedule, now = Date.now()): string {
+  if (!s.enabled || (s.status !== "active" && s.status !== "")) return s.status === "done" ? "Done" : "Off";
+  const when = s.on ? eventLabel(s.on) : label(s.cadence);
+  const bits = [when.charAt(0).toUpperCase() + when.slice(1)];
+  if (s.nextRunTs !== null && !s.on) bits.push(s.nextRunTs <= now ? "due now" : `next ${day(s.nextRunTs, now)}`);
+  if (s.lastRunTs) bits.push(`last ${day(s.lastRunTs, now)}`);
+  bits.push(AUTONOMY_WORDS[s.autonomy] ?? s.autonomy);
+  return bits.join(" · ");
+}
+
 export const PLAYBOOKS_FOCUS_KEY = "prevail.playbooks.focus";
 /** Open the Playbooks page on one playbook (from a job card's Save as playbook). */
 export function openPlaybook(id: string): void {
-  try { localStorage.setItem(PLAYBOOKS_FOCUS_KEY, id); } catch { /* storage off */ }
+  if (id) { try { localStorage.setItem(PLAYBOOKS_FOCUS_KEY, id); } catch { /* storage off */ } }
   window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "playbooks" }));
-  window.dispatchEvent(new CustomEvent("prevail:playbooks-focus", { detail: id }));
+  if (id) window.dispatchEvent(new CustomEvent("prevail:playbooks-focus", { detail: id }));
 }
 
 
