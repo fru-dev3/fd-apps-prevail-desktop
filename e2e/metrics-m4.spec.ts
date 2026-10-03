@@ -104,20 +104,6 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect.poll(async () => (await calls(page, "engine_review_answer"))[2]).toEqual({ vault: "/tmp/smoke-vault", kind: "who5", values: ["0", "1", "2", "3", "4"] });
     });
 
-    test("Compass values: matters against lived, unmeasured said plainly", async ({ page }) => {
-      await setup(page, width);
-      await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "compass" })));
-      await page.getByTestId("compass-row-values").click();
-      const m = page.getByTestId("matters-lived");
-      await expect(m.getByTestId("lived-v-family").getByTestId("lived-lived")).toHaveText("3 of 5", { timeout: 10_000 });
-      await expect(m.getByTestId("lived-v-family").getByTestId("lived-matters")).toHaveText("5 of 5");
-      await expect(m.getByTestId("lived-v-learning").getByTestId("lived-lived")).toHaveText("unmeasured");
-      await expect(m.getByTestId("lived-v-family")).toContainText("6 hours a week against your normal");
-      await m.scrollIntoViewIfNeeded();
-      await noOverflow(page);
-      await shot(page, "compass-lived");
-    });
-
     test("Insights > Metrics > Patterns: lags, proxies, themes, seasons, the WHO-5 switch", async ({ page }) => {
       await setup(page, width);
       await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "insights" })));

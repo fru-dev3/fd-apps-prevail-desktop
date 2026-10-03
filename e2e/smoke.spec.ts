@@ -1152,9 +1152,12 @@ test("41 · Compass: proposed lines show their words and source; confirm one, dr
   // Values: words, enough and the source file on each line.
   await page.getByTestId("compass-row-values").click();
   const peace = page.locator("[data-testid=compass-item][data-id=v-peace]");
+  // A line opens to its words and fields.
+  await peace.getByTestId("line-open").click();
   await expect(peace).toContainText("Grow foo while preserving peace of mind.");
   await expect(peace).toContainText("From Your constitution");
   await expect(peace.getByTestId("compass-proposed")).toBeVisible();
+  await page.locator("[data-testid=compass-item][data-id=v-free]").getByTestId("line-open").click();
   await expect(page.locator("[data-testid=compass-item][data-id=v-free]")).toContainText("Enough: two foo days a week");
   await peace.getByRole("button", { name: "Confirm Peace of mind" }).click();
   await expect.poll(async () => (await compassWrites(page)).length).toBe(1);

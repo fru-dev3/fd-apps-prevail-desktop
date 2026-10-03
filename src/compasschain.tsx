@@ -11,6 +11,8 @@ import { invalidateQueries, useInvokeQuery } from "./query";
 import { META, ROW_TITLE } from "./typescale";
 import { REVEAL, RowMenu } from "./ui";
 import { openMission } from "./missions";
+import { LineRow, type LineActions } from "./compasslines";
+import type { LedgerRow } from "./compassmodel";
 
 export type Level = "purpose" | "value" | "statement" | "vision" | "objective" | "goal" | "initiative" | "mission" | "task";
 export interface ChainNode {
@@ -86,7 +88,13 @@ export async function linkAction(vaultPath: string, action: "accept" | "decline"
  * A line with more than one parent is drawn once, under its first. Levels
  * below goals start folded. What is not linked is listed after, per level.
  */
-export function ChainView({ vaultPath, tree, links, onChanged }: { vaultPath: string; tree: ChainTree | null; links: LinkProposal[]; onChanged: () => void }) {
+export function ChainView({ vaultPath, tree, links, onChanged, actions, blankPurpose }: {
+  vaultPath: string; tree: ChainTree | null; links: LinkProposal[]; onChanged: () => void;
+  /** What a line can do here (open, edit, chat, confirm, drop): the same as on its own section. */
+  actions?: (n: ChainNode) => (LineActions & { history?: LedgerRow[] }) | null;
+  /** Drawn at the top when the chain has no purpose yet (write it, or write it together). */
+  blankPurpose?: ReactNode;
+}) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -122,10 +130,22 @@ export function ChainView({ vaultPath, tree, links, onChanged }: { vaultPath: st
               <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`} />
             </button>
           ) : <span className="w-5 shrink-0" aria-hidden />}
-          <div className="min-w-0 flex-1">
-            <p title={n.title} className={`${n.level === "purpose" ? "font-display text-[17px] leading-snug text-text-primary" : n.level === "task" ? "text-[14px] leading-snug text-text-secondary" : ROW_TITLE} line-clamp-2 break-words`}>{title}</p>
-            <p className={`${META} mt-0.5 truncate`}>{meta.join(" · ")}</p>
-          </div>
+          {(() => {
+            const act = n.id === VALUES ? null : actions?.(n);
+            if (act) return (
+              <div className="min-w-0 flex-1">
+                <LineRow plain id={n.id} title={n.title} testId="chain-line" proposed={n.status === "proposed"} multiline={n.level === "purpose"}
+                  display={n.level === "purpose" ? <span className="font-display text-[17px] leading-snug">{n.title}</span> : undefined}
+                  meta={<span className="truncate">{meta.join(" · ")}</span>} {...act} />
+              </div>
+            );
+            return (
+              <div className="min-w-0 flex-1">
+                <p title={n.title} className={`${n.level === "purpose" ? "font-display text-[17px] leading-snug text-text-primary" : n.level === "task" ? "text-[14px] leading-snug text-text-secondary" : ROW_TITLE} line-clamp-2 break-words`}>{title}</p>
+                <p className={`${META} mt-0.5 truncate`}>{meta.join(" · ")}</p>
+              </div>
+            );
+          })()}
         </div>
         {isOpen && <ul className="ml-2.5 border-l border-border-subtle pl-3">{kids.map((k) => line(k, depth + 1))}</ul>}
       </li>
@@ -164,6 +184,7 @@ export function ChainView({ vaultPath, tree, links, onChanged }: { vaultPath: st
         </section>
       )}
       {msg && <p className={`${META} mt-2`} data-testid="chain-msg">{msg}</p>}
+      {!tree.nodes.some((n) => n.level === "purpose") && blankPurpose}
       {body.length > 0 && <ul className="mt-4" data-testid="chain-tree">{body}</ul>}
       {loose.some((x) => x.nodes.length) && (
         <section className="mt-6" data-testid="chain-loose">
@@ -207,3 +228,38 @@ export function chainBits({ node, tree }: { node: ChainNode | undefined; tree: C
   };
 }
 
+
+/** A line's whole way up, nearest first, to the purpose: goal > objective > vision > mission statement > purpose (values skipped). */
+export function chainUp(tree: ChainTree | null, id: string): ChainNode[] {
+  if (!tree) return [];
+  const byId = new Map(tree.nodes.map((n) => [n.id, n]));
+  const out: ChainNode[] = [];
+  const seen = new Set([id]);
+  let cur = byId.get(id);
+  while (cur) {
+    const up: ChainNode | undefined = cur.parents.map((p) => byId.get(p)).find((p): p is ChainNode => !!p && !seen.has(p.id));
+    if (!up) break;
+    seen.add(up.id);
+    if (up.level !== "value") out.push(up);
+    cur = up;
+  }
+  const purpose = tree.nodes.find((n) => n.level === "purpose");
+  if (purpose && !out.some((n) => n.id === purpose.id) && id !== purpose.id) out.push(purpose);
+  return out;
+}
+
+/** The chain up as a short vertical list under an opened line. */
+export function ChainUpList({ tree, id }: { tree: ChainTree | null; id: string }) {
+  const up = chainUp(tree, id);
+  if (!up.length) return <p className={`${META} mt-1`} data-testid="chain-up-none">Not linked to anything above yet.</p>;
+  return (
+    <ol className="mt-1.5 ml-[5px] border-l border-border-subtle pl-4" data-testid="chain-up-list" aria-label="What it serves">
+      {up.map((n) => (
+        <li key={n.id} className="py-0.5">
+          <span className="block text-[12px] text-text-muted">{LEVEL_LABEL[n.level]}</span>
+          <span className="line-clamp-2 break-words text-[14px] leading-snug text-text-secondary" title={n.title}>{n.title}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}

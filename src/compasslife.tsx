@@ -1,94 +1,79 @@
-// Goals G5, desktop side: the Compass over a lifetime and beyond one person.
-//   ValueRoleHistory  each value and role over the years: when it came, each
-//                     rank change, when it was dropped (from versions + ledger)
-//   YearlyReview      the yearly review page: values, roles, purpose and three
-//                     odyssey lives; "Sketch from my notes" asks the engine,
-//                     which keeps a sketch only when its quote is in the notes
+// Goals G5, desktop side: the Compass over a lifetime.
+//   YearlyReviews     every yearly review (the hub writes one a year), each
+//                     opened to edit in place or talked through in chat
 //   exportCompass     the confirmed Compass as a constitution file
 // The engine owns every rule; this file shows and asks.
 import { useState } from "react";
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Check, Loader2, Plus } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery } from "./query";
-import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
-import { RowMenu } from "./ui";
+import { DETAIL_TITLE, META } from "./typescale";
+import { Group, LineRow, Meta } from "./compasslines";
+import { chatAbout } from "./chatabout";
 
-interface HistoryEvent { date: string; what: string; from?: string; to?: string; reason?: string }
-interface HistoryLine { id: string; kind: "value" | "role"; title: string; now: boolean; rank?: number; first: string | null; events: HistoryEvent[] }
+interface YearRow { year: number; file: string; updated: number; text: string }
 
-const fmt = (d: string) => { const x = new Date(`${d}T12:00:00Z`); return Number.isNaN(x.getTime()) ? d : x.toLocaleDateString(undefined, { month: "short", year: "numeric" }); };
-const said = (e: HistoryEvent) => e.what === "rank" ? `rank ${e.from || "?"} to ${e.to}` : e.what === "status" ? `${e.to}${e.reason ? `: ${e.reason}` : ""}` : e.what === "renamed" ? `renamed from ${e.from}` : e.what;
-
-export function ValueRoleHistory({ vaultPath }: { vaultPath: string }) {
-  const q = useInvokeQuery<HistoryLine[]>("engine_compass_history", { vault: vaultPath }, { staleMs: 60_000 });
-  const rows = Array.isArray(q.data) ? q.data : [];
-  if (!rows.length) return null;
-  const group = (k: "value" | "role", title: string) => {
-    const xs = rows.filter((r) => r.kind === k);
-    if (!xs.length) return null;
-    return (
-      <>
-        <h3 className={`${SECTION_TITLE} mt-5 mb-1`}>{title}</h3>
-        <ul data-testid={`history-${k}s`}>{xs.map((r) => (
-          <li key={r.id} className="border-b border-border-subtle py-2 last:border-b-0">
-            <p className={`${ROW_TITLE} ${r.now ? "" : "text-text-muted line-through decoration-text-muted/60"}`}>{r.title}{r.now && r.rank ? <span className={`${META} ml-2 no-underline`}>rank {r.rank}</span> : null}</p>
-            <p className={`${META} mt-0.5 line-clamp-2`} title={r.events.map((e) => `${e.date} ${said(e)}`).join("\n")}>
-              {r.events.length ? r.events.slice(-4).map((e) => `${fmt(e.date)} ${said(e)}`).join(" · ") : r.first ? `Since ${fmt(r.first)}` : "Unchanged"}
-            </p>
-          </li>
-        ))}</ul>
-      </>
-    );
+function YearEditor({ vaultPath, r, onSaved }: { vaultPath: string; r: YearRow; onSaved: () => void }) {
+  const [text, setText] = useState(r.text);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const x = await invoke<{ ok?: boolean; error?: string }>("engine_compass_yearly_save", { vault: vaultPath, year: r.year, text });
+      if (x && x.ok === false) throw new Error(x.error);
+      setMsg("Saved. The text before is kept."); onSaved();
+    } catch (e) { setMsg(`Not saved: ${String(e).replace(/^Error:\s*/, "")}`); } finally { setBusy(false); }
   };
-  return <div data-testid="compass-value-history">{group("value", "Values over the years")}{group("role", "Roles over the years")}</div>;
+  return (
+    <div data-testid="yearly-editor">
+      <textarea value={text} onChange={(e) => setText(e.target.value)} aria-label={`The ${r.year} review`} rows={18}
+        className="w-full resize-y rounded-md border border-border bg-background p-3 text-[14px] leading-relaxed text-text-primary focus:border-accent-border focus:outline-none" />
+      <div className="mt-1.5 flex items-center gap-3">
+        <button type="button" onClick={() => void save()} disabled={busy || text === r.text} data-testid="yearly-save"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-accent hover:bg-accent-soft disabled:opacity-40">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save
+        </button>
+        {msg && <span className={META} data-testid="yearly-msg">{msg}</span>}
+      </div>
+    </div>
+  );
 }
 
-interface Sketch { key: string; sketch: string; quote: string; from: string }
-interface Yearly { year: number; file: string; purpose: string | null; sketches: Sketch[]; text: string }
-
-export function YearlyReview({ vaultPath }: { vaultPath: string }) {
-  const [r, setR] = useState<Yearly | null>(null);
-  const [busy, setBusy] = useState<"load" | "draft" | "save" | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const q = useInvokeQuery<Yearly>("engine_compass_yearly", { vault: vaultPath }, { staleMs: 60_000 });
-  const fresh = useInvokeQuery<{ starts?: { kind: string; text: string }[] }>("engine_compass_fresh", { vault: vaultPath }, { staleMs: 300_000 });
-  const cur = r ?? q.data ?? null;
-  const run = async (kind: "draft" | "save") => {
-    setBusy(kind); setMsg(null);
-    try {
-      const x = await invoke<Yearly>("engine_compass_yearly", { vault: vaultPath, draft: kind === "draft", write: kind === "save" });
-      setR(x);
-      setMsg(kind === "save" ? "Saved in your General reviews. Answer under each question there, or tell your chief of staff." : x.sketches.length ? `Sketched ${x.sketches.length} of 3 from your notes; each quotes you.` : "Nothing in your notes to sketch from yet.");
-    } catch (e) { setMsg(`Not done: ${String(e)}`); } finally { setBusy(null); }
+/**
+ * The yearly review: once a year the hub writes a page across the same parts
+ * of life, so years compare. Past reviews are listed; each opens to edit, and
+ * Chat talks it through.
+ */
+export function YearlyReviews({ vaultPath }: { vaultPath: string }) {
+  const q = useInvokeQuery<YearRow[]>("engine_compass_yearly_list", { vault: vaultPath }, { staleMs: 60_000 });
+  const rows = Array.isArray(q.data) ? q.data : [];
+  const [busy, setBusy] = useState(false);
+  const writeNow = async () => {
+    setBusy(true);
+    try { await invoke("engine_compass_yearly", { vault: vaultPath, draft: false, write: true }); await q.refresh(); } finally { setBusy(false); }
   };
-  const odyssey = cur?.text.split("## Three odyssey lives")[1]?.split("## One small prototype")[0] ?? "";
-  const lives = odyssey.split("\n### ").slice(1).map((b) => { const [title, ...rest] = b.split("\n"); return { title: title!.trim(), ask: rest[0] ?? "" }; });
+  const thisYear = new Date().getFullYear();
   return (
-    <section data-testid="compass-detail-yearly" className="max-w-3xl">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <h2 className={DETAIL_TITLE}>Yearly review{cur ? `, ${cur.year}` : ""}</h2>
-          <p className={`${META} mt-1`}>Thirty minutes: your values, roles and purpose, and three possible lives. Nothing here changes the Compass.</p>
-        </div>
-        <button onClick={() => void run("draft")} disabled={!!busy} title="Sketch the three lives from my notes" aria-label="Sketch the three lives from my notes" data-testid="yearly-draft" className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent disabled:opacity-50">{busy === "draft" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}</button>
-        <RowMenu items={[{ icon: Check, label: "Save the page", hint: "General reviews; your answers are kept", onClick: () => void run("save") }]} />
-      </div>
-      {(fresh.data?.starts ?? []).length > 0 && <p className={`${BODY} mt-3 text-accent`} data-testid="yearly-fresh">{fresh.data!.starts![0]!.text}</p>}
-      {msg && <p className={`${META} mt-3`} data-testid="yearly-msg">{msg}</p>}
-      {cur?.purpose && <p className="mt-4 font-display text-[18px] leading-snug text-text-primary">{cur.purpose}</p>}
-      <h3 className={`${SECTION_TITLE} mt-6`}>Three odyssey lives</h3>
-      <ol className="mt-1">
-        {lives.map((l, i) => {
-          const s = cur?.sketches.find((x) => ["current", "vanished", "free"][i] === x.key);
-          return (
-            <li key={l.title} data-testid="yearly-life" className="border-b border-border-subtle py-2.5 last:border-b-0">
-              <p className={ROW_TITLE}>{((t) => t.charAt(0).toUpperCase() + t.slice(1))(l.title.replace(/^Life \w+: /, ""))}</p>
-              <p className={`${BODY} mt-0.5 text-text-secondary`}>{l.ask}</p>
-              {s && <p className={`${BODY} mt-1 text-text-primary`} title={`"${s.quote}" (${s.from})`} data-testid="yearly-sketch">{s.sketch}<span className={`${META} ml-1.5`}>from your notes</span></p>}
-            </li>
-          );
-        })}
-      </ol>
+    <section data-testid="compass-detail-yearly">
+      <h2 className={DETAIL_TITLE}>Yearly review</h2>
+      <p className={`${META} mt-1 mb-4`}>Once a year Prevail writes a review of your health, relationships, work, money, growth and joy, beside your values and purpose; answer in it, edit it, or talk it through.</p>
+      <Group title="Reviews" count={rows.length}>
+        <ul data-testid="yearly-list">
+          {rows.map((r) => (
+            <LineRow key={r.year} id={`year-${r.year}`} title={`${r.year}`} display={<>Review of {r.year}</>} testId="yearly-row"
+              meta={<Meta bits={[r.updated ? `Updated ${new Date(r.updated).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}` : null, r.year === thisYear ? "This year" : null]} />}
+              onChat={() => chatAbout(`Let's go through my ${r.year} yearly review together: my health, relationships, work, money, growth and joy, and whether my values and purpose still hold. Ask me one question at a time.`)}>
+              <YearEditor vaultPath={vaultPath} r={r} onSaved={() => void q.refresh()} />
+            </LineRow>
+          ))}
+        </ul>
+        {!rows.some((r) => r.year === thisYear) && (
+          <button type="button" onClick={() => void writeNow()} disabled={busy} data-testid="yearly-write" className="mt-1.5 inline-flex items-center gap-1 py-1 text-[13px] text-text-muted hover:text-accent disabled:opacity-50">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Write this year's now
+          </button>
+        )}
+      </Group>
     </section>
   );
 }

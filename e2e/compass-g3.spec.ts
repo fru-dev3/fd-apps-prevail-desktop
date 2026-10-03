@@ -90,7 +90,7 @@ const work = (page: Page, id: string) => page.evaluate((d) => window.dispatchEve
 
 for (const width of [390, 768, 1280, 1920]) {
   test.describe(`goals G3 · ${width}`, () => {
-    test("Compass: Needs you with evidence; accept a tension; rules as code checks them; said vs did", async ({ page }) => {
+    test("Compass: Needs you with evidence; accept a tension; rules as code checks them; values without charts", async ({ page }) => {
       await setup(page, width);
       await work(page, "compass");
       await page.getByTestId("compass-row-overview").click();
@@ -112,8 +112,9 @@ for (const width of [390, 768, 1280, 1920]) {
       await shot(page, "compass-rules");
       if (width < 1101) await page.getByTestId("spine-detail").getByRole("button", { name: "Compass", exact: true }).first().click();
       await page.getByTestId("compass-row-values").click();
-      await expect(page.getByTestId("said-vs-did")).toContainText("it touched 4%");
-      await expect(page.getByTestId("said-row")).toHaveCount(2);
+      // No charts on the Compass for now (owner, 2026-10-02): values are a plain list.
+      await expect(page.getByTestId("compass-detail-values")).toBeVisible();
+      await expect(page.getByTestId("said-vs-did")).toHaveCount(0);
       await noOverflow(page);
       await shot(page, "compass-said");
     });

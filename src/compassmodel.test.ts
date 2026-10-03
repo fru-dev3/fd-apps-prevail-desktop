@@ -142,3 +142,48 @@ Live a calm foo life.
     expect(items(doc, "statement").map((x) => x.id)).toEqual(["st-x"]);
   });
 });
+
+import { addLine, archiveLine, changeText, deleteLine, editLine, isArchived } from "./compassmodel";
+
+describe("editing lines", () => {
+  const base = parseCompass("# Compass\n~schema:2\n\n## Purpose\n\n## Values\n- Calm ~id:v-calm ~rank:1\n\n## Roles\n- Coach ~id:r-coach ~status:proposed\n");
+  test("add puts a dated line in its section, ranked last for a value, and says so in the ledger", () => {
+    const r = addLine(base, "value", "  Craft  ", Date.parse("2026-10-02T12:00:00Z"));
+    const v = items(r.doc, "value").find((x) => x.id === r.id)!;
+    expect(v).toMatchObject({ title: "Craft", tokens: { added: "2026-10-02", rank: "2" } });
+    expect(r.changes).toEqual([{ id: "v-craft", from: "", to: "Craft", reason: "added", by: "user" }]);
+    const g = addLine(base, "goal", "Open a foo cafe");
+    expect(serializeCompass(g.doc)).toContain("## Goals\n\n- [ ] Open a foo cafe ~id:g-open-a-foo-cafe");
+    expect(addLine(base, "value", "Calm").id).toBe("v-calm-2");
+  });
+  test("edit keeps before and after; a drafted line the user rewrites becomes theirs", () => {
+    const r = editLine(base, "r-coach", "Coach of the foo team");
+    expect(items(r.doc, "role")[0]).toMatchObject({ title: "Coach of the foo team", tokens: {} });
+    expect(r.changes.map((c) => c.reason)).toEqual(["edited", "edited"]);
+    expect(changeText({ ts: 1, ...r.changes[0] })).toEqual({ what: "Edited", before: "Coach", after: "Coach of the foo team" });
+    const p = editLine(base, "mission", "Live a calm foo life.");
+    expect(missionOf(p.doc)!.text).toBe("Live a calm foo life.");
+    expect(serializeCompass(p.doc)).toContain("## Purpose\n\nLive a calm foo life.\n");
+  });
+  test("archive keeps the line out of use and back again; delete removes it with its words in the ledger", () => {
+    const a = archiveLine(base, "v-calm");
+    expect(isArchived(items(a.doc, "value")[0])).toBe(true);
+    expect(isArchived(items(archiveLine(a.doc, "v-calm", false).doc, "value")[0])).toBe(false);
+    const d = deleteLine(base, "v-calm");
+    expect(items(d.doc, "value")).toEqual([]);
+    expect(d.changes[0]).toMatchObject({ from: "Calm", reason: "deleted" });
+    expect(deleteLine(base, "nope").changes).toEqual([]);
+  });
+});
+
+import { chainUp, type ChainTree } from "./compasschain";
+describe("a goal's chain up", () => {
+  test("goal > objective > vision > statement > purpose, values skipped", () => {
+    const n = (id: string, level: string, parents: string[]) => ({ id, level, title: id, status: "confirmed", parents, children: [], linked: true });
+    const tree = { schema: 2, levels: [], domainGoals: { total: 0, linked: 0 }, tasks: { open: 0, linked: 0 }, nodes: [
+      n("purpose", "purpose", []), n("v-a", "value", ["purpose"]), n("st", "statement", ["v-a"]), n("vi", "vision", ["st"]), n("o", "objective", ["vi"]), n("g", "goal", ["o"]),
+    ] } as unknown as ChainTree;
+    expect(chainUp(tree, "g").map((x) => x.id)).toEqual(["o", "vi", "st", "purpose"]);
+    expect(chainUp(tree, "purpose")).toEqual([]);
+  });
+});

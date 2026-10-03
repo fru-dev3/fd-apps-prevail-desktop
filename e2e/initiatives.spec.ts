@@ -50,6 +50,8 @@ async function setup(page: Page, width: number) {
   await page.goto("/");
   await work(page, "compass");
   await page.getByTestId("compass-row-goals").click();
+  // A goal opens to its chain up and its initiatives.
+  await page.getByTestId("compass-detail-goals").getByTestId("line-open").first().click();
 }
 
 test("a goal's initiatives: proposed with even swaps, Choose, Find, left out with why, the weekly check", async ({ page }) => {

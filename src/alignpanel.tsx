@@ -100,7 +100,6 @@ export function AlignRules({ vaultPath }: { vaultPath: string }) {
   );
 }
 
-/** Said vs did: the share of the month's activity that went to each value, beside its rank. */
 export function SaidVsDid({ vaultPath }: { vaultPath: string }) {
   const r = useRollup(vaultPath).data;
   const values = r && Array.isArray(r.values) ? r.values : [];

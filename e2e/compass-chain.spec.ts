@@ -47,7 +47,6 @@ test("the list follows the chain; Not linked is counted, never blocked", async (
   await expect(nav.getByTestId("compass-row-objectives")).toBeVisible({ timeout: 15_000 });
   const order = await nav.locator("[data-testid^=compass-row-]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid!.replace("compass-row-", "")));
   expect(order).toEqual(["overview", "chain", "mission", "values", "statement", "vision", "objectives", "goals", "roles", "rules", "routines", "history", "yearly"]);
-  await expect(nav.getByTestId("compass-row-goals")).toContainText("1 not linked");
   await expect(nav.getByTestId("compass-row-chain")).toContainText("Not linked: 1 goal · 1 task");
 });
 
@@ -58,23 +57,28 @@ test("each line says what it serves and what moves it; children unfold", async (
   await expect(cash.getByTestId("chain-up")).toHaveText("Toward A foo home that runs on its own", { timeout: 10_000 });
   await expect(cash).toContainText("Measured by cash_months, target 12");
   await expect(page.locator('[data-testid=compass-item][data-id=o-hikes]')).toContainText("No measure yet");
-  await cash.getByTestId("chain-down").click();
+  await expect(cash.getByTestId("chain-down")).toBeVisible();
+  await cash.getByTestId("line-open").click();
   await expect(cash.getByTestId("chain-children")).toContainText("Bar cash buffer");
   await page.getByTestId("compass-row-statement").click();
   await expect(page.locator('[data-testid=compass-item][data-id=st-tools]').getByTestId("chain-up")).toHaveText("Serves Peace of mind, Family presence");
 });
 
-test("a goal not linked says so, and the proposed link is its one primary action; initiatives name their project", async ({ page }) => {
+test("a goal not linked says so, and the proposed link is in its menu; initiatives name their project", async ({ page }) => {
   await setup(page, 1280);
   await page.getByTestId("compass-row-goals").click();
   const ridge = page.locator('[data-testid=compass-item][data-id=g-ridge]');
   await expect(ridge.getByTestId("chain-not-linked-row")).toHaveText("Not linked to an objective", { timeout: 10_000 });
   await expect(ridge).toContainText("Moves Weekly foo hikes with the kids?");
   await ridge.hover();
-  await ridge.getByTestId("compass-link-accept").click();
+  await ridge.getByRole("button", { name: /^More for Hike the foo ridge/ }).click();
+  await page.getByRole("menuitem", { name: /Link to Weekly foo hikes with the kids/ }).click();
   await expect.poll(async () => (await calls(page, "engine_compass_link"))[0]).toEqual({ vault: "/tmp/smoke-vault", action: "accept", id: "c4fdfc11b9", to: null });
   const buffer = page.locator('[data-testid=compass-item][data-id=g-buffer]');
   await expect(buffer.getByTestId("chain-up")).toHaveText("Toward Twelve months of costs in cash");
+  await buffer.getByTestId("line-open").click();
+  // Open, a goal shows its chain up to the purpose, then its initiatives.
+  await expect(buffer.getByTestId("chain-up-list")).toContainText("Twelve months of costs in cash");
   await expect(buffer.getByTestId("initiative").first()).toContainText("Runs as Foo savings drive");
 });
 
@@ -133,4 +137,22 @@ test("Today names a task's chain in one line: short, the whole walk on hover", a
   const t = page.getByTestId("today-thread").first();
   await expect(t).toHaveText("Automatic foo savings · A foo home that runs on its own", { timeout: 15_000 });
   await expect(page.getByTestId("today-item").first().locator("p[title]").nth(1)).toHaveAttribute("title", "Automatic foo savings > Bar cash buffer > Twelve months of costs in cash > A foo home that runs on its own");
+});
+
+test("every chain line opens: chat about it, edit it in place; a goal's chain up", async ({ page }) => {
+  await setup(page, 1280);
+  await page.getByTestId("compass-row-chain").click();
+  const view = page.getByTestId("chain-view");
+  const cash = view.locator('[data-testid=chain-line][data-id=o-cash]');
+  await expect(cash).toBeVisible({ timeout: 10_000 });
+  await cash.hover();
+  await cash.getByRole("button", { name: /^More for Twelve months/ }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  await cash.getByRole("textbox").fill("Twelve months of foo costs in cash");
+  await cash.getByTestId("line-save").click();
+  await expect.poll(async () => (await calls(page, "compass_write"))[0]?.changes).toEqual([{ id: "o-cash", from: "Twelve months of costs in cash", to: "Twelve months of foo costs in cash", reason: "edited", by: "user" }]);
+  await cash.hover();
+  await cash.getByTestId("line-chat").click();
+  // A fresh conversation opens with the line in the composer.
+  await expect(page.locator("textarea").first()).toHaveValue(/objective "Twelve months/, { timeout: 10_000 });
 });
