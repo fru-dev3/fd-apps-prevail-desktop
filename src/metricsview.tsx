@@ -7,7 +7,9 @@
 //   Rhythm     one dot per prompt or commit, time of day by date
 //   Sources    what each number is read from, and its caveats
 import { useEffect, useMemo, useState } from "react";
-import { Activity, BookOpen, CalendarDays, CalendarRange, Check, PartyPopper, Cpu, Database, Lightbulb, Map as MapIcon, Pencil, Sparkles, TrendingUp, Wallet, X } from "lucide-react";
+import { Activity, BookOpen, CalendarDays, CalendarRange, Check, PartyPopper, Cpu, Database, Home as HomeIcon, Lightbulb, Map as MapIcon, Package, Pencil, Sparkles, TrendingUp, Wallet, X } from "lucide-react";
+import { HouseholdMetrics } from "./metricsfamily";
+import { PacksView } from "./specialistnew";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import type { MetricProposal } from "./plansmodel";
@@ -158,7 +160,7 @@ export function RhythmPlot({ dots, days = 30, end }: { dots: Dot[]; days?: numbe
   );
 }
 
-type Sel = "week" | "rhythm" | "sources" | "proposals" | "changes" | "patterns" | `family:${string}` | "year" | "month";
+type Sel = "week" | "rhythm" | "sources" | "proposals" | "changes" | "patterns" | `family:${string}` | "year" | "month" | "household" | "packs";
 interface Insight { key: string; week: string; metric: string; title: string; text: string; direction: "up" | "down"; files: string[] }
 
 const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -244,6 +246,8 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
       <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Families</div>
       {families.map((f) => row(`family:${f}`, f, FAMILY_ICON[f] ?? Activity, undefined, list.filter((m) => m.family === f).length))}
       {row("proposals", "Proposals", Lightbulb, "Metrics to track, from what you said", props.length)}
+      {row("household", "Household", HomeIcon, "Numbers you keep together")}
+      {row("packs", "Packs", Package, "Metrics people like you track")}
       <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Patterns</div>
       {row("changes", "Changes", TrendingUp, "Three weeks outside your normal")}
       {row("patterns", "Patterns", Sparkles, "What moves what, themes, seasons")}
@@ -276,6 +280,10 @@ export function MetricsView({ vaultPath, phone }: { vaultPath: string; phone: bo
         <ul className="mt-3 max-w-4xl">{ms.map((m) => <MetricCard key={m.id} m={m} />)}</ul>
       </section>
     );
+  } else if (sel === "household") {
+    detail = <HouseholdMetrics vaultPath={vaultPath} />;
+  } else if (sel === "packs") {
+    detail = <PacksView vaultPath={vaultPath} only="metrics" />;
   } else if (sel === "proposals") {
     detail = (
       <section data-testid="metrics-proposals">

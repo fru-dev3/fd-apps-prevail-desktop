@@ -1,3 +1,4 @@
+import { PhoneGlance, isGlanceView } from "./metricsfamily";
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode, type UnlistenFn } from "./bridge";
 import { invokeCached } from "./query";
@@ -1846,7 +1847,10 @@ export default function App() {
           <button onClick={() => setNoModelDismissed(true)} aria-label="Dismiss" className="ml-1 rounded p-0.5 text-text-muted hover:text-text-primary"><X className="h-3.5 w-3.5" /></button>
         </div>
       )}
-      {phone ? (
+      {phone && isGlanceView() ? (
+        // /?view=glance: the week at a glance on its own (Add to Home Screen).
+        <PhoneGlance vaultPath={vaultPath} standalone />
+      ) : phone ? (
         <Suspense fallback={<PanelLoading />}>
           <PhoneShell
             vaultPath={vaultPath}
