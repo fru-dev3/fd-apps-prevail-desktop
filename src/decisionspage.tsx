@@ -11,6 +11,8 @@ import { SettingsHeader } from "./sectionutil";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
+import { EmbeddedChat } from "./embeddedchat";
+import { openUpdateThread } from "./linking";
 import { DECISIONS_FOCUS_KEY, decisionStatus, fmtDue, label, scopeLabel, type DecisionRecord } from "./plansmodel";
 
 const input = "h-9 w-full rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary";
@@ -135,6 +137,12 @@ function DecisionDetail({ r, vaultPath, onChanged }: { r: DecisionRecord; vaultP
         {[scopeLabel(r.domain), r.due && r.status !== "decided" ? `due ${fmtDue(r.due)}` : "", r.consulted.length ? `reads ${r.consulted.map(scopeLabel).join(", ")}` : "", r.status === "decided" ? `decided ${r.decided ?? ""}`.trim() : ""].filter(Boolean).join(" · ")}
         {retroDue && <> · <span className="text-warn" data-testid="decision-retro-owed">retro owed</span></>}
       </p>
+      {r.source === "chat" && <p className={`${META} mt-1`} data-testid="decision-from-chat">Heard in a conversation{r.thread ? <> · <button type="button" onClick={() => void openUpdateThread(vaultPath, { ts: 0, from_domain: r.domain, thread: r.thread!, fact: "" })} className="underline decoration-border underline-offset-[3px] hover:text-accent">open it</button></> : null}</p>}
+      {/* Each decision opens with a chat: add context, or talk it through. */}
+      <div className="mt-4 flex h-[min(62vh,560px)] min-h-[320px] flex-col" data-testid="decision-chat">
+        <EmbeddedChat vaultPath={vaultPath} storageKey={`prevail.decision.thread.${r.domain}/${r.slug}`} label="Talk it through"
+          initialInput={`About my decision "${r.question}"${r.chose && r.chose !== r.question ? ` (I chose: ${r.chose})` : ""}${r.status === "decided" ? `, decided ${r.decided ?? ""}` : ""}: `} testId="decision-chat-panel" />
+      </div>
       {r.status !== "decided" && missing.length > 0 && <p className={`${META} mt-2`} data-testid="decision-missing">Still missing: {missing.join(", ")}.</p>}
       {r.status !== "decided" && !r.recommendationReady && (
         <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="decision-recommend">

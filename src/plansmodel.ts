@@ -190,6 +190,8 @@ export interface DecisionRecord {
   slug: string; domain: string; file: string; question: string; status: "open" | "decided" | "revisit"; due?: string;
   owner: string; consulted: string[]; serves: string[]; gut?: string; recommendation?: string; confidence?: string;
   decided?: string; chose?: string; retroDue?: string; retroRight?: string; sections: Record<string, string>;
+  /** A decision heard in a conversation (decision-capture): its thread, source "chat". */
+  thread?: string; source?: string;
   /** Today T4 (DecisionView): what the record still lacks, whether a recommendation waits behind the gut call, and whether it is big (the council). */
   missing?: string[]; recommendationReady?: boolean; big?: boolean;
 }
