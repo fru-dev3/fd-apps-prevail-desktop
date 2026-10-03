@@ -99,72 +99,9 @@ pub(crate) async fn loop_execute_action(
     .map_err(|e| format!("loop exec task failed: {e}"))?
 }
 
-/// Run ONE loop right now (the per-loop "Run now" button). Shells the engine's
-/// `daemon --loops --run-loop` for that single loop; it applies the result per the
-/// loop's autonomy and prints a `__LOOPRESULT__<json>` line we parse back into a
-/// structured result the UI shows (actions + dispositions, tasks created, pending).
-#[tauri::command]
-pub(crate) async fn loop_run_now(
-    vault: String,
-    domain: String,
-    loop_id: String,
-    provider: Option<String>,
-    model: Option<String>,
-) -> Result<serde_json::Value, String> {
-    let out = tauri::async_runtime::spawn_blocking(move || {
-        let mut args: Vec<String> = vec![
-            "--vault".into(), vault,
-            "daemon".into(), "--loops".into(), "--run-loop".into(),
-            "--domain".into(), domain,
-            "--loop".into(), loop_id,
-        ];
-        if let Some(p) = provider { if !p.trim().is_empty() { args.push("--cli".into()); args.push(p); } }
-        if let Some(m) = model { if !m.trim().is_empty() { args.push("--model".into()); args.push(m); } }
-        let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        engine::run_engine_raw(&refs)
-    })
-    .await
-    .map_err(|e| format!("run-loop task failed: {e}"))??;
-    // The engine may print incidental logs; the result is the __LOOPRESULT__ line.
-    let json = out
-        .lines()
-        .rev()
-        .find_map(|l| l.trim().strip_prefix("__LOOPRESULT__"))
-        .ok_or_else(|| format!("loop run produced no result: {}", out.chars().take(200).collect::<String>()))?;
-    serde_json::from_str(json).map_err(|e| format!("parse loop result: {e}"))
-}
-
-/// Streaming variant of `loop_run_now`: runs ONE loop and streams its progress
-/// to the UI. The engine emits one NDJSON line per phase (resolve → read →
-/// think → apply) and a final `{type:"result"}` line; `run_engine_stream`
-/// forwards each on `loop_run:line` (keyed by `session`) and fires
-/// `loop_run:done` when the child exits. The desktop renders a live stepper from
-/// these so a running loop is no longer a black box.
-#[tauri::command]
-pub(crate) async fn loop_run_now_stream(
-    app: tauri::AppHandle,
-    session: String,
-    vault: String,
-    domain: String,
-    loop_id: String,
-    provider: Option<String>,
-    model: Option<String>,
-) -> Result<(), String> {
-    let mut args: Vec<String> = vec![
-        "--vault".into(), vault,
-        "daemon".into(), "--loops".into(), "--run-loop".into(),
-        "--domain".into(), domain,
-        "--loop".into(), loop_id,
-    ];
-    if let Some(p) = provider { if !p.trim().is_empty() { args.push("--cli".into()); args.push(p); } }
-    if let Some(m) = model { if !m.trim().is_empty() { args.push("--model".into()); args.push(m); } }
-    crate::engine::run_engine_stream(app, session, args, "loop_run").await
-}
-
 /// Drop one queued pending approval from a domain's `_loops_runtime.json`
 /// (matched by loop id + exact text). Used by the cross-domain Decision Inbox to
-/// dismiss/clear an item after it's been approved or declined — the per-domain
-/// loopspanel does the same write locally. Re-reads fresh before writing so a
+/// dismiss/clear an item after it's been approved or declined. Re-reads fresh before writing so a
 /// concurrent daemon pass isn't clobbered. No-op (Ok) if nothing matches.
 #[tauri::command(async)]
 pub(crate) fn loop_pending_drop(

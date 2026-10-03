@@ -182,13 +182,8 @@ async function openActivitySource(e: ActivityEvent, vaultPath: string): Promise<
     case "playbook":
     case "playbook_step":
     case "nudge":
-      if (dom) {
-        window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: dom }));
-        window.dispatchEvent(new CustomEvent("prevail:domain-tab", { detail: "loops" }));
-      } else {
-        window.dispatchEvent(new CustomEvent("prevail:open-domain", { detail: "" }));
-        window.dispatchEvent(new CustomEvent("prevail:domain-tab", { detail: "loops" }));
-      }
+      // Playbooks replace loops: a run opens the Playbooks page.
+      window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "playbooks" }));
       return;
     case "task_filed":
       window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "task-list" }));
