@@ -293,7 +293,10 @@ test("@ lists specialists; picking one hands the message to it", async ({ page }
   // At send the engine still gets "@Name ..." (its contract is unchanged).
   await box.press("Enter");
   await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(1);
-  expect(String((await calls(page, "engine_chat"))[0].message)).toMatch(/(^|\n)@Researcher compare umbrella policies$/);
+  // A domain chat sends the typed text alone: the engine builds the domain's context (chatscope.ts).
+  expect((await calls(page, "engine_chat"))[0]).toMatchObject({ domain: "insurance", message: "@Researcher compare umbrella policies" });
+  // The link format for the reply's chips rides as a hint, outside the context.
+  expect(String((await calls(page, "engine_chat"))[0].outputHint)).toContain("OUTPUT FORMAT");
   await expect(page.getByTestId("ref-chip-specialist")).toHaveCount(0);
 });
 

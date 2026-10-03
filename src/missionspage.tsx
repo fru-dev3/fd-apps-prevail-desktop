@@ -313,6 +313,7 @@ function MissionChat({ vaultPath, m }: { vaultPath: string; m: Mission }) {
         domains={NO_DOMAINS} domainStats={{}} runningDomains={NO_SET} finishedDomains={NO_SET} onPickDomain={() => {}}
         domainTab="chat" setDomainTab={() => {}} active={false} phone={phone}
         mission={{ slug: m.slug, name: m.name }}
+        scope={{ kind: "mission", slug: m.slug, name: m.name }}
       />
     </div>
   );

@@ -1721,6 +1721,9 @@ export default function App() {
                 key={`chat:${threadScope ?? "general"}`}
                 active={tab === "chat"}
                 domain={selectedDomain}
+                // The space each turn runs in: a domain's context is built by the
+                // engine (chatscope.ts); an open app keeps its own prompt.
+                scope={onApp && selectedApp ? { kind: "app", id: selectedApp.id } : selectedDomain ? { kind: "domain", slug: selectedDomain } : { kind: "general" }}
                 domainPath={selectedDomainPath}
                 threadDomain={threadScope}
                 isApp={onApp}
