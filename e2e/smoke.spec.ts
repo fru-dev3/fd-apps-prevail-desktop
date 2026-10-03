@@ -494,21 +494,16 @@ test("18 · the Inbox approves a queued Google write with the token spine", asyn
   expect(args).toMatchObject({ id: "gws_smoke1", approval: "smoke-approval-token" });
 });
 
-test("19 · the sidebar lists your apps; a click opens the Apps page in Home with it picked", async ({ page }) => {
+test("19 · apps live in Products: no APPS section; Products opens the Apps page in Home", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  const apps = page.getByTestId("sidebar-apps");
-  await expect(apps.getByTestId("sidebar-app-claude:foo")).toContainText("Foo", { timeout: 10_000 });
-  // A connector that needs sign-in carries a small dot.
-  await expect(apps.getByTestId("sidebar-app-claude:bar").getByTestId("app-signin-dot")).toBeVisible();
-  await expect(apps.getByTestId("sidebar-app-claude:foo").getByTestId("app-signin-dot")).toHaveCount(0);
-  await apps.getByTestId("sidebar-app-claude:bar").click();
+  await expect(page.getByTestId("sidebar-apps")).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "products" })));
+  await page.getByTestId("products-open-apps").click();
   await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByTestId("mirror-row-claude:bar")).toHaveAttribute("aria-current", "true");
   // Still Home: the sidebar did not flip into Settings.
   await expect(page.getByTestId("nav-home")).toBeVisible();
   await expect(page.getByRole("button", { name: /Back to Home/ })).toHaveCount(0);
-  await expect(apps.getByTestId("sidebar-app-claude:bar")).toHaveAttribute("aria-current", "page");
-  // The Settings group no longer carries a duplicate Apps row.
+  // The Settings group carries no duplicate Apps row.
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByRole("button", { name: "Connections", exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Apps", exact: true })).toHaveCount(0);
@@ -576,7 +571,7 @@ test("22 · the Briefing: dismissing a row shares the Recommendations set; hidin
   await expect(briefing.getByTestId("briefing-row")).toHaveCount(1);
   expect(await page.evaluate(() => localStorage.getItem("prevail.recs.dismissed"))).toContain("r1");
   // The Recommendations page counts it as dismissed.
-  await page.getByTestId("app-sidebar").getByRole("button", { name: "For You" }).click();
+  await page.getByTestId("app-sidebar").getByRole("button", { name: "For You", exact: true }).click();
   await expect(page.getByRole("button", { name: /Show dismissed 1/ })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("Foo rule to adopt")).toHaveCount(0);
   // Back Home, hide the whole Briefing: the Settings switch turns off.
@@ -605,7 +600,9 @@ test("23 · Context: one click shows Memory, a Source file previews inline, the 
   await view.getByTestId("ctx-item-source/goals.md").click();
   await expect(view.getByTestId("ctx-preview")).toContainText("Ship the foo.");
   const folder = view.getByTestId("ctx-folder");
-  await expect(folder).toHaveText("tmp/smoke-vault");
+  // An icon, the path only on hover: no raw path on the page.
+  await expect(folder).toHaveAttribute("title", /\/tmp\/smoke-vault/);
+  await expect(view).not.toContainText("tmp/smoke-vault");
   await folder.click();
   await expect.poll(() => invokedCommands(page)).toContain("open_in_finder");
   const args = await page.evaluate(() =>
@@ -785,9 +782,11 @@ async function openSettings(page: import("@playwright/test").Page, section: stri
   await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), section);
 }
 
-test("28 · Ideals: mission first, then domains; picking a domain shows its ideal", async ({ page }) => {
+test("28 · Ideals live in the Compass: an old Ideals link opens its Ideals view; picking a domain shows its ideal", async ({ page }) => {
   await openSettings(page, "ideal-state");
-  const col = await headerAboveColumn(page, "Ideals", "ideals-list");
+  await expect(page.getByTestId("work-page").getByTestId("page-header").first()).toContainText("Compass", { timeout: 10_000 });
+  await expect(page.getByTestId("tab-ideals")).toHaveAttribute("aria-selected", "true");
+  const col = page.getByTestId("ideals-list");
   await expect(col.getByTestId("ideal-row-mission")).toHaveAttribute("aria-current", "true");
   await expect(page.getByTestId("ideal-detail-mission")).toBeVisible();
   await col.getByTestId("ideal-row-domain:career").click();
@@ -844,9 +843,24 @@ test("31 · Usage is part of Activity: views in its column; a breakdown replaces
   await expect(detail).not.toContainText("When you use it");
 });
 
-const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Entities", "Ideals", "Activity", "Connections", "Privacy & Safety", "Settings"];
+test("31b · Usage leads with every AI tool's own records: API price, paid, and the estimate labeled", async ({ page }) => {
+  await openSettings(page, "usage");
+  const panel = page.getByTestId("ai-all-tools");
+  await expect(panel).toContainText("All AI tools", { timeout: 10_000 });
+  await expect(page.getByTestId("ai-all-tools-usd")).toHaveText("$84.50");
+  await expect(panel).toContainText("2 machines");
+  await expect(panel).toContainText("paid $20.00");
+  await expect(panel.getByTestId("ai-tool-row")).toHaveCount(3);
+  await expect(panel.getByTestId("ai-tool-row").filter({ hasText: "Wispr Flow" })).toContainText("31 prompts");
+  await expect(panel).toContainText("estimated");
+  expect(await invokeArgs(page, "engine_ai_usage")).toContainEqual({ vault: "/tmp/smoke-vault", month: null });
+});
 
-test("32 · the Settings nav is 11 rows, and each opens a header above a side column", async ({ page }) => {
+// Ideals moved into the Compass (a Home page) in Goals G1.
+// Entities left Settings for the Home sidebar (ia-plan.md).
+const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Activity", "Connections", "Privacy & Safety", "Settings"];
+
+test("32 · the Settings nav is 9 rows, and each opens a header above a side column", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Settings" }).click();
   const nav = page.getByTestId("app-sidebar");
@@ -854,7 +868,7 @@ test("32 · the Settings nav is 11 rows, and each opens a header above a side co
   const labels = await nav.locator("button[aria-current], button").evaluateAll((els) =>
     els.map((e) => (e as HTMLElement).innerText.trim()));
   for (const l of EDITOR_ROWS) expect(labels).toContain(l);
-  for (const gone of ["Phone", "Gateway", "MCP", "Hooks", "Network", "Autonomy", "Privacy", "Safety", "Profiles", "Vault", "General", "About", "Daemons", "Usage"]) {
+  for (const gone of ["Phone", "Gateway", "MCP", "Hooks", "Network", "Autonomy", "Privacy", "Safety", "Profiles", "Vault", "General", "About", "Daemons", "Usage", "Ideals"]) {
     expect(labels, `${gone} should be a side row now, not a nav row`).not.toContain(gone);
   }
   for (const l of EDITOR_ROWS) {
@@ -973,22 +987,18 @@ test("36 · Your conversations lists the entity's threads and opens one; the Gen
 });
 
 // ── Goals and Tasks, laid out like Intent > Projects ────────────────────────
-test("37 · Goals: Mission row, a new goal writes source/goals.md, a goal opens its detail", async ({ page }) => {
+test("37 · Compass > Goals: domain goals, a new goal writes source/goals.md, a goal opens its detail", async ({ page }) => {
   await mockTauri(page, {
-    read_ideal_state: "# Ideal\n\n## Mission\n\nLive a calm foo life.\n\n## Vision\n\nA quiet bar by the sea.\n",
     goals_files_read: [{ domain: "health", path: "/tmp/smoke-vault/data/domains/health/source/goals.md", body: "- [ ] Run a foo marathon ~id:g-1 ~status:active ~due:2026-12-31 ~progress:40\n  why: Feel strong again.\n" }],
     goals_file_write: "/tmp/smoke-vault/data/domains/general/source/goals.md",
   });
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Goals" }).click();
-  const page_ = page.getByTestId("goals-page");
-  await expect(page.getByTestId("work-page").getByTestId("page-header").first()).toContainText("Goals", { timeout: 10_000 });
+  await page.getByRole("button", { name: "Compass" }).click();
+  await expect(page.getByTestId("work-page").getByTestId("page-header").first()).toContainText("Compass", { timeout: 10_000 });
+  await page.getByTestId("tab-goals").click();
   await expect(page.getByTestId("tab-active")).toHaveAttribute("aria-selected", "true");
-  const col = page_.getByTestId("goals-list");
-  await expect(col.getByTestId("goal-row-mission")).toContainText("Live a calm foo life.");
-  await col.getByTestId("goal-row-mission").click();
-  await expect(page.getByTestId("goal-detail-mission")).toContainText("Live a calm foo life.");
+  const col = page.getByTestId("goals-list");
   // A goal row opens its detail.
   await col.getByTestId("goal-row").filter({ hasText: "Run a foo marathon" }).click();
   const detail = page.getByTestId("goal-detail");
@@ -1055,7 +1065,7 @@ const writes = (page: import("@playwright/test").Page) => page.evaluate(() =>
   ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
     .filter((e) => e.cmd === "write_ideal_state").map((e) => String(e.args.body)));
 
-test("39 · Mission: clicking a section edits it in place; saving writes it and refreshes the versions", async ({ page }) => {
+test("39 · Constitution: clicking a section edits it in place; saving writes it and refreshes the versions", async ({ page }) => {
   await mockTauri(page, missionFx);
   await page.goto("/");
   await openMission(page);
@@ -1080,7 +1090,7 @@ test("39 · Mission: clicking a section edits it in place; saving writes it and 
   expect(await writes(page)).toHaveLength(1);
 });
 
-test("40 · Mission versions: newest first with Latest on top; Restore saves a new latest", async ({ page }) => {
+test("40 · Constitution versions: newest first with Latest on top; Restore saves a new latest", async ({ page }) => {
   await mockTauri(page, missionFx);
   await page.goto("/");
   await openMission(page);
@@ -1097,4 +1107,143 @@ test("40 · Mission versions: newest first with Latest on top; Restore saves a n
   await expect.poll(() => writes(page)).toHaveLength(1);
   expect((await writes(page))[0]).toContain("Slow mornings.");
   await expect(rows.first()).toHaveAttribute("aria-current", "true");
+});
+
+// ── The Compass: drafted lines wait as Proposed until the user confirms ─────
+const COMPASS = `# Compass
+
+## Mission
+
+Live a calm foo life.
+~status:proposed
+  words: "Live a calm foo life."
+  from: build/ideal-state.md
+
+## Values
+
+- Peace of mind ~id:v-peace ~rank:1 ~status:proposed
+  words: "Grow foo while preserving peace of mind."
+  from: build/ideal-state.md
+- Freedom ~id:v-free ~rank:2
+  words: "So work becomes a choice."
+  enough: two foo days a week
+
+## Non-negotiables
+
+- Home for dinner ~id:nn-dinner ~status:proposed
+  words: "Home for dinner five nights."
+  from: data/domains/general/memory/memory.md
+`;
+const compassWrites = (page: import("@playwright/test").Page) => page.evaluate(() =>
+  ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
+    .filter((e) => e.cmd === "compass_write").map((e) => e.args as { body: string; changes: Array<{ id: string; to: string }> }));
+
+test("41 · Compass: proposed lines show their words and source; confirm one, drop one, then confirm all", async ({ page }) => {
+  await mockTauri(page, { compass_read: COMPASS, compass_write: null, compass_versions: [], compass_ledger: [] });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Compass" }).click();
+  const header = page.getByTestId("work-page").getByTestId("page-header").first();
+  await expect(header).toContainText("Compass", { timeout: 10_000 });
+  await expect(page.getByTestId("tab-compass")).toHaveAttribute("aria-selected", "true");
+  // Overview: the mission, the ranked values, and what waits.
+  await expect(page.getByTestId("compass-needs-you")).toContainText("3 lines drafted from your notes");
+  await expect(page.getByTestId("compass-detail-overview")).toContainText("Live a calm foo life.");
+  // Values: words, enough and the source file on each line.
+  await page.getByTestId("compass-row-values").click();
+  const peace = page.locator("[data-testid=compass-item][data-id=v-peace]");
+  // A line opens to its words and fields.
+  await peace.getByTestId("line-open").click();
+  await expect(peace).toContainText("Grow foo while preserving peace of mind.");
+  await expect(peace).toContainText("From Your constitution");
+  await expect(peace.getByTestId("compass-proposed")).toBeVisible();
+  await page.locator("[data-testid=compass-item][data-id=v-free]").getByTestId("line-open").click();
+  await expect(page.locator("[data-testid=compass-item][data-id=v-free]")).toContainText("Enough: two foo days a week");
+  await peace.getByRole("button", { name: "Confirm Peace of mind" }).click();
+  await expect.poll(async () => (await compassWrites(page)).length).toBe(1);
+  const first = (await compassWrites(page))[0];
+  expect(first.changes).toEqual([{ id: "v-peace", from: "proposed", to: "confirmed", reason: "confirmed", by: "user" }]);
+  expect(first.body).toContain("- Peace of mind ~id:v-peace ~rank:1\n  words:");
+  expect(first.body).toContain("- Freedom ~id:v-free ~rank:2\n  words: \"So work becomes a choice.\"\n  enough: two foo days a week\n");
+  await expect(peace.getByTestId("compass-proposed")).toHaveCount(0);
+  // Drop the rule: it leaves the file; the backend keeps a version and the ledger.
+  await page.getByTestId("compass-row-rules").click();
+  // One primary action per row (Confirm); "Not mine" lives in the row menu.
+  await page.getByRole("button", { name: /^More for Home for dinner/ }).click();
+  await page.getByRole("menuitem", { name: /Not mine/ }).click();
+  await expect.poll(async () => (await compassWrites(page)).length).toBe(2);
+  expect((await compassWrites(page))[1].body).not.toContain("Home for dinner");
+  // Confirm all takes what is left (the mission).
+  await header.getByTestId("compass-confirm-all").click();
+  await expect.poll(async () => (await compassWrites(page)).length).toBe(3);
+  expect((await compassWrites(page))[2].changes.map((c) => c.id)).toEqual(["mission"]);
+  await expect(header.getByTestId("compass-confirm-all")).toHaveCount(0);
+});
+
+test("42 · Compass: with nothing yet, one button drafts it from the vault", async ({ page }) => {
+  await mockTauri(page, { compass_read: "", engine_compass_bootstrap: { added: [], rejected: [], method: "model" } });
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Compass" }).click();
+  await page.getByTestId("compass-draft").click();
+  await expect.poll(async () => (await invokedCommands(page)).includes("engine_compass_bootstrap")).toBe(true);
+});
+
+// ── Insights > Metrics: the week against your normal, with sources ─────────
+const N = (lo: number, hi: number, learning = false) => ({ median: (lo + hi) / 2, lo, hi, weeks: learning ? 2 : 8, learning, learningWeeksLeft: learning ? 2 : 0 });
+const METRICS_FX = {
+  glance: {
+    week: "2026-09-28", through: "2026-10-02", computed: 1, surprise: "Commits: 40 this week, above your normal of 5 to 12.",
+    rows: [
+      { id: "m-ai-spend", title: "AI spend", unit: "usd", tier: "measured", family: "AI and building", value: 42.5, normal: N(20, 50), spark: [10, 20, 30, 25, 40, 35, 30, 20, 45, 50, 30, 42.5], documentary: false, coverage: "one Mac (foo-mac), 2026-08-01 to 2026-10-02", citations: [{ file: "build/_meta/events/claude/2026-10.foo-mac.jsonl", note: "12 records this week" }] },
+      { id: "m-shipped", title: "Things shipped", unit: "count", tier: "derived", family: "AI and building", value: 3, normal: N(0, 2, true), spark: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3], documentary: false, coverage: "one Mac (foo-mac)", citations: [] },
+      { id: "m-trips", title: "Trips", unit: "count", tier: "measured", family: "Exploration", value: 0, normal: N(0, 0, true), spark: [], documentary: true, coverage: "your vault; trip atlas scanned 2026-09-25", citations: [{ file: "data/domains/content/memory/skills/foo-atlas/trips.json", note: "2026-09-12" }], record: "Latest: Hike, Foo Valley on 2026-09-12" },
+    ],
+  },
+  list: [
+    { id: "m-ai-spend", title: "AI spend", family: "AI and building", per: "week", unit: "usd", tier: "measured", documentary: false, status: "tracking", from: "every AI tool's own records", thisWeek: 42.5, normal: N(20, 50), coverage: "one Mac", citations: [], spark: [1, 2, 3] },
+    { id: "m-commits", title: "Commits", family: "AI and building", per: "week", unit: "count", tier: "measured", documentary: false, status: "tracking", from: "git", thisWeek: 40, normal: N(5, 12), coverage: "one Mac", citations: [], spark: [5, 9, 40] },
+    { id: "m-trips", title: "Trips", family: "Exploration", per: "month", unit: "count", tier: "measured", documentary: true, status: "tracking", from: "the trip atlas", thisWeek: 0, normal: N(0, 0, true), coverage: "your vault", citations: [], spark: [] },
+  ],
+  rhythm: [{ day: "2026-10-01", hour: 9.5, kind: "prompt" }, { day: "2026-10-01", hour: 22, kind: "commit" }, { day: "2026-09-30", hour: 14, kind: "prompt" }],
+  sources: [{ id: "ai", kind: "machine", files: [], events: 120, first: "2026-08-01", last: "2026-10-02", hosts: ["foo-mac"] }, { id: "trips", kind: "vault", files: [], events: 3, note: "trip atlas scanned 2026-09-25" }],
+};
+
+test("43 · Insights > Metrics: the week against your normal, tiers, coverage and sources; families, rhythm, sources", async ({ page }) => {
+  await mockTauri(page);
+  await page.addInitScript((fx) => {
+    (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_metrics = (a: { view: string }) => (fx as Record<string, unknown>)[a.view];
+  }, METRICS_FX);
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByTestId("app-sidebar").getByRole("button", { name: "Insights" }).click();
+  await page.getByTestId("tab-metrics").click();
+  const week = page.getByTestId("metrics-week");
+  await expect(week).toContainText("This week, Sep 28 to Oct 2", { timeout: 10_000 });
+  const spend = week.locator("[data-testid=glance-row][data-id=m-ai-spend]");
+  await expect(spend.getByTestId("glance-value")).toHaveText("$42.50");
+  await expect(spend.getByTestId("glance-tier")).toHaveText("Measured");
+  await expect(spend).toContainText("normal $20.00 to $50.00");
+  await expect(spend.getByTestId("glance-coverage")).toHaveText("one Mac (foo-mac), 2026-08-01 to 2026-10-02");
+  await expect(spend.getByTestId("normal-band")).toHaveCount(1);
+  await spend.getByTestId("metric-sources-toggle").click();
+  await expect(spend.getByTestId("metric-sources")).toContainText("build/_meta/events/claude/2026-10.foo-mac.jsonl, 12 records this week");
+  await expect(week.locator("[data-testid=glance-row][data-id=m-shipped]")).toContainText("learning your normal, 2 more weeks");
+  const trips = week.locator("[data-testid=glance-row][data-id=m-trips]");
+  await expect(trips).toContainText("A record, no target");
+  await expect(trips).toContainText("Latest: Hike, Foo Valley on 2026-09-12");
+  await expect(trips.getByTestId("glance-value")).toHaveCount(0);
+  await expect(page.getByTestId("glance-surprise")).toContainText("Commits: 40 this week");
+  // A family: small multiples.
+  await page.getByTestId("metrics-row-family:AI and building").click();
+  await expect(page.getByTestId("metrics-family").getByTestId("metric-card")).toHaveCount(2);
+  // Rhythm: one dot per prompt and commit.
+  await page.getByTestId("metrics-row-rhythm").click();
+  await expect(page.getByTestId("rhythm-plot").locator("circle")).toHaveCount(3);
+  await expect(page.getByTestId("metrics-rhythm")).toContainText("2 prompts, 1 commits");
+  // Sources.
+  await page.getByTestId("metrics-row-sources").click();
+  await expect(page.getByTestId("source-row")).toHaveCount(2);
+  await expect(page.getByTestId("metrics-sources")).toContainText("On foo-mac");
+  expect(await invokeArgs(page, "engine_metrics")).toContainEqual({ vault: "/tmp/smoke-vault", view: "glance", week: null });
 });

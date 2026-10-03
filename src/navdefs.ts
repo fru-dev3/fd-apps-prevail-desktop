@@ -6,38 +6,58 @@
 // Selecting an item dispatches an event the matching content panel listens to:
 //   • Work items   → "prevail:work-section"
 //   • Editor items → "prevail:settings-section"
-import { Activity, Blocks, BookUser, Compass, Database, FolderKanban, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Target } from "lucide-react";
+import { Activity, Blocks, Brain, Compass, Cpu, Database, Gavel, Layers, Lightbulb, ListChecks, Network, Scale, ScanFace, Settings as SettingsIcon, ShieldCheck, Swords, Workflow } from "lucide-react";
 
 export type NavItem = { id: string; label: string; icon: typeof Database };
-export type NavGroup = { heading: string; items: NavItem[] };
+// A group shown under its own header carries that header's icon and tint key (tint.tsx).
+export type NavGroup = { heading: string; items: NavItem[]; icon?: typeof Database; tint?: string };
 
 // Home sidebar: the operational surfaces, in two groups. The top group sits
 // directly under Home and Inbox (which the sidebar renders itself, since they
 // are not in these groups); the "Work" group holds the planning screens. Every
 // id here is a WorkPanel section.
 //   insights  -> Intent (what your prompts say about you)
-//   projects  -> Intent's Projects view
 //   task-list -> Tasks, a plain list
-//   goals     -> the ideal-state constitution
+//   compass   -> the Compass: purpose, values, roles, life goals, rules;
+//                domain goals and the ideals are its other two views
 export const WORK_NAV: NavGroup[] = [
   { heading: "Home", items: [
     { id: "insights", label: "Insights", icon: ScanFace },
     { id: "recommendations", label: "For You", icon: Lightbulb },
   ]},
   { heading: "Work", items: [
-    { id: "projects", label: "Projects", icon: FolderKanban },
     { id: "task-list", label: "Tasks", icon: ListChecks },
-    { id: "goals", label: "Goals", icon: Target },
+    { id: "compass", label: "Compass", icon: Compass },
+    { id: "decisions", label: "Decisions", icon: Gavel },
+    { id: "playbooks", label: "Playbooks", icon: Workflow },
   ]},
 ];
 
 // Every WorkPanel section: the nav rows plus Inbox and Apps, which the sidebar
 // draws itself.
-export const WORK_SECTION_IDS: string[] = ["inbox", "apps", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
+// Specialists and Missions have their own sidebar sections, like Apps.
+// Entities and Activities (ia-plan.md) are the two group pages; Missions are
+// Activities > Projects.
+export const WORK_SECTION_IDS: string[] = ["inbox", "apps", "specialists", "missions", "entities", "activities", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
 // Old ids that still arrive from deep links and saved state. The Work board
 // ("tasks") is the Tasks list now; the Settings Apps page ("connectors") is
 // the Home Apps page.
-const WORK_ALIASES: Record<string, string> = { tasks: "task-list", connectors: "apps" };
+// Goals and Ideals are views of the Compass page now.
+// Work > Projects became the MISSIONS section.
+// A kind's id opens its group page on that kind's tab (ia.ts noteIaKind).
+const WORK_ALIASES: Record<string, string> = {
+  projects: "missions", tasks: "task-list", connectors: "apps", goals: "compass", "ideal-state": "compass", ideals: "compass", omega: "compass",
+  people: "entities", places: "entities", products: "entities", things: "entities", companies: "entities", events: "activities",
+};
+// Which Compass view an old id asks for (read by the page on open).
+const COMPASS_FOCUS: Record<string, string> = { goals: "goals", "ideal-state": "ideals", ideals: "ideals", omega: "ideals:omega" };
+/** Remember the Compass view an old Goals or Ideals link asked for. */
+export function noteCompassFocus(id: string): void {
+  const f = COMPASS_FOCUS[id];
+  if (!f) return;
+  try { localStorage.setItem("prevail.compass.focus", f); } catch { /* storage off */ }
+  window.dispatchEvent(new Event("prevail:compass-focus"));
+}
 // Screens that were removed. Links saved before that land on Home.
 export const REMOVED_SECTIONS = new Set(["map", "source-map", "source", "spark", "automations", "loopboard", "calendar", "notes"]);
 /** The WorkPanel section an id opens (aliases resolved), or null if it is not one. */
@@ -48,16 +68,15 @@ export function workSection(id: string): string | null {
 
 // Editor mode: configuration.
 export const EDITOR_NAV: NavGroup[] = [
-  { heading: "Intelligence", items: [
+  { heading: "Intelligence", icon: Cpu, tint: "intelligence", items: [
     { id: "models", label: "Models", icon: Layers },
     { id: "council", label: "Council", icon: Scale },
     { id: "toolkit", label: "Toolkit", icon: Blocks },
     { id: "benchmark", label: "Arena", icon: Swords },
   ]},
-  { heading: "Context & Memory", items: [
+  // Entities are a top-level group in the Home sidebar now (ia-plan.md).
+  { heading: "Context & Memory", icon: Brain, tint: "memory", items: [
     { id: "intent", label: "Intent", icon: ScanFace },
-    { id: "entities", label: "Entities", icon: BookUser },
-    { id: "ideal-state", label: "Ideals", icon: Compass },
     { id: "activity", label: "Activity", icon: Activity },
   ]},
   // Each of these is one page whose side column lists what used to be
@@ -94,7 +113,6 @@ export const EDITOR_SUBS: Record<string, [page: string, row: string]> = {
   daemons: ["settings", "daemon:distill"],
   memory: ["settings", "daemon:memory"],
   usage: ["activity", "usage:overview"],
-  omega: ["ideal-state", "omega"],
   // Arena sections before 0.4.1. Scout and Schedule are gone; they land on Run.
   arena: ["benchmark", "run"],
   leaderboard: ["benchmark", "leaderboard"],

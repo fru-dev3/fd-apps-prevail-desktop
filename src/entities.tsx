@@ -7,7 +7,7 @@
 // things open the Entities view with that entity selected (entitiesview.tsx);
 // a chip whose entity is saved to the vault carries a small green dot.
 import React, { useEffect, useState } from "react";
-import { Boxes, Building2, Calendar, CheckSquare, ExternalLink, FileText, MapPin } from "lucide-react";
+import { Calendar, CalendarDays, CheckSquare, ExternalLink, FileText, MapPin, Package, Watch } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "./bridge";
 import { lookupEntity, requestEntity, slugifyName, useEntityStore, type EntitySummary } from "./entitystore";
@@ -16,7 +16,7 @@ import { domainColor, isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
 
-export type EntityKind = "domain" | "person" | "place" | "org" | "thing" | "project" | "task" | "file" | "date";
+export type EntityKind = "domain" | "person" | "place" | "org" | "thing" | "event" | "project" | "task" | "file" | "date";
 
 export interface EntityRef {
   kind: EntityKind;
@@ -26,10 +26,10 @@ export interface EntityRef {
   domain?: string;
 }
 
-const KINDS = new Set<EntityKind>(["domain", "person", "place", "org", "thing", "task", "file", "date"]);
+const KINDS = new Set<EntityKind>(["domain", "person", "place", "org", "thing", "event", "task", "file", "date"]);
 
 // The kinds that are entities with a card (and maybe a vault page).
-export const CARD_KINDS = new Set<EntityKind>(["person", "place", "org", "thing"]);
+export const CARD_KINDS = new Set<EntityKind>(["person", "place", "org", "thing", "event"]);
 
 // The engine id for a chip: <kind>/<slug>.
 export function entityIdOf(ref: EntityRef): string {
@@ -104,6 +104,7 @@ export function openEntity(ref: EntityRef) {
     case "place":
     case "org":
     case "thing":
+    case "event":
       requestEntity({ kind: ref.kind, value: ref.value });
       return;
   }
@@ -146,7 +147,7 @@ export function OrgMark({ name, host, size = 16 }: { name: string; host?: string
       </span>
     );
   }
-  return <Building2 size={size - 3} aria-hidden className="shrink-0 self-center" />;
+  return <Package size={size - 3} aria-hidden className="shrink-0 self-center" />;
 }
 
 // A chip's small picture: the entity's own, or an org's logo (entityavatar).
@@ -240,9 +241,16 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
     case "thing":
       return (
         <a href="#" onClick={onClick} data-entity="thing" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-0.5 ${linkish}`}>
-          <Boxes size={13} aria-hidden className="shrink-0 self-center" />
+          <Watch size={13} aria-hidden className="shrink-0 self-center" />
           {label}
           {known?.saved && <VaultDot />}
+        </a>
+      );
+    case "event":
+      return (
+        <a href="#" onClick={onClick} data-entity="event" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-0.5 ${linkish}`}>
+          <CalendarDays size={13} aria-hidden className="shrink-0 self-center" />
+          {label}
         </a>
       );
     case "task":
@@ -310,15 +318,16 @@ function decodeURIComponentSafe(s: string): string {
 export function entityLinkDirective(domains: string[], saved: { name: string; id: string }[] = []): string {
   const slugs = domains.filter(isUserDomain).slice(0, 60);
   const example = slugs.includes("career") ? "career" : (slugs[0] ?? "career");
-  const own = saved.filter((e) => e.name && /^(person|place|org|thing)\/[a-z0-9-]+$/.test(e.id)).slice(0, 40);
+  const own = saved.filter((e) => e.name && /^(person|place|org|thing|event)\/[a-z0-9-]+$/.test(e.id)).slice(0, 40);
   return [
     "# OUTPUT FORMAT (required): LINK THE THINGS OF THE USER'S OWN LIFE",
-    "This app turns special links into clickable chips. Write the people, places, companies and things that belong to the user's own life (their property, car, lender, tenant, lawyer, doctor, family, employer), and each life domain, task, vault file and specific date, as a markdown link with a prevail:// address.",
+    "This app turns special links into clickable chips. Write the people, places, products (companies, apps, services), things and events that belong to the user's own life (their property, car, lender, tenant, lawyer, doctor, family, employer), and each life domain, task, vault file and specific date, as a markdown link with a prevail:// address.",
     "Link at most 8 people, places, companies and things per reply. Never link inside long generated text such as an essay, a story, a summary of a book, or a list of historical or public figures: those names stay plain.",
     "- person: [Foo Bar](prevail://person/Foo%20Bar)",
     "- place: [Foo Way](prevail://place/Foo%20Way)",
     "- company or product: [Foo Bank](prevail://org/Foo%20Bank)",
-    "- named thing (a vehicle, device, property, policy): [the Foo policy](prevail://thing/Foo%20Policy)",
+    "- named thing the user owns (a phone, a watch, a car, a property): [the Foo watch](prevail://thing/Foo%20Watch)",
+    "- event (a dated happening: a birthday, a holiday, a dinner): [Christmas](prevail://event/Christmas)",
     `- life domain: [${example}](prevail://domain/${example})` + (slugs.length ? `. Only these slugs exist: ${slugs.join(", ")}` : ""),
     "- task (only with a known id): [call the lender](prevail://task/<domain>/<id>)",
     "- vault file (only a path you have seen, relative to the vault root): [state](prevail://file/<path>)",

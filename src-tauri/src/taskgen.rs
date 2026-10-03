@@ -147,8 +147,13 @@ async fn run_once_inner(cfg: &TaskGenConfig, force: bool) -> Result<(u64, u64), 
         return Err(format!("vault not found: {}", cfg.vault));
     }
 
-    let soul = crate::read_to_string_retry(vault.join("soul.md")).unwrap_or_default();
-    let goals = crate::read_to_string_retry(vault.join("goals.md")).unwrap_or_default();
+    // The life-level context: the constitution's text and General's goals
+    // (the life goals). Both used to be read from the vault root (soul.md,
+    // goals.md), where no current vault keeps them, so every prompt had none.
+    let soul = crate::read_to_string_retry(crate::paths::build_root(&cfg.vault).join("ideal-state.md"))
+        .or_else(|_| crate::read_to_string_retry(vault.join("soul.md")))
+        .unwrap_or_default();
+    let life_goals = crate::read_to_string_retry(crate::paths::general_dir(&cfg.vault).join("source").join("goals.md")).unwrap_or_default();
 
     let today_ts = now_secs();
     const ONE_DAY: u64 = 86400;
@@ -166,6 +171,9 @@ async fn run_once_inner(cfg: &TaskGenConfig, force: bool) -> Result<(u64, u64), 
             continue;
         }
 
+        // This domain's goals (the one store, source/goals.md), then the life goals.
+        let own = crate::read_to_string_retry(domain_dir.join("source").join("goals.md")).unwrap_or_default();
+        let goals = if domain == "general" { life_goals.clone() } else { format!("{own}\n{life_goals}") };
         match generate_for_domain(cfg, &domain, &domain_dir, &soul, &goals).await {
             Ok(n) => {
                 write_cursor(&domain_dir, &Cursor {
@@ -201,9 +209,11 @@ async fn generate_for_domain(
     soul: &str,
     goals: &str,
 ) -> Result<u64, String> {
-    let memory = crate::read_to_string_retry(domain_dir.join("_memory.md")).unwrap_or_default();
-    let state_md = crate::read_to_string_retry(domain_dir.join("_state.md")).unwrap_or_default();
-    let existing = crate::read_to_string_retry(domain_dir.join("_tasks.md")).unwrap_or_default();
+    // v4 homes (memory/...) on a migrated domain, the flat legacy names otherwise.
+    let memory = crate::read_to_string_retry(crate::paths::v4_content_path(domain_dir, "memory/memory.md", "_memory.md")).unwrap_or_default();
+    let state_md = crate::read_to_string_retry(crate::paths::v4_content_path(domain_dir, "memory/state.md", "_state.md")).unwrap_or_default();
+    let tasks_path = crate::paths::v4_content_path(domain_dir, "memory/tasks.md", "_tasks.md");
+    let existing = crate::read_to_string_retry(&tasks_path).unwrap_or_default();
 
     if memory.trim().is_empty() && state_md.trim().is_empty() {
         return Ok(0);
@@ -241,7 +251,6 @@ async fn generate_for_domain(
         return Ok(0);
     }
 
-    let tasks_path = domain_dir.join("_tasks.md");
     let mut content = existing.clone();
     if !content.is_empty() && !content.ends_with('\n') {
         content.push('\n');

@@ -117,7 +117,7 @@ export type AddSourceResult = { app: MirrorApp; probe: SourceProbe; adopted: boo
 export type UntrustedSource = { id: string; name: string; integration: SourceKind; urls: string[] };
 
 // ── @-references ────────────────────────────────────────────────────────────
-export type RefKind = "app" | "entity" | "domain";
+export type RefKind = "app" | "entity" | "domain" | "specialist" | "mission";
 export type ChatRef = { kind: RefKind; id: string; label: string };
 export function addRef(list: ChatRef[], r: ChatRef): ChatRef[] {
   return list.some((x) => x.kind === r.kind && x.id === r.id) ? list : [...list, r];
@@ -125,7 +125,8 @@ export function addRef(list: ChatRef[], r: ChatRef): ChatRef[] {
 // What send passes to engine_chat: chips become --app / --entity / --ref-domain.
 export function refsToChatArgs(refs: ChatRef[]): { apps: string[]; entities: string[]; refDomains: string[] } {
   const pick = (k: RefKind) => Array.from(new Set(refs.filter((r) => r.kind === k).map((r) => r.id)));
-  return { apps: pick("app").filter((id) => APP_ID_RE.test(id)), entities: pick("entity"), refDomains: pick("domain") };
+  // An @ mission rides as the id mission/<slug>: the engine adds a short brief of it.
+  return { apps: pick("app").filter((id) => APP_ID_RE.test(id)), entities: [...pick("entity"), ...pick("mission").map((s) => `mission/${s}`)], refDomains: pick("domain") };
 }
 
 // ── What a reply did with apps ──────────────────────────────────────────────

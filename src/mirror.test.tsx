@@ -339,7 +339,8 @@ describe("collapsible sidebars", () => {
     await screen.findByTestId("featured-finding");
     expect(screen.getByTestId("period-list")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Collapse periods"));
-    expect(screen.queryByTestId("period-list")).toBeNull();
+    // Collapsed, the periods stay as an icon rail inside the strip.
+    expect(screen.getByTestId("spine-collapsed").contains(screen.getByTestId("period-list"))).toBe(true);
     expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("collapsed");
     expect(screen.getByTestId("featured-finding")).toBeTruthy();
     expect(localStorage.getItem("prevail.intent.spine.noticed")).toBe("1");
@@ -352,7 +353,7 @@ describe("collapsible sidebars", () => {
     localStorage.setItem("prevail.mirror.view", "noticed");
     render(<MirrorPanel vaultPath="/v" />);
     await screen.findByTestId("featured-finding");
-    expect(screen.queryByTestId("period-list")).toBeNull();
+    expect(screen.getByTestId("spine-collapsed")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Show periods"));
     expect(screen.getByTestId("period-list")).toBeTruthy();
     expect(localStorage.getItem("prevail.intent.spine.noticed")).toBe("0");

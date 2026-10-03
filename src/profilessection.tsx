@@ -1,7 +1,7 @@
 // Profiles management (Editor → App → Profiles). Create, edit, and remove the
 // isolated profiles you switch between. Each profile points at its own vault
 // folder and may have an optional passcode. Switching here (or from the sidebar
-// ProfileSwitcher) swaps the active vault — App performs the actual swap.
+// ProfileSwitcher) swaps the active vault, App performs the actual swap.
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
@@ -26,7 +26,7 @@ function Avatar({ p, size }: { p: { label: string; email?: string; color?: strin
     return <img src={p.image} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />;
   }
   return (
-    <span className="flex shrink-0 items-center justify-center rounded-full font-semibold text-background" style={{ width: size, height: size, fontSize: size * 0.42, background: p.color || "#008000" }}>
+    <span className="flex shrink-0 items-center justify-center rounded-full font-semibold text-background" style={{ width: size, height: size, fontSize: size * 0.42, background: p.color || "var(--color-accent)" }}>
       {(p.label || p.email || "?").trim().slice(0, 1).toUpperCase()}
     </span>
   );
@@ -61,7 +61,7 @@ export function ProfilesSection() {
         try {
           const ds = await invoke<{ name: string }[]>("scan_vault", { path: p.vaultPath });
           if (Array.isArray(ds)) next[p.id] = ds.filter((d) => isUserDomain(d.name)).length;
-        } catch { /* vault not scannable yet — leave its count unset */ }
+        } catch { /* vault not scannable yet, leave its count unset */ }
       }
       if (!cancelled) setCounts(next);
     })();
@@ -101,7 +101,7 @@ export function ProfilesSection() {
     } catch (e) { console.error("pick vault", e); }
   };
   // One-click: create a fresh, populated vault from the bundled sample and use
-  // it as this profile's vault — so a new profile isn't an empty dead end.
+  // it as this profile's vault, so a new profile isn't an empty dead end.
   const useSampleData = async () => {
     if (!draft) return;
     setSampling(true);
@@ -194,7 +194,7 @@ export function ProfilesSection() {
           </div>
           <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Picture</label>
+              <label className="mb-1 block text-[12px] text-text-muted">Picture</label>
               <div className="flex items-center gap-3">
                 <Avatar p={{ label: draft.label, email: draft.email, color: draft.color, image: draft.image }} size={48} />
                 <label className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-strong hover:text-text-primary">
@@ -202,42 +202,42 @@ export function ProfilesSection() {
                   <input type="file" accept="image/*" className="hidden" onChange={(e) => { void onPickImage(e.target.files?.[0]); e.currentTarget.value = ""; }} />
                 </label>
                 {draft.image && (
-                  <button onClick={() => setDraft({ ...draft, image: undefined })} className="text-[11px] text-text-muted underline hover:text-err">Remove</button>
+                  <button onClick={() => setDraft({ ...draft, image: undefined })} className="text-[12px] text-text-muted underline hover:text-err">Remove</button>
                 )}
               </div>
-              <p className="mt-1 text-[11px] text-text-muted">Optional. Falls back to a colored initial if no image is set.</p>
+              <p className="mt-1 text-[12px] text-text-muted">Optional. Falls back to a colored initial if no image is set.</p>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Name</label>
+              <label className="mb-1 block text-[12px] text-text-muted">Name</label>
               <input value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="e.g. Personal" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Email <span className="text-text-muted/60">(optional label)</span></label>
+              <label className="mb-1 block text-[12px] text-text-muted">Email <span className="text-text-muted/60">(optional label)</span></label>
               <input value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} placeholder="you@example.com" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Vault folder</label>
+              <label className="mb-1 block text-[12px] text-text-muted">Vault folder</label>
               <div className="flex items-center gap-2">
                 <input value={draft.vaultPath} readOnly placeholder="Choose a folder…" className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-3 py-2 text-sm text-text-secondary" />
                 <button onClick={() => void pickFolder()} className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm text-text-secondary hover:bg-surface-strong hover:text-text-primary"><FolderOpen className="h-4 w-4" /> Browse</button>
               </div>
               <div className="mt-1.5 flex items-center justify-between">
-                <p className="text-[11px] text-text-muted">Each profile needs its own vault folder. That's what makes it isolated.</p>
-                <button onClick={() => void useSampleData()} disabled={sampling} className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-accent hover:underline disabled:opacity-50">
+                <p className="text-[12px] text-text-muted">Each profile needs its own vault folder. That's what makes it isolated.</p>
+                <button onClick={() => void useSampleData()} disabled={sampling} className="flex shrink-0 items-center gap-1 text-[12px] font-medium text-accent hover:underline disabled:opacity-50">
                   <Sparkles className="h-3 w-3" /> {sampling ? "Creating…" : "Start from sample data"}
                 </button>
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Passcode <span className="text-text-muted/60">(optional)</span></label>
+              <label className="mb-1 block text-[12px] text-text-muted">Passcode <span className="text-text-muted/60">(optional)</span></label>
               <input type="password" value={draft.passcode} onChange={(e) => setDraft({ ...draft, passcode: e.target.value })} placeholder={draft.hadPass ? "•••••• (set, type to change)" : "Set a passcode to gate this profile"} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent-border focus:outline-none" />
               {draft.hadPass && (
-                <button onClick={clearPasscode} className="mt-1 text-[11px] text-text-muted underline hover:text-err">Remove passcode</button>
+                <button onClick={clearPasscode} className="mt-1 text-[12px] text-text-muted underline hover:text-err">Remove passcode</button>
               )}
-              <p className="mt-1 text-[11px] text-text-muted">A soft gate before opening. For true at-rest protection, also encrypt this profile's vault.</p>
+              <p className="mt-1 text-[12px] text-text-muted">A soft gate before opening. For true at-rest protection, also encrypt this profile's vault.</p>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] text-text-muted">Color</label>
+              <label className="mb-1 block text-[12px] text-text-muted">Color</label>
               <div className="flex gap-1.5">
                 {PROFILE_COLORS.map((c) => (
                   <button key={c} onClick={() => setDraft({ ...draft, color: c })} className={`h-6 w-6 rounded-full ring-2 ring-offset-2 ring-offset-surface-warm ${draft.color === c ? "ring-accent" : "ring-transparent"}`} style={{ background: c }} title={c} />
@@ -253,7 +253,7 @@ export function ProfilesSection() {
         </div>
       )}
 
-      {/* Profile list — rich, full-width cards. The active one is ringed in accent;
+      {/* Profile list, rich, full-width cards. The active one is ringed in accent;
           every card lifts + brightens on hover so the target is obvious. */}
       {!draft && err && <div className="mb-3 text-xs text-err">{err}</div>}
       {/* With no profiles the page was a title, a button, and an empty screen -
@@ -303,10 +303,10 @@ export function ProfilesSection() {
                   {p.email && <span className="block truncate text-xs text-text-muted">{p.email}</span>}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1">
                     {isActive && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-background">Active</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[12px] font-bold text-background">Active</span>
                     )}
                     {isDefault && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-warn/15 px-2 py-0.5 text-[11px] font-bold text-warn">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-warn/15 px-2 py-0.5 text-[12px] font-bold text-warn">
                         <Star className="h-2.5 w-2.5 fill-current" /> Default
                       </span>
                     )}
@@ -318,11 +318,11 @@ export function ProfilesSection() {
               <div className="mt-3 space-y-1.5 rounded-lg border border-border-subtle bg-background px-2.5 py-2">
                 <div className="flex items-center gap-1.5">
                   <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-                  <span className="min-w-0 flex-1 truncate text-[11px] text-text-secondary" title={p.vaultPath}>{p.vaultPath}</span>
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-text-secondary" title={p.vaultPath}>{p.vaultPath}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-                  <span className="text-[11px] text-text-muted">
+                  <span className="text-[12px] text-text-muted">
                     {count === undefined ? "domains -" : `${count} domain${count === 1 ? "" : "s"}`}
                   </span>
                 </div>
@@ -364,7 +364,7 @@ export function ProfilesSection() {
                 <div className="mt-3 flex items-center gap-2 border-t border-border-subtle pt-3">
                   <input autoFocus type="password" value={gateCode} onChange={(e) => { setGateCode(e.target.value); setGateErr(null); }} onKeyDown={(e) => { if (e.key === "Enter") void doSwitch(p, gateCode); if (e.key === "Escape") setGateId(null); }} placeholder="Passcode" className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:border-accent-border focus:outline-none" />
                   <button onClick={() => void doSwitch(p, gateCode)} className="shrink-0 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-accent-hover">Unlock & switch</button>
-                  {gateErr && <span className="shrink-0 text-[10px] text-err">{gateErr}</span>}
+                  {gateErr && <span className="shrink-0 text-[12px] text-err">{gateErr}</span>}
                 </div>
               )}
             </li>

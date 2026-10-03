@@ -84,7 +84,7 @@ export function ProvidersSection({ onActivated, embedded }: { onActivated?: () =
         storageKey="prevail.settings.aggregator.openrouter"
         defaultOpen
       >
-      <div className="rounded-lg border border-border bg-surface p-5">
+      <div className="border-t border-border-subtle pt-4">
         <div className="mb-3 text-xs text-text-secondary">One API key unlocks every model. Used by the engine inside any domain. <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-accent hover:underline">Get a key ›</a></div>
         <div className="flex items-center gap-2">
           <input type="password" value={key} placeholder={configured ? "•••••••• (replace)" : "sk-or-v1-…"} onChange={(e) => setKey(e.target.value)}
@@ -124,10 +124,10 @@ export function ProvidersSection({ onActivated, embedded }: { onActivated?: () =
             Key saved, but OpenRouter didn&apos;t come online. Double-check the key at openrouter.ai/keys.
           </div>
         )}
-        {/* Pure search over the full live catalog — every model is available;
+        {/* Pure search over the full live catalog, every model is available;
             there's no curated/highlighted subset to maintain. */}
         <div className="mt-4 border-t border-border-subtle pt-3">
-          <div className="mb-2 flex items-center gap-2 text-[11px] text-text-secondary">
+          <div className="mb-2 flex items-center gap-2 text-[12px] text-text-secondary">
             <Layers className="h-3 w-3 text-accent" /> Model catalog
             {orLive.length > 0 && <span className="text-text-muted normal-case tracking-normal">· {orLive.length} live models, search to browse</span>}
           </div>
@@ -152,13 +152,13 @@ export function ProvidersSection({ onActivated, embedded }: { onActivated?: () =
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-warm"
                   >
                     <OrVendorMark id={m.id} size={16} />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-primary">{m.label && m.label !== m.id ? m.label : m.id}</span>
-                    <span className="shrink-0 font-mono text-[10px] text-text-muted">{orVendorOf(m.id) || "model"}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-text-primary">{m.label && m.label !== m.id ? m.label : m.id}</span>
+                    <span className="shrink-0 font-mono text-[12px] text-text-muted">{orVendorOf(m.id) || "model"}</span>
                   </button>
                 ))
               )}
               {!orQuery.trim() && orLive.length > 80 && (
-                <div className="px-3 py-1.5 font-mono text-[10px] text-text-muted">+{orLive.length - 80} more, search to find them</div>
+                <div className="px-3 py-1.5 font-mono text-[12px] text-text-muted">+{orLive.length - 80} more, search to find them</div>
               )}
             </div>
           )}
@@ -245,8 +245,8 @@ function DirectProviderRow({ id, label, hint, onActivated }: {
       <div className="flex items-center gap-2">
         <span className="flex-1 text-sm font-semibold text-text-primary">{label}</span>
         {configured
-          ? <span className="inline-flex items-center gap-1 text-[11px] text-ok"><Check className="h-3 w-3" /> key set</span>
-          : <span className="font-mono text-[11px] text-text-muted">No key</span>}
+          ? <span className="inline-flex items-center gap-1 text-[12px] text-ok"><Check className="h-3 w-3" /> key set</span>
+          : <span className="font-mono text-[12px] text-text-muted">No key</span>}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <input
@@ -257,18 +257,18 @@ function DirectProviderRow({ id, label, hint, onActivated }: {
           className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-accent-border focus:outline-none"
         />
         <button onClick={save} disabled={busy || !key.trim()}
-          className="rounded-md bg-accent px-2.5 py-1 text-[11px] text-background hover:opacity-90 disabled:opacity-50">
+          className="rounded-md bg-accent px-2.5 py-1 text-[12px] text-background hover:opacity-90 disabled:opacity-50">
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : "save"}
         </button>
         {configured && (
           <button onClick={remove} disabled={busy}
-            className="rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:border-err hover:text-err disabled:opacity-50">
+            className="rounded-md border border-border px-2 py-1 text-[12px] text-text-muted hover:border-err hover:text-err disabled:opacity-50">
             remove
           </button>
         )}
       </div>
-      {activated === true && <div className="mt-1.5 text-[11px] text-ok">Live: {label} answered with this key. Selectable in Chat, Council, and Benchmark pickers.</div>}
-      {activated === false && <div className="mt-1.5 text-[11px] text-warn">Key saved, but {label} didn&apos;t come online. Double-check it.</div>}
+      {activated === true && <div className="mt-1.5 text-[12px] text-ok">Live: {label} answered with this key. Selectable in Chat, Council, and Benchmark pickers.</div>}
+      {activated === false && <div className="mt-1.5 text-[12px] text-warn">Key saved, but {label} didn&apos;t come online. Double-check it.</div>}
     </div>
   );
 }

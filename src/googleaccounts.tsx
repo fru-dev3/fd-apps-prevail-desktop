@@ -91,7 +91,7 @@ export function GoogleAccountsCard({ vaultPath, onChanged }: { vaultPath: string
 
   const btn = "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45";
   return (
-    <div className="mb-4 rounded-xl border border-border-subtle bg-surface p-4">
+    <div className="mb-4 border-t border-border-subtle pt-4">
       <h3 className="text-base font-semibold text-text-primary">Google accounts</h3>
       <p className="mt-0.5 text-[13px] text-text-muted">Calendar reads events through the Google Workspace CLI, one sign-in per account.</p>
       {cli === null ? (

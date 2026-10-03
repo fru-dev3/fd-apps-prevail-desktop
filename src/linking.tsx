@@ -4,6 +4,7 @@
 // (`prevail updates`). This file draws that reach: the quiet "Also noted in"
 // line under a reply, "Across your life" on a domain and an entity, "Your
 // things" on a domain, and the Yours / Reference split of entities.
+import { useState, type ReactNode } from "react";
 import { ArrowRight, MessagesSquare } from "lucide-react";
 import { invoke } from "./bridge";
 import { useInvokeQuery, invalidateQueries } from "./query";
@@ -12,12 +13,13 @@ import { domainColor } from "./helpers";
 import { domainIcon } from "./icons";
 import { requestEntity, useEntityStore, type EntityKindName, type EntitySummary } from "./entitystore";
 import { resolveThreadPath } from "./entitythreads";
-import { META } from "./typescale";
+import { BODY, META } from "./typescale";
+import { REVEAL } from "./ui";
 
 // Fired after a `touched` event, so every "Across your life" list refetches.
 export const TOUCHED_EVENT = "prevail:touched";
 
-export interface Touched { thread?: string; domains: { slug: string; fact?: string }[]; entities: string[] }
+export interface Touched { thread?: string; ts?: number; domains: { slug: string; fact?: string }[]; entities: string[] }
 
 export interface UpdateLine {
   ts: string | number;
@@ -35,13 +37,13 @@ export type Relation = "yours" | "reference";
 export const isYours = (e: { relation?: string } | null | undefined): boolean => e?.relation !== "reference";
 
 // The `touched` event, cleaned: known shapes only, never the home domain twice.
-export function parseTouched(ev: { thread?: string; domains?: unknown; entities?: unknown }): Touched | null {
+export function parseTouched(ev: { thread?: string; ts?: unknown; domains?: unknown; entities?: unknown }): Touched | null {
   const domains = (Array.isArray(ev.domains) ? ev.domains : [])
     .map((d) => (typeof d === "string" ? { slug: d } : d && typeof d === "object" && typeof (d as { slug?: unknown }).slug === "string" ? { slug: (d as { slug: string }).slug, fact: typeof (d as { fact?: unknown }).fact === "string" ? (d as { fact: string }).fact : undefined } : null))
     .filter((d): d is { slug: string; fact?: string } => !!d && !!d.slug);
   const entities = (Array.isArray(ev.entities) ? ev.entities : []).filter((x): x is string => typeof x === "string" && x.includes("/"));
   if (!domains.length && !entities.length) return null;
-  return { thread: ev.thread, domains, entities };
+  return { thread: ev.thread, ...(typeof ev.ts === "number" ? { ts: ev.ts } : {}), domains, entities };
 }
 
 const tsOf = (t: string | number) => (typeof t === "number" ? t : Date.parse(t));
@@ -78,63 +80,88 @@ export function useUpdates(vaultPath: string | null, target: { domain: string } 
   return { lines, loading: q.loading };
 }
 
-// A domain as a small tinted chip that opens it.
+// A domain as a quiet label (its icon in the domain colour) that opens it.
+// Text, not a tinted pill, so a row of them never reads as a row of chips.
 export function DomainChip({ slug, still = false }: { slug: string; still?: boolean }) {
   const color = domainColor(slug);
   const Icon = domainIcon(slug);
+  const inner = <>{Icon && <Icon size={12} aria-hidden style={{ color }} />}{titleCase(slug)}</>;
   // Inside another button (an entity row) it is a plain label, never a nested button.
-  if (still) {
-    return (
-      <span data-testid="domain-chip" className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-px text-[12px] font-semibold" style={{ color, backgroundColor: `${color}1f` }}>
-        {Icon && <Icon size={12} aria-hidden />}{titleCase(slug)}
-      </span>
-    );
-  }
+  if (still) return <span data-testid="domain-chip" className="inline-flex shrink-0 items-center gap-1 text-[12px] text-text-secondary">{inner}</span>;
   return (
     <button type="button" data-testid="domain-chip" onClick={() => fire("prevail:open-domain", slug === "general" ? "" : slug)} title={`Open ${titleCase(slug)}`}
-      className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-px text-[12px] font-semibold"
-      style={{ color, backgroundColor: `${color}1f` }}>
-      {Icon && <Icon size={12} aria-hidden />}{titleCase(slug)}
+      className="inline-flex shrink-0 items-center gap-1 text-[12px] text-text-secondary hover:text-accent">
+      {inner}
     </button>
   );
 }
 
-// Under a reply: "Also noted in Insurance, Legal · Foo Way". Each name opens it.
-export function TouchedLine({ touched }: { touched: Touched }) {
+// Under a reply: "Noted in Content, Real Estate · Foo Way · Undo". Each name
+// opens it; Undo takes back exactly the lines this turn wrote in those domains.
+export function TouchedLine({ touched, onUndo, undone = false }: { touched: Touched; onUndo?: () => Promise<void> | void; undone?: boolean }) {
   const { byId } = useEntityStore();
+  const [busy, setBusy] = useState(false);
   const link = "font-medium text-text-secondary underline decoration-border underline-offset-[3px] hover:text-accent hover:decoration-accent";
+  if (undone && !touched.entities.length) return <p data-testid="touched-line" className="mt-1.5 px-1 text-[12px] text-text-muted">Taken back from {touched.domains.map((d) => titleCase(d.slug)).join(", ")}.</p>;
+  const domains = undone ? [] : touched.domains;
   return (
-    <p data-testid="touched-line" className="mt-1.5 flex flex-wrap items-baseline gap-x-1 px-1 text-[13px] text-text-muted">
-      <span>Also noted in</span>
-      {touched.domains.map((d, i) => (
+    <p data-testid="touched-line" className="mt-1.5 flex flex-wrap items-baseline gap-x-1 px-1 text-[12px] text-text-muted">
+      <span>{domains.length ? "Noted in" : "About"}</span>
+      {domains.map((d, i) => (
         <span key={d.slug}>
           <button type="button" data-testid="touched-domain" title={d.fact} onClick={() => fire("prevail:open-domain", d.slug)} className={link}>{titleCase(d.slug)}</button>
-          {i < touched.domains.length - 1 ? "," : ""}
+          {i < domains.length - 1 ? "," : ""}
         </span>
       ))}
-      {touched.entities.length > 0 && touched.domains.length > 0 && <span aria-hidden>·</span>}
+      {touched.entities.length > 0 && domains.length > 0 && <span aria-hidden>·</span>}
       {touched.entities.map((id, i) => (
         <span key={id}>
           <button type="button" data-testid="touched-entity" onClick={() => openEntityId(id)} className={link}>{entityName(id, byId)}</button>
           {i < touched.entities.length - 1 ? "," : ""}
         </span>
       ))}
+      {onUndo && domains.length > 0 && touched.ts && (
+        <>
+          <span aria-hidden>·</span>
+          <button type="button" data-testid="touched-undo" disabled={busy} onClick={() => { setBusy(true); void Promise.resolve(onUndo()).finally(() => setBusy(false)); }} className="hover:text-accent disabled:opacity-50">{busy ? "Undoing" : "Undo"}</button>
+        </>
+      )}
+    </p>
+  );
+}
+
+// Under a reply: "Saved a decision: Learn cello · Open · Undo".
+export function DecisionReceipt({ decision, onUndo, undone = false }: { decision: { domain: string; slug: string; what: string }; onUndo?: () => Promise<void> | void; undone?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  if (undone) return <p data-testid="decision-receipt" className="mt-1 px-1 text-[12px] text-text-muted">Decision taken back.</p>;
+  const open = () => {
+    try { localStorage.setItem("prevail.decisions.focus", `${decision.domain}/${decision.slug}`); } catch { /* storage off */ }
+    fire("prevail:work-section", "decisions");
+    fire("prevail:decisions-focus", `${decision.domain}/${decision.slug}`);
+  };
+  return (
+    <p data-testid="decision-receipt" className="mt-1 flex flex-wrap items-baseline gap-x-1 px-1 text-[12px] text-text-muted">
+      <span>Saved a decision:</span>
+      <button type="button" onClick={open} title="Open it in Decisions" className="font-medium text-text-secondary underline decoration-border underline-offset-[3px] hover:text-accent hover:decoration-accent">{decision.what}</button>
+      {onUndo && <><span aria-hidden>·</span><button type="button" data-testid="decision-undo" disabled={busy} onClick={() => { setBusy(true); void Promise.resolve(onUndo()).finally(() => setBusy(false)); }} className="hover:text-accent disabled:opacity-50">{busy ? "Undoing" : "Undo"}</button></>}
     </p>
   );
 }
 
 function UpdateRow({ u, vaultPath, showSource }: { u: UpdateLine; vaultPath: string; showSource: boolean }) {
   return (
-    <li data-testid="update-row" className="flex flex-col gap-1 border-b border-border-subtle py-3 last:border-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={META}>{fmtDay(u.ts)}</span>
-        {showSource && u.from_domain && <DomainChip slug={u.from_domain} />}
+    <li data-testid="update-row" className="group flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-0">
+      <div className="min-w-0 flex-1">
+        <p className={`${BODY} text-text-primary`}>{u.fact}</p>
+        <div className={`${META} mt-0.5 flex flex-wrap items-center gap-x-1.5`}>
+          <span>{fmtDay(u.ts)}</span>
+          {showSource && u.from_domain && <><span aria-hidden>·</span><span>From</span><DomainChip slug={u.from_domain} /></>}
+        </div>
       </div>
-      <p className="text-[15px] leading-relaxed text-text-primary">{u.fact}</p>
       {u.thread && (
-        <button type="button" data-testid="update-open-thread" onClick={() => { void openUpdateThread(vaultPath, u); }}
-          className="inline-flex w-fit items-center gap-1.5 text-[13px] font-medium text-accent hover:underline">
-          <MessagesSquare className="h-3.5 w-3.5" aria-hidden />Open the conversation
+        <button type="button" data-testid="update-open-thread" onClick={() => { void openUpdateThread(vaultPath, u); }} title="Open the conversation" aria-label="Open the conversation"
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-strong hover:text-accent ${REVEAL}`}>
+          <MessagesSquare className="h-4 w-4" aria-hidden />
         </button>
       )}
     </li>
@@ -142,11 +169,13 @@ function UpdateRow({ u, vaultPath, showSource }: { u: UpdateLine; vaultPath: str
 }
 
 // "Across your life": what conversations elsewhere noted for this domain or entity.
-export function AcrossYourLife({ vaultPath, target, emptyName }: { vaultPath: string; target: { domain: string } | { entity: string }; emptyName: string }) {
+export function AcrossYourLife({ vaultPath, target, emptyName, wrap }: { vaultPath: string; target: { domain: string } | { entity: string }; emptyName: string; wrap?: (n: ReactNode) => ReactNode }) {
   const { lines, loading } = useUpdates(vaultPath, target);
+  // Wrapped (an entity page), it shows only once there is something to show.
+  if (wrap) return loading || !lines.length ? null : <>{wrap(<ul data-testid="across-list" className="max-w-3xl">{lines.map((u, i) => <UpdateRow key={`${u.ts}:${u.thread}:${i}`} u={u} vaultPath={vaultPath} showSource />)}</ul>)}</>;
   if (loading) return <p className={META}>Reading updates</p>;
   if (!lines.length) {
-    return <p data-testid="across-empty" className="text-[14px] text-text-muted">Nothing from other domains yet. When a conversation somewhere else touches {emptyName}, it shows here.</p>;
+    return <p data-testid="across-empty" className={META}>Nothing from other domains yet. When a conversation somewhere else touches {emptyName}, it shows here.</p>;
   }
   return <ul data-testid="across-list" className="max-w-3xl">{lines.map((u, i) => <UpdateRow key={`${u.ts}:${u.thread}:${i}`} u={u} vaultPath={vaultPath} showSource />)}</ul>;
 }
@@ -158,12 +187,12 @@ export function AcrossCard({ vaultPath, domain, onOpen }: { vaultPath: string; d
   const from = [...new Set(lines.map((u) => u.from_domain).filter(Boolean))].slice(0, 3).map(titleCase).join(", ");
   return (
     <button type="button" data-testid="across-card" onClick={onOpen}
-      className="mb-3 flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-accent-border hover:bg-surface-warm">
+      className="group mb-3 flex w-full items-center gap-3 border-b border-border-subtle pb-2.5 text-left">
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold text-text-primary">{lines.length} {lines.length === 1 ? "update" : "updates"} from other domains</span>
-        <span className="block truncate text-[13px] text-text-muted">{from ? `From ${from}. ` : ""}{lines[0].fact}</span>
+        <span className="block text-[14px] font-medium text-text-primary group-hover:text-accent">{lines.length} {lines.length === 1 ? "update" : "updates"} from other domains</span>
+        <span className={`${META} block truncate`} title={lines[0].fact}>{from ? `From ${from} · ` : ""}{lines[0].fact}</span>
       </span>
-      <ArrowRight className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted group-hover:text-accent" aria-hidden />
     </button>
   );
 }
@@ -179,3 +208,23 @@ export async function setRelation(vaultPath: string, id: string, relation: Relat
   invalidateQueries("entities_show");
   fire("prevail:entities-changed");
 }
+
+// ── Undo for the receipts under a reply ──────────────────────────────────
+// The engine takes back exactly what that turn wrote; the thread keeps a
+// note that it was undone (the chat panel listens for RECEIPT_UNDONE).
+export const RECEIPT_UNDONE = "prevail:receipt-undone";
+const vaultOf = () => { try { return localStorage.getItem("prevail.desktop.vaultPath") ?? ""; } catch { return ""; } };
+
+export async function undoTouched(t: Touched): Promise<void> {
+  if (!t.ts || !t.thread) return;
+  await invoke("engine_touch_undo", { vault: vaultOf(), thread: t.thread, ts: t.ts, domains: t.domains.map((d) => d.slug) });
+  invalidateQueries("engine_updates");
+  fire(RECEIPT_UNDONE, { kind: "noted", ts: t.ts });
+}
+
+export async function undoDecision(d: { domain: string; slug: string }): Promise<void> {
+  await invoke("engine_decision_undo", { vault: vaultOf(), domain: d.domain, slug: d.slug });
+  invalidateQueries("engine_decisions");
+  fire(RECEIPT_UNDONE, { kind: "decision", slug: d.slug });
+}
+

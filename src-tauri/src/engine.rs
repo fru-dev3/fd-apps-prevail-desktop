@@ -1492,8 +1492,10 @@ pub fn engine_apps_sync_due(vault: String) -> Result<serde_json::Value, String> 
     run_engine_json(&["connectors", "sync-due", "--vault", &vault, "--json"])
 }
 
-/// Ideal-state alignment report: per-pillar fit score + rationale + actions.
-/// Signal mode (no model) by default; fast + side-effect-light.
+/// Ideal-state alignment report: per-domain fit score + rationale + actions.
+/// The engine scores with a model by default (domains, their goals and
+/// ideals) and reuses a recent report, so asking on every open costs at most
+/// one model call a day.
 #[tauri::command(async)]
 pub fn engine_alignment(vault: String) -> Result<serde_json::Value, String> {
     run_engine_json(&["--vault", &vault, "alignment", "--json"])
@@ -1646,6 +1648,12 @@ pub(crate) fn app_secret_index_path() -> Option<std::path::PathBuf> {
 /// lockstep with this file (read on boot, written on vault switch) so the UI,
 /// the engine, and the daemons never diverge onto different vault folders.
 fn engine_config_path() -> Option<std::path::PathBuf> {
+    // PREVAIL_CONFIG_DIR is the engine's own seam (config.ts configDir): a dev
+    // run against a vault copy points both sides at a throwaway config, so the
+    // real ~/.prevail/config.json is never read or written.
+    if let Ok(d) = std::env::var("PREVAIL_CONFIG_DIR") {
+        if !d.trim().is_empty() { return Some(std::path::Path::new(&d).join("config.json")); }
+    }
     let home = std::env::var("HOME").ok()?;
     Some(std::path::Path::new(&home).join(".prevail").join("config.json"))
 }
@@ -2633,8 +2641,17 @@ pub async fn engine_chat(
     // Incognito turns leave no trace, so the engine must not link them into
     // other domains or entities (--incognito skips the touch step).
     incognito: Option<bool>,
+    // How the reply should be written (the desktop's prevail:// link format).
+    // Output format only: the engine puts it in the system channel, so a
+    // domain turn's context stays what its scope resolver built.
+    #[allow(non_snake_case)] outputHint: Option<String>,
+    // Group chat: specialists named on this turn (--to, routed in code before
+    // any model call) and the thread's members (--member). Ids only.
+    to: Option<Vec<String>>,
+    members: Option<Vec<String>>,
 ) -> Result<(), String> {
-    let refs = chat_ref_args(entity, apps, entities, ref_domains, scope_app)?;
+    let mut refs = chat_ref_args(entity, apps, entities, ref_domains, scope_app)?;
+    refs.extend(member_args(to, members));
     // Build the arg vector. `--vault V` goes BEFORE the subcommand,
     // matching every other engine command here.
     let mut args: Vec<String> = vec![
@@ -2707,6 +2724,10 @@ pub async fn engine_chat(
     if inheritUserMcp.unwrap_or(false) {
         args.push("--inherit-user-mcp".to_string());
     }
+    if let Some(h) = outputHint.filter(|s| !s.trim().is_empty()) {
+        args.push("--output-hint".to_string());
+        args.push(h.chars().take(8000).collect());
+    }
     if let Some(t) = thread.filter(|s| !s.trim().is_empty()) {
         args.push("--thread".to_string());
         args.push(t);
@@ -2717,6 +2738,15 @@ pub async fn engine_chat(
     args.extend(refs);
 
     run_engine_stream_stdin(app, session, args, message, "engine-chat", extra_env).await
+}
+
+/// The group chat flags for one turn: each id checked so a crafted one can
+/// never pose as a flag (a leading dash fails the id shape).
+pub(crate) fn member_args(to: Option<Vec<String>>, members: Option<Vec<String>>) -> Vec<String> {
+    let mut out = Vec::new();
+    for id in crate::threads::clean_members(&to.unwrap_or_default()) { out.push("--to".to_string()); out.push(id); }
+    for id in crate::threads::clean_members(&members.unwrap_or_default()) { out.push("--member".to_string()); out.push(id); }
+    out
 }
 
 /// The scope and @-reference flags for one chat turn, each value checked so a

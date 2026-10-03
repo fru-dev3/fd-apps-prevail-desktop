@@ -7,7 +7,7 @@ import { RowAction } from "./rowaction";
 import { WaitingChip } from "./actcard";
 import { entitySnapshot } from "./entitystore";
 import { useWaitingState, waitingThreadPaths } from "./waiting";
-import { Archive, ArrowRight, Check, ChevronDown, ChevronRight, Cpu, Download, Folder, Lightbulb, Link2, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, RefreshCw, Search, Shield, Sparkles, Trash2, UserRound, Wrench, X } from "lucide-react";
+import { Archive, Settings2, ArrowRight, Check, ChevronDown, ChevronRight, Cpu, Download, Folder, Lightbulb, Link2, Loader2, LucideIcon, Mail, MessagesSquare, PenLine, Pencil, Plus, RefreshCw, Search, Shield, Sparkles, Trash2, UserRound, Wrench, X } from "lucide-react";
 import { siWhatsapp } from "simple-icons";
 import { PrevailLogo } from "./PrevailLogo";
 import { ProviderMark } from "./marks";
@@ -135,7 +135,7 @@ export function QuickSwitcher({
             placeholder="Jump to a domain or thread…"
             className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
           />
-          <span className="font-mono text-[11px] text-text-muted">⌘P</span>
+          <span className="font-mono text-[12px] text-text-muted">⌘P</span>
         </div>
         <div ref={listRef} className="max-h-[60vh] overflow-y-auto py-1">
           {items.length === 0 && (
@@ -155,7 +155,7 @@ export function QuickSwitcher({
                   active ? "bg-accent-soft" : "hover:bg-surface-warm"
                 }`}
               >
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md font-mono text-[11px] ${
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md font-mono text-[12px] ${
                   it.kind === "domain"
                     ? "bg-accent-soft text-accent"
                     : "bg-surface-warm text-text-secondary"
@@ -166,16 +166,16 @@ export function QuickSwitcher({
                   <div className={`truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>
                     {it.label}
                   </div>
-                  <div className="truncate text-[11px] text-text-muted">{it.sub}</div>
+                  <div className="truncate text-[12px] text-text-muted">{it.sub}</div>
                 </div>
-                <span className="font-mono text-[11px] text-text-muted">
+                <span className="font-mono text-[12px] text-text-muted">
                   {it.kind}
                 </span>
               </button>
             );
           })}
         </div>
-        <div className="flex items-center justify-between border-t border-border-subtle px-4 py-1.5 text-[11px] text-text-muted">
+        <div className="flex items-center justify-between border-t border-border-subtle px-4 py-1.5 text-[12px] text-text-muted">
           <span>↑↓ navigate · ↵ open · ⎋ close</span>
           <span>{items.length} {items.length === 1 ? "result" : "results"}</span>
         </div>
@@ -455,7 +455,7 @@ export function SidebarGatewayLive({ collapsed }: { collapsed: boolean }) {
   return (
     <button onClick={goGateway} className="flex w-full items-center gap-2 border-t border-border-subtle px-3 py-2 text-left hover:bg-surface-warm" title="External messages can reach this app right now. Click for Gateway settings.">
       {dot}
-      <span className="flex-1 truncate text-[11px] tracking-wide text-ai">Live · {label}</span>
+      <span className="flex-1 truncate text-[12px] tracking-wide text-ai">Live · {label}</span>
       <MessagesSquare className="h-3 w-3 shrink-0 text-text-muted" />
     </button>
   );
@@ -500,7 +500,7 @@ export function SidebarMcpLive({ collapsed, setTab }: { collapsed: boolean; setT
   return (
     <button onClick={goMcp} className="flex w-full items-center gap-2 border-t border-border-subtle px-3 py-2 text-left hover:bg-surface-warm" title="MCP server live. Click for MCP settings.">
       {dot}
-      <span className="flex-1 truncate text-[11px] tracking-wide text-accent">Live · MCP</span>
+      <span className="flex-1 truncate text-[12px] tracking-wide text-accent">Live · MCP</span>
       <Wrench className="h-3 w-3 shrink-0 text-text-muted" />
     </button>
   );
@@ -655,19 +655,19 @@ export function ThreadsRail({
                         </span>
                         {t.entity && (
                           <span data-testid="thread-entity-chip" title={`A conversation about ${entityLabel(t.entity)}`}
-                            className="ml-auto inline-flex max-w-[45%] shrink-0 items-center gap-1 truncate rounded-full bg-accent-soft px-1.5 text-[11px] text-accent">
+                            className="ml-auto inline-flex max-w-[45%] shrink-0 items-center gap-1 truncate rounded-full bg-accent-soft px-1.5 text-[12px] text-accent">
                             <UserRound className="h-2.5 w-2.5 shrink-0" /><span className="truncate">{entityLabel(t.entity)}</span>
                           </span>
                         )}
                         {t.linked_from && (
-                          <span data-testid="thread-linked" className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[10px] text-text-muted" title={`Lives in ${titleCase(t.linked_from)} and is filed here. Same conversation, not a copy.`}>
+                          <span data-testid="thread-linked" className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[12px] text-text-muted" title={`Lives in ${titleCase(t.linked_from)} and is filed here. Same conversation, not a copy.`}>
                             <Link2 className="h-2.5 w-2.5" />{t.filed_as === "also" ? "Also filed here" : `from ${titleCase(t.linked_from)}`}
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-muted">
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-text-muted">
                         {runningThreadPaths.has(t.path) ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0 text-[11px] text-accent">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0 text-[12px] text-accent">
                             <span className="pulse-soft inline-block h-1 w-1 rounded-full bg-accent" />
                             writing
                           </span>
@@ -681,11 +681,11 @@ export function ThreadsRail({
                           </>
                         )}
                       </div>
-                      {/* Only show the preview when it adds information — for a
+                      {/* Only show the preview when it adds information, for a
                           fresh thread the title IS the first prompt, so showing
                           the preview too just repeats it. */}
                       {t.preview && t.preview.trim().toLowerCase() !== t.title.trim().toLowerCase() && (
-                        <div className="mt-0.5 line-clamp-1 text-[11px] text-text-muted">
+                        <div className="mt-0.5 line-clamp-1 text-[12px] text-text-muted">
                           {t.preview}
                         </div>
                       )}
@@ -738,7 +738,7 @@ export function PreamblePicker({
       <button
         onClick={() => setOpen((v) => !v)}
         title={`${label}: ${active?.blurb ?? "off"}`}
-        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] transition-colors ${
           on || open
             ? "border-accent-border bg-accent-soft text-accent"
             : "border-border bg-surface text-text-muted hover:bg-surface-warm hover:text-text-secondary"
@@ -756,7 +756,7 @@ export function PreamblePicker({
       </button>
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-2 max-h-[60vh] w-80 overflow-y-auto rounded-xl border border-border bg-surface p-1.5 shadow-xl">
-          <div className="px-2.5 py-1.5 text-[11px] font-bold text-text-muted">
+          <div className="px-2.5 py-1.5 text-[12px] font-bold text-text-muted">
             <span className="text-accent">{glyph}</span> {label}
           </div>
           {options.map((o) => {
@@ -772,7 +772,7 @@ export function PreamblePicker({
                     <span className={`font-mono text-sm font-semibold ${sel ? "text-accent" : "text-text-primary"}`}>{o.label}</span>
                     {sel && <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={3} />}
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-text-secondary">{o.blurb}</span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-text-secondary">{o.blurb}</span>
                 </span>
               </button>
             );
@@ -822,14 +822,14 @@ export function TasksPanel({ vaultPath, domain, nonce }: { vaultPath: string; do
             <input type="checkbox" checked={t.done} onChange={() => persist(tasks.map((x, j) => j === i ? { ...x, done: !x.done } : x))} />
             <span className={t.done ? "text-text-muted line-through" : "text-text-primary"}>{t.text}</span>
             {t.source && t.source !== "user" && (
-              <span className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[10px] text-text-muted">{t.source === "daemon" ? "auto" : "suggested"}</span>
+              <span className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[12px] text-text-muted">{t.source === "daemon" ? "auto" : "suggested"}</span>
             )}
             {t.due && !t.done && (() => {
               const today = new Date().toISOString().slice(0, 10);
               const overdue = t.due < today, due = t.due === today;
-              return <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${overdue ? "bg-warn/15 text-warn" : due ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}>{overdue ? "overdue" : due ? "today" : t.due}</span>;
+              return <span className={`rounded px-1.5 py-0.5 font-mono text-[12px] ${overdue ? "bg-warn/15 text-warn" : due ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}>{overdue ? "overdue" : due ? "today" : t.due}</span>;
             })()}
-            <span className="ml-auto shrink-0 font-mono text-[10px] text-text-muted/60">{t.added ?? ""}</span>
+            <span className="ml-auto shrink-0 font-mono text-[12px] text-text-muted/60">{t.added ?? ""}</span>
             <button onClick={() => persist(tasks.filter((_, j) => j !== i))} className="shrink-0 text-text-muted/50 hover:text-warn">✕</button>
           </label>
         ))}
@@ -857,15 +857,15 @@ export function AppHeaderBar({ app, enabled, onOpenDomain, onClose }: { app: Eng
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center gap-2">
             <span className="truncate text-base font-semibold text-text-primary">{app.account?.label ? `${app.title} · ${app.account.label}` : app.title}</span>
-            <span className="shrink-0 rounded-full border border-border-subtle px-2 py-0.5 text-[11px] text-text-muted">{INTEGRATION_LABEL[app.integration] ?? app.integration}</span>
-            {!enabled && <span className="shrink-0 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] text-warn">Disabled</span>}
+            <span className="shrink-0 rounded-full border border-border-subtle px-2 py-0.5 text-[12px] text-text-muted">{INTEGRATION_LABEL[app.integration] ?? app.integration}</span>
+            {!enabled && <span className="shrink-0 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[12px] text-warn">Disabled</span>}
           </div>
           {app.domains.length > 0 && (
             <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-              <span className="font-mono text-[11px] text-text-muted/70">Feeds</span>
+              <span className="font-mono text-[12px] text-text-muted/70">Feeds</span>
               {app.domains.map((d, i) => (
                 <span key={d} className="inline-flex items-center gap-1.5">
-                  <button onClick={() => onOpenDomain(d)} className="rounded px-1 text-[11px] font-medium text-accent hover:bg-accent-soft hover:underline" title={`Open ${titleCase(d)} and chat there`}>{titleCase(d)}</button>
+                  <button onClick={() => onOpenDomain(d)} className="rounded px-1 text-[12px] font-medium text-accent hover:bg-accent-soft hover:underline" title={`Open ${titleCase(d)} and chat there`}>{titleCase(d)}</button>
                   {i < app.domains.length - 1 && <span className="text-text-muted/40">·</span>}
                 </span>
               ))}
@@ -917,10 +917,10 @@ export function SurfacePanel({ vaultPath, domain, onPick, onAddTask }: { vaultPa
     <div className="mb-4 rounded-xl border border-accent-border/40 bg-accent-soft/40 px-4 py-3">
       <div className="mb-2 flex items-baseline gap-2.5">
         <Sparkles className="h-4 w-4 shrink-0 self-center text-accent" />
-        <span className="text-lg font-semibold text-text-primary">For you · {titleCase(domain)}</span>
-        {freshMeta && <span className="font-mono text-[11px] text-text-muted">{freshMeta}</span>}
+        <span className="text-[15px] font-semibold text-text-primary">For you · {titleCase(domain)}</span>
+        {freshMeta && <span className="font-mono text-[12px] text-text-muted">{freshMeta}</span>}
         <button onClick={() => void load(true)} disabled={loading}
-          className="ml-auto text-[11px] text-text-muted hover:text-accent disabled:opacity-40">
+          className="ml-auto text-[12px] text-text-muted hover:text-accent disabled:opacity-40">
           {loading ? "Thinking…" : "Refresh"}
         </button>
       </div>
@@ -945,10 +945,10 @@ export function SurfacePanel({ vaultPath, domain, onPick, onAddTask }: { vaultPa
                 <div className="flex flex-col gap-2">
                   {questions.map((q, i) => (
                     <div key={i} className="group flex items-start gap-3 rounded-lg border border-border-subtle bg-surface p-3 transition-colors hover:border-accent-border">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent">{i + 1}</span>
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">{i + 1}</span>
                       <button onClick={() => onPick(q)} className="min-w-0 flex-1 text-left text-sm leading-snug text-text-primary hover:text-accent" title="Ask this in chat">{q}</button>
                       <div className="flex shrink-0 items-center gap-1">
-                        <button onClick={() => onPick(q)} title="Ask this in chat" className="inline-flex items-center gap-1 rounded-md border border-accent-border px-2 py-1 text-[11px] text-accent transition-colors hover:bg-accent hover:text-background">Ask <ArrowRight className="h-2.5 w-2.5" /></button>
+                        <button onClick={() => onPick(q)} title="Ask this in chat" className="inline-flex items-center gap-1 rounded-md border border-accent-border px-2 py-1 text-[12px] text-accent transition-colors hover:bg-accent hover:text-background">Ask <ArrowRight className="h-2.5 w-2.5" /></button>
                         <button onClick={() => dismiss(q)} title="Dismiss" className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted opacity-0 transition-opacity hover:bg-surface-warm hover:text-warn group-hover:opacity-100"><X className="h-3.5 w-3.5" /></button>
                       </div>
                     </div>
@@ -963,10 +963,10 @@ export function SurfacePanel({ vaultPath, domain, onPick, onAddTask }: { vaultPa
                     <div key={i} className="group flex items-start gap-3 rounded-lg border border-border-subtle bg-surface p-3 transition-colors hover:border-accent-border">
                       <p className="min-w-0 flex-1 text-sm leading-snug text-text-primary">{a}</p>
                       <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button onClick={() => { onAddTask(a); setSaved((s) => new Set(s).add(a)); }} title="Save as task" className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${saved.has(a) ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:border-accent-border hover:text-accent"}`}>
+                        <button onClick={() => { onAddTask(a); setSaved((s) => new Set(s).add(a)); }} title="Save as task" className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[12px] ${saved.has(a) ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-muted hover:border-accent-border hover:text-accent"}`}>
                           {saved.has(a) ? <><Check className="h-2.5 w-2.5" /> Saved</> : <><Plus className="h-2.5 w-2.5" /> Task</>}
                         </button>
-                        <button onClick={() => onPick(a)} title="Work on this in chat" className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] text-background hover:bg-accent-hover">Do <ArrowRight className="h-2.5 w-2.5" /></button>
+                        <button onClick={() => onPick(a)} title="Work on this in chat" className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[12px] text-background hover:bg-accent-hover">Do <ArrowRight className="h-2.5 w-2.5" /></button>
                         <button onClick={() => dismiss(a)} title="Dismiss" className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-warn"><X className="h-3.5 w-3.5" /></button>
                       </div>
                     </div>
@@ -999,7 +999,7 @@ export function HomeAppsStrip() {
   if (starred.length === 0) return null;
   return (
     <div className="flex w-full max-w-2xl flex-wrap items-center justify-center gap-2">
-      <span className="font-mono text-[11px] text-text-muted">Apps</span>
+      <span className="text-[12px] text-text-muted">Apps</span>
       {starred.map((a) => {
         const tint = STATUS_TINT[a.status] ?? "#9aa0a6";
         return (
@@ -1007,10 +1007,10 @@ export function HomeAppsStrip() {
             key={a.id}
             onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-app", { detail: a }))}
             title={`Open ${a.title} · ${a.status}${a.lastError ? ": " + a.lastError : ""}`}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-2 py-0.5 text-text-secondary transition-colors hover:border-accent-border hover:bg-surface-warm"
+            className="inline-flex items-center gap-1.5 text-text-secondary transition-colors hover:text-accent"
           >
             <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tint }} />
-            <span className="text-[11px]">{a.account?.label ? `${a.title} · ${a.account.label}` : a.title}</span>
+            <span className="text-[12px]">{a.account?.label ? `${a.title} · ${a.account.label}` : a.title}</span>
           </button>
         );
       })}
@@ -1035,17 +1035,8 @@ export function DomainAppsStrip({ domain }: { domain: string }) {
   }, []);
   if (apps.length === 0) return null;
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="font-mono text-[11px] text-text-muted">Apps</span>
-      {/* Direct jump to the Apps configuration space - saves the Editor > Apps
-          round-trip when tweaking a connector mid-flow. */}
-      <button
-        onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))}
-        title="Open Apps configuration"
-        className="font-mono text-[11px] text-text-muted underline decoration-dotted underline-offset-2 transition-colors hover:text-accent"
-      >
-        configure
-      </button>
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="text-[12px] text-text-muted">Apps</span>
       {apps.map((a) => {
         const tint = STATUS_TINT[a.status] ?? "#9aa0a6";
         const active = activeId === a.id;
@@ -1054,20 +1045,19 @@ export function DomainAppsStrip({ domain }: { domain: string }) {
             key={a.id}
             onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-app", { detail: a }))}
             title={`Open ${a.title} · ${a.status}${a.lastError ? ": " + a.lastError : ""}`}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 transition-colors ${
-              active
-                ? "border-accent-border bg-accent-soft text-text-primary"
-                : "border-border-subtle bg-surface text-text-secondary hover:border-accent-border hover:bg-surface-warm"
-            }`}
+            className={`inline-flex items-center gap-1.5 transition-colors ${active ? "font-medium text-text-primary" : "text-text-secondary hover:text-accent"}`}
           >
             <span
               className="h-1.5 w-1.5 rounded-full"
               style={active ? { backgroundColor: tint, boxShadow: `0 0 0 3px color-mix(in srgb, ${tint} 28%, transparent)` } : { backgroundColor: tint }}
             />
-            <span className="text-[11px]">{a.account?.label ? `${a.title} · ${a.account.label}` : a.title}</span>
+            <span className="text-[13px]">{a.account?.label ? `${a.title} · ${a.account.label}` : a.title}</span>
           </button>
         );
       })}
+      {/* Straight to the Apps page, without the Settings round-trip. */}
+      <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))} title="Manage apps" aria-label="Manage apps"
+        className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-text-primary"><Settings2 className="h-3.5 w-3.5" /></button>
     </div>
   );
 }
@@ -1187,7 +1177,7 @@ export function NewSkillForm({ vaultPath, domain, seed, onCreated }: { vaultPath
     return (
       <div className="mb-3 flex w-full items-center justify-between">
         <p className="text-xs text-text-muted">Skills are reusable prompts Prevail runs on demand (<span className="font-mono text-accent">/name</span> in chat). Pin your favorites to auto-attach.</p>
-        <button onClick={() => setOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:bg-accent-soft hover:text-accent">
+        <button onClick={() => setOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-[12px] text-text-muted hover:border-accent-border hover:bg-accent-soft hover:text-accent">
           <Sparkles className="h-3 w-3" /> New skill
         </button>
       </div>
@@ -1197,7 +1187,7 @@ export function NewSkillForm({ vaultPath, domain, seed, onCreated }: { vaultPath
   const tabBtn = (m: SkillMode, label: string, Icon: LucideIcon) => (
     <button
       onClick={() => setMode(m)}
-      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] transition-colors ${
         mode === m ? "border border-accent-border bg-accent-soft text-accent" : "border border-transparent text-text-muted hover:text-text-secondary"
       }`}
     >
@@ -1208,7 +1198,7 @@ export function NewSkillForm({ vaultPath, domain, seed, onCreated }: { vaultPath
   return (
     <div className="mb-3 w-full rounded-xl border border-accent-border bg-surface p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="font-mono text-[11px] font-bold text-text-primary">New skill · {titleCase(domain)}</div>
+        <div className="font-mono text-[14px] font-semibold text-text-primary">New skill · {titleCase(domain)}</div>
         <div className="flex items-center gap-1">
           {tabBtn("describe", "Describe it", Sparkles)}
           {tabBtn("write", "Write it yourself", PenLine)}
@@ -1268,7 +1258,7 @@ export function NewSkillForm({ vaultPath, domain, seed, onCreated }: { vaultPath
       <div className="mt-3 border-t border-border-subtle pt-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-text-muted">Not sure what to add? Prevail can suggest skills for this domain.</span>
-          <button onClick={suggest} disabled={suggesting} className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:bg-accent-soft hover:text-accent disabled:opacity-40">
+          <button onClick={suggest} disabled={suggesting} className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-[12px] text-text-muted hover:border-accent-border hover:bg-accent-soft hover:text-accent disabled:opacity-40">
             {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />} Suggest skills
           </button>
         </div>
@@ -1375,13 +1365,13 @@ export function SkillsList({
                   <div className="mt-3 flex items-center gap-2">
                     <button
                       onClick={() => onInsert(s.name)}
-                      className="rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[11px] text-accent hover:bg-accent hover:text-background"
+                      className="rounded-md border border-accent-border bg-accent-soft px-2.5 py-1 text-[12px] text-accent hover:bg-accent hover:text-background"
                     >
                       insert /{s.name}
                     </button>
                     <button
                       onClick={() => openFolder(s.path)}
-                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-[12px] text-text-muted hover:border-accent-border hover:text-accent"
                     >
                       <Folder className="h-3 w-3" />
                       open folder
@@ -1437,14 +1427,14 @@ export function DrawerImportsSection({
   return (
     <div className="border-b border-border-subtle">
       <div className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left">
-        <span className="flex items-center gap-2 text-[11px] text-text-secondary">
+        <span className="flex items-center gap-2 text-[12px] text-text-secondary">
           <span className="text-accent">▾</span> Imports
           <span className="text-text-muted">· {items.length}</span>
         </span>
         <button
           onClick={() => void vacuum(90)}
           title="Delete imports older than 90 days"
-          className="rounded border border-border bg-background px-1.5 py-0.5 text-[11px] text-text-muted hover:border-warn hover:text-warn"
+          className="rounded border border-border bg-background px-1.5 py-0.5 text-[12px] text-text-muted hover:border-warn hover:text-warn"
         >
           vacuum 90d
         </button>
@@ -1463,15 +1453,15 @@ export function DrawerImportsSection({
                 }}
                 className="flex-1 rounded border border-border-subtle bg-background px-2 py-1.5 text-left hover:border-accent-border hover:bg-surface-warm"
               >
-                <div className="truncate text-[11px] text-text-primary">{it.name}</div>
-                <div className="font-mono text-[11px] text-text-muted">
+                <div className="truncate text-[12px] text-text-primary">{it.name}</div>
+                <div className="font-mono text-[12px] text-text-muted">
                   {(it.size / 1024).toFixed(1)} KB
                 </div>
               </button>
               <button
                 onClick={() => invoke("open_in_finder", { path: it.path })}
                 title="Reveal in Finder"
-                className="shrink-0 rounded border border-border-subtle bg-background px-2 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                className="shrink-0 rounded border border-border-subtle bg-background px-2 text-[12px] text-text-muted hover:border-accent-border hover:text-accent"
               >
                 ↗
               </button>
@@ -1589,7 +1579,7 @@ export function DomainActionsMenu({
                 <button
                   onClick={archive}
                   disabled={busy !== null}
-                  className="flex items-center gap-1 rounded bg-warn px-2 py-1 text-[11px] text-background hover:opacity-90 disabled:opacity-50"
+                  className="flex items-center gap-1 rounded bg-warn px-2 py-1 text-[12px] text-background hover:opacity-90 disabled:opacity-50"
                 >
                   {busy === "archive" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
                   archive
@@ -1597,14 +1587,14 @@ export function DomainActionsMenu({
                 <button
                   onClick={() => setConfirmArchive(false)}
                   disabled={busy !== null}
-                  className="rounded border border-border px-2 py-1 text-[11px] text-text-muted hover:bg-surface-warm"
+                  className="rounded border border-border px-2 py-1 text-[12px] text-text-muted hover:bg-surface-warm"
                 >
                   cancel
                 </button>
               </div>
             </div>
           ))}
-          {note && <div className="mt-1 px-2 py-1 text-[11px] text-text-muted">{note}</div>}
+          {note && <div className="mt-1 px-2 py-1 text-[12px] text-text-muted">{note}</div>}
         </div>
       )}
     </div>
@@ -1624,7 +1614,7 @@ export function UsageBreakdown({
   const max = Math.max(1, ...rows.map((r) => r.turns));
   return (
     <div className="flex flex-col rounded-xl border border-border-subtle bg-surface p-4">
-      <div className="mb-3 flex items-center gap-2 text-[11px] font-bold text-text-primary">
+      <div className="mb-3 flex items-center gap-2 text-[14px] font-semibold text-text-primary">
         <Icon className="h-3.5 w-3.5" />
         {title}
       </div>
@@ -1638,7 +1628,7 @@ export function UsageBreakdown({
               <span className="min-w-0 truncate text-xs text-text-primary" title={r.key}>
                 {r.key}
               </span>
-              <span className="shrink-0 text-[11px] tabular-nums text-text-muted">
+              <span className="shrink-0 text-[12px] tabular-nums text-text-muted">
                 <span className="text-text-secondary">{r.turns}</span> {r.turns === 1 ? "turn" : "turns"}
                 <span className="mx-1.5 text-border">·</span>
                 {compactNum(r.input_tokens + r.output_tokens)} tok
@@ -1682,7 +1672,7 @@ export function ContextScoreBadge({
     <div className="group relative inline-flex">
       <button
         onClick={onClick}
-        className="inline-flex cursor-pointer items-center rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide transition-colors hover:bg-surface-warm"
+        className="inline-flex cursor-pointer items-center rounded-full px-2 py-0.5 text-[12px] font-semibold tracking-wide transition-colors hover:bg-surface-warm"
       >
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: color }} />
@@ -1697,8 +1687,8 @@ export function ContextScoreBadge({
       {/* Formatted hover card - replaces the flat native title tooltip. */}
       <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-60 translate-y-1 rounded-xl border border-border bg-surface p-3 text-left opacity-0 shadow-xl transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100">
         <div className="mb-2 flex items-center justify-between">
-          <span className="font-mono text-[11px] font-bold text-text-muted">Context score</span>
-          <span className="rounded-full px-1.5 py-0.5 text-[11px] font-bold tracking-wider" style={{ color, background: `${color}1a` }}>{tier}</span>
+          <span className="font-mono text-[12px] font-bold text-text-muted">Context score</span>
+          <span className="rounded-full px-1.5 py-0.5 text-[12px] font-bold tracking-wider" style={{ color, background: `${color}1a` }}>{tier}</span>
         </div>
         <div className="mb-2 flex items-baseline gap-1 font-mono">
           <span className="text-2xl font-bold leading-none" style={{ color }}>{score.score}</span>
@@ -1707,7 +1697,7 @@ export function ContextScoreBadge({
         <div className="mb-2.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-warm">
           <div className="h-full rounded-full" style={{ width: `${score.score}%`, background: color }} />
         </div>
-        <div className="space-y-1 text-[11px]">
+        <div className="space-y-1 text-[12px]">
           <div className="flex items-center justify-between">
             <span className="text-text-muted">Updated</span>
             <span className="text-text-secondary">{formatFreshness(score.freshness_secs)}</span>
@@ -1717,7 +1707,7 @@ export function ContextScoreBadge({
             <span className="text-text-secondary">{score.audited_at ? formatAuditedAt(score.audited_at) : "heuristic estimate"}</span>
           </div>
         </div>
-        <div className="mt-2.5 flex items-center gap-1.5 border-t border-border-subtle pt-2 text-[10px] text-text-muted">
+        <div className="mt-2.5 flex items-center gap-1.5 border-t border-border-subtle pt-2 text-[12px] text-text-muted">
           <Pencil className="h-2.5 w-2.5" />
           Click to review and rescan
         </div>
@@ -1763,7 +1753,7 @@ export function BenchCrumbs({
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] text-text-muted">{label}</span>
+      <span className="mb-1 block text-[12px] text-text-muted">{label}</span>
       {children}
     </label>
   );
@@ -1858,7 +1848,7 @@ export function DaemonCard({
               isRunning ? "bg-ok" : busy ? "bg-accent" : "bg-text-muted/30"
             }`} />
           </span>
-          <span className={`text-[11px] font-bold ${
+          <span className={`text-[12px] font-bold ${
             isRunning ? "text-ok" : "text-text-primary"
           }`}>{name}</span>
         </div>
@@ -1922,18 +1912,18 @@ export function HeadlessLearnCard({ vaultPath }: { vaultPath: string }) {
         let m: RegExpExecArray | null;
         while ((m = re.exec(note)) !== null) agents.push({ id: m[1], cmd: m[2] });
         if (agents.length === 0) {
-          return <div className="mt-2 break-words text-[11px] text-text-secondary">{note}</div>;
+          return <div className="mt-2 break-words text-[12px] text-text-secondary">{note}</div>;
         }
         return (
           <div className="mt-3 border-t border-border-subtle pt-2.5">
-            <div className="mb-1.5 text-[11px] text-text-muted">Login agents · {agents.length}</div>
+            <div className="mb-1.5 text-[12px] text-text-muted">Login agents · {agents.length}</div>
             <div className="flex flex-col gap-1">
               {agents.map((a) => (
-                <div key={a.id} className="flex items-center gap-2 text-[11px]">
+                <div key={a.id} className="flex items-center gap-2 text-[12px]">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
                   <span className="shrink-0 text-text-secondary">{a.id}</span>
                   <code className="min-w-0 flex-1 truncate text-text-muted">{a.cmd}</code>
-                  <span className="shrink-0 text-[11px] text-text-muted/70">At login</span>
+                  <span className="shrink-0 text-[12px] text-text-muted/70">At login</span>
                 </div>
               ))}
             </div>
@@ -1998,7 +1988,7 @@ export function AppLockCard() {
   if (lockSet === null) return null;
   return (
     <div className="mb-4 rounded-lg border border-border bg-surface p-5">
-      <div className="flex items-center gap-2 text-[11px] font-bold text-text-primary">
+      <div className="flex items-center gap-2 text-[14px] font-semibold text-text-primary">
         <Shield className="h-3.5 w-3.5" /> App lock {lockSet ? "· on" : "· off"}
       </div>
       <p className="mt-2 text-xs text-text-muted">
@@ -2034,7 +2024,7 @@ export function AppLockCard() {
             Offer Touch ID on the lock screen. The passcode path is always available independently.
           </label>
           {touchId && (
-            <div className="mt-2 rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-[11px] text-warn">
+            <div className="mt-2 rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-[12px] text-warn">
               Known issue: in some cases enabling Touch ID may affect passcode verification. If your passcode stops working, use the Reset option below to remove the lock without entering the passcode.
             </div>
           )}
@@ -2118,13 +2108,13 @@ export function AlignmentCard({ vaultPath }: { vaultPath: string }) {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-bold leading-none" style={{ color: overallTint }}>{rep.overall}</span>
-            <span className="text-[11px] text-text-muted">/100</span>
+            <span className="text-[12px] text-text-muted">/100</span>
           </div>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-base font-semibold">Alignment</span>
-            <span className="rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wider" style={{ backgroundColor: `${overallTint}1f`, color: overallTint }}>{verdict}</span>
+            <span className="rounded-full px-2 py-0.5 text-[12px] font-bold tracking-wider" style={{ backgroundColor: `${overallTint}1f`, color: overallTint }}>{verdict}</span>
           </div>
           <p className="mt-0.5 text-xs text-text-secondary">How close your life is tracking to your Ideal State · {rep.method === "model" ? "model-scored" : "signal-based"}</p>
         </div>
@@ -2166,7 +2156,7 @@ export function AlignmentCard({ vaultPath }: { vaultPath: string }) {
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">{i + 1}</span>
                   <span className="min-w-0 flex-1">
                     {domain
-                      ? <><span className="text-xs font-semibold text-text-primary">Strengthen {titleCase(domain)}</span><span className="ml-1 text-[11px] text-text-muted">{detail}</span></>
+                      ? <><span className="text-xs font-semibold text-text-primary">Strengthen {titleCase(domain)}</span><span className="ml-1 text-[12px] text-text-muted">{detail}</span></>
                       : <span className="text-xs text-text-secondary">{a}</span>}
                   </span>
                   {domain && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted transition-colors group-hover:text-accent" />}
@@ -2233,7 +2223,7 @@ export function PreambleCard({
       {open && (
         <div className="border-t border-border-subtle py-2 pl-8 pr-3">
           {option.instruction ? (
-            <pre className="whitespace-pre-wrap rounded border border-border-subtle bg-background px-3 py-2 font-mono text-[11px] leading-relaxed text-text-secondary">
+            <pre className="whitespace-pre-wrap rounded border border-border-subtle bg-background px-3 py-2 font-mono text-[12px] leading-relaxed text-text-secondary">
               {option.instruction}
             </pre>
           ) : (
@@ -2256,7 +2246,7 @@ export function WhatsAppCard() {
         </div>
         <div>
           <h3 className="font-semibold">
-            WhatsApp <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">Soon</span>
+            WhatsApp <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[12px] text-warn">Soon</span>
           </h3>
           <p className="text-xs text-text-muted">Same idea as Telegram, via WhatsApp Cloud API. Setup pending Meta business approval.</p>
         </div>

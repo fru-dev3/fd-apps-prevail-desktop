@@ -10,7 +10,7 @@ import { RUNTIME_META, VENDOR_BRAND, isHarnessRuntime } from "./constants";
 import { modelsFor } from "./helpers2";
 import { PREF, getPref, lsGet, lsSet, setPref } from "./storage";
 import { Ghost, MessageSquare } from "lucide-react";
-import { RowMenu, Toggle } from "./ui";
+import { REVEAL, RowMenu, Toggle } from "./ui";
 import type { RowMenuItem } from "./ui";
 import { SettingsHeader, authLoginCmd } from "./sectionutil";
 import { cliVerifyLive, loadVerifyMap, recheckCli, saveVerifyMap, setCliVerify, useCliVerifyLive } from "./verify";
@@ -28,7 +28,7 @@ import type { CliInfo, ModelVerifyStatus, UsageSummary } from "./types";
 function PrivacyGroupHead({ title, blurb }: { title: string; blurb: string }) {
   return (
     <div className="mb-3 flex flex-wrap items-baseline gap-x-3">
-      <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+      <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
       <p className="text-sm text-text-muted">{blurb}</p>
     </div>
   );
@@ -50,7 +50,7 @@ function StatusChips({ items, expected }: { items: StatusChip[]; expected: boole
       {shown.map((t) => (
         <span
           key={t.label}
-          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] ${t.good ? "border-ai/30 bg-ai/5 text-text-primary" : "border-border bg-surface text-text-muted"}`}
+          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] ${t.good ? "border-ai/30 bg-ai/5 text-text-primary" : "border-border bg-surface text-text-muted"}`}
         >
           <t.Icon className={`h-3.5 w-3.5 ${t.good ? "text-ai" : "text-text-muted"}`} />
           {t.label}
@@ -75,11 +75,11 @@ function GlobalIncognitoToggle() {
     { Icon: Brain, label: "Memory", state: on ? "Hidden" : "Used", good: on },
   ];
   return (
-    <div className={`rounded-xl border p-4 ${on ? "border-accent-border bg-accent-soft/30" : "border-border bg-surface"}`}>
+    <div className="py-1">
       <div className="flex items-center gap-3">
         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${on ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}><Ghost className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-text-primary">{on ? "On - every surface runs blank" : "Off - your context is used"}</div>
+          <div className="text-sm font-semibold text-text-primary">{on ? "On, every surface runs blank" : "Off, your context is used"}</div>
           <div className="mt-0.5 text-xs text-text-secondary">
             {on
               ? "Chat and council run as a plain model with no profile, ideal state, omega, or memory."
@@ -120,13 +120,13 @@ function VaultLockToggle() {
     { Icon: Terminal, label: "Local tools", state: on ? "Vault only" : "Whole machine", good: on },
   ];
   return (
-    <div className={`rounded-xl border p-4 ${on ? "border-accent-border bg-accent-soft/30" : "border-border bg-surface"}`}>
+    <div className="py-1">
       <div className="flex items-center gap-3">
         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${on ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}>
           {on ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-text-primary">{on ? "On - vault only" : "Off - whole machine"}</div>
+          <div className="text-sm font-semibold text-text-primary">{on ? "On, vault only" : "Off, whole machine"}</div>
           <div className="mt-0.5 text-xs text-text-secondary">
             {on
               ? "Only your vault. The rest of this Mac is off-limits."
@@ -178,13 +178,13 @@ function OutboundGuardrailToggle() {
     { Icon: Send, label: "Autonomous outreach", state: on ? "Needs your send" : "Allowed", good: on },
   ];
   return (
-    <div className={`rounded-xl border p-4 ${on ? "border-accent-border bg-accent-soft/30" : "border-border bg-surface"}`}>
+    <div className="py-1">
       <div className="flex items-center gap-3">
         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${on ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}>
           {on ? <ShieldCheck className="h-4 w-4" /> : <ShieldOff className="h-4 w-4" />}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-text-primary">{on ? "On - nothing reaches another party without you" : "Off - approved actions run as addressed"}</div>
+          <div className="text-sm font-semibold text-text-primary">{on ? "On, nothing reaches another party without you" : "Off, approved actions run as addressed"}</div>
           <div className="mt-0.5 text-xs text-text-secondary">
             {on
               ? "Email to anyone but you waits as a draft, and sensitive details are held until you release them."
@@ -286,13 +286,13 @@ export function PrivacyConnectivitySection({ enabled, onChange, vaultPath, part 
         {/* Control card - SAME shape/weight as Vault Lock and Incognito so no one
             section dominates. The per-channel live status lives inside the card
             as compact chips, not a separate hero grid. */}
-        <div className={`rounded-xl border p-4 ${enabled ? "border-accent-border bg-accent-soft/30" : "border-border bg-surface"}`}>
+        <div className="py-1">
           <div className="flex items-center gap-3">
             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${enabled ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-muted"}`}>
               {enabled ? <ShieldCheck className="h-4 w-4" /> : <ShieldOff className="h-4 w-4" />}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-text-primary">{enabled ? "On - fully local" : "Off - cloud connected"}</div>
+              <div className="text-sm font-semibold text-text-primary">{enabled ? "On, fully local" : "Off, cloud connected"}</div>
               <div className="mt-0.5 text-xs text-text-secondary">
                 {enabled
                   ? "Everything stays on this device. Nothing leaves your machine."
@@ -322,7 +322,7 @@ export function PrivacyConnectivitySection({ enabled, onChange, vaultPath, part 
                 <ShieldOff className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <h3 className="font-display text-lg font-semibold text-white">Leave Bunker Mode?</h3>
+                <h3 className="font-display text-[15px] font-semibold text-white">Leave Bunker Mode?</h3>
                 <p className="text-xs text-white/60">This opens your machine to the network.</p>
               </div>
             </div>
@@ -475,7 +475,7 @@ function RoutingRow() {
   };
   return (
     <section data-testid="auto-routing" className="border-t border-border-subtle px-5 py-4">
-      <h4 className="flex items-center gap-1.5 text-base font-semibold text-text-primary"><Sparkles className="h-4 w-4 text-accent" /> Auto routing</h4>
+      <h4 className="flex items-center gap-1.5 text-[15px] font-semibold text-text-primary"><Sparkles className="h-4 w-4 text-accent" /> Auto routing</h4>
       <p className="mt-0.5 text-[13px] text-text-muted">When a chat uses Auto, Prevail picks a model for each prompt. Lean it toward cost or quality.</p>
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
       <div className="inline-flex rounded-md border border-border bg-background p-0.5" role="radiogroup" aria-label="Auto routing bias">
@@ -514,17 +514,18 @@ function modelMatches(m: { id: string; label: string; blurb?: string }, q: strin
 // label. Used for the runtime's health and for a failed model row.
 type ChipTone = "ok" | "warn" | "err" | "muted";
 function StatusChip({ tone, label, spin, title }: { tone: ChipTone; label: string; spin?: boolean; title?: string }) {
-  const cls = tone === "ok" ? "bg-ok/10 text-ok" : tone === "warn" ? "bg-warn/10 text-warn" : tone === "err" ? "bg-err/10 text-err" : "bg-surface-strong text-text-muted";
+  // Status is a small dot and a word, never a filled pill.
+  const cls = tone === "err" ? "text-err" : tone === "warn" ? "text-warn" : "text-text-muted";
   const dot = tone === "ok" ? "bg-ok" : tone === "warn" ? "bg-warn" : tone === "err" ? "bg-err" : "bg-text-muted";
   return (
-    <span title={title} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}>
+    <span title={title} className={`inline-flex shrink-0 items-center gap-1.5 text-[12px] ${cls}`}>
       {spin ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
       {label}
     </span>
   );
 }
 
-const btnSecondary = "inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-text-secondary transition-colors hover:border-accent-border hover:text-accent disabled:opacity-40";
+const btnSecondary = "inline-flex items-center gap-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:text-accent disabled:opacity-40";
 const btnPrimary = "inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover";
 
 export function AgentCard({
@@ -545,7 +546,7 @@ export function AgentCard({
   onMakeDefault?: () => void;
   /** Cumulative spend on this runtime (USD), from the usage ledger. */
   cost?: number;
-  /** Whether this runtime can power the chat composer. Harnesses are false —
+  /** Whether this runtime can power the chat composer. Harnesses are false , 
       they're catalog-only and never offered "Start chat". */
   chattable?: boolean;
   /** Render always-expanded with no collapse chevron - used as the detail pane
@@ -657,7 +658,7 @@ export function AgentCard({
   })();
 
   // The one-line fact strip under the name: vendor, version, spend, verified.
-  const metaParts: string[] = [brand.name];
+  const metaParts: string[] = [...(isDefault ? ["Default"] : []), brand.name];
   if (cli.available && cli.version) metaParts.push(`Version ${cli.version}`);
   if (typeof cost === "number" && cost > 0) metaParts.push(`$${cost < 1 ? cost.toFixed(2) : cost < 100 ? cost.toFixed(1) : Math.round(cost)} spent`);
   if (cli.available && verifiable.length > 0) metaParts.push(`${verifiedCount} of ${verifiable.length} models verified`);
@@ -669,7 +670,7 @@ export function AgentCard({
   if (meta?.install) runtimeMenu.push({ icon: ArrowUpRight, label: "Open setup guide", onClick: () => { window.open(meta.install, "_blank", "noreferrer"); } });
 
   return (
-    <div className={forceOpen ? "bg-surface" : `rounded-lg border bg-surface transition-colors ${open ? "border-accent-border" : "border-border-subtle"}`}>
+    <div className={forceOpen ? "" : `rounded-lg border bg-surface transition-colors ${open ? "border-accent-border" : "border-border-subtle"}`}>
       {/* Header: mark, big name, health chip, fact strip, ONE primary action. */}
       <div className="flex items-center gap-4 px-5 py-4">
         <ProviderMark vendor={cli.id} size={44} />
@@ -682,8 +683,7 @@ export function AgentCard({
             {!forceOpen && cli.available && models.length > 0 && (
               <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} />
             )}
-            <span className="truncate text-lg font-semibold text-text-primary">{cli.label}</span>
-            {isDefault && <span className="shrink-0 rounded-full bg-accent px-2 py-px text-[10px] font-semibold text-background">Default</span>}
+            <span className="truncate text-[15px] font-semibold text-text-primary">{cli.label}</span>
             <StatusChip tone={health.tone} label={health.label} spin={health.spin} title={health.title} />
           </span>
           <span data-testid="runtime-meta" className="mt-0.5 block truncate text-xs text-text-muted">{metaParts.join("  ·  ")}</span>
@@ -717,7 +717,7 @@ export function AgentCard({
             {(() => {
               const loginCmd = authLoginCmd(cli.id, cliErr.error ?? "");
               return loginCmd ? (
-                <span className="flex items-center gap-2.5"><AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn" /><span>Not signed in. Run <code className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[11px] text-accent">{loginCmd}</code> in a terminal, then re-check.</span></span>
+                <span className="flex items-center gap-2.5"><AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn" /><span>Not signed in. Run <code className="rounded bg-surface-warm px-1.5 py-0.5 font-mono text-[12px] text-accent">{loginCmd}</code> in a terminal, then re-check.</span></span>
               ) : (
                 <ErrorLine error={cliErr.error ?? ""} />
               );
@@ -733,15 +733,15 @@ export function AgentCard({
       {isOpen && cli.available && models.length > 0 && (
         <div className="border-t border-border-subtle px-5 py-4">
           <div className="mb-3 flex items-baseline gap-2">
-            <h4 className="text-base font-semibold text-text-primary">Models</h4>
-            <span className="text-sm text-text-muted">{models.length}</span>
+            <h4 className="text-[15px] font-semibold text-text-primary">Models</h4>
+            <span className="text-[12px] text-text-muted">{models.length}</span>
             {verifiable.length > 0 && (
               <button onClick={verifyAll} className="ml-auto text-xs text-text-secondary hover:text-accent">
                 Verify all
               </button>
             )}
           </div>
-          <div className="divide-y divide-border-subtle rounded-lg border border-border-subtle bg-background">
+          <div className="divide-y divide-border-subtle">
             {models.map((m) => {
               const s = status[m.id];
               const err = errors[m.id];
@@ -774,14 +774,14 @@ export function AgentCard({
               menu.push({ kind: "separator" });
               menu.push({ icon: Copy, label: idCopied === m.id ? "Copied" : "Copy model id", hint: idTip, onClick: () => copyText(m.id, () => { setIdCopied(m.id); window.setTimeout(() => setIdCopied(""), 1500); }) });
               return (
-                <div key={m.id} className="group flex items-center gap-3 px-3 py-2.5">
+                <div key={m.id} className="group flex items-center gap-3 py-2.5">
                   <span className="flex w-5 shrink-0 justify-center" title={glyphTip}>{glyph}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       {/* A failed model is muted by color, not opacity: opacity would
                           also fade the row's popover menu. */}
                       <span className={`truncate text-sm font-medium ${failed ? "text-text-muted" : "text-text-primary"}`} title={`Model id: ${idTip}`}>{m.label}</span>
-                      {isDef && <span className="shrink-0 rounded-full bg-accent px-2 py-px text-[10px] font-semibold text-background">Default</span>}
+                      {isDef && <span className="shrink-0 text-[12px] font-medium text-accent">Default</span>}
                       {failed && (
                         <StatusChip
                           tone="err"
@@ -795,7 +795,7 @@ export function AgentCard({
                   </div>
                   {!failed && <span data-testid="model-status" className="shrink-0 text-[12px] text-text-muted">{isAuto ? "Router" : s === "ok" ? "Verified" : s === "verifying" ? "Checking" : "Not checked"}</span>}
                   {chattable && (
-                    <RowAction icon={MessageSquare} label={`Chat with ${m.label}`} doneLabel="Opening chat" onClick={() => onStartChat?.(cli.id, m.id)} testId="model-chat" />
+                    <span className={REVEAL}><RowAction icon={MessageSquare} label={`Chat with ${m.label}`} doneLabel="Opening chat" onClick={() => onStartChat?.(cli.id, m.id)} testId="model-chat" /></span>
                   )}
                   <RowMenu items={menu} reveal label={`More actions for ${m.label}`} />
                 </div>
@@ -848,7 +848,7 @@ export function AgentCard({
             </p>
             {meta?.cmd && (
               <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-warm/60 px-2 py-1.5">
-                <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-primary" title={meta.cmd}>{meta.cmd}</code>
+                <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-text-primary" title={meta.cmd}>{meta.cmd}</code>
                 <button
                   onClick={() => { void invoke("open_in_terminal", { command: meta.cmd }).catch((e) => console.error("open_in_terminal", e)); }}
                   title="Open Terminal and run this install command (you'll see it run and can confirm any prompts)"
@@ -931,14 +931,14 @@ function RuntimeRow({ cli, active, vstatus, isDefault, onSelect, matches }: {
   return (
     <button
       onClick={onSelect}
-      className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${active ? "border-l-accent bg-accent-soft shadow-sm ring-1 ring-accent-border" : "border-l-transparent ring-1 ring-transparent hover:bg-surface-warm"}`}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${active ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}
     >
       <ProviderMark vendor={cli.id} size={28} />
       <span className="min-w-0 flex-1">
-        <span className={`block truncate text-sm font-semibold ${active ? "text-accent" : "text-text-primary"}`}>{cli.label}</span>
+        <span className={`block truncate text-sm ${active ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{cli.label}</span>
         <span data-testid="runtime-status" className="block truncate text-[12px] text-text-muted">{sub}</span>
       </span>
-      {isDefault && <span className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10px] font-semibold text-background">Default</span>}
+      {isDefault && <span className="shrink-0 text-[12px] font-medium text-accent">Default</span>}
       <span className="flex shrink-0" title={state.tip} aria-label={state.tip}><state.Icon className={`h-4 w-4 ${state.cls}`} /></span>
     </button>
   );

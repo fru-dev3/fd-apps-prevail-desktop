@@ -1,6 +1,7 @@
 // The primary single-model Chat panel, extracted from App.tsx: composer, message
 // stream, per-domain context, agent picker, and the domain sub-views. Renders the
 // shared chatviews + domainpanels.
+import { composerMessage, engineBuildsContext, engineKey, scopeOf, type ChatScope } from "./chatscope";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, CalendarClock, Check, ClipboardList, Compass, FileText, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
@@ -8,7 +9,8 @@ import { PrevailLogo } from "./PrevailLogo";
 import { invoke, listen } from "./bridge";
 import { addNote } from "./notesstore";
 import { toast } from "./toast";
-import { readLoops, writeLoops, newLoopId, type Loop } from "./loops";
+import { addLoop, newLoopId, type Loop } from "./loops";
+import { openPlaybook, scheduleLine, type PlaybookRow } from "./plansmodel";
 import { MODELS, isHarnessRuntime } from "./constants";
 import { relTime, scoreColor, titleCase } from "./format";
 import { startProcess, endProcess } from "./processes";
@@ -26,24 +28,27 @@ import { ProviderMark } from "./marks";
 import { DomainHome, DomainStatusBar, MessageList } from "./chatviews";
 import { FilingChips } from "./routechips";
 import { ROUTE_WAIT_MS, buildRoutedContext, decodeRouteTurns, encodeRouteTurns, filingOf, mergeRoute, routeText, routeThreshold, routedOf, routingEnabled, saveFiling, splitRoute, threadIdOf, type Filing, type RouteResult } from "./routing";
-import { LoopsPanel } from "./loopspanel";
 import { ActApprovalCard } from "./actcard";
 import { mergeExternalTurns } from "./threadmerge";
 import { SchedulePanel } from "./convschedule";
 import { extractActIds, linkActsToThread, pendingActsForThread, useWaitingState } from "./waiting";
 import { BoardPanel } from "./boardpanel";
 import { entityLinkDirective } from "./entities";
+import { TodayHome } from "./todaycard";
 import { AttachRow, RefSuggest, refItem, shortContextLabel, type AttachItem, atMatchAt, useRefCandidates, type RefCandidate } from "./chatrefs";
 import { addRef, appStepLabel, refsToChatArgs, type ChatRef, type RefKind } from "./appscope";
-import { peekInvoke } from "./query";
+import { peekInvoke, useInvokeQuery } from "./query";
+import { MemberBar, appendMemberLog, decodeTurnMeta, parseMemberLog, type TurnMeta } from "./groupchat";
 import type { MirrorList } from "./appsmirror-model";
 import { savedEntitiesForDirective } from "./entitystore";
 import { ContextButton, ContextCanvas, DomainContextView, DomainPrefsPanel } from "./domainpanels";
-import { TOUCHED_EVENT, parseTouched } from "./linking";
+import { RECEIPT_UNDONE, TOUCHED_EVENT, parseTouched, type Touched } from "./linking";
 import { HomeBriefing } from "./recommendationspanel";
 import type { AppNotice, ChatEvent, ChatMessage, CliInfo, ContextScore, Domain, DomainContextBundle, DomainTab, EngineApp, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
 import { savePastedImages } from "./paste";
+import { HANDOFF_EVENT, HANDOFF_PENDING_EVENT, takePendingHandoff, withHandoff } from "./dragref";
+import { useChiefOfStaff } from "./chiefofstaff";
 
 // Per-domain cache of the cheap (no-audit) context score. engine_score spawns the
 // engine binary; users switch domains often, so re-opening a domain within the TTL
@@ -100,6 +105,19 @@ function ScoreDimRow({ label, dim }: { label: string; dim: { score: number; deta
 // them on mount, so caching would double them up.
 type PrimedEntry = { label: string; body: string };
 type PrimedBinding = { id: string; account: string };
+// Receipts land on the newest reply (the stream may already be closed) and
+// are kept with the turn's meta, so the saved thread shows them too.
+export function withReceipt(m: ChatMessage[], r: { touched?: Touched; decision?: { domain: string; slug: string; what: string } }): ChatMessage[] {
+  let i = m.length - 1;
+  while (i >= 0 && m[i].role !== "assistant") i--;
+  if (i < 0) return m;
+  const cur = m[i];
+  const meta: TurnMeta = { ...(cur.meta ?? { speaker: "chief" }) };
+  if (r.touched && r.touched.domains.length) { meta.noted = r.touched.domains.map((d) => ({ slug: d.slug, ...(d.fact ? { fact: d.fact } : {}) })); if (r.touched.ts) meta.notedTs = r.touched.ts; if (r.touched.thread) meta.notedThread = r.touched.thread; }
+  if (r.decision) meta.decision = r.decision;
+  return [...m.slice(0, i), { ...cur, ...(r.touched ? { touched: r.touched } : {}), ...(r.decision ? { decisionSaved: r.decision } : {}), meta }, ...m.slice(i + 1)];
+}
+
 const primedContextCache = new Map<string, { ctx: PrimedEntry[]; bindings: Record<string, PrimedBinding> }>();
 const isAutoContextLabel = (label: string) => label.startsWith("auto:") || label.startsWith("auto-app:");
 
@@ -129,8 +147,22 @@ export function ChatPanel({
   phoneMic,
   entity = null,
   scopeApp = null,
+  mission = null,
   scopeGoogleAccount = null,
+  scope,
+  defaultMembers,
+  initialInput,
 }: {
+  /// A specialist's own chat: a new conversation starts with these members,
+  /// so every message goes to them (they answer as themselves).
+  defaultMembers?: string[];
+  /// Text waiting in the composer of a new conversation (a decision's or a
+  /// line's context), for the user to add their words and send.
+  initialInput?: string;
+  /// The space this chat runs in (chatscope.ts). For a domain or a project the
+  /// engine builds the context and the desktop sends only what the composer
+  /// adds. Derived from domain, mission, scopeApp and entity when absent.
+  scope?: ChatScope;
   /// A Google app's Account picker: an account id or "all". Sent as
   /// --google-account and wins over every other account source.
   scopeGoogleAccount?: string | null;
@@ -138,6 +170,11 @@ export function ChatPanel({
   /// Threads live in `_app-<id>` tagged `app: <id>`, and every turn goes
   /// through the engine with --scope-app.
   scopeApp?: { id: string; name: string } | null;
+  /// Mission chat: this panel is one mission's conversation (the mission's
+  /// Chat tab). Threads live in `_mission-<slug>` (the mission's
+  /// memory/threads), every turn goes through the engine scoped to the
+  /// mission, and the engine builds its context (no desktop preambles).
+  mission?: { slug: string; name: string } | null;
   /// Entity chat: this panel is scoped to one entity (the Entities detail
   /// pane renders it). Every turn goes through the engine with --entity, the
   /// thread is tagged with it, and each reply can be added to its notes.
@@ -194,6 +231,9 @@ export function ChatPanel({
   // has no room, and the composer placeholder is short.
   phone?: boolean;
 }) {
+
+  // The space each turn runs in (chatscope.ts).
+  const turnScope: ChatScope = scope ?? scopeOf({ domain, mission, scopeApp, entity });
   const available = useMemo(() => clis.filter((c) => c.available), [clis]);
   // Thread storage scope: the app's own space when given, else the domain.
   // `domain` keeps driving grounding/engine; `tDomain` drives where the
@@ -207,7 +247,11 @@ export function ChatPanel({
   // domain manifest's configured engine, privacy (localOnly) and skills.
   // When it's absent we fall back to the native chat_send path below.
   // This is purely additive - neither path is removed.
+  // A chat inside a page (a decision's, a specialist's): its own conversation.
+  const embedded = defaultMembers !== undefined || initialInput !== undefined;
   const [engineAvailable, setEngineAvailable] = useState(false);
+  // General is the chief of staff's home: it carries their name once named.
+  const chief = useChiefOfStaff(vaultPath);
   useEffect(() => {
     let alive = true;
     // Probe once: if `prevail domains` answers, the CLI is installed and
@@ -330,8 +374,8 @@ export function ChatPanel({
   // AI"): prefill the prompt + jump to the chat tab so the user can just hit send.
   useEffect(() => {
     const onSeed = (e: Event) => {
-      // An entity chat is its own conversation; seeds are for the main chat.
-      if (entity || scopeApp) return;
+      // An entity chat (or one inside a page) is its own conversation; seeds are for the main chat.
+      if (entity || scopeApp || mission || embedded) return;
       const text = (e as CustomEvent<string>).detail;
       if (typeof text === "string" && text) {
         setInput(text); setDomainTab("chat");
@@ -344,7 +388,7 @@ export function ChatPanel({
     // Pending seed from a view that wasn't mounted when it fired (e.g. a task's
     // "Discuss with AI"): pick it up on mount so it reliably lands here.
     try {
-      const pending = entity || scopeApp ? null : localStorage.getItem("prevail.compose.pending");
+      const pending = entity || scopeApp || mission || embedded ? null : localStorage.getItem("prevail.compose.pending");
       if (pending) { localStorage.removeItem("prevail.compose.pending"); setInput(pending); setDomainTab("chat"); }
     } catch { /* ignore */ }
     return () => window.removeEventListener("prevail:compose-seed", onSeed as EventListener);
@@ -358,7 +402,7 @@ export function ChatPanel({
       const d = (e as CustomEvent).detail as { band?: string; fromModel?: string; toModel?: string } | undefined;
       if (!d || !d.toModel || !vaultPath) return;
       // Match the engine's normalization: an empty domain is the General bucket.
-      const engineDomain = domain || "general";
+      const engineDomain = engineKey(turnScope);
       invoke("route_learn_record", {
         vault: vaultPath,
         domain: engineDomain,
@@ -586,18 +630,13 @@ export function ChatPanel({
     } catch (e) { setSoulDraftErr(String(e)); }
     finally { setSoulDrafting(false); }
   }, [vaultPath, domain]);
-  // Loops preview for the Welcome dashboard - active standing loops for this
-  // domain. Read cheaply from _loops.json; refreshed on domain switch.
+  // Playbooks on a schedule in this domain (playbooks replace loops), for the
+  // Welcome dashboard.
   type LoopPreview = { id: string; name: string; purpose: string; active: boolean };
-  const [domainLoops, setDomainLoops] = useState<LoopPreview[] | null>(null);
-  useEffect(() => {
-    if (!domainPath) { setDomainLoops(null); return; }
-    let mounted = true;
-    readLoops(domainPath)
-      .then((doc) => { if (mounted) setDomainLoops(doc.loops.map((l) => ({ id: l.id, name: l.name, purpose: l.purpose, active: l.status === "active" && l.enabled }))); })
-      .catch(() => { if (mounted) setDomainLoops([]); });
-    return () => { mounted = false; };
-  }, [domainPath, domain]);
+  const pbRowsQ = useInvokeQuery<PlaybookRow[]>("engine_playbook_rows", domainPath && vaultPath ? { vault: vaultPath } : null, { staleMs: 60_000 });
+  const domainLoops: LoopPreview[] | null = useMemo(() => (Array.isArray(pbRowsQ.data)
+    ? pbRowsQ.data.filter((r) => r.schedule && r.schedule.space === (domain || "general")).map((r) => ({ id: r.id, name: r.name, purpose: scheduleLine(r.schedule!), active: !!r.schedule?.enabled }))
+    : null), [pbRowsQ.data, domain]);
   // I7: "Save as skill" - the composer dispatches this with the typed prompt;
   // we jump to the Skills tab and pre-fill the new-skill form.
   const [newSkillSeed, setNewSkillSeed] = useState<string | null>(null);
@@ -888,34 +927,131 @@ export function ChatPanel({
   const [refs, setRefs] = useState<ChatRef[]>([]);
   const refsRef = useRef<ChatRef[]>(refs);
   refsRef.current = refs;
+  // Group chat: the specialists in this thread (kept in its frontmatter), when
+  // each joined or left, and the names on the turn being sent.
+  const [members, setMembers] = useState<string[]>([]);
+  const [memberLog, setMemberLog] = useState<string>("");
+  const membersRef = useRef<string[]>([]);
+  membersRef.current = members;
+  const memberLogRef = useRef<string>("");
+  memberLogRef.current = memberLog;
+  const turnToRef = useRef<string[]>([]);
+  const memberMarks = useMemo(() => parseMemberLog(memberLog), [memberLog]);
+  const specsQ = useInvokeQuery<{ id: string; name: string; on: boolean }[]>("engine_specialists", vaultPath ? { vault: vaultPath } : null, { staleMs: 5 * 60_000 });
+  const specList = Array.isArray(specsQ.data) ? specsQ.data.filter((x) => x.on) : [];
+  const specIdOf = (label: string) => specList.find((x) => x.name.toLowerCase() === label.toLowerCase() || x.id === label.toLowerCase())?.id ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  // "@Planner @Scout ..." typed at the start: the names that are specialists.
+  const leadingSpecNames = (text: string) => {
+    const out: string[] = [];
+    let rest = text;
+    for (let m = /^\s*@([A-Za-z][A-Za-z-]{1,40})\b[:,]?\s*/.exec(rest); m; m = /^\s*@([A-Za-z][A-Za-z-]{1,40})\b[:,]?\s*/.exec(rest)) {
+      const s = specList.find((x) => x.name.toLowerCase() === m![1].toLowerCase() || x.id === m![1].toLowerCase());
+      if (!s) break;
+      out.push(s.name);
+      rest = rest.slice(m[0].length);
+    }
+    return out;
+  };
   const [refOnly, setRefOnly] = useState<RefKind | null>(null);
+  // A mission's bring-in card: the domain rides along on the question, once.
+  useEffect(() => {
+    if (!mission) return;
+    const onBring = (e: Event) => {
+      const d = (e as CustomEvent<{ mission: string; domains: string[]; text: string }>).detail;
+      if (!d || d.mission !== mission.slug) return;
+      setRefs((list) => d.domains.reduce((acc, x) => addRef(acc, { kind: "domain", id: x, label: titleCase(x) }), list));
+      if (d.text) setInput(d.text);
+      requestAnimationFrame(() => taRef.current?.focus());
+    };
+    window.addEventListener("prevail:bring-in", onBring as EventListener);
+    return () => window.removeEventListener("prevail:bring-in", onBring as EventListener);
+  }, [mission?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const atMatch = useMemo(() => atMatchAt(input, caretPos), [input, caretPos]);
   const refCandidates = useRefCandidates(vaultPath, atMatch?.token ?? null, refOnly);
   const [refIdx, setRefIdx] = useState(0);
   useEffect(() => { setRefIdx(0); }, [atMatch?.token]);
   useEffect(() => { if (!atMatch) setRefOnly(null); }, [atMatch]);
+  // After a picker rewrites the box, put focus and the caret back on the next
+  // frame. Only move the caret while the box still holds what the picker
+  // wrote: on a slow machine the frame lands after the next keystrokes, and
+  // yanking the caret then scatters them ("@hea" typed as "ea@h").
+  function restoreCaret(written: string, pos: number) {
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      if (document.activeElement !== ta) ta.focus();
+      if (ta.value === written) ta.setSelectionRange(pos, pos);
+    });
+  }
+  // "Set up my Compass now" (the first-run tour) and other prompts that start
+  // a conversation from outside the composer: the text waits in the box on Home.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const t = (e as CustomEvent<string>).detail;
+      if (typeof t !== "string" || domain || embedded) return;
+      setInput(t);
+      requestAnimationFrame(() => taRef.current?.focus());
+    };
+    window.addEventListener("prevail:compose", on);
+    return () => window.removeEventListener("prevail:compose", on);
+  }, [domain]);
+  // The specialists a message is handed to: chips like the others, with their
+  // faces; several at once. Each one named also joins the chat's members, and
+  // the engine routes the names in code (`to`), before any model call.
+  const [handoffSpecs, setHandoffSpecs] = useState<string[]>([]);
+  const addHandoff = useCallback((label: string) => {
+    setHandoffSpecs((cur) => (cur.some((x) => x.toLowerCase() === label.toLowerCase()) ? cur : [...cur, label]));
+    joinMember(specIdOf(label));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   function applyRef(item: RefCandidate | undefined) {
     if (!atMatch || !item) return;
+    if (item.kind === "specialist") {
+      const head = input.slice(0, atMatch.start).replace(/\s$/, "");
+      const tail = input.slice(atMatch.end).replace(/^\s+/, "");
+      const next = `${head}${head && tail ? " " : ""}${tail}`;
+      setInput(next);
+      addHandoff(item.label);
+      setCaretPos(head.length);
+      restoreCaret(next, head.length);
+      return;
+    }
     const head = input.slice(0, atMatch.start).replace(/\s$/, "");
     const tail = input.slice(atMatch.end);
     const next = `${head}${head && tail && !tail.startsWith(" ") ? " " : ""}${tail}`;
     setInput(next);
     setCaretPos(head.length);
     setRefs((cur) => addRef(cur, { kind: item.kind, id: item.id, label: item.label }));
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(head.length, head.length);
-    });
+    restoreCaret(next, head.length);
   }
+  // A specialist dragged in from the sidebar or the Specialists page: the same
+  // handoff as picking it from "@" (dragref.ts). A drop on a sidebar row that
+  // opens this chat leaves it pending for the panel that opens.
+  const dropRef = useRef<HTMLDivElement>(null);
+  const handOff = useCallback((label: string) => {
+    addHandoff(label);
+    // Text that already starts "@Name " for this specialist loses the prefix: the chip carries it.
+    setInput((cur) => { const at = `@${label.toLowerCase()} `; return cur.toLowerCase().startsWith(at) ? cur.slice(at.length) : cur; });
+    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } });
+  }, [addHandoff]);
+  useEffect(() => {
+    const onDrop = (e: Event) => {
+      const l = (e as CustomEvent<string>).detail;
+      if (typeof l === "string" && l && dropRef.current?.contains(e.target as Node)) handOff(l);
+    };
+    const onPending = () => { const l = takePendingHandoff(); if (l) handOff(l); };
+    onPending();
+    window.addEventListener(HANDOFF_EVENT, onDrop);
+    window.addEventListener(HANDOFF_PENDING_EVENT, onPending);
+    return () => { window.removeEventListener(HANDOFF_EVENT, onDrop); window.removeEventListener(HANDOFF_PENDING_EVENT, onPending); };
+  }, [handOff]);
   function startRef(kind: RefKind) {
     const next = `${input}${input && !/\s$/.test(input) ? " " : ""}@`;
     setInput(next);
     setCaretPos(next.length);
     setRefOnly(kind);
     setPlusOpen(false);
-    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(next.length, next.length); } });
+    restoreCaret(next, next.length);
   }
   const syncCaret = useCallback((el: HTMLTextAreaElement | null) => {
     if (el) setCaretPos(el.selectionStart ?? el.value.length);
@@ -931,12 +1067,13 @@ export function ChatPanel({
       quiet: isAutoContextLabel(c.label),
       onRemove: () => setPrimedContext((cur) => cur.filter((_, j) => j !== i)),
     })),
+    ...handoffSpecs.map((l) => refItem({ kind: "specialist", id: specIdOf(l), label: l }, () => setHandoffSpecs((cur) => cur.filter((x) => x !== l)))),
     ...refs.map((r) => refItem(r, () => setRefs((cur) => cur.filter((x) => !(x.kind === r.kind && x.id === r.id))))),
     ...attachments.map((p, i): AttachItem => ({
       key: `file:${i}:${p}`,
       label: p.split("/").pop() || p,
       title: `Attached file: ${p}`,
-      icon: /\.(png|jpe?g|gif|webp)$/i.test(p) ? <ImageIcon className="h-3 w-3 text-ai" /> : <FileText className="h-3 w-3 text-text-muted" />,
+      icon: /\.(png|jpe?g|gif|webp)$/i.test(p) ? <ImageIcon className="h-3 w-3" /> : <FileText className="h-3 w-3" />,
       onRemove: () => setAttachments((cur) => cur.filter((_, j) => j !== i)),
     })),
   ];
@@ -969,12 +1106,7 @@ export function ChatPanel({
     setInput(next);
     setCaretPos(head.length); // collapse the match so the popover closes
     insertSkillSlash(name);
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(head.length, head.length);
-    });
+    restoreCaret(next, head.length);
   }
   // `$<word>` context mention - the mirror of `/` for skills. Detect a
   // trailing `$word` at the caret and offer matching domains + apps; picking
@@ -1013,12 +1145,7 @@ export function ChatPanel({
     setCaretPos(head.length); // collapse the match so the popover closes
     if (item.kind === "domain") void attachDomainAsContext(item.id, "light");
     else void attachAppAsContext(item.id);
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(head.length, head.length);
-    });
+    restoreCaret(next, head.length);
   }
   function attachDomainState() {
     if (!domain || !domainPath) return;
@@ -1159,6 +1286,20 @@ export function ChatPanel({
   // never ambiguous which thread you're typing into. Derived from the loaded
   // thread meta, falling back to the path slug.
   const [threadTitle, setThreadTitle] = useState<string>("");
+  function joinMember(id: string) {
+    if (!/^[a-z][a-z0-9-]{0,40}$/.test(id) || membersRef.current.includes(id)) return;
+    const next = [...membersRef.current, id];
+    membersRef.current = next;
+    setMembers(next);
+    setMemberLog((l) => { const v = appendMemberLog(l, id, true, messagesRef.current.length); memberLogRef.current = v; return v; });
+  }
+  function leaveMember(id: string) {
+    if (!membersRef.current.includes(id)) return;
+    const next = membersRef.current.filter((x) => x !== id);
+    membersRef.current = next;
+    setMembers(next);
+    setMemberLog((l) => { const v = appendMemberLog(l, id, false, messagesRef.current.length); memberLogRef.current = v; return v; });
+  }
   // The entity an opened thread is about (its `entity:` header). A thread
   // from the General rail keeps its entity scope this way.
   const [threadEntity, setThreadEntity] = useState<string | null>(null);
@@ -1228,6 +1369,54 @@ export function ChatPanel({
       .catch((e) => console.error("thread_set_filing", e));
   }, [vaultPath, updateFiling]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Receipts undone (Undo under a reply): the turn keeps a note of it, so the
+  // saved thread shows "taken back" instead of offering Undo again.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ kind: "noted" | "decision"; ts?: number; slug?: string }>).detail;
+      if (!d) return;
+      setMessages((m) => m.map((x) => {
+        const meta = x.meta;
+        const hit = d.kind === "noted" ? (meta?.notedTs ?? x.touched?.ts) === d.ts : (meta?.decision?.slug ?? x.decisionSaved?.slug) === d.slug;
+        if (!hit) return x;
+        return { ...x, meta: { ...(meta ?? { speaker: "chief" }), undone: [...new Set([...(meta?.undone ?? []), d.kind])] } };
+      }));
+    };
+    window.addEventListener(RECEIPT_UNDONE, on);
+    return () => window.removeEventListener(RECEIPT_UNDONE, on);
+  }, []);
+
+  // A turn the desktop ran itself (the native path, most General chats): the
+  // engine runs the same after-turn steps a turn through it gets, a decision
+  // the user stated is saved and the domains the words concern are noted,
+  // and the receipts land on the reply. Never blocks or fails the chat.
+  const afterNativeTurnRef = useRef<() => Promise<void>>(async () => {});
+  afterNativeTurnRef.current = async () => {
+    if (!engineAvailable || incognitoActive("chat") || !vaultPath) return;
+    const msgs = messagesRef.current;
+    const last = msgs[msgs.length - 1];
+    const user = [...msgs].reverse().find((x) => x.role === "user");
+    if (!last || last.role !== "assistant" || !user || !last.content.trim()) return;
+    // The thread's file name, once its first save has run.
+    let thread = threadIdOf(activeThreadRef.current);
+    for (let i = 0; !thread && i < 15; i++) { await new Promise((r) => setTimeout(r, 200)); thread = threadIdOf(activeThreadRef.current); }
+    const r = await invoke<{ events?: { type?: string; ts?: number; thread?: string; domains?: unknown; entities?: unknown; decisionSaved?: { domain?: string; slug?: string; what?: string } }[] }>("engine_after_turn", {
+      vault: vaultPath, domain: domain || "general", thread: thread ?? sessionRef.current, message: user.content, reply: last.content,
+    }).catch(() => null);
+    for (const ev of r?.events ?? []) {
+      if (ev.type === "touched") {
+        const t = parseTouched(ev);
+        if (!t) continue;
+        setMessages((m) => withReceipt(m, { touched: t }));
+        window.dispatchEvent(new CustomEvent(TOUCHED_EVENT, { detail: t }));
+      } else if (ev.type === "decision_saved" && ev.decisionSaved?.slug && ev.decisionSaved.domain && /^[a-z0-9-]+$/.test(ev.decisionSaved.slug)) {
+        const d = ev.decisionSaved;
+        setMessages((m) => withReceipt(m, { decision: { domain: d.domain!, slug: d.slug!, what: d.what ?? d.slug! } }));
+        window.dispatchEvent(new Event("prevail:decisions-changed"));
+      }
+    }
+  };
   // Any thread pick returns to the chat view - even re-clicking the active
   // thread (which doesn't change activeThreadPath), so you can always escape
   // the Preferences view by clicking a thread. Skips the initial mount.
@@ -1241,7 +1430,13 @@ export function ChatPanel({
     // Picking a thread (or starting a new one) always returns to the chat view,
     // even if Preferences was open - otherwise the click appears to do nothing.
     setDomainTab("chat");
-    if (!activeThreadPath) { setMessages([]); setThreadTitle(""); setThreadEntity(null); filingRef.current = null; setFilingState(null); displayedPathRef.current = null; return; }
+    if (!activeThreadPath) {
+      const dm = (defaultMembers ?? []).filter((x) => /^[a-z][a-z0-9-]{0,40}$/.test(x));
+      membersRef.current = dm;
+      setMessages([]); setThreadTitle(""); setThreadEntity(null); filingRef.current = null; setFilingState(null); displayedPathRef.current = null; setMembers(dm); { const ml = dm.map((id) => `+${id}@0`).join(";"); memberLogRef.current = ml; setMemberLog(ml); }
+      if (initialInput) setInput(initialInput);
+      return;
+    }
     if (selfSetPathRef.current === activeThreadPath) {
       selfSetPathRef.current = null;
       displayedPathRef.current = activeThreadPath;
@@ -1265,6 +1460,8 @@ export function ChatPanel({
         syncedRef.current = { path: activeThreadPath, count: t.turns.length };
         setThreadTitle(t.meta?.title?.trim() || "Untitled");
         setThreadEntity(t.meta?.entity ?? null);
+        setMembers(t.meta?.members ?? []);
+        setMemberLog(t.meta?.member_log ?? "");
         // Filing lives on General threads (a domain's own threads are home there).
         const f = t.meta?.domain ? null : filingOf(t.meta?.routed);
         filingRef.current = f;
@@ -1273,6 +1470,8 @@ export function ChatPanel({
         setMessages(t.turns.map((tn, i) => ({
           role: tn.role,
           cli: tn.cli ?? undefined,
+          model: tn.model ?? undefined,
+          ...(tn.meta ? { meta: decodeTurnMeta(tn.meta) } : {}),
           content: tn.content,
           ts: Date.now(),
           ...(routes.has(i) ? { domainRoute: { tagged: routes.get(i) ?? [], suggested: [] } } : {}),
@@ -1321,7 +1520,7 @@ export function ChatPanel({
         if (current && syncedRef.current.path === current) {
           const disk = await invoke<{ meta: ThreadMeta; turns: ThreadTurn[] }>("load_thread", { path: current }).catch(() => null);
           if (disk && Array.isArray(disk.turns)) {
-            const diskMsgs: ChatMessage[] = disk.turns.map((tn) => ({ role: tn.role, cli: tn.cli ?? undefined, model: tn.model ?? undefined, content: tn.content, ts: Date.now() }));
+            const diskMsgs: ChatMessage[] = disk.turns.map((tn) => ({ role: tn.role, cli: tn.cli ?? undefined, model: tn.model ?? undefined, ...(tn.meta ? { meta: decodeTurnMeta(tn.meta) } : {}), content: tn.content, ts: Date.now() }));
             const merged = mergeExternalTurns(messages, diskMsgs, syncedRef.current.count);
             if (merged) {
               // Mid-reply the live bubble must stay last; retry after it ends.
@@ -1344,7 +1543,11 @@ export function ChatPanel({
             cli: m.cli ?? null,
             model: m.model ?? null,
             content: m.content,
+            meta: m.role === "assistant" && m.meta ? JSON.stringify(m.meta) : null,
           })),
+          // Group chat: the members and when they joined or left.
+          members: membersRef.current,
+          memberLog: memberLogRef.current,
           // General owns routing; any other scope leaves what is on disk.
           ...(tDomain ? {} : { routed: routedOf(filingRef.current), routeTurns: encodeRouteTurns(messages) }),
           // Entity chat: tag the thread (null keeps what is on disk).
@@ -1372,7 +1575,7 @@ export function ChatPanel({
     }, 600);
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
+  }, [messages, members, memberLog]);
   // The slug=null save guard above is one-shot PER ChatPanel INSTANCE, but the
   // panel persists across domain switches - so without this, only the first-ever
   // chat saved and later new-domain chats silently never created a thread. When
@@ -1409,6 +1612,8 @@ export function ChatPanel({
   const rawReplyRef = useRef<string>("");
   // The app names this turn referenced, for the "Using Claude for Gmail" line.
   const turnAppNamesRef = useRef<string[]>([]);
+  // The reply metadata recorded when the current turn was sent (group chat).
+  const turnMetaRef = useRef<TurnMeta | null>(null);
   const persistUsage = useCallback(
     (session: string, ok: boolean, usage?: ChatMessage["usage"]) => {
       const p = pendingUsageRef.current;
@@ -1429,6 +1634,7 @@ export function ChatPanel({
           output_tokens: usage?.output_tokens ?? null,
           cost_usd: usage?.cost_usd ?? null,
           ok,
+          token_source: usage?.estimated ? "estimated" : null,
         },
       })
         // S2: nudge the Usage panel to refresh now that a new record landed, so it
@@ -1550,6 +1756,8 @@ export function ChatPanel({
           // the turn still counts). code===0 (or null timeout) → ok.
           persistUsage(e.payload.session, e.payload.code === 0);
           if (e.payload.session !== sessionRef.current) return;
+          // Decisions said and domains noted, for this turn too (after the bubble settles).
+          if (e.payload.code === 0) setTimeout(() => { void afterNativeTurnRef.current(); }, 50);
           setMessages((m) => {
             const last = m[m.length - 1];
             if (last && last.streaming) return [...m.slice(0, -1), { ...last, streaming: false }];
@@ -1558,7 +1766,7 @@ export function ChatPanel({
             const p = activeThreadRef.current;
             if (p) {
               void invoke<{ meta: ThreadMeta; turns: ThreadTurn[] }>("load_thread", { path: p })
-                .then((t) => setMessages(t.turns.map((tn) => ({ role: tn.role, cli: tn.cli ?? undefined, content: tn.content, ts: Date.now() }))))
+                .then((t) => setMessages(t.turns.map((tn) => ({ role: tn.role, cli: tn.cli ?? undefined, ...(tn.meta ? { meta: decodeTurnMeta(tn.meta) } : {}), content: tn.content, ts: Date.now() }))))
                 .catch(() => {});
             }
             return m;
@@ -1599,6 +1807,20 @@ export function ChatPanel({
               // 'start' opens the turn; 'user' echoes the prompt we
               // already optimistically rendered. Nothing to append.
               break;
+            case "speaker": {
+              // Group chat: the next reply is this member's (or the chief's).
+              // An empty live bubble becomes theirs; otherwise theirs starts below.
+              const sp = ev.speaker;
+              if (!sp?.id || !/^[a-z][a-z0-9-]{0,40}$/.test(sp.id)) break;
+              const meta: TurnMeta = { ...(turnMetaRef.current ?? { speaker: "chief" }), speaker: sp.id, name: sp.name };
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || last.role !== "assistant" || !last.streaming) return m;
+                if (!last.content) return [...m.slice(0, -1), { ...last, meta }];
+                return [...m.slice(0, -1), { ...last, streaming: false }, { role: "assistant", cli: last.cli, model: last.model, content: "", ts: Date.now(), streaming: true, meta }];
+              });
+              break;
+            }
             case "delta": {
               // Incremental text chunk - append to the streaming bubble.
               rawReplyRef.current += ev.text ?? ""; // raw, for the intent ledger
@@ -1624,7 +1846,11 @@ export function ChatPanel({
                   // Prefer the longer of accumulated deltas vs final text
                   // so we don't truncate a stream that already arrived.
                   const content = last.content.length >= full.length ? last.content : full;
-                  return [...m.slice(0, -1), { ...last, content }];
+                  // A job turn ends with its marker, so the saved thread keeps the card.
+                  const withJob0 = last.jobId && !content.includes(`[job:${last.jobId}]`) ? `${content}\n\n[job:${last.jobId}]` : content;
+                  const withJob1 = last.filed && !withJob0.includes(`[filed:${last.filed.id}]`) ? `${withJob0}\n\n[filed:${last.filed.id}]` : withJob0;
+                  const withJob = last.told && !withJob1.includes(`[told:${last.told.id}]`) ? `${withJob1}\n\n[told:${last.told.id}]` : withJob1;
+                  return [...m.slice(0, -1), { ...last, content: withJob }];
                 }
                 return m;
               });
@@ -1743,13 +1969,74 @@ export function ChatPanel({
               // list refetches. No toast.
               const t = parseTouched(ev);
               if (!t) break;
-              setMessages((m) => {
-                const i = m.length - 1;
-                if (i < 0 || m[i].role !== "assistant") return m;
-                return [...m.slice(0, i), { ...m[i], touched: t }];
-              });
+              setMessages((m) => withReceipt(m, { touched: t }));
               window.dispatchEvent(new CustomEvent(TOUCHED_EVENT, { detail: t }));
               if (t.entities.length) window.dispatchEvent(new CustomEvent("prevail:entities-changed"));
+              break;
+            }
+            case "bring_in":
+            case "mission_start": {
+              // A card the user answers: bring a domain into the mission, or
+              // start a mission. The engine read nothing and started nothing.
+              const card = ev.type === "bring_in" ? { bringIn: (ev as { bringIn?: ChatMessage["bringIn"] }).bringIn } : { missionDraft: (ev as { missionDraft?: ChatMessage["missionDraft"] }).missionDraft };
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || !last.streaming || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, ...card }];
+              });
+              break;
+            }
+            case "decision_offer": {
+              // A deliberating message: offer to track it as a decision (nothing is opened without a yes).
+              const o = (ev as { decisionOffer?: { question?: string; domain?: string; due?: string } }).decisionOffer;
+              if (!o?.question || !o.domain) break;
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, decisionOffer: { question: o.question!, domain: o.domain!, due: o.due ?? "" } }];
+              });
+              break;
+            }
+            case "decision_saved": {
+              // A decision the user stated, saved by code: a quiet receipt with Undo.
+              const d = (ev as { decisionSaved?: { domain?: string; slug?: string; what?: string } }).decisionSaved;
+              if (!d?.domain || !d.slug || !/^[a-z0-9-]+$/.test(d.slug)) break;
+              setMessages((m) => withReceipt(m, { decision: { domain: d.domain!, slug: d.slug!, what: d.what ?? d.slug! } }));
+              window.dispatchEvent(new Event("prevail:decisions-changed"));
+              break;
+            }
+            case "filed": {
+              // A promise told to the chief of staff was filed on a board: a receipt with Undo.
+              const f = (ev as { filed?: { id?: string } }).filed;
+              if (!f?.id || !/^[A-Za-z0-9_-]+$/.test(f.id)) break;
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || !last.streaming || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, filed: f as NonNullable<typeof last.filed> }];
+              });
+              break;
+            }
+            case "told": {
+              // Anything told to the chief of staff was filed by code (Today T6): a receipt with Undo.
+              const t = (ev as { told?: { id?: string } }).told;
+              if (!t?.id || !/^[A-Za-z0-9_-]+$/.test(t.id)) break;
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || !last.streaming || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, told: t as NonNullable<typeof last.told> }];
+              });
+              break;
+            }
+            case "job": {
+              // The chief of staff staffed this message as a job: the reply
+              // carries a marker the thread keeps, and the bubble draws the card.
+              const jid = (ev as { job?: { id?: string } }).job?.id;
+              if (!jid || !/^[A-Za-z0-9_-]+$/.test(jid)) break;
+              setMessages((m) => {
+                const last = m[m.length - 1];
+                if (!last || !last.streaming || last.role !== "assistant") return m;
+                return [...m.slice(0, -1), { ...last, jobId: jid }];
+              });
               break;
             }
             case "done":
@@ -1781,7 +2068,7 @@ export function ChatPanel({
             const p = activeThreadRef.current;
             if (p) {
               void invoke<{ meta: ThreadMeta; turns: ThreadTurn[] }>("load_thread", { path: p })
-                .then((t) => setMessages(t.turns.map((tn) => ({ role: tn.role, cli: tn.cli ?? undefined, content: tn.content, ts: Date.now() }))))
+                .then((t) => setMessages(t.turns.map((tn) => ({ role: tn.role, cli: tn.cli ?? undefined, ...(tn.meta ? { meta: decodeTurnMeta(tn.meta) } : {}), content: tn.content, ts: Date.now() }))))
                 .catch(() => {});
             }
             return m;
@@ -1799,6 +2086,8 @@ export function ChatPanel({
   }, []);
 
   useEffect(() => {
+    // Home with no conversation is Today: read from the top.
+    if (!messages.length) { scrollRef.current?.scrollTo({ top: 0 }); return; }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
@@ -1859,17 +2148,17 @@ export function ChatPanel({
       toast.success(`Saved "${name}" as a skill.`);
     } catch (e) { toast.error(`Could not save the skill: ${String(e)}`); }
   }, [vaultPath, tDomain, domain]);
-  // X9: turn a message's intent into a recurring automation (loop) in this
-  // domain, seeded from the text, then open the domain's Loops tab to refine it.
+  // X9: turn a message's intent into a recurring automation in this domain: a
+  // loop line the engine carries straight into a scheduled playbook (playbooks
+  // replace loops), then the Playbooks page opens on it to refine.
   const makeLoopFromChat = useCallback(async (text: string) => {
     const intent = text.trim().replace(/\s+/g, " ");
     if (!intent || !domainPath) {
       if (!domainPath) toast.error("Open a domain first to create an automation.");
       return;
     }
-    const name = intent.length > 48 ? intent.slice(0, 45).trimEnd() + "…" : intent;
+    const name = intent.length > 48 ? intent.slice(0, 45).trimEnd() + "..." : intent;
     try {
-      const doc = await readLoops(domainPath);
       const loop: Loop = {
         id: newLoopId(name),
         name,
@@ -1886,12 +2175,14 @@ export function ChatPanel({
         lastRunTs: null,
         createdTs: Date.now(),
       };
-      await writeLoops(domainPath, { ...doc, loops: [loop, ...doc.loops] });
-      window.dispatchEvent(new Event("prevail:loops-changed"));
-      window.dispatchEvent(new CustomEvent("prevail:domain-tab", { detail: "loops" }));
-      toast.success("Created an automation. Opening it to refine…");
+      await addLoop(domainPath, loop);
+      const r = await invoke<{ migrated?: { loop: string; playbook: string }[] }>("engine_playbooks_migrate_loops", { vault: vaultPath }).catch(() => null);
+      const pb = r?.migrated?.find((m) => m.loop === loop.id)?.playbook;
+      pbRowsQ.refresh();
+      toast.success("Scheduled weekly as a playbook. Opening it to refine.");
+      if (pb) openPlaybook(pb);
     } catch (e) { toast.error(`Could not create the automation: ${String(e)}`); }
-  }, [domainPath]);
+  }, [domainPath, vaultPath]);
   const retryFromHere = useCallback((index: number) => {
     // Find the user message that produced this assistant slot.
     let userIdx = index;
@@ -1963,7 +2254,20 @@ export function ChatPanel({
     </button>
   ) : null;
 
+  // Specialist chips hand the message to those specialists: the text starts
+  // "@A @B " for the reader, and the names travel as `to` so the engine routes
+  // them in code. A name typed at the start ("@Planner ...") counts the same.
   async function send() {
+    const typed = leadingSpecNames(input);
+    const labels = [...handoffSpecs, ...typed.filter((t) => !handoffSpecs.some((h) => h.toLowerCase() === t.toLowerCase()))];
+    const text = [...handoffSpecs].reverse().reduce((acc, l) => withHandoff(acc, l), input);
+    if (!text.trim() || !selectedCli) return;
+    for (const l of typed) joinMember(specIdOf(l));
+    turnToRef.current = labels.map(specIdOf);
+    if (handoffSpecs.length) setHandoffSpecs([]);
+    return sendText(text);
+  }
+  async function sendText(input: string) {
     if (!input.trim() || !selectedCli) return;
     // Auto-council: this domain convenes the full council on every send
     // instead of a single model. Route the question to the Council tab and
@@ -2013,7 +2317,18 @@ export function ChatPanel({
     // turn hostage. Incognito and Bunker Mode skip it (no context, no cloud).
     const routeOn = !domain && !tDomain && !isApp && routingEnabled() && !incognitoActive("chat") && !isBunkerOn();
     const userMsg: ChatMessage = { role: "user", content: visible, ts: Date.now(), ...(routeOn ? { domainRoute: { tagged: [], suggested: [], pending: true } } : {}) };
-    const replyMsg: ChatMessage = { role: "assistant", cli: chatCli, model: chatModel || undefined, framework: fwLens.framework ?? undefined, lens: fwLens.lens ?? undefined, content: "", ts: Date.now(), streaming: true };
+    // What this reply records, at send time: the members, the scope and the
+    // context chips. The speaker starts as the chief of staff; a `speaker`
+    // event from the engine hands the bubble to a specialist.
+    const ctxLabels = [...refsRef.current.map((r) => r.label), ...primedContext.map((c) => shortContextLabel(c.label)), ...attachments.map((p) => p.split("/").pop() || p), ...attachedSkills];
+    const baseMeta: TurnMeta = {
+      speaker: "chief", name: chief ?? "Chief of staff",
+      ...(membersRef.current.length ? { members: [...membersRef.current] } : {}),
+      scope: mission ? mission.name : entity ? entity.name : scopeApp ? scopeApp.name : domain ? titleCase(domain) : "General",
+      ...(ctxLabels.length ? { context: ctxLabels } : {}),
+    };
+    turnMetaRef.current = baseMeta;
+    const replyMsg: ChatMessage = { role: "assistant", cli: chatCli, model: chatModel || undefined, framework: fwLens.framework ?? undefined, lens: fwLens.lens ?? undefined, content: "", ts: Date.now(), streaming: true, meta: baseMeta };
     setMessages((m) => [...m, userMsg, replyMsg]);
     // Attach file paths to the prompt so the CLI can read them.
     const attachPreamble = attachments.length > 0
@@ -2087,11 +2402,19 @@ export function ChatPanel({
       routedPreamble = await buildRoutedContext(vaultPath, routedOf(filingRef.current)).catch(() => "");
     }
     const history = buildChatContext(messages, 40000);
-    const promptText = fwLens.buildPrompt(
+    // A domain's or a project's context (constitution, profile, Compass, goals,
+    // memory, skills) is built by the engine's scope resolver, the same as on
+    // the CLI, MCP and Telegram; the desktop sends only what this composer
+    // adds (chatscope.ts). The full desktop prompt stays for General, app and
+    // entity chats, and for the native path when the engine is not there.
+    const engineText = fwLens.buildPrompt(composerMessage({ plan: planPreamble, attach: attachPreamble, primed: primedPreamble, skills: skillsPreamble, history, visible }));
+    const fullText = fwLens.buildPrompt(
       history
         ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
         : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
     );
+    const scopeContext = engineBuildsContext(turnScope) && engineAvailable;
+    const promptText = scopeContext ? engineText : fullText;
     pushHistory(visible);
     setAttachments([]);
     setAttachedSkills([]);
@@ -2216,11 +2539,15 @@ export function ChatPanel({
     // So does an app's own chat, and any turn with an @-reference: the engine
     // builds each app's context block and attaches its tools.
     const turnRefs = refsToChatArgs(refsRef.current);
-    const useEngine = ENGINE_CHAT_ENABLED && engineAvailable && (!!domain || !!entityIdRef.current || !!scopeApp || refsRef.current.length > 0 || (!!sendCli && ENGINE_ONLY.has(sendCli)));
+    // A named specialist or a group chat always goes through the engine: that is
+    // where names route in code (an @Planner in General used to reach the model).
+    const turnTo = turnToRef.current;
+    turnToRef.current = [];
+    const useEngine = ENGINE_CHAT_ENABLED && engineAvailable && (!!domain || !!mission || !!entityIdRef.current || !!scopeApp || refsRef.current.length > 0 || turnTo.length > 0 || membersRef.current.length > 0 || (!!sendCli && ENGINE_ONLY.has(sendCli)));
     turnAppNamesRef.current = [...(scopeApp ? [scopeApp.name] : []), ...refsRef.current.filter((r) => r.kind === "app" && r.id !== scopeApp?.id).map((r) => r.label)];
     // The engine treats General as the "general" domain (general_dir), so a
     // null/empty domain maps to that here.
-    const engineDomain = domain || "general";
+    const engineDomain = engineKey(turnScope);
     // Act mode: this domain routes sends through the AGENT runtime (real,
     // broker-gated tools + a Prevail-verified action ledger) instead of an
     // advisory text reply. Requires the engine; off in Bunker Mode; if the
@@ -2314,13 +2641,19 @@ export function ChatPanel({
           entities: turnRefs.entities,
           refDomains: turnRefs.refDomains,
           scopeApp: scopeApp?.id ?? null,
+          // A domain or project turn: the engine built the context; the link
+          // format the reply needs (so its chips render) rides as a hint.
+          outputHint: scopeContext ? linkPreamble : null,
+          // Group chat: names on this turn, and the chat's members.
+          to: turnTo,
+          members: membersRef.current,
         });
       } else {
         await invoke("chat_send", {
           args: {
             cli: sendCli,
             model: nativeModel,
-            prompt: promptText,
+            prompt: fullText,
             session_id: sessionRef.current,
             timeout_sec: (() => { const n = parseInt(getPref(PREF.llmPromptTimeoutSec, "300"), 10); return Number.isFinite(n) && n > 0 ? n : null; })(),
             web: webAllowed,
@@ -2339,7 +2672,7 @@ export function ChatPanel({
             args: {
               cli: chatCli,
               model: nativeModel,
-              prompt: promptText,
+              prompt: fullText,
               session_id: sessionRef.current,
               timeout_sec: (() => { const n = parseInt(getPref(PREF.llmPromptTimeoutSec, "300"), 10); return Number.isFinite(n) && n > 0 ? n : null; })(),
             },
@@ -2502,11 +2835,14 @@ export function ChatPanel({
   // shell treats it as a domain. `dkey`/`dlabel`/`dblurb` give every tab body a
   // safe key + display name whether or not a real domain slug is present.
   const dkey = domain || "general";
-  const dlabel = domain ? titleCase(domain) : "General";
+  const dlabel = domain ? titleCase(domain) : (chief ?? "General");
   const dblurb = domain ? domainBlurb(domain) : "Your catch-all workspace for anything not tied to a specific domain.";
   // Active for any domain including General (no app, and we're off the plain
   // conversation). General has no `domain` slug but is still a domain.
   const inDomainDetail = !isApp && domainTab !== "chat";
+  // The chat's members sit in its header: the slim row in General, else the thread row.
+  const slimRow = !inDomainDetail && !isApp && !entity && !scopeApp && !mission && (phone || !domain);
+  const memberBar = <MemberBar members={members} onRemove={leaveMember} onClear={() => { for (const id of [...membersRef.current]) leaveMember(id); }} />;
   // The unified domain tab set. Domain-appropriate: it drops the app-only facets
   // (Connections, Runs, catalog Domains-mapping) and keeps the domain-unique views
   // (Insights, Work). Usage is folded into the Insights tab as a section.
@@ -2515,7 +2851,6 @@ export function ChatPanel({
     { id: "soul", label: "Ideal State", icon: Sparkles },
     { id: "journal", label: "Journal", icon: BookOpen },
     { id: "skills", label: "Skills", icon: Boxes, count: domainCtx?.skills.length || undefined },
-    { id: "loops", label: "Loops", icon: Repeat },
     { id: "work", label: "Work", icon: Briefcase },
     { id: "insights", label: "Insights", icon: Lightbulb },
     ...(domain ? [{ id: "apps" as const, label: "Apps", icon: Plug }] : []),
@@ -2533,7 +2868,7 @@ export function ChatPanel({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="truncate text-2xl font-bold tracking-tight text-text-primary">{dlabel}</h2>
+            <h2 className="truncate font-display text-[22px] font-semibold tracking-tight text-text-primary">{dlabel}</h2>
             <ContextScoreBadge score={ctxScore} onClick={() => setDomainTab("insights")} />
           </div>
           <div className="mt-1.5 truncate text-[13px] text-text-muted">{dblurb}</div>
@@ -2542,7 +2877,7 @@ export function ChatPanel({
           <button
             onClick={() => setDomainTab("chat")}
             title="Back to the conversation"
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-background hover:bg-accent-hover"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-on-accent hover:bg-accent-hover"
           >
             <MessageSquare className="h-4 w-4" />
           </button>
@@ -2573,6 +2908,8 @@ export function ChatPanel({
 
   return (
     <div
+      ref={dropRef}
+      data-chat-drop=""
       className="flex h-full"
       onDragOver={(e) => {
         const types = Array.from(e.dataTransfer.types);
@@ -2615,7 +2952,7 @@ export function ChatPanel({
             const I = domainIcon(domain);
             return I ? <I className="h-5 w-5 shrink-0 text-accent" /> : <span className="text-accent">◆</span>;
           })()}
-          <span className="shrink-0 text-lg font-semibold">{titleCase(domain)}</span>
+          <span className="shrink-0 text-[15px] font-semibold">{titleCase(domain)}</span>
           <span className="hidden min-w-0 flex-1 truncate text-sm text-text-muted md:inline">{domainBlurb(domain)}</span>
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <ContextScoreBadge
@@ -2629,8 +2966,9 @@ export function ChatPanel({
       )}
       {/* General and the phone have no domain header; the Context view is
           still one tap away from a slim row above the transcript. */}
-      {!inDomainDetail && !isApp && !entity && !scopeApp && (phone || !domain) && (
+      {slimRow && (
         <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border-subtle px-3 py-1.5">
+          {memberBar}
           {scheduleButton}
           <ContextButton onClick={() => { setContextSection(undefined); setContextOpen(true); }} />
         </div>
@@ -2647,13 +2985,14 @@ export function ChatPanel({
       )}
 
       {/* C2 (Monday feedback): always show which thread is active in the canvas. */}
-      {activeThreadPath && threadTitle && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-surface-warm/40 px-4 py-1.5">
-          <FileText className="h-3 w-3 shrink-0 text-text-muted" />
-          <span className="truncate text-[11px] text-text-secondary" title={threadTitle}>{threadTitle}</span>
+      {((activeThreadPath && threadTitle) || (!slimRow && members.length > 0)) && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-surface-warm/40 px-4 py-1">
+          {activeThreadPath && threadTitle && <FileText className="h-3 w-3 shrink-0 text-text-muted" />}
+          <span className="min-w-0 flex-1 truncate text-[12px] text-text-secondary" title={threadTitle}>{activeThreadPath ? threadTitle : ""}</span>
+          {!slimRow && memberBar}
         </div>
       )}
-      {activeThreadPath && filing && !scopeApp && (
+      {activeThreadPath && filing && !scopeApp && !mission && (
         <div className="flex shrink-0 items-center border-b border-border-subtle px-4 py-1.5">
           <FilingChips filing={filing} domains={routableDomains} onChange={changeFiling} />
         </div>
@@ -2669,7 +3008,18 @@ export function ChatPanel({
             Ask anything about {entity.name}. What your vault knows about it comes along.
           </div>
         )}
-        {messages.length === 0 && !domain && !entity && !scopeApp && domainTab === "chat" && (
+        {messages.length === 0 && mission && domainTab === "chat" && (
+          <div data-testid="mission-chat-empty" className="flex h-full items-center justify-center px-6 py-10 text-center text-[15px] text-text-muted">
+            Talk to {mission.name}. Its domains, apps, people and notes come along; anything outside it asks you first.
+          </div>
+        )}
+        {messages.length === 0 && embedded && domainTab === "chat" && (
+          <div data-testid="embedded-chat-empty" className="flex h-full items-center justify-center px-6 py-10 text-center text-[14px] text-text-muted">
+            {defaultMembers?.length ? "Ask anything. Its mandate, notebooks and recent work come along." : "Add context or talk it through; the conversation is kept with it."}
+          </div>
+        )}
+        {messages.length === 0 && !embedded && !domain && !entity && !scopeApp && !mission && domainTab === "chat" && (
+          <TodayHome vaultPath={vaultPath} phone={phone} onAsk={(text) => { setInput(text); requestAnimationFrame(() => taRef.current?.focus()); }} fallback={
           <div className={`flex h-full flex-col items-center justify-center ${phone ? "px-5 py-4" : "px-6 py-8"}`} style={{ justifyContent: "safe center" }}>
             {/* Starred apps as a horizontal strip at the top of home - same
                 chip language as the in-domain Apps strip, per user feedback.
@@ -2696,7 +3046,7 @@ export function ChatPanel({
                 </p>
               </div>
             )}
-          </div>
+          </div>} />
         )}
         {domain && domainTab === "chat" && messages.length === 0 && (
           <DomainHome
@@ -2726,6 +3076,8 @@ export function ChatPanel({
               onMakeSkill={makeSkillFromChat}
               onAddToEntityNotes={entityId ? addReplyToEntityNotes : undefined}
               assistantFooter={approvalFooter}
+              chief={chief}
+              marks={memberMarks}
             />
           </div>
         )}
@@ -2759,7 +3111,7 @@ export function ChatPanel({
                         {(() => { const I = domainIcon(dkey); return I ? <I className="h-7 w-7" /> : <span className="text-2xl">◆</span>; })()}
                       </div>
                       <div className="min-w-0">
-                        <h2 className="truncate text-xl font-bold tracking-tight text-text-primary">{dlabel}</h2>
+                        <h2 className="truncate font-display text-[22px] font-semibold tracking-tight text-text-primary">{dlabel}</h2>
                         <p className="mt-1 text-[13px] leading-relaxed text-text-secondary">{dblurb}</p>
                       </div>
                     </div>
@@ -2803,7 +3155,7 @@ export function ChatPanel({
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     <StatTile icon={Boxes} label="Skills" value={skillsN} onClick={() => setDomainTab("skills")} />
                     <StatTile icon={FileText} label="Sessions" value={sessionsN} onClick={() => setDomainTab("journal")} />
-                    <StatTile icon={Repeat} label="Active loops" value={loopsActive.length} onClick={() => setDomainTab("loops")} />
+                    <StatTile icon={CalendarClock} label="On a schedule" value={loopsActive.length} onClick={() => openPlaybook(loopsAll[0]?.id ?? "")} />
                     <StatTile icon={Briefcase} label="Work" value={<Briefcase className="h-6 w-6 text-text-secondary" />} hint="Open board" onClick={() => setDomainTab("work")} />
                     <StatTile icon={Plug} label="Apps" value={appsFeeding.length} onClick={() => setDomainTab("apps")} />
                     <StatTile icon={BookOpen} label="Journal" value={journalN} onClick={() => setDomainTab("journal")} />
@@ -2866,12 +3218,12 @@ export function ChatPanel({
                       <span className="mt-auto pt-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-text-muted opacity-0 transition-opacity group-hover:opacity-100">Open Insights <ArrowUpRight className="h-3 w-3" /></span>
                     </button>
 
-                    {/* Active loops -> Loops. */}
+                    {/* Playbooks on a schedule here -> Playbooks. */}
                     <button
-                      onClick={() => setDomainTab("loops")}
+                      onClick={() => openPlaybook(loopsActive[0]?.id ?? loopsAll[0]?.id ?? "")}
                       className="group flex flex-col rounded-2xl border border-border-subtle bg-surface/50 p-5 text-left transition-colors hover:border-accent-border hover:bg-surface-warm/40"
                     >
-                      <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Repeat className="h-4 w-4 text-accent" /> Active loops{loopsActive.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{loopsActive.length}</span>}</h3>
+                      <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary"><CalendarClock className="h-4 w-4 text-accent" /> On a schedule{loopsActive.length > 0 && <span className="rounded-full bg-surface-warm px-1.5 py-0.5 text-[11px] text-text-muted">{loopsActive.length}</span>}</h3>
                       {loopsActive.length > 0 ? (
                         <ul className="mt-3 space-y-2">
                           {loopsActive.slice(0, 4).map((l) => (
@@ -2882,9 +3234,9 @@ export function ChatPanel({
                           ))}
                         </ul>
                       ) : (
-                        <div className="mt-3 rounded-lg border border-dashed border-border bg-background/40 p-3 text-[12px] text-text-muted">No standing loops yet. Loops keep this domain moving on their own.</div>
+                        <div className="mt-3 rounded-lg border border-dashed border-border bg-background/40 p-3 text-[12px] text-text-muted">Nothing runs here on a schedule yet. Schedule a playbook to keep this domain moving on its own.</div>
                       )}
-                      <span className="mt-auto pt-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-text-muted opacity-0 transition-opacity group-hover:opacity-100">Open Loops <ArrowUpRight className="h-3 w-3" /></span>
+                      <span className="mt-auto pt-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-text-muted opacity-0 transition-opacity group-hover:opacity-100">Open Playbooks <ArrowUpRight className="h-3 w-3" /></span>
                     </button>
 
                     {/* Recent activity -> Journal. */}
@@ -3044,9 +3396,6 @@ export function ChatPanel({
             {domainTab === "apps" && domain && (
               <DomainAppsTab domain={domain} vaultPath={vaultPath} />
             )}
-            {domainTab === "loops" && domainPath && (
-              <LoopsPanel domain={domain || "general"} vaultPath={vaultPath} domainPath={domainPath} />
-            )}
             {domainTab === "work" && (
               <BoardPanel vaultPath={vaultPath} initialDomain={domain || "general"} />
             )}
@@ -3170,6 +3519,8 @@ export function ChatPanel({
               onMakeSkill={makeSkillFromChat}
               onAddToEntityNotes={entityId ? addReplyToEntityNotes : undefined}
               assistantFooter={approvalFooter}
+              chief={chief}
+              marks={memberMarks}
             />
           </div>
         )}

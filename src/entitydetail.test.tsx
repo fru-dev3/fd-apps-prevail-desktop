@@ -15,6 +15,7 @@ const SAM = {
   ],
   co_mentions: [{ id: "place/maple-st", name: "Maple St", kind: "place", count: 2 }],
   page_path: "data/entities/people/sam-rivera.md", saved: false, digest: "You asked Sam about the roof.", notes: "Prefers text.",
+  merged_from: [{ id: "person/sammy-r", name: "Sammy R", ts: "2026-09-20T12:00:00Z", auto: false }],
 };
 const LIST = {
   generated_ts: 1, total: 3, entities: [
@@ -29,6 +30,7 @@ vi.mock("./bridge", () => ({
     calls.push({ cmd, args });
     if (cmd === "entities_show") return String(args?.id).startsWith("person/") ? SAM : { found: false, query: args?.id };
     if (cmd === "entities_save") return { ...SAM, saved: true };
+    if (cmd === "engine_entities_rename") return { ...SAM, name: "Samuel Rivera", aliases: ["Sam Rivera", "Sam"] };
     if (cmd === "entities_note") return { ...SAM, notes: String(args?.text) };
     if (cmd === "entities_list") return LIST;
     if (cmd === "app_favicon") return "";
@@ -40,7 +42,7 @@ vi.mock("./bridge", () => ({
   },
 }));
 let phone = false;
-vi.mock("./useisphone", () => ({ useIsPhone: () => phone, PHONE_MAX_PX: 767 }));
+vi.mock("./useisphone", () => ({ useIsPhone: () => phone, useStacked: () => false, PHONE_MAX_PX: 767 }));
 
 import { EntitiesView } from "./entitiesview";
 import { openEntity } from "./entities";
@@ -55,15 +57,20 @@ async function openOn(kind: string, value: string) {
 }
 
 describe("entity chips open the Entities view", () => {
-  it("navigates to the Entities section when no view is on screen, and the view opens on that entity", async () => {
+  it("navigates to the Entities page on the kind's tab, and the view opens on that entity", async () => {
     const nav: unknown[] = [];
+    const kinds: unknown[] = [];
     const on = (e: Event) => nav.push((e as CustomEvent).detail);
-    window.addEventListener("prevail:open-settings", on);
+    const onKind = (e: Event) => kinds.push((e as CustomEvent).detail);
+    window.addEventListener("prevail:work-section", on);
+    window.addEventListener("prevail:ia-kind", onKind);
     act(() => openEntity({ kind: "place", value: "Maple St" }));
-    window.removeEventListener("prevail:open-settings", on);
+    window.removeEventListener("prevail:work-section", on);
+    window.removeEventListener("prevail:ia-kind", onKind);
     expect(nav).toEqual(["entities"]);
+    expect(kinds).toEqual(["places"]);
     render(<EntitiesView vaultPath="/v" />);
-    await screen.findByText("No conversations mention it yet.");
+    await waitFor(() => expect(screen.queryByText("Mentioned in")).toBeNull());
     expect(calls.find((c) => c.cmd === "entities_show")?.args).toEqual({ vault: "/v", id: "place/Maple St" });
     expect(screen.getByRole("heading", { name: "Maple St", level: 2 })).toBeTruthy();
   });
@@ -98,6 +105,17 @@ describe("entity detail", () => {
     expect(chip.closest("[data-entity]")?.getAttribute("data-entity")).toBe("place");
     // The file path lives in the "..." menu, not on the page.
     expect(screen.queryByText("data/entities/people/sam-rivera.md")).toBeNull();
+  });
+
+  it("shows what was merged into it, and renames with the old name kept", async () => {
+    await openOn("person", "Sam Rivera");
+    expect((await screen.findByTestId("entity-merged-from")).textContent).toContain("Merged from Sammy R");
+    fireEvent.click(screen.getByRole("button", { name: "More entity actions" }));
+    fireEvent.click(await screen.findByText("Rename"));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "samuel rivera" } });
+    fireEvent.submit(screen.getByTestId("entity-rename-form"));
+    await waitFor(() => expect(calls.find((c) => c.cmd === "engine_entities_rename")?.args).toEqual({ vault: "/v", id: "person/sam-rivera", name: "samuel rivera" }));
+    await screen.findByRole("heading", { name: "Samuel Rivera", level: 2 });
   });
 
   it("saves to the vault and writes only the notes", async () => {
@@ -137,7 +155,7 @@ describe("entity detail", () => {
 
   it("an unknown place still gets a detail with a map and Save", async () => {
     await openOn("place", "Maple St");
-    await screen.findByText("No conversations mention it yet.");
+    await waitFor(() => expect(screen.queryByText("Mentioned in")).toBeNull());
     expect(screen.getByTestId("entity-map")).toBeTruthy();
     expect(screen.getByTestId("entity-save")).toBeTruthy();
   });
@@ -148,7 +166,7 @@ describe("Entities view", () => {
     render(<EntitiesView vaultPath="/v2" />);
     await screen.findByRole("heading", { name: /people/i });
     expect(screen.getByRole("heading", { name: /places/i })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /^companies/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^products/i })).toBeTruthy();
     await screen.findByText("You asked Sam about the roof.");
     // The list lives in the canonical SideSpine, and the vault marker is the
     // green ok token, never the accent.
@@ -162,7 +180,7 @@ describe("Entities view", () => {
     fireEvent.change(screen.getByLabelText("Search entities"), { target: { value: "map" } });
     expect(screen.getAllByTestId("entity-row")).toHaveLength(1);
     fireEvent.change(screen.getByLabelText("Search entities"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("tab", { name: "Companies" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Products" }));
     expect(screen.getAllByTestId("entity-row").map((r) => r.textContent)).toEqual([expect.stringContaining("acme")]);
     fireEvent.click(screen.getAllByTestId("entity-row")[0]);
     await waitFor(() => expect(calls.filter((c) => c.cmd === "entities_show").pop()?.args).toEqual({ vault: "/v2", id: "org/acme" }));

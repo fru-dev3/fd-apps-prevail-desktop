@@ -48,10 +48,10 @@ test("sidebar · typing in Search settings filters the rows; Enter opens the fir
   // Side rows are searchable too.
   await search.fill("phone");
   await expect(nav.getByTestId("settings-sub-matches")).toContainText("Phone in Connections");
-  await search.fill("ideal");
+  await search.fill("inten");
   await search.press("Enter");
   await expect(search).toHaveValue("");
-  await expect(page.getByTestId("settings-page").getByTestId("page-header").filter({ hasText: "Ideals" }).first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("settings-page").getByTestId("page-header").filter({ hasText: "Intent" }).first()).toBeVisible({ timeout: 10_000 });
   // Esc inside the field does not leave Settings.
   await search.press("Escape");
   await expect(nav.getByTestId("settings-back")).toBeVisible();
@@ -82,4 +82,16 @@ test.describe("sidebar · sticky section headers", () => {
     await head.getByRole("button", { name: /Domains/ }).click();
     await expect(head.getByRole("button", { name: /Domains/ })).toHaveAttribute("aria-expanded", "false");
   });
+});
+
+test("sidebar · a named chief of staff takes the General row", async ({ page }) => {
+  await mockTauri(page, { chief_of_staff_read: "---\nname: Foo\nvoice: plain\n---\n" });
+  await page.goto("/");
+  const row = page.getByTestId("app-sidebar").getByTestId("nav-home");
+  await expect(row).toContainText("Foo", { timeout: 15_000 });
+  await expect(row).toHaveAttribute("title", "Foo, your chief of staff");
+});
+
+test("sidebar · with no name the General row stays Home", async ({ page }) => {
+  await expect(page.getByTestId("app-sidebar").getByTestId("nav-home")).toContainText("Home");
 });

@@ -98,7 +98,7 @@ export function SchedulePanel({ vaultPath, domain, session, defaultPrompt, onClo
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-3 flex items-center gap-2.5">
           <CalendarClock className="h-5 w-5 shrink-0 text-accent" />
-          <h3 className="flex-1 text-lg font-semibold text-text-primary">Schedule this conversation</h3>
+          <h3 className="flex-1 text-[15px] font-semibold text-text-primary">Schedule this conversation</h3>
           <button onClick={onClose} title="Close" aria-label="Close schedule"
             className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-text-primary">
             <X className="h-4 w-4" />

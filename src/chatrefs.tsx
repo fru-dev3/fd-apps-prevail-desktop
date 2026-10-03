@@ -6,8 +6,10 @@
 // Activity; engine notes about apps (routed, needs sign-in, unavailable) are
 // drawn in the flow of the reply.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Boxes, Building2, ExternalLink, KeyRound, Layers, MapPin, Route, User, X } from "lucide-react";
+import { AlertTriangle, ExternalLink, KeyRound, Layers, Route, X } from "lucide-react";
+import { kindOfId, KINDS } from "./ia";
 import { useInvokeQuery } from "./query";
+import { SpecialistAvatar } from "./specialistavatar";
 import { titleCase } from "./format";
 import { lsGet, LS } from "./storage";
 import { isUserDomain } from "./helpers";
@@ -38,6 +40,8 @@ export function useRefCandidates(vaultPath: string | null, token: string | null,
   const apps = useChatApps(token !== null ? vaultPath : null);
   const ents = useEntityStore();
   const doms = useInvokeQuery<{ name: string }[]>("scan_vault", token !== null && vaultPath ? { path: vaultPath } : null, { staleMs: 60_000 });
+  const specs = useInvokeQuery<{ id: string; name: string; on: boolean; returns: string }[]>("engine_specialists", token !== null && vaultPath ? { vault: vaultPath } : null, { staleMs: 5 * 60_000 });
+  const missions = useInvokeQuery<{ slug: string; name: string; status: string; outcome: string }[]>("engine_missions_list", token !== null && vaultPath ? { vault: vaultPath, status: "all" } : null, { staleMs: 60_000 });
   useEffect(() => { if (token !== null && vaultPath) void loadEntities(vaultPath); }, [token !== null, vaultPath]); // eslint-disable-line react-hooks/exhaustive-deps
   return useMemo(() => {
     if (token === null) return [];
@@ -45,28 +49,54 @@ export function useRefCandidates(vaultPath: string | null, token: string | null,
     const hit = (...xs: (string | undefined)[]) => !q || xs.some((x) => x && x.toLowerCase().includes(q));
     const a: RefCandidate[] = apps.filter((x) => hit(x.name, x.id)).slice(0, 5)
       .map((x) => ({ kind: "app", id: x.id, label: x.name, url: x.url, sub: x.trusted ? "Trusted source" : x.runtime ? `App via ${runtimeName(x.runtime)}` : "App" }));
-    const e: RefCandidate[] = (ents.list?.entities ?? []).filter((x) => hit(x.name, ...x.aliases))
-      .sort((x, y) => Number(y.saved) - Number(x.saved) || y.mention_count - x.mention_count).slice(0, 5)
+    // People, places, products, things and events, each under its kind (ia.ts), a few of each.
+    const order = (k: string) => { const i = ENTITY_ORDER.indexOf(k); return i < 0 ? 99 : i; };
+    const perKind = new Map<string, number>();
+    const e: RefCandidate[] = (ents.list?.entities ?? []).filter((x) => x.kind !== "project" && hit(x.name, ...x.aliases))
+      .sort((x, y) => order(x.kind) - order(y.kind) || Number(y.saved) - Number(x.saved) || y.mention_count - x.mention_count)
+      .filter((x) => { const n = perKind.get(x.kind) ?? 0; perKind.set(x.kind, n + 1); return n < (q ? 4 : 3); })
       .map((x) => ({ kind: "entity", id: x.id, label: x.name, entityKind: x.kind, sub: ENTITY_KIND[x.kind] ?? "Entity" }));
     const d: RefCandidate[] = (Array.isArray(doms.data) ? doms.data : []).map((x) => x.name).filter(isUserDomain).filter((x) => hit(x, titleCase(x))).slice(0, 5)
       .map((x) => ({ kind: "domain", id: x, label: titleCase(x), sub: "Domain" }));
+    // Specialists: picking one hands the message to it ("@Researcher ...").
+    const s: RefCandidate[] = (Array.isArray(specs.data) ? specs.data : []).filter((x) => x.on && hit(x.name, x.id)).slice(0, 6)
+      .map((x) => ({ kind: "specialist", id: x.id, label: x.name, sub: `Specialist, returns ${x.returns}` }));
+    // Missions: the active ones; an @ mission brings a short brief of it.
+    const m: RefCandidate[] = (Array.isArray(missions.data) ? missions.data : []).filter((x) => x.status === "active" && hit(x.name, x.slug)).slice(0, 4)
+      .map((x) => ({ kind: "mission", id: x.slug, label: x.name, sub: x.outcome ? `Project: ${x.outcome}` : "Project" }));
     if (only === "app") return a;
     if (only === "entity") return e;
-    return [...a, ...e, ...d];
-  }, [token, only, apps, ents.list, doms.data]);
+    if (only === "specialist") return s;
+    if (only === "mission") return m;
+    // Activities first (events, then projects), then the entities with apps among the products.
+    const ev = e.filter((x) => x.entityKind === "event");
+    const rest = e.filter((x) => x.entityKind !== "event");
+    const products = rest.findIndex((x) => order(x.entityKind ?? "") > order("org"));
+    const withApps = products < 0 ? [...rest, ...a] : [...rest.slice(0, products), ...a, ...rest.slice(products)];
+    return [...s, ...ev, ...m, ...withApps, ...d];
+  }, [token, only, apps, ents.list, doms.data, specs.data, missions.data]);
 }
 
-const ENTITY_KIND: Record<string, string> = { person: "Person", place: "Place", org: "Company", thing: "Thing" };
+const ENTITY_KIND: Record<string, string> = { person: "Person", place: "Place", org: "Product", thing: "Thing", event: "Event" };
+const ENTITY_ORDER = ["person", "place", "org", "thing", "event"];
 
 function RefIcon({ r, size = 16 }: { r: RefCandidate | ChatRef; size?: number }) {
   if (r.kind === "app") return <AppLogo name={r.label} url={(r as RefCandidate).url} size={size} />;
-  if (r.kind === "domain") { const D = domainIcon(r.id) ?? Layers; return <D className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />; }
+  if (r.kind === "domain") { const D = domainIcon(r.id) ?? Layers; return <D className="shrink-0 opacity-80" style={{ width: size - 2, height: size - 2 }} />; }
+  if (r.kind === "mission") { const P = KINDS.find((k) => k.id === "projects")!.icon; return <P className="shrink-0 opacity-80" style={{ width: size - 2, height: size - 2 }} />; }
+  if (r.kind === "specialist") return <SpecialistAvatar id={r.id} size={size + 2} />;
   const k = (r as RefCandidate).entityKind ?? r.id.split("/")[0];
-  const I = k === "person" ? User : k === "place" ? MapPin : k === "org" ? Building2 : Boxes;
-  return <I className="shrink-0 text-text-muted" style={{ width: size - 2, height: size - 2 }} />;
+  if (k === "person") {
+    const ini = r.label.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+    return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-full bg-accent/15 font-semibold leading-none text-accent" style={{ width: size, height: size, fontSize: Math.max(8, Math.round(size * 0.45)) }}>{ini}</span>;
+  }
+  const I = kindOfId(k)?.icon ?? Layers;
+  return <I className="shrink-0 opacity-80" style={{ width: size - 2, height: size - 2 }} />;
 }
 
-const GROUP: Record<RefKind, string> = { app: "Apps", entity: "People and things", domain: "Domains" };
+// The @ list speaks the two groups: each kind under its own name.
+const GROUP: Record<RefKind, string> = { specialist: "Specialists", mission: "Projects", app: "Products", entity: "Entities", domain: "Domains" };
+const groupOf = (r: RefCandidate) => (r.kind === "entity" ? kindOfId(r.entityKind ?? r.id)?.label ?? GROUP.entity : GROUP[r.kind]);
 
 // The suggestion list, anchored above the composer (inside its relative box).
 export function RefSuggest({ items, index, onPick, empty }: { items: RefCandidate[]; index: number; onPick: (r: RefCandidate) => void; empty: string }) {
@@ -74,7 +104,7 @@ export function RefSuggest({ items, index, onPick, empty }: { items: RefCandidat
     <div data-testid="ref-suggest" role="listbox" aria-label="Reference" className="absolute bottom-full left-3 z-40 mb-1 max-h-80 w-80 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-border bg-surface shadow-xl">
       {items.length === 0 ? <div className="px-3 py-2.5 text-[13px] text-text-muted">{empty}</div> : items.map((r, i) => (
         <div key={`${r.kind}:${r.id}`}>
-          {(i === 0 || items[i - 1].kind !== r.kind) && <div className="border-t border-border-subtle bg-surface-warm px-3 py-1 text-[12px] font-medium text-text-muted first:border-t-0">{GROUP[r.kind]}</div>}
+          {(i === 0 || groupOf(items[i - 1]) !== groupOf(r)) && <div className="border-t border-border-subtle bg-surface-warm px-3 py-1 text-[12px] font-medium text-text-muted first:border-t-0">{groupOf(r)}</div>}
           <button type="button" role="option" aria-selected={i === index} data-testid={`ref-option-${r.kind}-${r.id}`}
             onMouseDown={(e) => { e.preventDefault(); onPick(r); }}
             className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left ${i === index ? "bg-accent-soft" : "hover:bg-surface-warm"}`}>
@@ -116,10 +146,10 @@ export function shortContextLabel(label: string): string {
 }
 
 export function refItem(r: ChatRef, onRemove: () => void): AttachItem {
-  const kind = r.kind === "app" ? "App" : r.kind === "domain" ? "Domain" : "Person or thing";
+  const kind = r.kind === "app" ? "App" : r.kind === "domain" ? "Domain" : r.kind === "mission" ? "Project" : r.kind === "specialist" ? "Specialist" : kindOfId(r.id)?.singular ?? "Entity";
   return {
     key: `ref:${r.kind}:${r.id}`, label: `@${r.label}`, testId: `ref-chip-${r.kind}`,
-    title: `${kind}: ${r.label}. ${r.kind === "app" ? "Used" : "Comes along"} on every turn`,
+    title: r.kind === "specialist" ? `Hands this message to the ${r.label}` : `${kind}: ${r.label}. ${r.kind === "app" ? "Used" : "Comes along"} on every turn`,
     icon: <RefIcon r={r} size={14} />, onRemove,
   };
 }
@@ -152,6 +182,8 @@ export function AttachRow({ items }: { items: AttachItem[] }) {
     if (typeof ResizeObserver === "undefined" || !wrap.current) return;
     const ro = new ResizeObserver(measure);
     ro.observe(wrap.current);
+    // The chips change width when a web font lands after the first measure.
+    if (probe.current) ro.observe(probe.current);
     return () => ro.disconnect();
   }, [items]);
   useEffect(() => { if (items.length <= fit) setOpen(false); }, [items.length, fit]);
@@ -161,7 +193,7 @@ export function AttachRow({ items }: { items: AttachItem[] }) {
   // `probe`: the measuring copy, with no test ids and nothing to focus.
   const chip = (it: AttachItem, probe = false) => (
     <span key={it.key} data-testid={probe ? undefined : it.testId ?? "attach-chip"} title={probe ? undefined : it.title}
-      className={`inline-flex max-w-[14rem] shrink-0 items-center gap-1 rounded-full border py-0.5 pl-1.5 pr-1 text-[12px] ${it.quiet ? "border-border text-text-muted" : "border-accent-border bg-accent-soft font-medium text-accent"}`}>
+      className="inline-flex max-w-[14rem] shrink-0 items-center gap-1 rounded-full border border-accent-border bg-accent-soft py-0.5 pl-1.5 pr-1 text-[12px] font-medium text-accent">
       {it.icon}
       <span className="truncate">{it.label}</span>
       {probe ? <span className="h-3.5 w-3.5 shrink-0" /> : (

@@ -58,11 +58,11 @@ test("entities · tabs switch in place without remounting", async ({ page }) => 
   expect((await args(page, "entities_show")).length).toBe(1);
 });
 
-test("entities · the composer is fully visible at 1440x900 and the kind filter is one line", async ({ page }) => {
+test("entities · the composer is fully visible at 1440x900 and the kind filter (icons and labels) fits in two lines", async ({ page }) => {
   await openEntities(page);
   const tabs = page.getByTestId("entity-kind-filter").getByRole("tab");
   const tops = await tabs.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-  expect(new Set(tops).size).toBe(1);
+  expect(new Set(tops).size).toBeLessThanOrEqual(2);
   await page.getByTestId("entity-tab-chat").click();
   const composer = page.getByTestId("entity-chat").locator("[data-tour=composer]");
   await expect(composer).toBeVisible({ timeout: 10_000 });
@@ -163,13 +163,18 @@ test("entities · Set picture sends the picked file to the engine", async ({ pag
 
 for (const bunker of [false, true]) {
   test(`entities · an org with a website ${bunker ? "shows no logo in Bunker Mode" : "shows its logo and keeps it"}`, async ({ page }) => {
-    await openWith(page, {
+    await mockTauri(page, { ...FIX,
       bunker_status: { enabled: bunker, network_blocked: bunker, web_blocked: bunker, cloud_blocked: bunker, local_available: true },
       entities_list: { generated_ts: 1, total: 1, entities: [FOO_ORG] },
+      // Products are one list over orgs and app records (the engine's adapter).
+      ia_products: { products: [{ id: FOO_ORG.id, name: FOO_ORG.name, company: true, apps: [], website: FOO_ORG.website, saved: true, has_page: true, conversations: 2, last_ts: 1, relation: "yours" }] },
       entities_show: { found: true, ...FOO_ORG, kinds: ["org"], mentions: [], co_mentions: [], page_path: "data/entities/orgs/foo-labs/entity.md", digest: "", notes: "" },
       app_favicon: PNG,
       engine_entities_set_picture: { ok: true },
-    }).catch(() => {});
+    });
+    await page.goto("/");
+    await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "products" })));
     const row = page.getByTestId("entity-row").first();
     await expect(row).toContainText("Foo Labs", { timeout: 10_000 });
     if (!bunker) {

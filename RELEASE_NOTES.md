@@ -1,21 +1,51 @@
-# Prevail 0.4.5
+# Prevail 0.4.6
 
-Every conversation has a home. Start one anywhere and Prevail files it in the
-domain it fits best, and links it to up to three more it concerns. You see it
-at the top of the conversation: "Filed in" one domain, "Also in" others. Tap
-to change the home, remove a domain or add one; your choice always wins, and
-a domain you remove never comes back. A conversation shows up in every
-domain it is filed in. Only when nothing fits is it left unfiled, with three
-suggestions one click away.
+A big one. Prevail now knows what you live by, works with a team of
+specialists, and keeps your life in two clear groups: Entities and Activities.
+It also carries everything from 0.4.5, which was never published: every
+conversation has a home domain, copy on select, and For You.
 
-Your older conversations can be filed too. "File unfiled conversations", in
-For You and in Settings, shows a plan you can edit before applying it. Only
-the filing changes; what you wrote stays exactly as it was.
+**Compass.** One page for what you live by, in your own words: Purpose,
+Values, Mission statement, Vision, Objectives, Goals, Initiatives, Roles,
+Rules and Routines. Each line links to the one above it, so any task can
+answer "why am I doing this?". Prevail drafts lines from your notes, quoted
+word for word, and nothing counts until you confirm it. Every line can be
+opened, edited or discussed in chat, and every change is kept in History.
+A yearly review runs on its own and keeps the earlier ones.
 
-Copy on select. Selecting text in replies and pages copies it, the way a
-terminal does. Text boxes are left alone. Turn it off in Settings, Behavior.
+**Specialists.** Your chief of staff (you name them) staffs a team of
+specialists: Researcher, Planner, Steward, Writer, Tutor, Negotiator and
+more, each with its own face. Bring several into a chat; each answers as
+itself, and every reply shows who answered and who was in the room. Mention
+one by name and it answers directly. Spending limits and approvals are
+enforced in code; anything that touches money, people, location or identity
+asks first. Edit any specialist's instructions, tools and limits in the app.
 
-Recommendations is now For You. Everything attached to a message (context,
-apps, people, domains, files) sits in one row above the text.
+**Entities and Activities.** People, Places, Products (companies, apps and
+services together) and Things you own, plus Events and Projects. Each is its
+own page you can chat with, linked to the others. An event can become a
+project, and a project's milestones show up on your calendar strip.
 
-Engine 1.10.5.
+**Projects.** Start one by describing it. Prevail fills in the outcome,
+dates, domains, budget and specialists as you talk, and asks one question at
+a time. It counts progress from what already happens, and when you finish,
+what it learned goes back to the right domains, with Undo.
+
+**Inbox and Briefing.** Home is just the chat again. Today, the weekly
+review and jobs live in the Inbox. Decisions you make in any chat are saved
+for you, each with its own chat. As you talk, the right domains are quietly
+noted ("Noted in Content"), with Undo.
+
+**Apps and usage.** Every AI tool's usage in one place, with honest cost
+numbers, an app inventory, recurring charges, a connection doctor and a
+monthly stack review.
+
+**Playbooks replace loops.** Your automations now run as scheduled
+playbooks, with the same schedules and approvals.
+
+**Design.** Quieter type, actions that appear on hover, colorful icons,
+collapsed sidebar sections that open when you need them, and side columns
+that collapse to an icon rail.
+
+Breaking: Loops are now Playbooks. Missions are called Projects. Household
+and Packs were removed.

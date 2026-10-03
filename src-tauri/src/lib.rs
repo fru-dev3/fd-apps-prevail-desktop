@@ -18,6 +18,10 @@ mod linking;
 mod structure;
 mod appscope;
 mod goals;
+mod compass;
+mod plans;
+mod step6;
+mod missions;
 mod appcmds;
 mod bunker;
 mod vault_lock;
@@ -62,6 +66,7 @@ mod surface;
 mod skillgen;
 mod taskgen;
 mod tasks;
+mod focus;
 mod telegram;
 mod discord_bridge;
 mod email_bridge;
@@ -247,6 +252,20 @@ pub fn run() {
             if let Some(v) = engine::engine_config_vault() {
                 engine::set_vault_root(Some(v));
             }
+            // Live app focus for the stack view (apps plan A2): frontmost app
+            // and idle time, no permission needed, off when the user says so.
+            focus::start();
+            // Start on boot bakes this binary's path into a LaunchAgent. Opened
+            // from a download, macOS runs the app from a temporary translocated
+            // copy, and the agent kept pointing there after the copy was gone.
+            // An installed app rewrites it on every launch.
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+                if autostart_should_refresh(&exe) && app.autolaunch().is_enabled().unwrap_or(false) {
+                    let _ = app.autolaunch().enable();
+                }
+            }
             use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
             use tauri::tray::TrayIconBuilder;
             use tauri::Manager;
@@ -413,6 +432,8 @@ pub fn run() {
             usage::usage_append,
             usage::usage_summary,
             usage::usage_entries,
+            usage::engine_ai_usage,
+            usage::engine_metrics,
             usage::usage_summary_domain,
             usage::engine_budget_status,
             intents::intent_append,
@@ -608,6 +629,120 @@ pub fn run() {
             appscope::apps_untrusted_sources,
             goals::goals_files_read,
             goals::goals_file_write,
+            compass::chief_of_staff_read,
+            missions::engine_missions_list,
+            missions::engine_missions_show,
+            missions::engine_missions_create,
+            missions::engine_missions_draft,
+            missions::engine_missions_create_from_draft,
+            missions::engine_missions_set,
+            missions::engine_missions_attach,
+            missions::engine_missions_milestone,
+            missions::engine_missions_budget,
+            missions::engine_missions_state,
+            missions::engine_missions_log,
+            missions::engine_missions_closeout_plan,
+            missions::engine_missions_closeout_apply,
+            missions::engine_missions_undo,
+            missions::engine_missions_progress,
+            missions::engine_missions_track,
+            missions::engine_missions_event_create,
+            missions::engine_missions_event_approve,
+            missions::engine_missions_link_path,
+            missions::engine_missions_from_path,
+            plans::engine_today,
+            plans::engine_today_tap,
+            plans::engine_review,
+            plans::engine_review_checkin,
+            plans::engine_review_candidate,
+            plans::engine_specialists,
+            plans::engine_specialist_show,
+            plans::engine_jobs,
+            plans::engine_job_show,
+            plans::engine_job_action,
+            plans::engine_job_undo,
+            plans::engine_job_adjust,
+            plans::engine_decisions,
+            plans::engine_decision_action,
+            plans::engine_metric_proposals,
+            plans::engine_metric_answer,
+            plans::engine_apps_stack,
+            plans::engine_apps_card,
+            plans::engine_apps_map,
+            plans::engine_apps_unknown,
+            plans::engine_apps_doctor,
+            plans::engine_apps_offboard,
+            plans::engine_sources,
+            plans::engine_source_consent,
+            plans::engine_source_sync,
+            plans::engine_review_answer,
+            plans::metrics_who5_state,
+            plans::engine_chief_set,
+            plans::engine_specialist_save,
+            plans::engine_specialist_domain_save,
+            plans::engine_specialist_reset,
+            step6::engine_specialist_draft,
+            step6::engine_specialist_create,
+            step6::engine_compass_history,
+            step6::engine_compass_yearly,
+            step6::engine_compass_yearly_list,
+            step6::engine_compass_yearly_save,
+            step6::engine_after_turn,
+            step6::engine_touch_undo,
+            step6::engine_decision_undo,
+            step6::engine_compass_fresh,
+            step6::engine_compass_export,
+            step6::engine_metrics_say,
+            step6::engine_apps_imports,
+            step6::engine_apps_imports_run,
+            step6::engine_apps_imports_reminder,
+            step6::engine_apps_stack_diff,
+            step6::engine_apps_stack_diff_accept,
+            plans::engine_compass_align,
+            plans::engine_compass_rules,
+            plans::engine_commitments,
+            plans::engine_commitment_answer,
+            plans::engine_commitment_undo,
+            plans::engine_radar,
+            plans::engine_routines,
+            plans::engine_decision_recommend,
+            plans::engine_decisions_scan,
+            plans::engine_decision_from_conflict,
+            plans::engine_decision_open,
+            plans::engine_compass_conflict,
+            plans::engine_playbook_rows,
+            plans::engine_playbook_show,
+            plans::engine_playbook_save,
+            plans::engine_playbook_adopt,
+            plans::engine_playbook_run,
+            plans::engine_job_act,
+            plans::engine_playbook_inbox,
+            plans::engine_playbook_seen,
+            plans::engine_playbook_trigger,
+            plans::engine_playbooks_migrate_loops,
+            plans::engine_initiatives,
+            plans::engine_compass_tree,
+            plans::engine_compass_links,
+            plans::engine_compass_link,
+            plans::engine_initiatives_generate,
+            plans::engine_initiative_choose,
+            plans::engine_initiative_retire,
+            plans::engine_initiatives_review,
+            plans::engine_story,
+            plans::engine_story_write,
+            plans::engine_experiment,
+            plans::engine_time,
+            plans::engine_time_hold,
+            plans::engine_tell,
+            plans::engine_tell_undo,
+            plans::engine_told,
+            plans::engine_forgetting,
+            compass::compass_read,
+            compass::compass_write,
+            compass::compass_versions,
+            compass::compass_version_read,
+            compass::compass_ledger,
+            compass::engine_compass_bootstrap,
             entities_bridge::engine_entity_note_append,
             entities_bridge::entities_refresh,
             entities_bridge::engine_entities_duplicates,
@@ -615,9 +750,21 @@ pub fn run() {
             entities_bridge::engine_entities_not_same,
             entities_bridge::engine_entities_set_picture,
             entities_bridge::engine_entities_set_website,
+            entities_bridge::engine_entities_rename,
             entities_bridge::engine_entities_files,
             entities_bridge::engine_entities_add_file,
             entities_bridge::engine_entity_picture,
+            entities_bridge::ia_products,
+            entities_bridge::ia_links,
+            entities_bridge::ia_link,
+            entities_bridge::ia_set_field,
+            entities_bridge::ia_service,
+            entities_bridge::ia_events,
+            entities_bridge::ia_event_adopt,
+            entities_bridge::ia_event_calendar,
+            entities_bridge::ia_event_project,
+            entities_bridge::ia_draft,
+            entities_bridge::ia_create,
             linking::engine_updates,
             linking::engine_entities_set_relation,
             linking::engine_config_autosave_get,
@@ -696,8 +843,6 @@ pub fn run() {
             loops::loop_execute_action,
             loops::loop_request_approval,
             approval::autonomy_classify,
-            loops::loop_run_now,
-            loops::loop_run_now_stream,
             loops::loop_pending_drop,
             activity::activity_read,
             engine::engine_score_history,
@@ -891,6 +1036,7 @@ mod usage_tests {
             cost_usd: cost,
             ok,
             surface: None,
+            token_source: None,
         }
     }
 
@@ -913,6 +1059,10 @@ mod usage_tests {
         assert!(p.get("cost_usd").is_none(), "cost is the engine's job");
         // No thread → a stable default session.
         assert_eq!(p["session"], "desktop");
+        // An estimate stays labeled as one in the engine's ledger.
+        let mut e = rec("2026-06-06", "claude", None, None, Some(10), Some(4), None, true);
+        e.token_source = Some("estimated".into());
+        assert_eq!(usage_record_payload(&e)["tokenSource"], "estimated");
     }
 
     #[test]
@@ -1063,5 +1213,23 @@ mod usage_tests {
         assert!(decision_feedback(vault_s.clone(), Some("health".into()), "nope".into(), "up".into(), None).is_err());
 
         let _ = fs::remove_dir_all(&vault);
+    }
+}
+
+/// Only an installed app bundle rewrites the start-on-boot agent: never a dev
+/// build, and never a translocated copy that disappears.
+fn autostart_should_refresh(exe: &str) -> bool {
+    exe.contains(".app/Contents/MacOS/") && !exe.contains("/AppTranslocation/")
+}
+
+#[cfg(test)]
+mod autostart_tests {
+    use super::autostart_should_refresh;
+
+    #[test]
+    fn only_an_installed_bundle_refreshes_start_on_boot() {
+        assert!(autostart_should_refresh("/Applications/Foo.app/Contents/MacOS/foo"));
+        assert!(!autostart_should_refresh("/private/var/folders/x/T/AppTranslocation/ABC/d/Foo.app/Contents/MacOS/foo"));
+        assert!(!autostart_should_refresh("/Users/foo/src/target/debug/foo"));
     }
 }

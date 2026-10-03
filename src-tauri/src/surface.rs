@@ -73,10 +73,11 @@ fn gather_context(dir: &Path) -> String {
             }
         }
     };
-    read_head(dir.join("_memory.md"), "Long-term memory", 2000, &mut out);
-    read_head(dir.join("state.md"), "State", 1500, &mut out);
-    read_head(dir.join("_state.md"), "State", 1500, &mut out);
-    read_head(dir.join("goals.md"), "Goals", 1000, &mut out);
+    // v4 homes (memory/, source/) first, the flat legacy names as fallbacks.
+    let first = |names: &[&str]| names.iter().map(|n| dir.join(n)).find(|p| p.exists()).unwrap_or_else(|| dir.join(names[0]));
+    read_head(first(&["memory/memory.md", "_memory.md"]), "Long-term memory", 2000, &mut out);
+    read_head(first(&["memory/state.md", "state.md", "_state.md"]), "State", 1500, &mut out);
+    read_head(first(&["source/goals.md", "goals.md"]), "Goals", 1000, &mut out);
     // Decisions already made — so the coach builds on them instead of re-asking
     // settled questions (council verdicts + chat/distill-extracted decisions).
     if let Ok(raw) = crate::read_to_string_retry(dir.join("_decisions.jsonl")) {

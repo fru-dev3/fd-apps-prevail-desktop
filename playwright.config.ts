@@ -21,6 +21,8 @@ export default defineConfig({
     { name: "app", testIgnore: /perf\.spec\.ts/, use: { baseURL: "http://localhost:1420" } },
     { name: "perf", testMatch: /perf\.spec\.ts/, use: { baseURL: "http://localhost:1421" } },
   ],
+  // PW_APP_ONLY=1 skips the production build the perf project needs, so a
+  // focused run of a few app specs starts fast and can share one dev server.
   webServer: [
     {
       command: "npx vite --port 1420 --strictPort",
@@ -28,11 +30,11 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },
-    {
+    ...(process.env.PW_APP_ONLY ? [] : [{
       command: "npx vite build && npx vite preview --port 1421 --strictPort",
       url: "http://localhost:1421",
       reuseExistingServer: false,
       timeout: 180_000,
-    },
+    }]),
   ],
 });

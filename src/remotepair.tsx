@@ -247,8 +247,8 @@ export function RemotePairCard({ port }: { port: string }) {
               <div className="flex flex-col items-center justify-center rounded-xl border border-ok/40 bg-ok/5 p-4 text-center" style={{ height: 190, width: 190 }}>
                 <Check className="h-7 w-7 text-ok" />
                 <div className="mt-2 text-sm font-semibold text-text-primary" data-testid="remote-paired">{pairedDevice.label}</div>
-                <div className="font-mono text-[11px] text-text-muted">{pairedDevice.ip}</div>
-                <div className="mt-0.5 text-[11px] text-text-muted">paired {ago(pairedDevice.first_seen_ms)}</div>
+                <div className="font-mono text-[12px] text-text-muted">{pairedDevice.ip}</div>
+                <div className="mt-0.5 text-[12px] text-text-muted">paired {ago(pairedDevice.first_seen_ms)}</div>
               </div>
             ) : qr ? (
               <img src={qr} alt={`QR code for ${url}`} width={190} height={190} className="rounded-xl bg-white p-2 ring-1 ring-border" style={{ height: 190, width: 190 }} />
@@ -269,7 +269,7 @@ export function RemotePairCard({ port }: { port: string }) {
           <div className="min-w-0 flex-1">
             {pairedDevice ? (
               <>
-                <h3 className="text-[19px] font-semibold text-text-primary">A device paired</h3>
+                <h3 className="text-[15px] font-semibold text-text-primary">A device paired</h3>
                 <p className="mt-2 text-sm leading-relaxed text-text-secondary">
                   <span className="font-medium text-text-primary">{pairedDevice.label}</span> at{" "}
                   <span className="font-mono text-xs">{pairedDevice.ip}</span> used the code and can now reach this vault.
@@ -286,7 +286,7 @@ export function RemotePairCard({ port }: { port: string }) {
               </>
             ) : (
               <>
-            <h3 className="text-[19px] font-semibold text-text-primary">Scan it with your phone</h3>
+            <h3 className="text-[15px] font-semibold text-text-primary">Scan it with your phone</h3>
             <ol className="mt-3 space-y-2.5">
               {[
                 ["Point your camera at the code", "Then open the link it offers."],
@@ -296,7 +296,7 @@ export function RemotePairCard({ port }: { port: string }) {
                 ["Keep it on your home screen", "iPhone: Share, then Add to Home Screen. Android: menu, then Install app."],
               ].map(([title, sub], i) => (
                 <li key={title} className="flex gap-3">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent ring-1 ring-accent-border">{i + 1}</span>
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[12px] font-bold text-accent ring-1 ring-accent-border">{i + 1}</span>
                   <div className="min-w-0">
                     <div className="text-sm font-medium leading-snug text-text-primary">{title}</div>
                     <div className="text-xs leading-snug text-text-muted">{sub}</div>
@@ -310,7 +310,7 @@ export function RemotePairCard({ port }: { port: string }) {
               <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-2 py-1 text-xs text-text-primary" data-testid="remote-primary-url">{url}</code>
               <CopyButton text={url} />
             </div>
-            <div className="mt-1.5 text-[11px] text-text-muted">
+            <div className="mt-1.5 text-[12px] text-text-muted">
               {primaryIsTunnel
                 ? "Over the internet, so it works from anywhere."
                 : status?.via_tailscale
@@ -328,7 +328,7 @@ export function RemotePairCard({ port }: { port: string }) {
 
       {/* Ways in, as a table with one obvious state per row. */}
       <div className="border-t border-border-subtle px-5 py-4">
-        <div className="mb-2 text-[11px] font-semibold text-text-muted">Ways to reach it</div>
+        <div className="mb-2 text-[12px] font-semibold text-text-muted">Ways to reach it</div>
         <div className="divide-y divide-border-subtle">
           <ReachRow icon={Wifi} label="Same Wi-Fi" value={status?.lan_url} active={!!status?.lan_url && url === status?.lan_url} testid="remote-lan"
             empty="Not on a network this Mac can share." />
@@ -347,7 +347,7 @@ export function RemotePairCard({ port }: { port: string }) {
             ) : status && !status.cloudflared_installed ? (
               <>
                 <span className="min-w-0 flex-1 text-xs text-text-muted">Needs cloudflared</span>
-                <code className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[11px]">{BREW_CLOUDFLARED}</code>
+                <code className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[12px]">{BREW_CLOUDFLARED}</code>
                 <CopyButton text={BREW_CLOUDFLARED} label="Copy command" />
               </>
             ) : (
@@ -361,7 +361,7 @@ export function RemotePairCard({ port }: { port: string }) {
           </div>
         </div>
         {tunnelError && <div className="mt-2 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn" data-testid="remote-tunnel-error">{tunnelError}</div>}
-        <div className="mt-3 flex items-start gap-1.5 text-[11px] text-text-muted">
+        <div className="mt-3 flex items-start gap-1.5 text-[12px] text-text-muted">
           <Mic className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>Hold-to-talk needs the internet address: browsers only open the microphone on https. Everything else works over Wi-Fi.</span>
         </div>
@@ -390,7 +390,7 @@ function DeviceList({ devices, onChanged }: { devices: Device[]; onChanged: (s: 
   return (
     <div className="border-t border-border-subtle px-5 py-4" data-testid="remote-devices">
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-[11px] font-semibold text-text-muted">
+        <div className="text-[12px] font-semibold text-text-muted">
           Connected phones{devices.length > 0 ? ` (${devices.filter(isLive).length} of ${devices.length} live)` : ""}
         </div>
         {devices.length > 0 && (
@@ -415,8 +415,8 @@ function DeviceList({ devices, onChanged }: { devices: Device[]; onChanged: (s: 
               </span>
               <Smartphone className="h-4 w-4 shrink-0 text-text-muted" />
               <span className="text-sm font-medium text-text-primary">{d.label}</span>
-              <span className="font-mono text-[11px] text-text-muted">{d.ip}</span>
-              <span className="min-w-0 flex-1 text-[11px]">
+              <span className="font-mono text-[12px] text-text-muted">{d.ip}</span>
+              <span className="min-w-0 flex-1 text-[12px]">
                 <span className={isLive(d) ? "font-semibold text-ok" : "text-text-muted"}>{isLive(d) ? "Connected" : `Idle, last seen ${ago(d.last_seen_ms)}`}</span>
                 <span className="text-text-muted">{d.via === "qr" ? " · paired by code" : " · signed in"}</span>
               </span>
@@ -432,7 +432,7 @@ function DeviceList({ devices, onChanged }: { devices: Device[]; onChanged: (s: 
 }
 
 function ActiveChip() {
-  return <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent ring-1 ring-accent-border">In the QR</span>;
+  return <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[12px] font-semibold text-accent ring-1 ring-accent-border">In the QR</span>;
 }
 
 // One way in: icon, name, address, and whether it is the one the QR points at.
@@ -516,7 +516,7 @@ export function PhoneSection() {
                 </p>
                 <button
                   onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" }))}
-                  className="mt-3 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary hover:border-accent-border hover:text-accent"
+                  className="mt-3 text-[13px] font-medium text-accent hover:underline"
                 >
                   Open Privacy
                 </button>
@@ -524,17 +524,17 @@ export function PhoneSection() {
             </div>
           </div>
         ) : !running ? (
-          <div className="rounded-lg border border-border bg-surface px-6 py-8 text-center">
-            <Smartphone className="mx-auto h-10 w-10 text-accent" />
-            <div className="mt-3 text-base font-semibold text-text-primary">Put Prevail on your phone</div>
-            <p className="mx-auto mt-1 max-w-md text-sm text-text-muted">
+          <div className="max-w-xl">
+            <Smartphone className="h-6 w-6 text-accent" />
+            <div className="mt-2 text-[15px] font-semibold text-text-primary">Put Prevail on your phone</div>
+            <p className="mt-1 text-[14px] text-text-secondary">
               Turn this on and a QR code appears. Scan it and your phone is signed in, with no password to type. It installs to the home screen like a normal app.
             </p>
-            <button onClick={() => void turnOn()} disabled={busy} className="mt-5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">
+            <button onClick={() => void turnOn()} disabled={busy} className="mt-4 rounded-md bg-accent px-3.5 py-1.5 text-[13px] font-medium text-on-accent disabled:opacity-50">
               {busy ? "Starting..." : "Turn on phone access"}
             </button>
-            {err && <div className="mx-auto mt-3 max-w-md rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{err}</div>}
-            <div className="mt-4 text-[11px] text-text-muted">This Mac must stay on and awake for the phone to reach it.</div>
+            {err && <div className="mt-3 text-[13px] text-warn">{err}</div>}
+            <div className="mt-3 text-[12px] text-text-muted">This Mac must stay on and awake for the phone to reach it.</div>
           </div>
         ) : (
           <>

@@ -5,6 +5,8 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useIsPhone } from "./useisphone";
 import { Activity, Award, Brain, Briefcase, Coins, Compass, Folder, Github, Globe, GraduationCap, Heart, Home, Layers, Lightbulb, MessagesSquare, Monitor, Plug, Scale, Settings as SettingsIcon, Shield, ShieldCheck, Sparkles, Target, Users, Wrench } from "lucide-react";
+import { DETAIL_TITLE } from "./typescale";
+import { TintIcon } from "./tint";
 
 export const CLI_LOGIN_CMD: Record<string, string> = {
   claude: "claude",
@@ -149,16 +151,19 @@ export function ScrollPage({ children, testId, flush = false }: { children: Reac
 
 // `tabs`: a page's view switch (a SpineTabs), in the standard place: the
 // header's last row, under the title and subtitle.
-export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: string; subtitle?: string; icon?: typeof Folder; right?: ReactNode; tabs?: ReactNode }) {
+// The header icon is the page's concept in its palette color (tint.tsx):
+// `tint` names the concept when the icon alone does not, `color` overrides
+// it (a domain page keeps its domain's color).
+export function SettingsHeader({ title, subtitle, icon, right, tabs, tint, color: tintColorOverride }: { title: string; subtitle?: ReactNode; icon?: typeof Folder; right?: ReactNode; tabs?: ReactNode; tint?: string; color?: string }) {
   const Icon = icon ?? settingsHeaderIcon(title);
   const phone = useIsPhone();
   const slot = useContext(HeaderSlot);
   if (slot === "detail") {
     return (
       <div data-pane-heading className="mb-5 flex flex-wrap items-start gap-x-5 gap-y-1.5">
-        <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary min-w-0">{title}</h2>
+        <h2 className={`${DETAIL_TITLE} min-w-0`}>{title}</h2>
         {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
-        {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
+        {subtitle && (typeof subtitle === "string" ? <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p> : <div className="basis-full">{subtitle}</div>)}
       </div>
     );
   }
@@ -168,22 +173,22 @@ export function SettingsHeader({ title, subtitle, icon, right, tabs }: { title: 
   const body = phone ? (
     subtitle || right ? (
       <div data-settings-header className="flex flex-wrap items-center gap-2">
-        {subtitle && <p className="min-w-0 flex-1 basis-40 text-[13px] text-text-muted">{subtitle}</p>}
+        {subtitle && (typeof subtitle === "string" ? <p className="min-w-0 flex-1 basis-40 text-[13px] text-text-muted">{subtitle}</p> : <div className="min-w-0 flex-1 basis-40">{subtitle}</div>)}
         {right && <div className="min-w-0 max-w-full">{right}</div>}
-        {tabs && <div className="basis-full" data-shell="tabs">{tabs}</div>}
+        {tabs && <div className="min-w-0 basis-full" data-shell="tabs">{tabs}</div>}
       </div>
-    ) : tabs ? <div data-settings-header className="flex flex-wrap items-center gap-2"><div className="basis-full" data-shell="tabs">{tabs}</div></div> : null
+    ) : tabs ? <div data-settings-header className="flex flex-wrap items-center gap-2"><div className="min-w-0 basis-full" data-shell="tabs">{tabs}</div></div> : null
   ) : (
     // Same header as Intent: the icon and a big title, controls on the
     // right, one calm line under it.
     <div data-settings-header className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-      <h1 className="flex min-w-0 items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-text-primary">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-accent"><Icon className="h-5 w-5" /></span>
+      <h1 className="flex min-w-0 items-center gap-2.5 font-display text-[26px] font-semibold tracking-tight text-text-primary">
+        <TintIcon icon={Icon} tint={tint} color={tintColorOverride} lg />
         <span className="min-w-0 truncate">{title}</span>
       </h1>
       {right && <div className="ml-auto flex shrink-0 items-center">{right}</div>}
-      {subtitle && <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p>}
-      {tabs && <div className="mt-2 basis-full" data-shell="tabs">{tabs}</div>}
+      {subtitle && (typeof subtitle === "string" ? <p className="basis-full text-[14px] leading-snug text-text-muted">{subtitle}</p> : <div className="min-w-0 basis-full">{subtitle}</div>)}
+      {tabs && <div className="mt-2 min-w-0 basis-full" data-shell="tabs">{tabs}</div>}
     </div>
   );
   if (!body) return null;

@@ -48,7 +48,7 @@ export function MirrorRow({ app, selected, onSelect }: { app: MirrorApp; selecte
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
       className={`flex h-[60px] w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${
-        selected ? "bg-accent-soft ring-1 ring-accent-border" : "hover:bg-surface-strong/60"
+        selected ? "bg-surface-warm" : "hover:bg-surface-warm/50"
       }`}
     >
       <AppLogo name={app.name} url={app.url} size={32} />
@@ -70,19 +70,19 @@ export function MirrorRow({ app, selected, onSelect }: { app: MirrorApp; selecte
 function RuntimeSection({ group, selectedId, onSelect }: { group: RuntimeGroup; selectedId: string | null; onSelect: (a: MirrorApp) => void }) {
   const { info, apps } = group;
   const installed = info ? info.installed : apps.length > 0;
+  // A runtime that is not installed gets no section; the column says so once.
+  if (!installed) return null;
   return (
     <section className="mb-3 last:mb-0" aria-label={group.label}>
       <div className="flex items-center gap-2 px-2.5 pb-1 pt-2">
         <ProviderMark vendor={RUNTIME_MARK[group.runtime] ?? group.runtime} size={20} />
-        <h3 className="text-[15px] font-semibold text-text-primary">{group.label}</h3>
-        {apps.length > 0 && <span className="text-[13px] text-text-muted">{apps.length}</span>}
+        <h3 className="text-[14px] font-semibold text-text-primary">{group.label}</h3>
+        {apps.length > 0 && <span className="text-[12px] text-text-muted">{apps.length}</span>}
       </div>
-      {!installed ? (
-        <p className="px-2.5 pb-1 text-[13px] text-text-muted">Not installed on this Mac.</p>
-      ) : info?.error ? (
-        <p className="px-2.5 pb-1 text-[13px] text-err">{info.error}</p>
+      {info?.error ? (
+        <p className="px-2.5 pb-1 text-[12px] text-err">{info.error}</p>
       ) : apps.length === 0 ? (
-        <p className="px-2.5 pb-1 text-[13px] text-text-muted">No connectors yet.</p>
+        <p className="px-2.5 pb-1 text-[12px] text-text-muted">No connectors yet.</p>
       ) : (
         <div className="space-y-0.5">
           {apps.map((a) => <MirrorRow key={a.id} app={a} selected={a.id === selectedId} onSelect={() => onSelect(a)} />)}
@@ -96,7 +96,7 @@ function RuntimeSection({ group, selectedId, onSelect }: { group: RuntimeGroup; 
 function LaneRow({ id, icon: Icon, title, sub, selected, onSelect }: { id: string; icon: LucideIcon; title: string; sub: string; selected: boolean; onSelect: () => void }) {
   return (
     <button type="button" data-testid={`apps-row-${id}`} aria-current={selected ? "true" : undefined} onClick={onSelect}
-      className={`flex h-[60px] w-full min-w-0 items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${selected ? "bg-accent-soft ring-1 ring-accent-border" : "hover:bg-surface-strong/60"}`}>
+      className={`flex h-[60px] w-full min-w-0 items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${selected ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-strong text-text-secondary ring-1 ring-border-subtle"><Icon className="h-4 w-4" /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-semibold text-text-primary">{title}</span>
@@ -110,8 +110,8 @@ function GroupHead({ icon: Icon, title, count }: { icon: LucideIcon; title: stri
   return (
     <div className="flex items-center gap-2 px-2.5 pb-1 pt-2">
       <Icon className="h-4 w-4 text-text-muted" />
-      <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
-      {!!count && <span className="text-[13px] text-text-muted">{count}</span>}
+      <h3 className="text-[14px] font-semibold text-text-primary">{title}</h3>
+      {!!count && <span className="text-[12px] text-text-muted">{count}</span>}
     </div>
   );
 }
@@ -143,8 +143,8 @@ function ArchivePanel({ vaultPath, onClose }: { vaultPath: string; onClose: () =
   }
   const n = plan?.candidates.length ?? 0;
   return (
-    <div className="mb-4 rounded-xl border border-border-subtle bg-surface p-4">
-      <h3 className="text-base font-semibold text-text-primary">Archive unused app folders</h3>
+    <div className="mb-4">
+      <h3 className="text-[15px] font-semibold text-text-primary">Archive unused app folders</h3>
       {busy && !plan ? (
         <p className="mt-2 flex items-center gap-2 text-[13px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Checking the vault</p>
       ) : plan?.error ? (
@@ -164,14 +164,14 @@ function ArchivePanel({ vaultPath, onClose }: { vaultPath: string; onClose: () =
           </ul>
         </>
       )}
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex items-center gap-4">
         {n > 0 && !plan?.error && (
           <button type="button" onClick={apply} disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-45">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />} Move {n} to archive
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-45">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />} Move {n} to archive
           </button>
         )}
-        <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-[13px] text-text-secondary hover:text-text-primary">
+        <button type="button" onClick={onClose} className="text-[13px] text-text-muted hover:text-text-primary">
           {n > 0 ? "Cancel" : "Close"}
         </button>
       </div>
@@ -179,7 +179,7 @@ function ArchivePanel({ vaultPath, onClose }: { vaultPath: string; onClose: () =
   );
 }
 
-export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
+export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?: React.ReactNode }) {
   // Seeded from the shared cache (the sidebar reads the same list).
   const [list, setList] = useState<MirrorList | null>(() => peekInvoke<MirrorList>("apps_mirror_list", { vault: vaultPath }) ?? null);
   const [err, setErr] = useState<string | null>(null);
@@ -235,6 +235,7 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
   }
 
   const groups = useMemo(() => groupByRuntime(list), [list]);
+  const missing = groups.filter((g) => (g.info ? !g.info.installed : g.apps.length === 0)).map((g) => g.label);
   const apps = list?.apps ?? [];
   // Desktop keeps a selection so the detail pane is never blank; on a phone the
   // list comes first and a tap opens the detail.
@@ -268,6 +269,7 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
       title="Apps"
       icon={Plug}
       subtitle="The connectors you already use in Claude, Codex, Gemini and Antigravity, feeding your domains."
+      tabs={tabs}
     />
   );
 
@@ -287,7 +289,10 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
       {list === null ? (
         <p className="flex items-center gap-2 p-3 text-[13px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Reading your runtimes</p>
       ) : (
-        groups.map((g) => <RuntimeSection key={g.runtime} group={g} selectedId={effectiveId} onSelect={(a) => pick(a.id)} />)
+        <>
+          {groups.map((g) => <RuntimeSection key={g.runtime} group={g} selectedId={effectiveId} onSelect={(a) => pick(a.id)} />)}
+          {missing.length > 0 && <p className="px-2.5 pb-3 text-[12px] text-text-muted" data-testid="runtimes-missing">Not installed on this Mac: {missing.join(", ")}.</p>}
+        </>
       )}
       <section className="mb-3" aria-label="Trusted sources">
         <GroupHead icon={ShieldCheck} title="Trusted sources" count={trusted.length + untrusted.length} />
@@ -325,7 +330,7 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
   ) : selected ? (
     <MirrorDetail key={selected.id} app={selected} vaultPath={vaultPath} domains={domains} onChanged={onChanged} />
   ) : (
-    <div className="flex h-full min-h-[240px] items-center justify-center p-8 text-center text-[14px] text-text-muted">
+    <div className="flex h-full min-h-[240px] items-center justify-center p-8 text-center text-[13px] text-text-muted">
       {list && apps.length === 0 ? "No connectors found in your runtimes yet. Add one in Claude, Codex, Gemini or Antigravity, then press Refresh." : "Pick a connector to chat with it and see its activity."}
     </div>
   );
@@ -338,7 +343,7 @@ export function AppsMirrorPanel({ vaultPath }: { vaultPath: string }) {
       {header}
       {(err || archiveOpen) && (
         <div className={`max-h-[40vh] shrink-0 overflow-y-auto ${phone ? "px-4 pt-3" : "px-8 pt-4"}`}>
-          {err && <div className="mb-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn">{err}</div>}
+          {err && <p className="mb-3 text-[13px] text-warn">{err}</p>}
           {archiveOpen && <ArchivePanel vaultPath={vaultPath} onClose={() => { setArchiveOpen(false); void load(); }} />}
         </div>
       )}

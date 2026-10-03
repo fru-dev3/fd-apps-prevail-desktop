@@ -5,7 +5,7 @@ vi.mock("./bridge", () => ({
   isBrowser: () => true,
   invoke: async (cmd: string) => {
     if (cmd === "work_count") return { open: 7, overdue: 0, today: 0 };
-    if (cmd === "entities_list") return { entities: [1, 2, 3, 4].map((i) => ({ id: `project/foo-${i}`, name: `Foo ${i}`, kind: "project", status: i === 4 ? "done" : "active" })) };
+    if (cmd === "engine_missions_list") return [1, 2, 3, 4].map((i) => ({ slug: `foo-${i}`, id: `mission/foo-${i}`, name: `Foo ${i}`, status: i === 4 ? "paused" : "active", target: `2026-12-0${i}`, domains: [], progress: { days: { day: 1, total: 60, left: 10 * i }, milestones: { done: 0, total: 0 }, budget: { planned: 0, used: 0 } } }));
     if (cmd === "engine_suggest_structure") return structure;
     if (cmd === "engine_list_archived") return ["old-stuff"];
     if (cmd === "apps_mirror_list") return appsList;
@@ -17,12 +17,15 @@ let appsList: unknown = null;
 let structure: unknown = null;
 vi.mock("@tauri-apps/plugin-dialog", () => ({ confirm: async () => false }));
 
-import { Sidebar } from "./sidebar";
+import { Sidebar, openSidebarSections, resetSidebarSession } from "./sidebar";
 import type { Domain, TabId } from "./types";
 
 const domains = [{ name: "health", path: "/v/health" }, { name: "wealth", path: "/v/wealth" }] as unknown as Domain[];
 
-function renderSidebar(tab: TabId = "chat", setTab = vi.fn()) {
+function renderSidebar(tab: TabId = "chat", setTab = vi.fn(), fresh = false) {
+  // Every launch starts with every section collapsed; most tests open them.
+  resetSidebarSession();
+  if (!fresh) openSidebarSections(["work", "activities", "kind.projects", "domains"]);
   return render(
     <Sidebar collapsed={false} setCollapsed={() => {}} vaultPath="/v" domains={domains} vaultError={null}
       selectedDomain="" setSelectedDomain={() => {}} openInFinder={() => {}} tab={tab} setTab={setTab}
@@ -36,14 +39,29 @@ afterEach(() => { cleanup(); appsList = null; structure = null; });
 describe("Sidebar", () => {
   it("lists the home surfaces, work screens and domains with real counts", async () => {
     renderSidebar();
-    for (const label of ["Home", "Inbox", "Insights", "For You", "Projects", "Tasks", "Goals"]) {
-      expect(screen.getByRole("button", { name: new RegExp(`^${label}`) })).toBeTruthy();
+    for (const label of ["Home", "Inbox", "Insights", "For You", "Tasks", "Compass"]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${label}(\\s|$)`) })).toBeTruthy();
     }
     // The Inbox row carries the shared waiting count, in the accent colour.
     await waitFor(() => expect(screen.getByTestId("nav-inbox").textContent).toContain("4"));
     expect(screen.getByTestId("nav-inbox").querySelector(".bg-accent")).toBeTruthy();
-    expect(await screen.findByText("7")).toBeTruthy();
-    expect(await screen.findByText("3")).toBeTruthy();
+    // Open tasks: on the Work header and on the Tasks row.
+    expect((await screen.findAllByText("7")).length).toBe(2);
+    // Every section header carries an icon and a count, in the same muted ink.
+    for (const k of ["work", "entities", "activities", "domains"]) {
+      expect(screen.getByTestId(`sidebar-head-${k}`).querySelector("[data-testid=sidebar-head-icon] svg")).toBeTruthy();
+      expect(screen.getByTestId(`sidebar-head-${k}`).querySelector("[data-testid=sidebar-head-count]")).toBeTruthy();
+    }
+    // Rows carry their colored icon.
+    expect(screen.getByTestId("nav-inbox").querySelector(".tint-sq")).toBeTruthy();
+    // Section headers sit one step in from the top rows (owner, 2026-10-03).
+    expect(screen.getByTestId("sidebar-head-work").className).toContain("pl-6");
+    expect(screen.getByRole("navigation", { name: "Work" }).className).toContain("pl-6");
+    // MISSIONS: the active ones with days left, soonest first; paused fold into one row.
+    await waitFor(() => expect(screen.getByTestId("sidebar-missions").textContent).toContain("Foo 1"));
+    expect(screen.getByTestId("sidebar-mission-foo-1").textContent).toContain("10d");
+    expect(screen.getByTestId("sidebar-missions-paused").textContent).toContain("Paused (1)");
+    expect(screen.queryByText(/^Missions?$/)).toBeNull();
     expect(screen.getByTestId("nav-home").getAttribute("aria-current")).toBe("page");
     expect(await screen.findByText("Archived")).toBeTruthy();
   });
@@ -72,32 +90,50 @@ describe("Sidebar", () => {
     expect(screen.queryByText(/^Apps$/)).toBeNull();
   });
 
-  it("lists your apps, marks one that needs sign-in, and opens the Apps page with it picked", async () => {
+  it("has no APPS section: apps are Products now, each with its connection on its page", async () => {
     appsList = { generated_at: 1, runtimes: [], apps: [
       { id: "claude:foo", name: "Foo", runtime: "claude", server: "foo", status: "connected", signin_hint: "", syncable: true, domains: [] },
-      { id: "claude:bar", name: "Bar", runtime: "claude", server: "bar", status: "needs_auth", signin_hint: "", syncable: true, domains: [] },
     ] };
-    const sections: string[] = [];
-    const picks: string[] = [];
-    const onSection = (e: Event) => sections.push((e as CustomEvent<string>).detail);
-    const onPick = (e: Event) => picks.push((e as CustomEvent<string>).detail);
-    window.addEventListener("prevail:work-section", onSection);
-    window.addEventListener("prevail:mirror-select", onPick);
     renderSidebar();
-    const foo = await screen.findByTestId("sidebar-app-claude:foo");
-    expect(screen.getByText("Apps")).toBeTruthy();
-    expect(foo.querySelector("[data-testid=app-signin-dot]")).toBeNull();
-    expect(screen.getByTestId("sidebar-app-claude:bar").querySelector("[data-testid=app-signin-dot]")).toBeTruthy();
-    fireEvent.click(foo);
-    window.removeEventListener("prevail:work-section", onSection);
-    window.removeEventListener("prevail:mirror-select", onPick);
-    expect(sections).toEqual(["apps"]);
-    expect(picks).toEqual(["claude:foo"]);
-    expect(sessionStorage.getItem("prevail.apps.mirror.select")).toBe("claude:foo");
-    // The header folds the list away, and the choice is remembered.
-    fireEvent.click(screen.getByText("Apps"));
+    await screen.findByTestId("nav-home");
     expect(screen.queryByTestId("sidebar-apps")).toBeNull();
-    expect(localStorage.getItem("prevail.sidebar.appsOpen")).toBe("0");
+    expect(screen.queryByTestId("sidebar-head-apps")).toBeNull();
+    expect(screen.queryByTestId("sidebar-app-claude:foo")).toBeNull();
+  });
+
+  it("every section starts collapsed at each launch and holds while the app runs; the chevron and + wait for a hover", () => {
+    renderSidebar("chat", vi.fn(), true);
+    for (const k of ["work", "entities", "activities", "domains"]) {
+      const head = screen.getByTestId(`sidebar-head-${k}`);
+      expect(head.querySelector("[aria-expanded]")!.getAttribute("aria-expanded")).toBe("false");
+      expect(screen.getByTestId(`sidebar-toggle-${k}`).className).toContain("opacity-0");
+      expect(screen.getByTestId(`sidebar-toggle-${k}`).className).toContain("group-hover/h:opacity-100");
+    }
+    expect(screen.getByTestId("sidebar-add-work").className).toContain("[@media(pointer:coarse)]:opacity-100");
+    expect(screen.queryByTestId("sidebar-missions")).toBeNull();
+    fireEvent.click(screen.getByText("Activities"));
+    expect(screen.getByTestId("sidebar-head-activities").querySelector("[aria-expanded]")!.getAttribute("aria-expanded")).toBe("true");
+    // A mouse click leaves focus on the header; the chevron still waits for a hover (keyboard focus only).
+    expect(screen.getByTestId("sidebar-toggle-activities").className).toContain("group-has-[:focus-visible]/h:opacity-100");
+    // Each kind is a row; its + and chevron wait for a hover too.
+    expect(screen.getByTestId("sidebar-kind-toggle-projects").className).toContain("opacity-0");
+    expect(screen.getByTestId("sidebar-kind-add-events").className).toContain("[@media(pointer:coarse)]:opacity-100");
+    fireEvent.click(screen.getByTestId("sidebar-kind-toggle-projects"));
+    expect(screen.getByTestId("sidebar-missions")).toBeTruthy();
+    expect(screen.getByTestId("sidebar-kind-toggle-projects").className).toContain("opacity-0");
+    // Moving around (the sidebar mounts again): still open. Nothing is stored for the next launch.
+    cleanup();
+    render(
+      <Sidebar collapsed={false} setCollapsed={() => {}} vaultPath="/v" domains={domains} vaultError={null}
+        selectedDomain="" setSelectedDomain={() => {}} openInFinder={() => {}} tab="chat" setTab={vi.fn()}
+        onDomainCreated={() => {}} runningDomains={new Set()} finishedDomains={new Set()} domainStats={{}}
+        railWidth={280} onOpenOnboarding={() => {}} onDomainsChanged={() => {}} />,
+    );
+    expect(screen.getByTestId("sidebar-missions")).toBeTruthy();
+    expect(Object.keys(localStorage).filter((k) => k.startsWith("prevail.sidebar."))).toEqual([]);
+    cleanup();
+    renderSidebar("chat", vi.fn(), true);
+    expect(screen.queryByTestId("sidebar-missions")).toBeNull();
   });
 
   it("search opens the command palette and the gear opens settings", () => {

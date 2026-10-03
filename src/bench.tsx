@@ -156,13 +156,13 @@ function qSuggestNotify() {
 ///     no questions drafted
 ///
 /// and this used to take the LAST line, so every failure reported "no
-/// questions drafted" — a message that tells you to fix something without
+/// questions drafted", a message that tells you to fix something without
 /// saying what. The reason was computed, printed, and thrown away one line
 /// from the end.
 export function suggestFailureReason(output: string): string {
   const lines = output.trim().split("\n").map((l) => l.trim()).filter(Boolean);
   // The engine's per-domain diagnosis, newest last. "failed: <domain>: <why>"
-  // — drop the prefix and the domain, which the UI already names.
+  //, drop the prefix and the domain, which the UI already names.
   const failed = lines.filter((l) => l.toLowerCase().startsWith("failed:")).pop();
   if (failed) {
     const rest = failed.slice("failed:".length).trim();

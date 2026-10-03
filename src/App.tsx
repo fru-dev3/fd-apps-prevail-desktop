@@ -1,3 +1,4 @@
+import { PhoneGlance, isGlanceView } from "./metricsfamily";
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode, type UnlistenFn } from "./bridge";
 import { invokeCached } from "./query";
@@ -36,7 +37,7 @@ import { useAppearance, useFrameworkLens } from "./hooks";
 import { distillCfgFromPrefs, intentDaemonCfgFromPrefs, skillgenCfgFromPrefs, taskgenCfgFromPrefs } from "./daemoncfg";
 import { autoVerifyClis } from "./verify";
 import { bumpBackupChangeCount, startBackupScheduler } from "./backup";
-import { startLoopsScheduler, readLoops, ensureBriefingLoop } from "./loops";
+import { startLoopsScheduler } from "./loops";
 import { startAppsScheduler } from "./appstatus";
 import { startOmegaScheduler } from "./omega";
 import { OnboardingTour } from "./onboarding";
@@ -44,8 +45,10 @@ import { VaultEncryptPrompt, vaultEncryptOffered } from "./vault-encrypt-prompt"
 import { migrateModelPrefs } from "./helpers2";
 import { AppHeaderBar, DomainActionsMenu, LockScreen, PairingScreen, QuickSwitcher, ThreadsRail, WebLogin, WebVaultLinking } from "./panels";
 import { CommandPalette, type Command } from "./commandpalette";
-import { EDITOR_NAV, REMOVED_SECTIONS, WORK_NAV, noteToolkitGroup, workSection } from "./navdefs";
-import { setEntityVault } from "./entitystore";
+import { EDITOR_NAV, REMOVED_SECTIONS, WORK_NAV, noteCompassFocus, noteToolkitGroup, workSection } from "./navdefs";
+import { GROUP_LABEL as IA_GROUP_LABEL, KINDS as IA_KINDS, kindOfId, noteIaKind, openKind } from "./ia";
+import { loadEntities, requestEntity, setEntityVault, useEntityStore } from "./entitystore";
+import { openMission, useMissions } from "./missions";
 
 // Single source of truth for the version chip in title bar.
 
@@ -142,7 +145,6 @@ import {
   MessageSquarePlus,
   ListChecks,
   Blocks,
-  PanelLeft,
   Compass,
   ShieldCheck,
   Power,
@@ -1101,11 +1103,9 @@ export default function App() {
     const id = window.setInterval(tick, 10 * 60_000); // evaluate every 10 min
     return () => window.clearInterval(id);
   }, [decisionsCount, dueAlert]);
-  // Insights (recommendations) + Loops counts — surfaced as always-visible badges on
-  // the top-nav tabs so the user sees how much is waiting without opening either view.
-  // Both are computed in the background on a slow poll + event refresh, same cadence as
-  // the decisions/due pills. Recommendations come from the learning engine; loop count
-  // is summed across every domain's loop doc (mirrors the Loop Board's own aggregation).
+  // Insights (recommendations) count, surfaced as an always-visible badge on the
+  // top-nav tab so the user sees how much is waiting. Computed in the background on
+  // a slow poll + event refresh, same cadence as the decisions/due pills.
   const [recCount, setRecCount] = useState(0);
   useEffect(() => {
     if (!vaultPath) return;
@@ -1130,30 +1130,6 @@ export default function App() {
     return () => { alive = false; window.clearInterval(id); window.removeEventListener("prevail:recommendations-changed", onEvt); window.removeEventListener("prevail:loops-advanced", onEvt); };
   }, [vaultPath, selectedDomain]);
 
-  const [loopCount, setLoopCount] = useState(0);
-  useEffect(() => {
-    if (!vaultPath || domains.length === 0) return;
-    let alive = true;
-    const poll = async () => {
-      try {
-        // Scope the Loops count to the selected domain (global only on General /
-        // no domain), so the badge matches the domain the user is on.
-        const targetDomains = selectedDomain ? domains.filter((d) => d.name === selectedDomain) : domains;
-        const docs = await Promise.all(targetDomains.map((d) => readLoops(d.path).then((doc) => ensureBriefingLoop(doc, d.name).doc).catch(() => null)));
-        if (!alive) return;
-        let n = 0;
-        for (const doc of docs) n += Array.isArray(doc?.loops) ? doc!.loops.length : 0;
-        setLoopCount(n);
-      } catch { /* ignore */ }
-    };
-    void poll();
-    const id = window.setInterval(poll, 120000);
-    const onEvt = () => { void poll(); };
-    window.addEventListener("prevail:loops-advanced", onEvt);
-    window.addEventListener("prevail:loops-changed", onEvt);
-    return () => { alive = false; window.clearInterval(id); window.removeEventListener("prevail:loops-advanced", onEvt); window.removeEventListener("prevail:loops-changed", onEvt); };
-  }, [vaultPath, domains, selectedDomain]);
-
   // Lets in-app links (e.g. the Demo ribbon) open a specific Settings section.
   const [settingsJump, setSettingsJump] = useState<{ section: string; n: number } | null>(null);
   const openSettingsAt = (raw: string) => {
@@ -1170,6 +1146,8 @@ export default function App() {
   // deep links to them route here.
   const [workJump, setWorkJump] = useState<{ section: string; n: number } | null>(null);
   const openWorkAt = (raw: string) => {
+    noteCompassFocus(raw);
+    noteIaKind(raw);
     const section = workSection(raw) ?? raw;
     setWorkJump((j) => ({ section, n: (j?.n ?? 0) + 1 }));
     setTab("work");
@@ -1419,6 +1397,9 @@ export default function App() {
 
   // F1: the command palette's item list - actions, navigation to every section,
   // and every domain. Rebuilt when the domains change.
+  const iaStore = useEntityStore();
+  const iaMissions = useMissions(cmdPaletteOpen ? vaultPath : null);
+  useEffect(() => { if (cmdPaletteOpen && vaultPath) void loadEntities(vaultPath); }, [cmdPaletteOpen, vaultPath]);
   const paletteCommands = useMemo<Command[]>(() => {
     const cmds: Command[] = [];
     // Actions.
@@ -1427,7 +1408,7 @@ export default function App() {
       { id: "act:inbox", label: "Open inbox", group: "Actions", icon: Inbox, keywords: "decisions approvals needs you", run: () => openWorkAt("inbox") },
       { id: "act:tasks", label: "Open tasks", group: "Actions", icon: ListChecks, keywords: "tasks todo work board", run: () => openWorkAt("task-list") },
       { id: "act:apps", label: "Open apps", group: "Actions", icon: Plug, keywords: "apps connectors", run: () => openWorkAt("apps") },
-      { id: "act:toggle-rail", label: "Toggle domain rail", hint: "⌘B", group: "Actions", icon: PanelLeft, keywords: "sidebar hide show", run: () => setSidebarCollapsed((v) => !v) },
+      { id: "act:toggle-rail", label: "Toggle domain rail", hint: "⌘B", group: "Actions", icon: ChevronsLeft, keywords: "sidebar hide show", run: () => setSidebarCollapsed((v) => !v) },
       { id: "act:settings", label: "Open settings", hint: "⌘,", group: "Actions", icon: SettingsIcon, keywords: "preferences config", run: () => setTab("settings") },
     );
     // Navigation to every Work + Editor section.
@@ -1441,9 +1422,24 @@ export default function App() {
     for (const d of domains) {
       cmds.push({ id: `dom:${d.name}`, label: titleCase(d.name), hint: "Domain", group: "Domains", icon: Compass, keywords: d.name, run: () => openDomain(d.name) });
     }
+    // Entities and Activities: each kind's page, then (as you type) the
+    // objects themselves under their kind, each with its icon.
+    for (const k of IA_KINDS) {
+      cmds.push({ id: `kind:${k.id}`, label: k.label, hint: "Go to", group: `Go to · ${IA_GROUP_LABEL[k.group]}`, icon: k.icon, keywords: `${k.singular} ${IA_GROUP_LABEL[k.group]}`, run: () => openKind(k.id) });
+    }
+    const objects = (iaStore.list?.entities ?? []).filter((e) => e.kind !== "project" && e.relation !== "reference")
+      .sort((a, b) => Number(b.saved) - Number(a.saved) || b.conversations - a.conversations).slice(0, 400);
+    for (const e of objects) {
+      const k = kindOfId(e.kind);
+      if (!k) continue;
+      cmds.push({ id: `obj:${e.id}`, label: e.name, hint: k.singular, group: k.label, icon: k.icon, keywords: e.aliases.join(" "), searchOnly: true, run: () => requestEntity({ kind: e.kind, value: e.id.slice(e.id.indexOf("/") + 1) }) });
+    }
+    for (const m of iaMissions.missions.filter((x) => x.status !== "archived")) {
+      cmds.push({ id: `obj:mission/${m.slug}`, label: m.name, hint: "Project", group: "Projects", icon: kindOfId("mission")!.icon, keywords: m.outcome ?? "", searchOnly: true, run: () => openMission(m.slug) });
+    }
     return cmds;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domains]);
+  }, [domains, iaStore.list, iaMissions.missions]);
 
   // Keyboard shortcuts - global. Skip when a text input has focus
   // (so typing ⌘B in the composer doesn't toggle the sidebar).
@@ -1720,6 +1716,9 @@ export default function App() {
                 key={`chat:${threadScope ?? "general"}`}
                 active={tab === "chat"}
                 domain={selectedDomain}
+                // The space each turn runs in: a domain's context is built by the
+                // engine (chatscope.ts); an open app keeps its own prompt.
+                scope={onApp && selectedApp ? { kind: "app", id: selectedApp.id } : selectedDomain ? { kind: "domain", slug: selectedDomain } : { kind: "general" }}
                 domainPath={selectedDomainPath}
                 threadDomain={threadScope}
                 isApp={onApp}
@@ -1846,7 +1845,10 @@ export default function App() {
           <button onClick={() => setNoModelDismissed(true)} aria-label="Dismiss" className="ml-1 rounded p-0.5 text-text-muted hover:text-text-primary"><X className="h-3.5 w-3.5" /></button>
         </div>
       )}
-      {phone ? (
+      {phone && isGlanceView() ? (
+        // /?view=glance: the week at a glance on its own (Add to Home Screen).
+        <PhoneGlance vaultPath={vaultPath} standalone />
+      ) : phone ? (
         <Suspense fallback={<PanelLoading />}>
           <PhoneShell
             vaultPath={vaultPath}
@@ -2037,8 +2039,8 @@ export default function App() {
                     }`}
                   >
                     <Layers className="h-4 w-4" /> Details
-                    {(dueAlert.open > 0 || recCount > 0 || loopCount > 0) && (
-                      <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ai px-1.5 font-mono text-[10px] font-bold leading-none text-white">{cap9(dueAlert.open + recCount + loopCount)}</span>
+                    {(dueAlert.open > 0 || recCount > 0) && (
+                      <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ai px-1.5 font-mono text-[10px] font-bold leading-none text-white">{cap9(dueAlert.open + recCount)}</span>
                     )}
                   </button>
                   <button

@@ -10,23 +10,7 @@
 // Inbox first; Settings opens every Editor section. Nothing in this shell is allowed to reflow the conversation
 // when it opens: the tab bar expands as an overlay, sheets float.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  Briefcase,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  History,
-  Inbox,
-  Layers,
-  LayoutGrid,
-  MessageSquare,
-  Plug,
-  Plus,
-  Scale,
-  Settings as SettingsIcon,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { Briefcase, ChevronLeft, ChevronRight, ChevronUp, History, Inbox, Layers, LayoutGrid, MessageSquare, Plug, Plus, Scale, Settings as SettingsIcon, UserCog, X, type LucideIcon, Shapes, CalendarRange } from "lucide-react";
 import { invoke } from "./bridge";
 import { scoreColor, titleCase } from "./format";
 import { domainBlurb, isUserDomain } from "./helpers";
@@ -35,6 +19,8 @@ import { modelLabel } from "./helpers2";
 import { LS, lsGet } from "./storage";
 import { EDITOR_NAV, WORK_NAV, navSection } from "./navdefs";
 import type { CliInfo, Domain, DomainTab, LifeReadiness, TabId, ThreadMeta } from "./types";
+import { DETAIL_TITLE } from "./typescale";
+import { PhoneGlance } from "./metricsfamily";
 
 export type PhoneScreen = "chat" | "domains" | "work" | "settings";
 
@@ -49,6 +35,9 @@ const PHONE_TABS: { id: PhoneScreen; label: string; icon: LucideIcon }[] = [
 const PHONE_TOP: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "apps", label: "Apps", icon: Plug },
+  { id: "entities", label: "Entities", icon: Shapes },
+  { id: "activities", label: "Activities", icon: CalendarRange },
+  { id: "specialists", label: "Specialists", icon: UserCog },
 ];
 
 // A tappable row in a grouped list (Work and Settings): icon, label, chevron.
@@ -102,7 +91,7 @@ function Header({ title, back, right, sub }: { title: string; back?: () => void;
             <ChevronLeft className="h-6 w-6" />
           </button>
         )}
-        <h1 className="min-w-0 flex-1 truncate font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{title}</h1>
+        <h1 className={`${DETAIL_TITLE} min-w-0 flex-1 truncate`}>{title}</h1>
         {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
       </div>
       {sub && <div className="flex items-center gap-2 pb-3">{sub}</div>}
@@ -247,7 +236,7 @@ export function PhoneShell({
       setScreen(id);
     }
   };
-  const workSectionLabel = [...PHONE_TOP, ...WORK_NAV.flatMap((g) => g.items)].find((it) => it.id === workJump?.section)?.label ?? "Work";
+  const workSectionLabel = [...PHONE_TOP, { id: "missions", label: "Projects" }, ...WORK_NAV.flatMap((g) => g.items)].find((it) => it.id === workJump?.section)?.label ?? "Work";
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-background text-text-primary">
@@ -355,7 +344,10 @@ export function PhoneShell({
       {screen === "work" && workView === "list" && (
         <>
           <Header title="Work" />
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+            {/* The week at a glance (Metrics M6), the phone's widget. */}
+            <PhoneGlance vaultPath={vaultPath} />
+            <div className="px-4 pt-4">
             <section className="mb-5">
               <ul className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
                 {PHONE_TOP.map((it, i) => (
@@ -375,6 +367,7 @@ export function PhoneShell({
                 </ul>
               </section>
             ))}
+            </div>
           </div>
         </>
       )}

@@ -6,20 +6,23 @@
 //   Command-line tools         read-only pulls from CLIs you already signed into
 //   Obsidian import            a one-way copy of an Obsidian vault into a domain
 import { useCallback, useEffect, useState } from "react";
-import { FolderInput, Globe, Loader2, LogIn, Play, Plus, RotateCcw, Terminal, X } from "lucide-react";
+import { FolderInput, Globe, Loader2, LogIn, Play, Plus, RotateCcw, Terminal } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
 import { hasInvoke, invokeCached, peekInvoke } from "./query";
 import { relTime, titleCase } from "./format";
 import { toast } from "./toast";
-import { RowMenu } from "./ui";
+import { REVEAL, RowMenu } from "./ui";
+import { DETAIL_TITLE, META, ROW_TITLE } from "./typescale";
 import { ConnectorRunPanel, type ConnectorRunMode } from "./connectorrun";
 import { ObsidianImportModal, ObsidianLogo } from "./obsidianmodal";
 import { AppLogo } from "./appsmirror-parts";
 import type { CliProvider, EngineApp } from "./types";
 
-const card = "rounded-xl border border-border-subtle bg-surface";
-const rowCls = "flex min-h-[56px] min-w-0 items-center gap-3 px-4 py-2.5";
-const btn = "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-45";
+// One plain column of rows (no boxed card); the row's one action is a quiet
+// text link that shows on hover (always on touch).
+const card = "";
+const rowCls = "group flex min-h-[52px] min-w-0 items-center gap-3 py-2";
+const btn = "inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-45 disabled:no-underline";
 
 export function isBrowserApp(a: EngineApp): boolean {
   return (a.integration ?? "").toLowerCase().includes("browser");
@@ -31,11 +34,11 @@ function slugify(s: string): string {
 
 function SectionTitle({ icon: Icon, title, hint }: { icon: typeof Globe; title: string; hint: string }) {
   return (
-    <div className="mb-2 flex items-start gap-2.5">
-      <Icon className="mt-1 h-4 w-4 shrink-0 text-text-muted" />
+    <div className="mb-3 flex items-start gap-2.5">
+      <Icon className="mt-1.5 h-4 w-4 shrink-0 text-text-muted" />
       <div className="min-w-0">
-        <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
-        <p className="text-[13px] text-text-muted">{hint}</p>
+        <h3 className={DETAIL_TITLE}>{title}</h3>
+        <p className={`${META} mt-0.5`}>{hint}</p>
       </div>
     </div>
   );
@@ -94,22 +97,22 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
       <SectionTitle icon={Globe} title="Sites without a connector" hint="A browser opens, you sign in once, and the agent learns the steps. Later runs replay them." />
       <div className={`${card} divide-y divide-border-subtle`}>
         {apps === null ? (
-          <div className={`${rowCls} text-[13px] text-text-muted`}><Loader2 className="h-4 w-4 animate-spin" /> Loading</div>
+          <div className={`${rowCls} text-[12px] text-text-muted`}><Loader2 className="h-4 w-4 animate-spin" /> Loading</div>
         ) : apps.length === 0 && !adding && !run ? (
-          <div className={`${rowCls} text-[13px] text-text-muted`}>No sites yet.</div>
+          <div className={`${rowCls} text-[12px] text-text-muted`}>No sites yet.</div>
         ) : (
           apps.map((a) => (
             <div key={a.id}>
               <div className={rowCls}>
                 <AppLogo name={a.title || a.id} size={28} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold text-text-primary">{a.title || a.id}</div>
-                  <div className="truncate text-[12px] text-text-muted">
+                  <div className={`${ROW_TITLE} truncate`}>{a.title || a.id}</div>
+                  <div className={`${META} truncate`}>
                     {a.domains.length ? a.domains.map(titleCase).join(", ") : "No domain"} · {a.lastSuccessTs ? `Synced ${relTime(a.lastSuccessTs)}` : "Never synced"}
                   </div>
                 </div>
                 {desktop && (
-                  <>
+                  <span className={`flex shrink-0 items-center gap-2 ${REVEAL}`}>
                     <button type="button" className={btn} disabled={!!run} onClick={() => setRun({ id: a.id, mode: "replay" })}>
                       <Play className="h-3.5 w-3.5" /> Run
                     </button>
@@ -117,11 +120,11 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
                       { icon: RotateCcw, label: "Teach again", hint: "Relearn the steps from scratch", onClick: () => setRun({ id: a.id, mode: "relearn" }), disabled: !!run },
                       { icon: LogIn, label: "Use my Chrome sign-in", hint: "Copy this site's login from Chrome (quit Chrome first)", onClick: () => void importLogin(a.id) },
                     ]} />
-                  </>
+                  </span>
                 )}
               </div>
               {run?.id === a.id && (
-                <div className="px-4 pb-3">
+                <div className="pb-3">
                   <ConnectorRunPanel appId={a.id} mode={run.mode} goal={run.goal} url={run.url} vault={vaultPath}
                     onDone={() => { void load(); }} onClose={() => setRun(null)} />
                 </div>
@@ -130,13 +133,13 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
           ))
         )}
         {run && apps && !apps.some((a) => a.id === run.id) && (
-          <div className="p-4">
+          <div className="py-3">
             <ConnectorRunPanel appId={run.id} mode={run.mode} goal={run.goal} url={run.url} vault={vaultPath}
               onDone={() => { void load(); }} onClose={() => setRun(null)} />
           </div>
         )}
         {desktop && (adding ? (
-          <div className="space-y-2 p-4">
+          <div className="space-y-2 py-3">
             <div className="grid gap-2">
               <input aria-label="Site name" placeholder="Name, e.g. Acme Billing" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted/70 focus:border-accent-border focus:outline-none" />
@@ -152,14 +155,14 @@ function SitesWithoutConnector({ vaultPath, domains }: { vaultPath: string; doma
                 {domains.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
               </select>
               <button type="button" onClick={addSite} disabled={busy || !slugify(form.name)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-45">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Start learning
+                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-45">
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Start learning
               </button>
-              <button type="button" onClick={() => setAdding(false)} className={btn}><X className="h-3.5 w-3.5" /> Cancel</button>
+              <button type="button" onClick={() => setAdding(false)} className="text-[13px] text-text-muted hover:text-text-primary">Cancel</button>
             </div>
           </div>
         ) : (
-          <div className={rowCls}>
+          <div className="py-2.5">
             <button type="button" onClick={() => setAdding(true)} disabled={!!run} className={btn}><Plus className="h-3.5 w-3.5" /> Add a site</button>
           </div>
         ))}
@@ -215,20 +218,20 @@ function CommandLineTools() {
       <SectionTitle icon={Terminal} title="Command-line tools" hint="Read-only pulls from CLIs you already installed and signed into." />
       <div className={`${card} divide-y divide-border-subtle`}>
         {providers === null ? (
-          <div className={`${rowCls} text-[13px] text-text-muted`}><Loader2 className="h-4 w-4 animate-spin" /> Loading</div>
+          <div className={`${rowCls} text-[12px] text-text-muted`}><Loader2 className="h-4 w-4 animate-spin" /> Loading</div>
         ) : providers.length === 0 ? (
-          <div className={`${rowCls} text-[13px] text-text-muted`}>No command-line tools this Mac can pull from.</div>
+          <div className={`${rowCls} text-[12px] text-text-muted`}>No command-line tools this Mac can pull from.</div>
         ) : providers.map((p) => (
           <div key={p.id} className={rowCls}>
             <AppLogo name={p.label} size={28} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[14px] font-semibold text-text-primary">{p.label}</div>
-              <div className="truncate text-[12px] text-text-muted">
-                {msg[p.id] || `Feeds ${titleCase(p.domain)}${found[p.id] === false ? ". Not installed" : ""}`}
+              <div className={`${ROW_TITLE} truncate`}>{p.label}</div>
+              <div className={`${META} truncate`}>
+                {msg[p.id] || `Feeds ${titleCase(p.domain)}${found[p.id] === false ? " · Not installed" : ""}`}
               </div>
             </div>
             {desktop && (
-              <button type="button" className={btn} onClick={() => pull(p.id)} disabled={busy === p.id || found[p.id] === false}>
+              <button type="button" className={`${btn} ${busy === p.id ? "" : REVEAL}`} onClick={() => pull(p.id)} disabled={busy === p.id || found[p.id] === false}>
                 {busy === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Pull
               </button>
             )}
@@ -254,7 +257,7 @@ export function AppsLane({ lane, vaultPath, domains }: { lane: AppsLaneId; vault
           <div className={card}>
             <div className={rowCls}>
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-strong ring-1 ring-border-subtle"><ObsidianLogo className="h-4 w-4" /></span>
-              <div className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-primary">Obsidian</div>
+              <div className={`${ROW_TITLE} min-w-0 flex-1 truncate`}>Obsidian</div>
               {desktop ? (
                 <button type="button" className={btn} onClick={() => setObsidian(true)}><FolderInput className="h-3.5 w-3.5" /> Import</button>
               ) : <span className="text-[12px] text-text-muted">On your Mac</span>}

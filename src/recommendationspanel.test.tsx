@@ -104,9 +104,12 @@ describe("RecommendationsPanel", () => {
     render(<RecommendationsPanel vaultPath="/v" />);
     await screen.findByTestId("section-start");
     const item = screen.getAllByTestId("rec-item").find((n) => n.getAttribute("data-rec-id") === "proj:abc")!;
-    fireEvent.click(within(item).getByRole("button", { name: "Add a task to Garden" }));
+    // Secondary actions live in the row's menu.
+    fireEvent.click(within(item).getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add a task to Garden" }));
     await waitFor(() => expect(calls.find((c) => c.cmd === "tasks_add")?.args).toEqual({ vault: "/v", domain: "garden", text: "Order saplings", source: "recommendations" }));
-    fireEvent.click(within(item).getByRole("button", { name: "Copy an instruction for an agent" }));
+    fireEvent.click(within(item).getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy an instruction for an agent" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("INSTRUCTION:3"));
   });
 
@@ -138,7 +141,8 @@ describe("RecommendationsPanel", () => {
     render(<RecommendationsPanel vaultPath="/v" />);
     await screen.findByTestId("section-start");
     const item = screen.getAllByTestId("rec-item").find((n) => n.getAttribute("data-rec-id") === "signin:rain")!;
-    fireEvent.click(within(item).getByRole("button", { name: "Dismiss" }));
+    fireEvent.click(within(item).getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Dismiss" }));
     expect(JSON.parse(localStorage.getItem("prevail.recs.dismissed")!)).toEqual(["signin:rain"]);
     expect(within(screen.getByTestId("spine-all")).getByText("6")).toBeTruthy();
   });

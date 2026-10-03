@@ -34,6 +34,9 @@ export interface ThreadMeta {
   route_turns?: string;
   // Entity chat: the entity (kind/slug) this conversation is about.
   entity?: string | null;
+  // Group chat: the specialists who are members, and when each joined or left.
+  members?: string[];
+  member_log?: string;
 }
 
 export interface ThreadTurn {
@@ -41,6 +44,8 @@ export interface ThreadTurn {
   cli: string | null;
   model: string | null;
   content: string;
+  // A reply's metadata (groupchat.ts TurnMeta) as JSON, kept with the turn.
+  meta?: string | null;
 }
 
 export interface DomainLogEntry {
@@ -268,7 +273,7 @@ export interface Lens {
 
 export type TabId = "chat" | "council" | "benchmark" | "settings" | "work" | "retrospect" | "tools";
 
-export type DomainTab = "chat" | "welcome" | "soul" | "context" | "insights" | "usage" | "state" | "decisions" | "journal" | "logs" | "skills" | "prefs" | "apps" | "loops" | "work";
+export type DomainTab = "chat" | "welcome" | "soul" | "context" | "insights" | "usage" | "state" | "decisions" | "journal" | "logs" | "skills" | "prefs" | "apps" | "work";
 
 export type DomainToggle = "council" | "web" | "save" | "serendipity" | "auto" | "act";
 
@@ -319,7 +324,7 @@ export interface ChatMessage {
   // Token / cost accounting from the engine's `usage` ChatEvent, when the
   // reply came through the unified engine chat path (Track D5). Null on
   // replies that came through the native chat_send path.
-  usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number };
+  usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number; estimated?: boolean };
   // I9: the framework + lens in effect when this turn was sent, so each message
   // records HOW it was produced (not just which model). Shown in the bubble.
   framework?: string;
@@ -334,6 +339,29 @@ export interface ChatMessage {
   // Linking: the other domains and your entities this turn touched (the
   // engine's `touched` event), drawn as a quiet line under the reply.
   touched?: import("./linking").Touched;
+  // A decision the user stated in this turn, saved as a decided record (the
+  // engine's decision_saved event); Undo moves the record aside.
+  decisionSaved?: { domain: string; slug: string; what: string };
+  // A job the chief of staff staffed from this turn (the engine's `job`
+  // event). The final reply also ends with "[job:<id>]" so a saved thread
+  // keeps it.
+  jobId?: string;
+  // A commitment or waiting-for filed from this turn (the engine's `filed`
+  // event, Today T2). The reply ends with "[filed:<id>]" so a saved thread keeps it.
+  filed?: { id: string; kind: "commitment" | "waiting"; domain: string; text: string; due?: string; person?: string };
+  /** Today T6: anything told to the chief of staff and filed by code, with its id for Undo. */
+  told?: { id: string; kind: string; text: string; where: string; due?: string };
+  // The user deliberated ("should I...?"): an offer to open a decision record (Today T4). Live only, never saved.
+  decisionOffer?: { question: string; domain: string; due: string };
+  // A mission turn reached outside the mission (the engine's `bring_in`
+  // event): nothing was read; the card asks for this question, the mission, or no.
+  bringIn?: { mission: string; domains: string[]; never: boolean; why: string };
+  // The message sounded like a mission (the engine's `mission_start` event):
+  // a Start card, never started without the user's yes.
+  missionDraft?: { name: string; outcome: string; owner?: string; consulted: string[]; specialists: string[]; target?: string };
+  // Who wrote this reply, the members present, its scope and context, recorded
+  // when it was sent and stored with the turn (groupchat.ts).
+  meta?: import("./groupchat").TurnMeta;
 }
 
 export type AppNotice =
@@ -367,7 +395,7 @@ export interface ChatEvent {
   // The model's declared plan (from TodoWrite), rendered as a header above the
   // checklist. Also arrives on `type: "tool"` events.
   plan?: string[];
-  usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number };
+  usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number; estimated?: boolean };
   engine?: string;
   error?: string;
   // Present only on the `route` event (auto model routing): the chosen model + why.
@@ -383,6 +411,10 @@ export interface ChatEvent {
   // Present only on the `touched` event (linking).
   domains?: { slug: string; fact?: string }[];
   entities?: string[];
+  // Group chat: who writes the next reply (`speaker` event), and the stored
+  // metadata on an assistant event.
+  speaker?: { id: string; name: string; why?: string };
+  meta?: import("./groupchat").TurnMeta;
 }
 
 // One step in the live execution checklist shown while a chat turn runs.

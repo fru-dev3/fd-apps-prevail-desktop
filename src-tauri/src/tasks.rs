@@ -34,6 +34,22 @@ pub struct Task {
     pub trashed: Option<String>, // YYYY-MM-DD soft-delete date; "~trashed:" token. Some = in Trash, not permanently removed.
     #[serde(default)]
     pub priority: Option<String>, // "high" | "critical"; "~priority:" token. None = normal. Drives due/critical alerting.
+    // A promise with a person (today-plan T0): "~kind:commitment ~to:person/<slug>"
+    // (the user owes it) or "~kind:waiting ~from:person/<slug>" (someone owes the user).
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub to: Option<String>,
+    #[serde(default)]
+    pub from: Option<String>,
+    // "~mission:<slug>": a domain-owned task that serves a mission (missions-plan.md).
+    #[serde(default)]
+    pub mission: Option<String>,
+    // "~initiative:<p-id>" / "~goal:<g-id>": the Compass line a task moves (the chain, goals-plan.md G1b).
+    #[serde(default)]
+    pub initiative: Option<String>,
+    #[serde(default)]
+    pub goal: Option<String>,
 }
 
 fn is_ymd(s: &str) -> bool {
@@ -81,6 +97,12 @@ struct Meta {
     id: Option<String>,
     trashed: Option<String>,
     priority: Option<String>,
+    kind: Option<String>,
+    to: Option<String>,
+    from: Option<String>,
+    mission: Option<String>,
+    initiative: Option<String>,
+    goal: Option<String>,
 }
 
 // Strip trailing metadata tokens off a task body, in any order, only at the END
@@ -111,6 +133,12 @@ fn split_meta(raw: &str) -> (String, Meta) {
                         "src" => { m.source = Some(v.to_string()); true }
                         "trashed" => { m.trashed = Some(v.to_string()); true }
                         "priority" => { m.priority = Some(v.to_string()); true }
+                        "kind" => { m.kind = Some(v.to_string()); true }
+                        "to" => { m.to = Some(v.to_string()); true }
+                        "from" => { m.from = Some(v.to_string()); true }
+                        "mission" => { m.mission = Some(v.to_string()); true }
+                        "initiative" => { m.initiative = Some(v.to_string()); true }
+                        "goal" => { m.goal = Some(v.to_string()); true }
                         _ => false,
                     };
                     if matched { text = t[..idx].to_string(); continue; }
@@ -154,6 +182,12 @@ fn parse_tasks(md: &str) -> Vec<Task> {
                 id: m.id,
                 trashed: m.trashed,
                 priority: m.priority,
+                kind: m.kind,
+                to: m.to,
+                from: m.from,
+                mission: m.mission,
+                initiative: m.initiative,
+                goal: m.goal,
             })
         })
         .filter(|t| !t.text.is_empty())
@@ -191,7 +225,10 @@ fn render_tasks(tasks: &[Task]) -> String {
         let mut line = format!("- [{}] {}", if t.done { "x" } else { " " }, t.text.trim());
         if let Some(d) = t.due.as_deref().filter(|d| !d.is_empty()) { line.push_str(&format!(" @{d}")); }
         if let Some(d) = t.added.as_deref().filter(|d| !d.is_empty()) { line.push_str(&format!(" +{d}")); }
-        if let Some(d) = t.source.as_deref().filter(|d| !d.is_empty()) { line.push_str(&format!(" ~{d}")); }
+        // A plain word stays the legacy bare "~source"; anything else ("gmail:<hash>") is "~src:".
+        if let Some(d) = t.source.as_deref().filter(|d| !d.is_empty()) {
+            if d.chars().all(|c| c.is_ascii_alphanumeric()) { line.push_str(&format!(" ~{d}")); } else { line.push_str(&format!(" ~src:{d}")); }
+        }
         // owner: only persist "ai" (me is the default, keeps human lines clean).
         if t.owner.as_deref() == Some("ai") { line.push_str(" ~owner:ai"); }
         // status: persist the explicit states; todo/done are implied by the box.
@@ -206,6 +243,12 @@ fn render_tasks(tasks: &[Task]) -> String {
         if let Some(d) = t.trashed.as_deref().filter(|d| !d.is_empty()) { line.push_str(&format!(" ~trashed:{d}")); }
         // priority: only persist non-default (high/critical); normal is implied.
         if let Some(p) = t.priority.as_deref().filter(|p| matches!(*p, "high" | "critical")) { line.push_str(&format!(" ~priority:{p}")); }
+        if let Some(k) = t.kind.as_deref().filter(|k| matches!(*k, "commitment" | "waiting")) { line.push_str(&format!(" ~kind:{k}")); }
+        if let Some(p) = t.to.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~to:{p}")); }
+        if let Some(p) = t.from.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~from:{p}")); }
+        if let Some(p) = t.mission.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~mission:{p}")); }
+        if let Some(p) = t.initiative.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~initiative:{p}")); }
+        if let Some(p) = t.goal.as_deref().filter(|p| !p.is_empty()) { line.push_str(&format!(" ~goal:{p}")); }
         s.push_str(&line);
         s.push('\n');
     }
@@ -257,6 +300,12 @@ pub fn tasks_add(vault: String, domain: String, text: String, source: Option<Str
             id: None,
             trashed: None,
             priority: m.priority,
+            kind: m.kind,
+            to: m.to,
+            from: m.from,
+            mission: m.mission,
+            initiative: m.initiative,
+            goal: m.goal,
         });
         tasks_set(vault.clone(), domain.clone(), tasks)?;
         // Fire any user hooks bound to task creation (non-blocking).
@@ -558,6 +607,37 @@ pub fn decisions_pending(vault: String) -> Result<Vec<serde_json::Value>, String
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn commitment_tokens_round_trip_like_the_engine() {
+        let md = "# Tasks\n\n- [ ] Send the quote request @2026-10-03 ~src:gmail:abc123 ~id:a1 ~kind:commitment ~to:person/sam-foo\n- [ ] Revised lease ~src:chat:t1 ~id:a2 ~kind:waiting ~from:person/pat-bar\n- [ ] Old style ~loop ~id:a3\n";
+        let t = super::parse_tasks(md);
+        assert_eq!(t[0].kind.as_deref(), Some("commitment"));
+        assert_eq!(t[0].to.as_deref(), Some("person/sam-foo"));
+        assert_eq!(t[0].source.as_deref(), Some("gmail:abc123"));
+        assert_eq!(t[1].from.as_deref(), Some("person/pat-bar"));
+        assert_eq!(t[2].source.as_deref(), Some("loop"));
+        assert_eq!(super::render_tasks(&t), md);
+    }
+
+    #[test]
+    fn chain_tokens_round_trip_like_the_engine() {
+        let md = "# Tasks\n\n- [ ] Set up the foo transfer @2026-10-02 ~id:t1 ~initiative:p-auto\n- [ ] Call the bar bank ~id:t2 ~goal:g-buffer\n";
+        let t = super::parse_tasks(md);
+        assert_eq!(t[0].initiative.as_deref(), Some("p-auto"));
+        assert_eq!(t[0].text, "Set up the foo transfer");
+        assert_eq!(t[1].goal.as_deref(), Some("g-buffer"));
+        assert_eq!(super::render_tasks(&t), md);
+    }
+
+    #[test]
+    fn mission_token_round_trips_like_the_engine() {
+        let md = "# Tasks\n\n- [ ] Book the next term @2026-12-01 ~id:a9 ~mission:learn-the-cello\n";
+        let t = super::parse_tasks(md);
+        assert_eq!(t[0].mission.as_deref(), Some("learn-the-cello"));
+        assert_eq!(t[0].text, "Book the next term");
+        assert_eq!(super::render_tasks(&t), md);
+    }
+
     use super::*;
 
     #[test]

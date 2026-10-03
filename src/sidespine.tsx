@@ -1,11 +1,16 @@
-import { useState, type ReactNode } from "react";
-import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Archive, ArrowLeft, BarChart3, Briefcase, CheckCircle2, ChevronsLeft, ChevronsRight, CircleDot, Compass, Cpu, Eye, FileText, FolderKanban, Grid3x3,
+  HelpCircle, Hourglass, History, Inbox as InboxIcon, KeyRound, Layers, LayoutGrid, ListChecks, Mail, Network, Pause, Play, Plug, Repeat,
+  Snowflake, Sparkles, Target, Trash2, Users, Workflow, Newspaper, type LucideIcon,
+} from "lucide-react";
+import { TintIcon } from "./tint";
 
 // THE secondary column. Every screen that lists things on the left and shows
 // the picked one on the right uses this (Intent's Noticed, History and
 // Projects; Entities; Apps; Inbox; Recommendations; Runtimes; Arena; chat Threads). One look,
-// one behaviour: a w-72 column with a title row whose PanelLeftClose button
-// folds it to a thin w-9 strip holding a PanelLeftOpen button, and the detail
+// one behaviour: a w-72 column with a title row whose ChevronsLeft button
+// folds it to a thin w-9 strip holding a ChevronsRight button, and the detail
 // takes the freed width. The choice is remembered per view under `storageKey`.
 // On a phone there is no room for two columns: the list shows first, a pick
 // opens the detail with a back button above it.
@@ -54,18 +59,41 @@ type ColumnProps = {
   children: ReactNode;
 };
 
-const iconBtn = "rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
+// The one panel toggle: a small muted double arrow in a 28px hit area (owner, 2026-10-02).
+const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted/70 transition-colors hover:bg-surface-warm hover:text-text-primary";
 
 // The column on its own, for screens whose detail area is laid out by the
 // caller (the chat Threads column sits beside the whole chat). Most screens
 // want SideSpine below, which adds the detail pane.
+/** Gives every icon-only rail button its row's text as a tooltip and accessible name. */
+function RailTitles({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const name = () => el.querySelectorAll("button").forEach((b) => {
+      const t = (b.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (t && !b.title) b.title = t;
+      if (t && !b.getAttribute("aria-label")) b.setAttribute("aria-label", t);
+    });
+    name();
+    const mo = new MutationObserver(name);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
+  return <div ref={ref} className="flex min-h-0 w-full flex-1 flex-col">{children}</div>;
+}
+
 export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, actions, toolbar, footer, children }: Omit<ColumnProps, "storageKey"> & { collapsed: boolean; onToggle: () => void }) {
   if (collapsed) {
     return (
-      <div data-testid="spine-collapsed" className="flex w-9 shrink-0 flex-col items-center border-r border-border bg-surface/40 py-2">
+      <div data-testid="spine-collapsed" className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-surface/40 py-2">
         <button onClick={onToggle} title={`Show ${label}`} aria-label={`Show ${label}`} className={iconBtn}>
-          <PanelLeftOpen className="h-4 w-4" />
+          <ChevronsRight className="h-3.5 w-3.5" />
         </button>
+        {/* Collapsed, the column keeps its rows as an icon rail (owner, 2026-10-02):
+            the same buttons, text hidden by CSS ([data-rail] in index.css), names on hover. */}
+        <RailTitles><div data-rail className="mt-1 min-h-0 w-full flex-1 overflow-y-auto">{children}</div></RailTitles>
       </div>
     );
   }
@@ -79,7 +107,7 @@ export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, a
         <div className="flex shrink-0 items-center gap-0.5">
           {actions}
           <button onClick={onToggle} title="Collapse" aria-label={`Collapse ${label}`} className={iconBtn}>
-            <PanelLeftClose className="h-4 w-4" />
+            <ChevronsLeft className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -139,21 +167,38 @@ export function SideSpine({ storageKey, detail, phone = false, phoneDetail = fal
 
 // The segmented tabs above a SideSpine page (Intent's Noticed / History /
 // Projects look): they pick what the column lists.
+// Every tab row shows an icon before its label (owner, 2026-10-02), in its
+// view's color from the one palette (tint.tsx). A tab may
+// name its own; otherwise its id picks one here, so the same view reads the
+// same everywhere (All, Done, Archived, History...).
+export const TAB_ICON: Record<string, LucideIcon> = {
+  all: LayoutGrid, active: Play, open: CircleDot, done: CheckCircle2, completed: CheckCircle2, paused: Pause, archived: Archive,
+  waiting: Hourglass, trash: Trash2, icebox: Snowflake, compass: Compass, goals: Target, ideals: Sparkles,
+  clis: Cpu, api: Network, direct: KeyRound, briefing: Newspaper, actions: Play, google: Mail, automations: Repeat, tasks: ListChecks,
+  results: Workflow, current: FileText, versions: History, noticed: Eye, history: History, projects: FolderKanban, entities: Users,
+  metrics: BarChart3, stack: Layers, connectors: Plug, summary: FileText, domains: Grid3x3, questions: HelpCircle, inbox: InboxIcon, jobs: Briefcase,
+};
+
 export function SpineTabs<T extends string>({ tabs, value, onChange, label }: {
-  tabs: { id: T; label: string; count?: number }[];
+  tabs: { id: T; label: string; count?: number; icon?: LucideIcon }[];
   value: T;
   onChange: (id: T) => void;
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="flex w-fit items-center rounded-lg bg-surface-warm p-1 max-sm:w-full">
-      {tabs.map((t) => (
-        <button key={t.id} role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)} data-testid={`tab-${t.id}`}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-2 ${value === t.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
-          {t.label}
-          {t.count !== undefined && <span className="text-[12px] font-normal tabular-nums text-text-muted">{t.count}</span>}
-        </button>
-      ))}
+    <div role="tablist" aria-label={label} data-scroll-x className="flex w-fit min-w-0 max-w-full items-center overflow-x-auto rounded-lg bg-surface-warm p-1 max-sm:w-full">
+      {tabs.map((t) => {
+        const I = t.icon ?? TAB_ICON[t.id];
+        const on = value === t.id;
+        return (
+          <button key={t.id} role="tab" aria-selected={on} onClick={() => onChange(t.id)} data-testid={`tab-${t.id}`}
+            className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-2 ${on ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
+            {I && <TintIcon icon={I} tint={t.id} square={false} />}
+            {t.label}
+            {t.count !== undefined && <span className="text-[12px] font-normal tabular-nums text-text-muted">{t.count}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -22,9 +22,10 @@ describe("SideSpine", () => {
     expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("open");
     fireEvent.click(screen.getByLabelText("Collapse periods"));
     expect(screen.queryByTestId("the-spine")).toBeNull();
-    expect(screen.queryByText("Sep 21 to 27")).toBeNull();
+    // Collapsed, the rows stay as an icon rail inside the strip (names hidden by CSS).
     const strip = screen.getByTestId("spine-collapsed");
-    expect(strip.className).toContain("w-9");
+    expect(strip.querySelector("[data-rail]")?.textContent).toContain("Sep 21 to 27");
+    expect(strip.className).toContain("w-12");
     const detail = screen.getByTestId("spine-detail");
     expect(detail.getAttribute("data-spine")).toBe("collapsed");
     expect(detail.className).toContain("flex-1");
@@ -103,7 +104,7 @@ describe("SideSpine extras", () => {
     fireEvent.click(screen.getByLabelText("Collapse threads"));
     expect(onToggle).toHaveBeenCalledTimes(1);
     rerender(<SpineColumn collapsed onToggle={onToggle} title="Threads" label="threads" testId="t"><p>x</p></SpineColumn>);
-    expect(screen.getByTestId("spine-collapsed").className).toContain("w-9");
+    expect(screen.getByTestId("spine-collapsed").className).toContain("w-12");
   });
 });
 

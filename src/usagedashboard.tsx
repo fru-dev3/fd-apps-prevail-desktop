@@ -19,6 +19,8 @@ type Entry = {
 // the value off an entry (with a friendly fallback for missing/legacy data).
 type DimId = "model" | "domain" | "surface" | "host" | "cli";
 import { modelLabel } from "./helpers2";
+import { DETAIL_TITLE, META, SCORE, SECTION_TITLE } from "./typescale";
+import { TintIcon } from "./tint";
 
 const DIMS: { id: DimId; label: string; get: (e: Entry) => string }[] = [
   { id: "model", label: "Model", get: (e) => e.model || "(default)" },
@@ -53,6 +55,44 @@ const RANGES: { id: string; label: string; days: number | null }[] = [
   { id: "all", label: "All time", days: null },
 ];
 
+// Every AI tool this month, from the tools' own local records (engine `ai usage`).
+type AiTool = { key: string; tokens: number; usd_api: number; usd_reported: number; sessions: number; paid_monthly?: number; value_multiple?: number; prompts?: number };
+type AiUsage = { month: string; hosts: string[]; price_snapshot: string; total: { tokens: number; usd_api: number }; by_tool: AiTool[]; paid_monthly: number | null; value_multiple: number | null };
+const TOOL_NAMES: Record<string, string> = { claude: "Claude Code", codex: "Codex", opencode: "opencode", hermes: "Hermes", antigravity: "Antigravity", cursor: "Cursor", aionui: "AionUi", wispr: "Wispr Flow", glyph: "glyph" };
+
+/** The month's AI spend across every tool and machine, with honest labels. */
+export function AllToolsPanel({ data }: { data: AiUsage }) {
+  const rows = data.by_tool.filter((t) => t.tokens > 0 || t.sessions > 0 || (t.prompts ?? 0) > 0);
+  const machines = data.hosts.length;
+  return (
+    <section className="@container" data-testid="ai-all-tools">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className={SECTION_TITLE}>All AI tools, {new Date(`${data.month}-01T12:00:00`).toLocaleString(undefined, { month: "long", year: "numeric" })}</h3>
+        <span className="text-[12px] text-text-muted">measured from each tool's own records on {machines} {machines === 1 ? "machine" : "machines"}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <div><span className={`${SCORE} text-text-primary`} data-testid="ai-all-tools-usd">{fmtCost(data.total.usd_api)}</span> <span className="text-xs text-text-muted">at API prices</span></div>
+        <div className="text-sm tabular-nums text-text-secondary">{fmtTok(data.total.tokens)} tokens</div>
+        <div className="text-sm text-text-secondary">{data.paid_monthly !== null ? <>paid {fmtCost(data.paid_monthly)}{data.value_multiple !== null && <span className="text-text-muted"> ({data.value_multiple}x)</span>}</> : <span className="text-text-muted">paid: not set yet</span>}</div>
+      </div>
+      {rows.length > 0 && (
+        <table className="mt-3 w-full text-[13px]">
+          <tbody>
+            {rows.map((t) => (
+              <tr key={t.key} className="border-t border-border-subtle" data-testid="ai-tool-row">
+                <td className="py-1.5 pr-2 text-text-primary">{TOOL_NAMES[t.key] ?? t.key}</td>
+                <td className="hidden py-1.5 pr-2 text-right tabular-nums text-text-secondary @xs:table-cell">{t.tokens > 0 ? fmtTok(t.tokens) : t.prompts ? `${fmtNum(t.prompts)} prompts` : `${fmtNum(t.sessions)} sessions`}</td>
+                <td className="py-1.5 text-right tabular-nums text-text-primary">{t.tokens > 0 ? fmtCost(t.usd_api) : <span className="text-text-muted">{t.prompts ? `${fmtNum(t.prompts)} prompts` : "no token counts"}</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="mt-2 text-[12px] text-text-muted">API prices as of {data.price_snapshot}: what this use would cost on the API. The turns below are Prevail's own, and their tokens are estimated.</p>
+    </section>
+  );
+}
+
 const fmtCost = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : n > 0 ? `$${n.toFixed(3)}` : "$0");
 const fmtTok = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${n}`);
 const fmtNum = (n: number) => n.toLocaleString();
@@ -61,11 +101,12 @@ const fmtNum = (n: number) => n.toLocaleString();
 function heat(t: number): string {
   if (t <= 0) return "transparent";
   const a = 0.08 + t * 0.82;
-  return `color-mix(in srgb, var(--color-accent, #0d7d8c) ${Math.round(a * 100)}%, transparent)`;
+  return `color-mix(in srgb, var(--color-accent) ${Math.round(a * 100)}%, transparent)`;
 }
 
 export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: { vaultPath: string; embedded?: boolean; view?: UsageView }) {
   const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [ai, setAi] = useState<AiUsage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState("30d");
   const [query, setQuery] = useState("");
@@ -86,6 +127,9 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
     invoke<Entry[]>("usage_entries", { vault: vaultPath })
       .then((rows) => { if (alive) setEntries(Array.isArray(rows) ? rows : []); })
       .catch((e) => { if (alive) { setError(String(e)); setEntries([]); } });
+    invoke<AiUsage>("engine_ai_usage", { vault: vaultPath, month: null })
+      .then((r) => { if (alive && r && Array.isArray(r.by_tool)) setAi(r); })
+      .catch(() => { /* optional: older engines have no ai usage */ });
     return () => { alive = false; };
   }, [vaultPath]);
 
@@ -177,7 +221,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
   });
   const activeFilterCount = Object.values(filters).reduce((n, s) => n + (s?.size ?? 0), 0);
 
-  if (entries === null) return <div className="flex h-64 items-center justify-center text-sm text-text-muted">Loading usage…</div>;
+  if (entries === null) return <div className={`${META} p-8`}>Loading usage…</div>;
 
   const empty = entries.length === 0;
   const metricLabel = metric === "cost" ? "Cost" : metric === "tokens" ? "Tokens" : "Turns";
@@ -192,10 +236,10 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
         const Icon = v.icon;
         return (
           <button key={v.id} data-testid={`usage-view-${v.id}`} aria-current={on ? "true" : undefined} onClick={() => { setView(v.id); setPicked(true); }}
-            className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
-            <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{v.label}</span>
-            {v.id !== "overview" && <span className="text-[13px] tabular-nums text-text-muted">{distinct(v.id)}</span>}
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
+            <TintIcon icon={Icon} />
+            <span className={`min-w-0 flex-1 truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{v.label}</span>
+            {v.id !== "overview" && <span className="text-[12px] tabular-nums text-text-muted">{distinct(v.id)}</span>}
           </button>
         );
       })}
@@ -204,14 +248,14 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
   const viewLabel = USAGE_VIEWS.find((v) => v.id === view)?.label ?? "Overview";
 
   const controls = (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
+          <div className="relative max-w-full">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search model, domain, activity, machine…"
-              className="w-56 rounded-lg border border-border bg-surface py-1.5 pl-8 pr-7 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
+              className="w-56 max-w-full rounded-lg border border-border bg-surface py-1.5 pl-8 pr-7 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-border focus:outline-none"
             />
             {query && (
               <button onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-accent" aria-label="clear search">
@@ -219,7 +263,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
               </button>
             )}
           </div>
-          <div className="inline-flex overflow-hidden rounded-lg border border-border">
+          <div className="inline-flex max-w-full flex-wrap overflow-hidden rounded-lg border border-border">
             {(["cost", "tokens", "turns"] as const).map((m) => (
               <button key={m} onClick={() => setMetric(m)}
                 className={`px-3 py-1 text-xs font-medium ${metric === m ? "bg-accent text-background" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}>
@@ -227,7 +271,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
               </button>
             ))}
           </div>
-          <div className="inline-flex overflow-hidden rounded-lg border border-border">
+          <div className="inline-flex max-w-full flex-wrap overflow-hidden rounded-lg border border-border">
             {RANGES.map((r) => (
               <button key={r.id} onClick={() => setRange(r.id)}
                 className={`px-3 py-1 text-xs font-medium ${range === r.id ? "bg-accent-soft text-accent" : "bg-surface text-text-secondary hover:bg-surface-strong"}`}>
@@ -239,46 +283,47 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
   );
   const detailBody = (
     <div className={`flex flex-col gap-5 ${embedded ? "" : phone ? "px-4 py-4" : "w-full px-8 py-6"}`} data-testid="usage-detail">
-      {embedded && <div className="flex justify-end">{controls}</div>}
-      {!embedded && <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{viewLabel}</h2>}
+      {embedded && <div className="flex min-w-0 justify-end">{controls}</div>}
+      {!embedded && <h2 className={DETAIL_TITLE}>{viewLabel}</h2>}
+      {view === "overview" && ai && ai.total.tokens > 0 && <AllToolsPanel data={ai} />}
       {empty ? (
-        <div className="rounded-xl border border-dashed border-border-subtle px-6 py-16 text-center text-sm text-text-muted">
+        <p className={META}>
           No usage recorded yet. Run a chat, council, or benchmark and it will show up here.
-        </div>
+        </p>
       ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border-subtle px-6 py-16 text-center text-sm text-text-muted">
+        <p className={META}>
           Nothing matches the current search, filters, or time range.
           <button onClick={() => { setQuery(""); setFilters({}); setRange("all"); }} className="ml-1 underline underline-offset-2 hover:text-accent">Reset</button>
-        </div>
+        </p>
       ) : (
         <>
           {/* Summary tiles */}
-          {view === "overview" && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {view === "overview" && <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border-subtle pt-4 sm:grid-cols-4">
             {[
               { l: "Turns", v: fmtNum(totals.turns) },
               { l: "Tokens (in / out)", v: `${fmtTok(totals.inTok)} / ${fmtTok(totals.outTok)}` },
-              { l: "Est. cost", v: fmtCost(totals.cost) },
+              { l: "Est. cost (Prevail turns)", v: fmtCost(totals.cost) },
               { l: "Active days", v: `${totals.days.size}` },
             ].map((t) => (
-              <div key={t.l} className="rounded-xl border border-border bg-surface p-3.5">
-                <div className="text-lg font-semibold tabular-nums text-text-primary">{t.v}</div>
-                <div className="mt-0.5 text-[11px] tracking-wide text-text-muted">{t.l}</div>
+              <div key={t.l} className="min-w-0">
+                <div className="text-[15px] font-semibold tabular-nums text-text-primary">{t.v}</div>
+                <div className="mt-0.5 text-[12px] text-text-muted">{t.l}</div>
               </div>
             ))}
           </div>}
 
           {/* Active filters */}
           {activeFilterCount > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft/40 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
               <Filter className="h-3.5 w-3.5 text-accent" />
-              <span className="text-[11px] font-medium text-accent">Filtered:</span>
+              <span className="text-[12px] font-medium text-accent">Filtered:</span>
               {DIMS.flatMap((d) => [...(filters[d.id] ?? [])].map((v) => (
                 <button key={`${d.id}:${v}`} onClick={() => toggleFilter(d.id, v)}
-                  className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-surface px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-warm">
+                  className="inline-flex items-center gap-1 text-text-primary hover:text-accent">
                   <span className="text-text-muted">{d.label}:</span> {v} <X className="h-3 w-3" />
                 </button>
               )))}
-              <button onClick={() => setFilters({})} className="ml-1 text-[11px] text-text-muted underline underline-offset-2 hover:text-accent">Clear all</button>
+              <button onClick={() => setFilters({})} className="ml-1 text-[12px] text-text-muted underline underline-offset-2 hover:text-accent">Clear all</button>
             </div>
           )}
 
@@ -291,7 +336,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
           {view !== "overview" && <Panel title={`${metricLabel} by ${DIMS.find((d) => d.id === groupBy)?.label.toLowerCase()}`}
             right={
               <div className="flex items-center gap-1.5">
-                <button onClick={() => setSortDesc((v) => !v)} className="rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text-muted hover:text-accent">
+                <button onClick={() => setSortDesc((v) => !v)} className="text-[12px] text-text-muted hover:text-accent">
                   {sortDesc ? "High to low" : "Low to high"}
                 </button>
               </div>
@@ -332,7 +377,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
           {/* Activity map (cross-tab) */}
           {view === "overview" && <Panel title="Activity map"
             right={
-              <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+              <div className="flex items-center gap-1.5 text-[12px] text-text-muted">
                 <select value={crossY} onChange={(e) => setCrossY(e.target.value as DimId)} className="rounded-md border border-border bg-surface px-1.5 py-1 text-xs text-text-primary">
                   {DIMS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
                 </select>
@@ -365,16 +410,16 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
 
 function Panel({ title, subtitle, right, children }: { title: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <section className="border-t border-border-subtle pt-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-          {subtitle && <p className="text-[11px] text-text-muted">{subtitle}</p>}
+          <h3 className={SECTION_TITLE}>{title}</h3>
+          {subtitle && <p className="text-[12px] text-text-muted">{subtitle}</p>}
         </div>
         {right}
       </div>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -390,13 +435,13 @@ function TimeSeries({ data, fmt }: { data: { day: string; v: number }[]; fmt: (v
   return (
     <div className="overflow-x-auto">
       <svg viewBox={`0 0 ${w} ${h + 16}`} className="w-full" style={{ minWidth: 420 }} role="img" aria-label="usage over time">
-        <path d={area} fill="color-mix(in srgb, var(--color-accent,#0d7d8c) 12%, transparent)" />
-        <path d={line} fill="none" stroke="var(--color-accent,#0d7d8c)" strokeWidth="1.5" />
-        {peak.v > 0 && <circle cx={x(data.indexOf(peak))} cy={y(peak.v)} r="2.5" fill="var(--color-accent,#0d7d8c)" />}
+        <path d={area} fill="color-mix(in srgb, var(--color-accent) 12%, transparent)" />
+        <path d={line} fill="none" stroke="var(--color-accent)" strokeWidth="1.5" />
+        {peak.v > 0 && <circle cx={x(data.indexOf(peak))} cy={y(peak.v)} r="2.5" fill="var(--color-accent)" />}
         <text x={pad} y={h + 12} className="fill-current text-[9px] text-text-muted">{data[0]?.day.slice(5)}</text>
         <text x={w - pad} y={h + 12} textAnchor="end" className="fill-current text-[9px] text-text-muted">{data[n - 1]?.day.slice(5)}</text>
       </svg>
-      <div className="mt-1 text-[11px] text-text-muted">Peak: <span className="text-text-secondary">{fmt(peak.v)}</span> on {peak.day}</div>
+      <div className="mt-1 text-[12px] text-text-muted">Peak: <span className="text-text-secondary">{fmt(peak.v)}</span> on {peak.day}</div>
     </div>
   );
 }
@@ -413,7 +458,7 @@ function Heatmap({ grid, max, fmt }: { grid: number[][]; max: number; fmt: (v: n
           ))}
           {grid.map((rowArr, d) => (
             <Fragment key={d}>
-              <div className="pr-1 text-right text-[11px] leading-4 text-text-muted">{dows[d]}</div>
+              <div className="pr-1 text-right text-[12px] leading-4 text-text-muted">{dows[d]}</div>
               {rowArr.map((v, hh) => (
                 <div key={`${d}-${hh}`} title={`${dows[d]} ${hh}:00: ${fmt(v)}`}
                   className="aspect-square rounded-[2px] border border-border-subtle/40"
@@ -431,7 +476,7 @@ function CrossTab({ rows, cols, cell, max, fmt }: { rows: string[]; cols: string
   if (!rows.length || !cols.length) return <p className="text-xs text-text-muted">Not enough data for a cross-tab.</p>;
   return (
     <div className="overflow-x-auto">
-      <table className="border-collapse text-[11px]">
+      <table className="border-collapse text-[12px]">
         <thead>
           <tr>
             <th className="sticky left-0 bg-surface p-1" />

@@ -382,6 +382,9 @@
     outline: 2px solid var(--color-accent) !important;
     outline-offset: 2px;
   }
+  /* A text box whose rounded container carries the focus (its border turns
+     accent on focus-within), so the field itself draws no second ring. */
+  .ring-in-box:focus-visible { outline: none !important; }
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -526,3 +529,57 @@
     linear-gradient(color-mix(in srgb, var(--color-surface) 40%, transparent), color-mix(in srgb, var(--color-surface) 40%, transparent)),
     var(--color-background);
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   SPECIALIST AVATARS (specialistavatar.tsx): a slow blink while idle, each
+   face on its own clock (--sa-d); while working, a turning ring, a small bob
+   and eyes that scan. Nothing moves under prefers-reduced-motion.
+   ═════════════════════════════════════════════════════════════════════ */
+.sa svg { display: block; overflow: visible; }
+.sa .sa-body, .sa .sa-eyes, .sa .sa-face, .sa .sa-ring, .sa .sa-antenna, .sa .sa-spark { transform-box: fill-box; transform-origin: center; }
+.sa .sa-antenna { transform-origin: 50% 100%; }
+.sa[data-state="idle"] .sa-eyes { animation: sa-blink 6.4s var(--sa-d, 0s) infinite; }
+.sa[data-state="idle"] .sa-antenna { animation: sa-sway 5.2s var(--sa-d, 0s) ease-in-out infinite; }
+.sa[data-state="idle"] .sa-spark { animation: sa-twinkle 4.8s var(--sa-d, 0s) ease-in-out infinite; }
+.sa[data-state="idle"] .sa-glint { animation: sa-glint 5.6s var(--sa-d, 0s) ease-in-out infinite; }
+.sa[data-state="working"] .sa-ring { animation: sa-spin 1.4s linear infinite; transform-origin: 16px 17px; transform-box: view-box; }
+.sa[data-state="working"] .sa-body { animation: sa-bob 1.2s ease-in-out infinite; transform: scale(0.84); }
+.sa[data-state="working"] .sa-face { animation: sa-scan 2.4s ease-in-out infinite; }
+.sa[data-state="working"] .sa-eyes { animation: sa-blink 3.1s var(--sa-d, 0s) infinite; }
+.sa[data-state="working"] .sa-antenna { animation: sa-sway 0.9s ease-in-out infinite; }
+.sa[data-state="working"] .sa-glint { animation: sa-glint 1.2s ease-in-out infinite; }
+.sa[data-state="off"] { opacity: 0.7; }
+@keyframes sa-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.12); } }
+@keyframes sa-sway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes sa-twinkle { 0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; } 50% { transform: scale(0.72) rotate(45deg); opacity: 0.85; } }
+@keyframes sa-glint { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(8px); } }
+@keyframes sa-spin { to { transform: rotate(360deg); } }
+@keyframes sa-bob { 0%, 100% { transform: scale(0.84) translateY(0); } 50% { transform: scale(0.84) translateY(-1.2px); } }
+@keyframes sa-scan { 0%, 100% { transform: translate(-1.4px, 2px); } 50% { transform: translate(1.4px, 2px); } }
+@media (prefers-reduced-motion: reduce) {
+  .sa *, .sa[data-state] * { animation: none !important; }
+}
+
+/* SideSpine collapsed into an icon rail: rows keep only their icon. */
+[data-rail] nav { padding: 0.25rem; }
+[data-rail] button { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; width: 100%; }
+[data-rail] button > :not(svg):not(:has(svg)) { display: none; }
+[data-rail] button:not(:has(svg)) { display: none; }
+[data-rail] *:not(button):not(button *):not(:has(button)) { display: none; }
+
+/* Icon tints (owner, 2026-10-02 and 10-03: colorful, playful icons
+   everywhere): a lucide icon on a small tinted square, one harmonious
+   palette (src/tint.tsx) that reads in light and dark. --tint is the hue's
+   colour; the square mixes it toward the surface, the icon toward the ink. */
+.tint-sq {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 22px; height: 22px; border-radius: 6px;
+  color: color-mix(in oklab, var(--tint) 82%, black);
+  background: color-mix(in oklab, var(--tint) 14%, transparent);
+}
+.tint-sq svg { width: 14px; height: 14px; }
+.tint-sq-lg { width: 36px; height: 36px; border-radius: 10px; }
+.tint-sq-lg svg { width: 20px; height: 20px; }
+.tint-ic { color: color-mix(in oklab, var(--tint) 82%, black); flex-shrink: 0; }
+:root[data-theme="dark"] .tint-sq { color: color-mix(in oklab, var(--tint) 70%, white); background: color-mix(in oklab, var(--tint) 22%, transparent); }
+:root[data-theme="dark"] .tint-ic { color: color-mix(in oklab, var(--tint) 70%, white); }

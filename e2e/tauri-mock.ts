@@ -79,6 +79,16 @@ export const FIXTURES: Record<string, unknown> = {
   capture_prompts_read: [],
   intents_distilled_read: { generated_ts: 1783200000, source_count: 3, intents: [{ title: "Track net worth", goal: "Know my finances", domains: ["wealth"], prompt_ts: [1783200000000, 1783100000000] }] },
   read_domain_ideal: "# Wealth\nFinancial security with a 6-month runway.",
+  engine_ai_usage: {
+    month: "2026-10", hosts: ["foo-laptop", "bar-hub"], price_snapshot: "2026-10-02",
+    total: { tokens: 125_000_000, usd_api: 84.5 },
+    by_tool: [
+      { key: "claude", tokens: 120_000_000, usd_api: 80.25, usd_reported: 79.1, sessions: 40, paid_monthly: 20, value_multiple: 4 },
+      { key: "codex", tokens: 5_000_000, usd_api: 4.25, usd_reported: 0, sessions: 6 },
+      { key: "wispr", tokens: 0, usd_api: 0, usd_reported: 0, sessions: 0, prompts: 31 },
+    ],
+    paid_monthly: 20, value_multiple: 4.2,
+  },
   usage_entries: [
     { ts: 1783200000000, day: "2026-07-05", session: "s1", domain: "career", surface: "chat", cli: "claude", model: "opus", input_tokens: 1200, output_tokens: 800, est_cost_usd: 0.12, host: "mbp" },
     { ts: 1783120000000, day: "2026-07-04", session: "s2", domain: "wealth", surface: "council", cli: "codex", model: "gpt", input_tokens: 400, output_tokens: 600, est_cost_usd: 0.03, host: "mini" },
@@ -96,6 +106,10 @@ export async function mockTauri(page: Page, overrides: Record<string, unknown> =
     localStorage.setItem("prevail.desktop.vaultPath", "/tmp/smoke-vault");
     localStorage.setItem("prevail.onboarding.seen", "1");
     localStorage.setItem("prevail.onboarding.encryptOffered", "1");
+    // The sidebar's sections start collapsed for a new user; the ring opens
+    // them (once, so a test's own toggles stick) unless a test asks for the
+    // fresh state with the __fresh_sidebar fixture.
+    if (!fx.__fresh_sidebar) (window as unknown as { __sidebarOpen?: string[] }).__sidebarOpen = ["work", "activities", "kind.projects", "domains"];
     const log: Array<{ cmd: string; args: unknown }> = [];
     (window as unknown as Record<string, unknown>).__invokeLog = log;
     // The live fixture table, so a test can change what a command answers

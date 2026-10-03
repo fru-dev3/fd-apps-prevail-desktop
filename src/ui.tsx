@@ -2,7 +2,7 @@
 // App state - they're prop-driven leaf components, safe to live on their own.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Brain, Check, ChevronRight, MoreHorizontal } from "lucide-react";
+import { Brain, Check, ChevronRight, MoreVertical } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // One secondary-actions menu for list rows. A row gets ONE visible primary
@@ -11,6 +11,10 @@ import type { LucideIcon } from "lucide-react";
 // never clips it) through a portal on document.body, so an animated or
 // scrolling ancestor can neither offset nor clip it. Closes on outside click
 // or Escape.
+// Progressive reveal for a row's actions: hidden until the row (a `group`) is
+// hovered or focused, always shown on a touch screen (no hover there).
+export const REVEAL = "opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100";
+
 export type RowMenuItem =
   | { kind?: "item"; icon?: LucideIcon; label: string; hint?: string; onClick: () => void; checked?: boolean; danger?: boolean; disabled?: boolean }
   | { kind: "separator" }
@@ -53,10 +57,10 @@ export function RowMenu({ items, label = "More actions", reveal = false, classNa
         aria-haspopup="menu"
         aria-expanded={open}
         className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-surface-strong hover:text-text-primary ${
-          open ? "bg-surface-strong text-text-primary" : reveal ? "text-text-muted opacity-0 focus-visible:opacity-100 group-hover:opacity-100" : "text-text-muted"
+          open ? "bg-surface-strong text-text-primary" : reveal ? "text-text-muted opacity-0 focus-visible:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" : "text-text-muted"
         }`}
       >
-        <MoreHorizontal className="h-4 w-4" />
+        <MoreVertical className="h-4 w-4" />
       </button>
       {open && pos && createPortal(
         <div data-rowmenu role="menu" onClick={(e) => e.stopPropagation()} style={{ top: pos.top, left: pos.left }}
@@ -161,5 +165,17 @@ export function ThinkingDisclosure({ text, open }: { text: string; open?: boolea
         {text}
       </div>
     </details>
+  );
+}
+
+// Status as a small dot and a word, never a pill.
+const DOT_TONE = { ok: "bg-ok", warn: "bg-warn", err: "bg-err", accent: "bg-accent", muted: "bg-text-muted/50" } as const;
+export type DotTone = keyof typeof DOT_TONE;
+export function StatusDot({ tone, label, className = "" }: { tone: DotTone; label: string; className?: string }) {
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1.5 text-[12px] text-text-muted ${className}`}>
+      <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${DOT_TONE[tone]}`} />
+      {label}
+    </span>
   );
 }

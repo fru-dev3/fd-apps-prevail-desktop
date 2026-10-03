@@ -1,24 +1,28 @@
 // Work mode: the operational hub. Every operational surface lives here, out
 // of the Editor:
 //   Home group: Inbox, Apps, Insights (Intent), Recommendations
-//   Work group: Projects (the ones you track), Tasks, Goals (each
-//               domain's source/goals.md, plus Mission and Vision)
+//   Work group: Tasks, Compass (purpose, values, rules and goals; domain
+//               goals; the ideals), Decisions
+//   Missions:   its own sidebar section (MISSIONS), the Missions page
 // There is no separate Work nav column: the nav (WORK_NAV) lives in the shared
 // app sidebar; this panel renders the active section, driven by
 // "prevail:work-section" (and the jumpTo prop).
 import { useEffect, useState } from "react";
 import { BoardPanel } from "./boardpanel";
 import { InboxPage } from "./inboxpage";
-import { AppsMirrorPanel } from "./appsmirror";
+import { AppsPage } from "./appstack";
 import { RecommendationsPanel } from "./recommendationspanel";
 import { ScrollPage } from "./sectionutil";
 import { MirrorPanel } from "./mirror";
-import { GoalsPage } from "./goalspage";
-import { ProjectsPage } from "./projectspage";
+import { CompassPage } from "./compasspage";
+import { GroupPage } from "./iapage";
+import { DecisionsPage } from "./decisionspage";
+import { SpecialistsPage } from "./specialistspage";
+import { PlaybooksPage } from "./playbookspage";
 import { workSection } from "./navdefs";
 import type { CliInfo } from "./types";
 
-export type WorkSection = "task-list" | "inbox" | "apps" | "recommendations" | "insights" | "projects" | "goals";
+export type WorkSection = "task-list" | "inbox" | "apps" | "recommendations" | "insights" | "missions" | "entities" | "activities" | "compass" | "decisions" | "specialists" | "playbooks";
 // Insights is a view of the Intent screen. Its remembered view is set before
 // it mounts, so the row you clicked is the view you land on.
 const INTENT_VIEW: Partial<Record<WorkSection, string>> = { insights: "noticed" };
@@ -26,7 +30,7 @@ export function normalizeWorkSection(s: string): WorkSection | null {
   return workSection(s) as WorkSection | null;
 }
 // Sections that lay out their own columns (a SideSpine page).
-const FLUSH: WorkSection[] = ["recommendations", "inbox", "apps", "insights", "projects", "goals", "task-list"];
+const FLUSH: WorkSection[] = ["recommendations", "inbox", "apps", "insights", "missions", "entities", "activities", "compass", "task-list", "decisions", "specialists", "playbooks"];
 
 export function WorkPanel({
   vaultPath,
@@ -60,11 +64,16 @@ export function WorkPanel({
     <ScrollPage key={section} testId="work-page" flush={FLUSH.includes(section)}>
         {section === "task-list" && <BoardPanel vaultPath={vaultPath} clis={clis} />}
         {section === "inbox" && <InboxPage vaultPath={vaultPath} />}
-        {section === "apps" && <AppsMirrorPanel vaultPath={vaultPath} />}
+        {section === "apps" && <AppsPage vaultPath={vaultPath} />}
         {section === "recommendations" && <RecommendationsPanel vaultPath={vaultPath} />}
         {intentView && <MirrorPanel key={`${section}:${jumpTo?.n ?? 0}`} vaultPath={vaultPath} />}
-        {section === "goals" && <GoalsPage vaultPath={vaultPath} />}
-        {section === "projects" && <ProjectsPage vaultPath={vaultPath} />}
+        {section === "compass" && <CompassPage vaultPath={vaultPath} />}
+        {section === "missions" && <GroupPage vaultPath={vaultPath} group="activities" initial="projects" />}
+        {section === "entities" && <GroupPage vaultPath={vaultPath} group="entities" />}
+        {section === "activities" && <GroupPage vaultPath={vaultPath} group="activities" />}
+        {section === "decisions" && <DecisionsPage vaultPath={vaultPath} />}
+        {section === "specialists" && <SpecialistsPage vaultPath={vaultPath} />}
+        {section === "playbooks" && <PlaybooksPage vaultPath={vaultPath} />}
     </ScrollPage>
   );
 }

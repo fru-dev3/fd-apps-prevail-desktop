@@ -26,6 +26,7 @@ import { ActApprovalCard } from "./actcard";
 import { extractActIds } from "./waiting";
 import type { CliInfo, Domain, DomainContextBundle, EngineApp, ModelPick, PanelistReply, PanelistSlot, SkillEntry, ThreadMeta, ThreadTurn } from "./types";
 import type { UnlistenFn } from "./bridge";
+import { DETAIL_TITLE } from "./typescale";
 
 export function CouncilPanel({
   domain,
@@ -189,8 +190,8 @@ export function CouncilPanel({
     });
   };
   const panelistSlots = useMemo(
-    // Under Bunker, drop already-selected CLOUD panelists entirely — not just
-    // from the picker — so they never convene and leak the prompt off-device (O60).
+    // Under Bunker, drop already-selected CLOUD panelists entirely, not just
+    // from the picker, so they never convene and leak the prompt off-device (O60).
     () => allSlots.filter((s) => selectedSlots.has(s.key) && (!isBunkerOn() || isLocalCli(s.cli))),
     [allSlots, selectedSlots],
   );
@@ -693,8 +694,8 @@ export function CouncilPanel({
   // Load (or clear) the council transcript when the active thread changes.
   useEffect(() => {
     // Hidden (chat is the visible tab): the shared activeThreadPath is being
-    // driven by chat, not us. Ignore it entirely so a convened council — running
-    // OR finished — keeps its replies/verdict on screen when we come back.
+    // driven by chat, not us. Ignore it entirely so a convened council, running
+    // OR finished, keeps its replies/verdict on screen when we come back.
     if (!activeRef.current) return;
     councilThreadRef.current = activeThreadPath ?? null;
     // We just saved this convene and adopted its own path - keep the result on
@@ -1014,7 +1015,7 @@ export function CouncilPanel({
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-accent-soft/80 backdrop-blur-sm">
           <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-center text-sm text-accent shadow-xl">
             ⊕ drop to add as context
-            <div className="mt-1 text-[11px] normal-case tracking-normal text-accent/70">state summary · ⇧ full context · ⌥ entire folder</div>
+            <div className="mt-1 text-[12px] normal-case tracking-normal text-accent/70">state summary · ⇧ full context · ⌥ entire folder</div>
           </div>
         </div>
       )}
@@ -1027,12 +1028,12 @@ export function CouncilPanel({
               const I = domainIcon(domain);
               return I ? <I className="h-5 w-5 text-accent" /> : <span className="text-accent">◆</span>;
             })()}
-            <span className="text-lg font-semibold">{titleCase(domain)}</span>
+            <span className="text-[15px] font-semibold">{titleCase(domain)}</span>
             {domainPath && (
               <button
                 onClick={onOpenInFinder}
                 title="Open in Finder"
-                className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-surface px-1.5 py-0.5 text-[11px] text-text-muted hover:bg-surface-warm hover:text-accent"
+                className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-surface px-1.5 py-0.5 text-[12px] text-text-muted hover:bg-surface-warm hover:text-accent"
               >
                 <Folder className="h-3 w-3" />
                 Finder
@@ -1043,7 +1044,7 @@ export function CouncilPanel({
           <span className="font-mono text-xs text-text-muted">Council</span>
         )}
         <div className="flex-1" />
-        <span className="font-mono text-[11px] text-text-muted">
+        <span className="font-mono text-[12px] text-text-muted">
           {panelistSlots.length} on panel
         </span>
         {/* Context swaps this column for the in-flow Context view. */}
@@ -1069,7 +1070,7 @@ export function CouncilPanel({
                 </div>
               ) : t.content.startsWith("### Council verdict") ? (
                 <div key={i} className="rounded-2xl border border-accent-border bg-accent-soft px-4 py-3">
-                  <div className="mb-1.5 text-[11px] text-accent">Council verdict</div>
+                  <div className="mb-1.5 text-[12px] text-accent">Council verdict</div>
                   <div className="text-sm leading-relaxed text-text-secondary">
                     <Markdown source={t.content.replace(/^### Council verdict\n\n/, "")} />
                   </div>
@@ -1077,7 +1078,7 @@ export function CouncilPanel({
               ) : null,
             )}
             {phase !== "idle" && (
-              <div className="pb-1 pt-1 text-center text-[11px] text-text-muted">
+              <div className="pb-1 pt-1 text-center text-[12px] text-text-muted">
                 continuing…
               </div>
             )}
@@ -1086,7 +1087,7 @@ export function CouncilPanel({
         {councilTurns.length === 0 && phase === "idle" && (
           <div className="flex h-full flex-col items-center justify-start px-6 py-6">
             <img src="/logo.png" alt="" className="h-10 w-10 rounded-2xl opacity-90" />
-            <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary mt-3">
+            <h2 className={`${DETAIL_TITLE} mt-3`}>
               <BrandMark /> Council
             </h2>
             <p className="mt-1.5 max-w-md text-center text-[13px] text-text-muted">
@@ -1114,7 +1115,7 @@ export function CouncilPanel({
                     title={q.prompt}
                     className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface px-4 py-2.5 text-left transition-colors hover:border-accent-border hover:bg-surface-warm"
                   >
-                    <span className="shrink-0 text-[11px] text-accent">{q.glyph} {q.label}</span>
+                    <span className="shrink-0 text-[12px] text-accent">{q.glyph} {q.label}</span>
                     <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">{q.blurb}</span>
                     <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted" />
                   </button>
@@ -1196,7 +1197,7 @@ export function CouncilPanel({
                         <p className="text-sm text-text-muted">Didn't respond in time. Left out of the verdict.</p>
                       ) : cardErrored ? (
                         cardError ? (
-                          <pre className="whitespace-pre-wrap rounded-md bg-warn/10 px-2 py-1.5 text-[11px] leading-snug text-warn">{cardError}</pre>
+                          <pre className="whitespace-pre-wrap rounded-md bg-warn/10 px-2 py-1.5 text-[12px] leading-snug text-warn">{cardError}</pre>
                         ) : (
                           <p className="text-sm text-text-secondary">{s.cliLabel} produced no output (model rejected the prompt, hit a quota, or errored).</p>
                         )
@@ -1286,7 +1287,7 @@ export function CouncilPanel({
             the Modes menu above. */}
         <div className="relative">
         {(incognito || globalIncognito) && (
-          <span className="absolute -top-2 left-3 z-10 inline-flex items-center gap-1 rounded-full border border-accent-border bg-surface px-2 py-0.5 text-[11px] font-semibold text-accent shadow-sm">
+          <span className="absolute -top-2 left-3 z-10 inline-flex items-center gap-1 rounded-full border border-accent-border bg-surface px-2 py-0.5 text-[12px] font-semibold text-accent shadow-sm">
             <Ghost className="h-3 w-3" /> Incognito
           </span>
         )}
@@ -1294,16 +1295,16 @@ export function CouncilPanel({
             `/` is typed - including an empty state - so it never looks broken. */}
         {slashMatch && (
           <div className="absolute bottom-full left-0 z-40 mb-1 w-80 max-w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-            <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[11px] text-text-muted">Skills · enter to insert</div>
+            <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[12px] text-text-muted">Skills · enter to insert</div>
             {slashCandidates.length === 0 ? (
-              <div className="px-3 py-2 text-[11px] text-text-muted">No skills in this vault yet. Add one in a domain's <span className="font-mono">_skills/</span> folder.</div>
+              <div className="px-3 py-2 text-[12px] text-text-muted">No skills in this vault yet. Add one in a domain's <span className="font-mono">_skills/</span> folder.</div>
             ) : slashCandidates.map((s, i) => (
               <button key={s.path} onMouseDown={(e) => { e.preventDefault(); applySlashCompletion(s.name); }}
                 className={`flex w-full items-start gap-2 px-3 py-1.5 text-left ${i === slashIdx ? "bg-accent-soft" : "hover:bg-surface-warm"}`}>
                 <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted" />
                 <div className="min-w-0">
                   <div className={`font-mono text-xs ${i === slashIdx ? "text-accent" : "text-text-primary"}`}>/{s.name}</div>
-                  {s.description && <div className="line-clamp-1 text-[10px] text-text-muted">{s.description}</div>}
+                  {s.description && <div className="line-clamp-1 text-[12px] text-text-muted">{s.description}</div>}
                 </div>
               </button>
             ))}
@@ -1312,7 +1313,7 @@ export function CouncilPanel({
         {/* Context-mention popover for `$<domain|app>` (parity with Chat) */}
         {dollarMatch && dollarCandidates.length > 0 && (
           <div className="absolute bottom-full left-0 z-40 mb-1 w-80 max-w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-            <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[11px] text-text-muted">Add context · enter to attach</div>
+            <div className="border-b border-border-subtle bg-surface-warm px-3 py-1.5 text-[12px] text-text-muted">Add context · enter to attach</div>
             {dollarCandidates.map((c, i) => (
               <button key={`${c.kind}:${c.id}`} onMouseDown={(e) => { e.preventDefault(); applyDollarCompletion(c); }}
                 className={`flex w-full items-start gap-2 px-3 py-1.5 text-left ${i === dollarIdx ? "bg-accent-soft" : "hover:bg-surface-warm"}`}>
@@ -1321,7 +1322,7 @@ export function CouncilPanel({
                   : <AppRowLogo app={{ id: c.id, title: c.label }} size={18} fallback="letter" />}
                 <div className="min-w-0">
                   <div className={`font-mono text-xs ${i === dollarIdx ? "text-accent" : "text-text-primary"}`}>${c.id}</div>
-                  <div className="line-clamp-1 text-[10px] text-text-muted">{c.kind === "domain" ? "domain · attaches state.md" : `app · ${c.sub ?? "context card"}`}</div>
+                  <div className="line-clamp-1 text-[12px] text-text-muted">{c.kind === "domain" ? "domain · attaches state.md" : `app · ${c.sub ?? "context card"}`}</div>
                 </div>
               </button>
             ))}
@@ -1335,7 +1336,7 @@ export function CouncilPanel({
               {primedContext.map((c, i) => (
                 <span
                   key={c.label}
-                  className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft py-0.5 pl-2 pr-1 font-mono text-[11px] text-accent"
+                  className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft py-0.5 pl-2 pr-1 font-mono text-[12px] text-accent"
                   title={c.body.slice(0, 200)}
                 >
                   {ctxChipIcon(c.label)}
@@ -1366,7 +1367,7 @@ export function CouncilPanel({
               {attachedSkills.map((name) => (
                 <span
                   key={name}
-                  className="inline-flex items-center gap-1 rounded-md border border-accent-border bg-accent-soft py-0.5 pl-1.5 pr-1 font-mono text-[11px] text-accent"
+                  className="inline-flex items-center gap-1 rounded-md border border-accent-border bg-accent-soft py-0.5 pl-1.5 pr-1 font-mono text-[12px] text-accent"
                 >
                   <Sparkles className="h-3 w-3" />
                   /{name}
@@ -1383,7 +1384,7 @@ export function CouncilPanel({
           {pastedFiles.length > 0 && (
             <div className="mb-2 flex flex-wrap items-center gap-1.5 px-2">
               {pastedFiles.map((p) => (
-                <span key={p} title={p} className="inline-flex items-center gap-1 rounded-md border border-accent-border bg-accent-soft py-0.5 pl-1.5 pr-1 font-mono text-[11px] text-accent">
+                <span key={p} title={p} className="inline-flex items-center gap-1 rounded-md border border-accent-border bg-accent-soft py-0.5 pl-1.5 pr-1 font-mono text-[12px] text-accent">
                   {p.split("/").pop()}
                   <button
                     onClick={() => setPastedFiles((cur) => cur.filter((x) => x !== p))}
@@ -1479,11 +1480,11 @@ export function CouncilPanel({
                   }`}
                 >
                   <ProviderMark vendor={s.cli} size={16} />
-                  <span className="font-mono text-[11px] text-text-primary">{s.modelLabel}</span>
+                  <span className="font-mono text-[12px] text-text-primary">{s.modelLabel}</span>
                   <button
                     onClick={() => verifySlot(s)}
                     title={tip}
-                    className={`ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[10px] ${
+                    className={`ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[10px] leading-none ${
                       st === "ok"
                         ? "bg-ok text-background"
                         : st === "failed"
@@ -1510,13 +1511,13 @@ export function CouncilPanel({
             <div className="relative" ref={addMenuRef}>
               <button
                 onClick={() => setAddMenuOpen((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent"
               >
                 <Plus className="h-3 w-3" /> add
               </button>
               {addMenuOpen && (
                 <div className="absolute bottom-full left-0 z-40 mb-1 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-                  <div className="border-b border-border-subtle px-3 py-1.5 text-[11px] text-text-muted">
+                  <div className="border-b border-border-subtle px-3 py-1.5 text-[12px] text-text-muted">
                     Add panelist
                   </div>
                   <div className="max-h-80 overflow-y-auto">
@@ -1533,11 +1534,11 @@ export function CouncilPanel({
                         <div key={c.id} className={c.available ? "" : "opacity-40"}>
                           <div className="flex items-center gap-2 bg-surface-warm/60 px-3 py-1">
                             <ProviderMark vendor={c.id} size={14} />
-                            <span className="font-mono text-[11px] text-text-muted">
+                            <span className="font-mono text-[12px] text-text-muted">
                               {c.label}
                             </span>
                             {!c.available && (
-                              <span className="ml-auto text-[11px] text-text-muted">Not installed</span>
+                              <span className="ml-auto text-[12px] text-text-muted">Not installed</span>
                             )}
                           </div>
                           {searchable && c.available && (
@@ -1545,10 +1546,10 @@ export function CouncilPanel({
                               value={modelSearch[c.id] ?? ""}
                               onChange={(e) => setModelSearch((s) => ({ ...s, [c.id]: e.target.value }))}
                               placeholder={`Search all ${cliModels.length} ${c.label} models…`}
-                              className="mx-3 my-1 w-[calc(100%-1.5rem)] rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] focus:border-accent-border focus:outline-none"
+                              className="mx-3 my-1 w-[calc(100%-1.5rem)] rounded-md border border-border bg-background px-2 py-1 font-mono text-[12px] focus:border-accent-border focus:outline-none"
                             />
                           )}
-                          {shown.length === 0 && <div className="px-4 py-1.5 font-mono text-[11px] text-text-muted">No models match "{q}".</div>}
+                          {shown.length === 0 && <div className="px-4 py-1.5 font-mono text-[12px] text-text-muted">No models match "{q}".</div>}
                           {shown.map((m) => {
                             const slotKey = `${c.id}::${m.id}`;
                             const onPanel = selectedSlots.has(slotKey);
@@ -1568,7 +1569,7 @@ export function CouncilPanel({
                                   <div className={`font-mono text-xs ${onPanel ? "text-accent" : "text-text-primary"}`}>
                                     {m.label}
                                   </div>
-                                  {m.blurb && <div className="text-[10px] text-text-muted">{m.blurb}</div>}
+                                  {m.blurb && <div className="text-[12px] text-text-muted">{m.blurb}</div>}
                                 </div>
                                 {onPanel && <Check className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={3} />}
                               </button>
@@ -1606,7 +1607,7 @@ export function CouncilPanel({
               >
                 <Crown className="h-3 w-3 text-accent" />
                 {chairSlotObj && <ProviderMark vendor={chairSlotObj.cli} size={16} />}
-                <span className="font-mono text-[11px] text-text-primary">
+                <span className="font-mono text-[12px] text-text-primary">
                   {chairSlotObj ? chairSlotObj.modelLabel : "no chair"}
                 </span>
                 <svg className="h-3 w-3 text-text-muted" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -1615,7 +1616,7 @@ export function CouncilPanel({
               </button>
               {chairMenuOpen && (
                 <div className="absolute bottom-full right-0 z-40 mb-1 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
-                  <div className="border-b border-border-subtle px-3 py-1.5 text-[11px] text-text-muted">
+                  <div className="border-b border-border-subtle px-3 py-1.5 text-[12px] text-text-muted">
                     Chair
                   </div>
                   <div className="max-h-80 overflow-y-auto">
@@ -1632,7 +1633,7 @@ export function CouncilPanel({
                         <div key={c.id} className={c.available ? "" : "opacity-40"}>
                           <div className="flex items-center gap-2 bg-surface-warm/60 px-3 py-1">
                             <ProviderMark vendor={c.id} size={14} />
-                            <span className="font-mono text-[11px] text-text-muted">
+                            <span className="font-mono text-[12px] text-text-muted">
                               {c.label}
                             </span>
                           </div>
@@ -1641,10 +1642,10 @@ export function CouncilPanel({
                               value={modelSearch[`chair:${c.id}`] ?? ""}
                               onChange={(e) => setModelSearch((s) => ({ ...s, [`chair:${c.id}`]: e.target.value }))}
                               placeholder={`Search all ${cliModels.length} ${c.label} models…`}
-                              className="mx-3 my-1 w-[calc(100%-1.5rem)] rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] focus:border-accent-border focus:outline-none"
+                              className="mx-3 my-1 w-[calc(100%-1.5rem)] rounded-md border border-border bg-background px-2 py-1 font-mono text-[12px] focus:border-accent-border focus:outline-none"
                             />
                           )}
-                          {shown.length === 0 && <div className="px-4 py-1.5 font-mono text-[11px] text-text-muted">No models match "{q}".</div>}
+                          {shown.length === 0 && <div className="px-4 py-1.5 font-mono text-[12px] text-text-muted">No models match "{q}".</div>}
                           {shown.map((m) => {
                             const slotKey = `${c.id}::${m.id}`;
                             const isChair = chairSlot === slotKey;

@@ -1,21 +1,22 @@
-// Ideals, laid out like Models: the page header first, then a side column of
-// ideals and the chosen one on the right. Your mission (the global
-// ideal-state) leads, then Omega, then every domain, with a quiet marker on the
-// domains that have no ideal yet. A domain's ideal edits in place.
+// Ideals, the third view of the Compass page: a side column of ideals and the
+// chosen one on the right. The constitution (the global ideal-state) leads,
+// then Omega, then every domain, with a quiet marker on the domains that have
+// no ideal yet. A domain's ideal edits in place.
 import { useEffect, useState } from "react";
 import { Check, Circle, CircleDot, Compass, Pencil, Sigma, X, type LucideIcon } from "lucide-react";
 import { invoke } from "./bridge";
 import { invokeCached, setQueryData, useEngineQuery } from "./query";
 import { titleCase } from "./format";
-import { isUserDomain } from "./helpers";
+import { domainColor, isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { OmegaSection } from "./omega";
-import { SettingsHeader } from "./sectionutil";
 import { MissionEditor } from "./missioneditor";
 import { AlignmentCard } from "./panels";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
+import { BODY, DETAIL_TITLE, META } from "./typescale";
+import { TintIcon } from "./tint";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
 
@@ -38,8 +39,8 @@ function DomainIdeal({ vaultPath, domain, body, onSaved }: { vaultPath: string; 
     <section data-testid="ideal-detail-domain">
       <div className="mb-4 flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{titleCase(domain)}</h2>
-          <p className="mt-1 text-[14px] text-text-muted">What a thriving {titleCase(domain)} looks like.</p>
+          <h2 className={DETAIL_TITLE}>{titleCase(domain)}</h2>
+          <p className={`${META} mt-1`}>What a thriving {titleCase(domain)} looks like.</p>
         </div>
         {editing ? (
           <div className="flex shrink-0 items-center gap-0.5">
@@ -52,11 +53,11 @@ function DomainIdeal({ vaultPath, domain, body, onSaved }: { vaultPath: string; 
       </div>
       {editing ? (
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={16} aria-label={`${titleCase(domain)} ideal`}
-          className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[14px] leading-relaxed text-text-primary focus:border-accent-border focus:outline-none" />
+          className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[14px] leading-normal text-text-primary focus:border-accent-border focus:outline-none" />
       ) : body.trim() ? (
-        <div className="prose-sm max-w-3xl text-sm leading-relaxed text-text-primary"><Markdown source={body} /></div>
+        <div className={`${BODY} max-w-3xl text-text-primary`}><Markdown source={body} /></div>
       ) : (
-        <p className="text-[14px] text-text-muted">No ideal yet. Use the edit icon to write one.</p>
+        <p className={META}>No ideal yet. Use the edit icon to write one.</p>
       )}
       {err && <p className="mt-2 text-[13px] text-err">{err}</p>}
     </section>
@@ -89,10 +90,10 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
     const on = sel === id && (!phone || picked);
     return (
       <button key={id} data-testid={`ideal-row-${id}`} aria-current={on ? "true" : undefined} onClick={() => choose(id)}
-        className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-left transition-colors ${on ? "border-l-accent bg-accent-soft ring-1 ring-accent-border" : "border-l-transparent hover:bg-surface-warm"}`}>
-        {Icon ? <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} /> : <CircleDot className="h-4 w-4 shrink-0 text-text-muted" />}
+        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
+        <TintIcon icon={Icon ?? CircleDot} color={id.startsWith("domain:") ? domainColor(id.slice(7)) : undefined} />
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-sm ${on ? "font-semibold text-accent" : "text-text-primary"}`}>{label}</span>
+          <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{label}</span>
           {sub && <span className="block truncate text-[12px] text-text-muted">{sub}</span>}
         </span>
         {missing && <span title="No ideal yet" className="flex items-center gap-1 text-[12px] text-text-muted"><Circle className="h-3 w-3" /> Not set</span>}
@@ -101,7 +102,7 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
   };
   const list = (
     <nav className="space-y-0.5 p-2" aria-label="Ideals">
-      {row("mission", "Your mission", Compass, "Highest precedence everywhere")}
+      {row("mission", "Your constitution", Compass, "Highest precedence everywhere")}
       {row("omega", "Omega", Sigma, "Shared context that travels with you")}
       {domains.length > 0 && <div className="px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">Domains</div>}
       {domains.map((d) => row(`domain:${d}`, titleCase(d), domainIcon(d) ?? null, undefined, !ideals[d]?.trim()))}
@@ -112,13 +113,13 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
     <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"} data-testid="ideals-detail">
       {sel === "mission" && (
         <section data-testid="ideal-detail-mission">
-          <MissionEditor vaultPath={vaultPath} />
+          <MissionEditor vaultPath={vaultPath} title="Your constitution" />
           <div className="mt-8"><AlignmentCard vaultPath={vaultPath} /></div>
         </section>
       )}
       {sel === "omega" && (
         <section data-testid="ideal-detail-omega">
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary mb-4">Omega</h2>
+          <h2 className={`${DETAIL_TITLE} mb-4`}>Omega</h2>
           <OmegaSection vaultPath={vaultPath} headerless />
         </section>
       )}
@@ -126,13 +127,10 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
     </div>
   );
   return (
-    <>
-      <SettingsHeader title="Ideals" icon={Compass} subtitle="The vision everything here optimizes for." />
-      <SideSpine storageKey="prevail.ideals.spine" title="Ideals" label="ideals" testId="ideals-list"
-        phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All ideals"
-        detail={detail}>
-        {list}
-      </SideSpine>
-    </>
+    <SideSpine storageKey="prevail.ideals.spine" title="Ideals" label="ideals" testId="ideals-list"
+      phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All ideals"
+      detail={detail}>
+      {list}
+    </SideSpine>
   );
 }

@@ -204,7 +204,7 @@ export function AppScopeView({ vaultPath, app, subtitle, actions, tools, connect
         </div>
         {notice && <div className="mt-3">{notice}</div>}
         <div className="mt-3 flex items-center gap-2 border-b border-border-subtle">
-          <div role="tablist" aria-label={app.name} className="-mb-px flex min-w-0 flex-1 overflow-x-auto">
+          <div role="tablist" aria-label={app.name} data-scroll-x className="-mb-px flex min-w-0 flex-1 overflow-x-auto">
             {TABS.map((t) => (
               <button key={t.id} role="tab" aria-selected={tab === t.id} data-testid={`app-tab-${t.id}`}
                 onClick={() => (t.id === "chat" ? openChat() : setTab(t.id))}

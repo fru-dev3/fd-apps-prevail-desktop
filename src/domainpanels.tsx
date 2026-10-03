@@ -14,7 +14,7 @@ import { curatedFor, modelsFor } from "./helpers2";
 import { formatFreshness, titleCase } from "./format";
 import { isLocalCli } from "./helpers";
 import { PREF, cheapModel, getPref, isBunkerOn, lsGet, lsSet } from "./storage";
-import { Toggle } from "./ui";
+import { REVEAL, Toggle } from "./ui";
 import { ResizeHandle } from "./widgets";
 import { SideSpine } from "./sidespine";
 import { DrawerImportsSection } from "./panels";
@@ -23,9 +23,10 @@ import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
 import { ProviderMark } from "./marks";
 import type { CliInfo, DomainContextBundle, DomainManifest, SkillEntry } from "./types";
+import { DETAIL_TITLE } from "./typescale";
 
 export const SECTION_LABEL =
-  "text-[11px] font-bold text-text-primary";
+  "text-[13px] font-semibold text-text-secondary";
 
 // agent stays expanded. Clicking sets the chat panel's primary CLI.
 // Full-canvas preferences panel for the currently-selected domain.
@@ -43,11 +44,10 @@ export function FileCanvas({ title, source, width, onClose }: { title: string; s
     <aside style={{ width }} className="flex h-full shrink-0 flex-col border-r border-border-subtle bg-background">
       <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-3">
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-[11px] text-text-muted">File</div>
-          <div className="truncate text-sm font-semibold text-text-primary" title={title}>{title}</div>
+          <div className="truncate text-[15px] font-semibold text-text-primary" title={title}>{title}</div>
         </div>
         <button onClick={() => setRaw((v) => !v)} title={raw ? "Show formatted" : "Show raw text"}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
+          className="inline-flex items-center gap-1.5 text-[12px] text-text-muted hover:text-accent">
           {raw ? <><Eye className="h-3 w-3" /> Formatted</> : <><Code className="h-3 w-3" /> Raw text</>}
         </button>
         <button onClick={onClose} title="Close" className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-warm hover:text-text-primary"><X className="h-4 w-4" /></button>
@@ -100,7 +100,7 @@ function CtxTool({ icon: Icon, label, onClick, testId }: { icon: LucideIcon; lab
 
 // A context file, rendered as markdown right in the detail pane.
 function FileBody({ body, empty }: { body: string; empty: string }) {
-  if (!body.trim()) return <p className="text-[14px] text-text-muted">{empty}</p>;
+  if (!body.trim()) return <p className="text-[12px] text-text-muted">{empty}</p>;
   return <div data-testid="ctx-markdown" className="prose-sm max-w-none text-sm leading-relaxed text-text-primary"><Markdown source={body} /></div>;
 }
 
@@ -108,12 +108,12 @@ function FileBody({ body, empty }: { body: string; empty: string }) {
 // pane; the tiny icons on the right are the other actions.
 function CtxItem({ title, sub, onOpen, tools, testId }: { title: string; sub?: string; onOpen: () => void; tools?: React.ReactNode; testId?: string }) {
   return (
-    <li className="flex items-center gap-1 rounded-lg border border-border-subtle bg-background">
-      <button onClick={onOpen} data-testid={testId} className="min-w-0 flex-1 px-3 py-2 text-left hover:text-accent">
-        <div className="truncate text-[14px] text-text-primary">{title}</div>
-        {sub && <div className="mt-0.5 line-clamp-2 text-[12px] text-text-muted">{sub}</div>}
+    <li className="group flex items-center gap-1 border-b border-border-subtle last:border-b-0">
+      <button onClick={onOpen} data-testid={testId} className="min-w-0 flex-1 py-2 text-left hover:text-accent">
+        <div className="truncate text-[14px] text-text-primary" title={title}>{title}</div>
+        {sub && <div className="mt-0.5 line-clamp-2 text-[12px] text-text-muted" title={sub}>{sub}</div>}
       </button>
-      {tools && <div className="flex shrink-0 items-center pr-1">{tools}</div>}
+      {tools && <div className={`flex shrink-0 items-center ${REVEAL}`}>{tools}</div>}
     </li>
   );
 }
@@ -135,13 +135,13 @@ function RebuildStateButton({ vaultPath, domain, field }: { vaultPath: string; d
       });
       window.dispatchEvent(new CustomEvent("prevail:context-changed"));
       if (res.built) window.setTimeout(() => setNote(null), 1500);
-      else setNote("no activity yet");
-    } catch (err) { setNote(`failed: ${String(err).slice(0, 32)}`); }
+      else setNote("No activity yet");
+    } catch (err) { setNote("Could not rebuild it"); }
     finally { setBusy(false); }
   };
   return (
     <span className="flex shrink-0 items-center gap-1">
-      {note && <span className="font-mono text-[10px] lowercase text-text-muted">{note}</span>}
+      {note && <span className="text-[12px] text-text-muted">{note}</span>}
       <button onClick={run} disabled={busy} title={`Rebuild ${field} from your activity here`}
         className="rounded p-1 text-text-muted transition-colors hover:text-accent disabled:opacity-50">
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
@@ -165,10 +165,10 @@ function CtxSection({ keyName, title, count, body, action, file }: { keyName: st
         data-testid={`ctx-row-${keyName}`}
         aria-current={on ? "true" : undefined}
         onClick={() => select(keyName)}
-        className={`flex h-10 w-full items-center justify-between gap-2 px-4 text-left transition-colors ${on ? "bg-accent-soft text-accent" : "text-text-secondary hover:bg-surface-warm"}`}
+        className={`mx-2 flex h-9 w-[calc(100%-1rem)] items-center justify-between gap-2 rounded-lg px-2.5 text-left transition-colors ${on ? "bg-surface-warm font-semibold text-text-primary" : "text-text-secondary hover:bg-surface-warm/50"}`}
       >
-        <span className="min-w-0 truncate text-[14px] font-medium">{title}</span>
-        {count !== undefined && <span className="shrink-0 text-[13px] tabular-nums text-text-muted">{count}</span>}
+        <span className="min-w-0 truncate text-[14px]">{title}</span>
+        {count !== undefined && <span className="shrink-0 text-[12px] font-normal tabular-nums text-text-muted">{count}</span>}
       </button>
     );
   }
@@ -177,12 +177,12 @@ function CtxSection({ keyName, title, count, body, action, file }: { keyName: st
     <section data-testid={`ctx-detail-${keyName}`}>
       <div className="mb-4 flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-2xl font-bold tracking-tight text-text-primary">{title}</h3>
-          {file && <div data-testid="ctx-file" className="mt-1 text-[13px] text-text-muted">{file}</div>}
+          {/* The file it comes from is on hover, never printed as a path. */}
+          <h3 data-testid="ctx-file" title={file ? `From ${file}` : undefined} className={DETAIL_TITLE}>{title}</h3>
         </div>
         {action && <div className="flex shrink-0 items-center gap-0.5">{action}</div>}
       </div>
-      <div className="max-w-3xl text-sm">{body}</div>
+      <div className="max-w-3xl text-[14px]">{body}</div>
     </section>
   );
 }
@@ -373,36 +373,36 @@ export function DomainContextView({
           return (
             <button
               onClick={() => select("ideal")}
-              className="flex w-full items-start gap-2 border-b border-border-subtle bg-accent-soft/40 px-4 py-2 text-left hover:bg-accent-soft"
+              className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-surface-warm/50"
               title="Your north star - open your ideal state"
             >
               <Compass className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
               <div className="min-w-0">
                 <div className="text-[12px] font-medium text-accent">
-                  {domain ? `${titleCase(domain)} serves your mission` : "Your mission"}
+                  {domain ? `${titleCase(domain)} serves your purpose` : "Your purpose"}
                 </div>
-                <div className="truncate text-[11px] text-text-secondary">{mission}</div>
+                <div className="truncate text-[12px] text-text-muted" title={mission}>{mission}</div>
               </div>
             </button>
           );
         })()}
-        {loading && <div className="p-4 text-xs text-text-muted">loading…</div>}
+        {loading && <div className="px-4 py-2 text-[12px] text-text-muted">Reading this domain</div>}
         {/* B2-28: calm, recoverable message instead of a raw "domain not found:
             /path" error. The Global sections (Ideal State, Profile, Memory) still
             render below; only this domain's local context failed to load. */}
         {err && (
-          <div className="m-2 rounded-lg border border-border-subtle bg-surface-warm/50 p-3">
-            <div className="text-xs text-text-secondary">Couldn't load this domain's local context right now.</div>
+          <div className="px-4 py-2 text-[12px] text-text-muted">
+            Couldn't load this domain's local context right now.{" "}
             <button
               onClick={() => window.dispatchEvent(new CustomEvent("prevail:context-changed"))}
-              className="mt-2 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent"
+              className="font-medium text-accent hover:underline"
             >
               Retry
             </button>
           </div>
         )}
         {!domain && (
-          <div className="border-b border-border-subtle px-4 py-2 text-[11px] leading-snug text-text-muted">
+          <div className="px-4 py-2 text-[12px] leading-snug text-text-muted">
             Your no-domain workspace. Open a domain for its own context.
           </div>
         )}
@@ -410,8 +410,8 @@ export function DomainContextView({
         {/* C2: clarify GLOBAL vs LOCAL. Global = the constitution that applies to
             every domain. Below, "This domain" = everything scoped to {domain}. */}
         {mode === "list" && (
-        <div title="Applies everywhere - shared across every domain" className="flex cursor-help items-center gap-1.5 border-b border-border-subtle bg-surface-warm/60 px-4 py-2 text-[11px] font-bold text-text-secondary">
-          <Globe className="h-3.5 w-3.5 text-accent" /> Globals
+        <div title="Applies everywhere, shared across every domain" className="flex cursor-help items-center gap-1.5 px-4 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">
+          <Globe className="h-3.5 w-3.5 text-text-muted" /> Everywhere
         </div>
         )}
         <CtxSection keyName="ideal" title="Ideal" file="ideal-state.md" count={idealState.trim() ? 1 : undefined}
@@ -432,13 +432,13 @@ export function DomainContextView({
                 onChange={(e) => setProfileDraft(e.target.value)}
                 rows={8}
                 placeholder="Who you are, what matters to you, how you like to work. Prevail reads this as standing context for every answer."
-                className="w-full resize-y rounded-md border border-border bg-background px-2.5 py-2 text-[13px] leading-relaxed text-text-primary focus:border-accent-border focus:outline-none"
+                className="w-full resize-y rounded-md border border-border bg-background px-2.5 py-2 text-[14px] leading-normal text-text-primary focus:border-accent-border focus:outline-none"
               />
-              <div className="mt-2 flex items-center gap-2">
-                <button onClick={saveProfile} disabled={savingProfile} className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90 disabled:opacity-50">
+              <div className="mt-2 flex items-center gap-4">
+                <button onClick={saveProfile} disabled={savingProfile} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50">
                   {savingProfile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save
                 </button>
-                <button onClick={() => setEditingProfile(false)} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-warm">Cancel</button>
+                <button onClick={() => setEditingProfile(false)} className="text-[13px] text-text-muted hover:text-text-primary">Cancel</button>
               </div>
             </div>
           ) : (
@@ -446,8 +446,8 @@ export function DomainContextView({
           )
         } />
         {mode === "list" && (
-        <div title={domain ? `Specific to ${titleCase(domain)}` : "Specific to General (the no-domain workspace)"} className="flex cursor-help items-center gap-1.5 border-b border-border-subtle bg-surface-warm/60 px-4 py-2 text-[11px] font-bold text-text-secondary">
-          {(() => { const I = domain ? domainIcon(domain) : MessageSquare; return I ? <I className="h-3.5 w-3.5 text-accent" /> : <span className="text-accent">◆</span>; })()}
+        <div title={domain ? `Specific to ${titleCase(domain)}` : "Specific to General (the no-domain workspace)"} className="flex cursor-help items-center gap-1.5 px-4 pb-1 pt-4 text-[13px] font-semibold text-text-secondary">
+          {(() => { const I = domain ? domainIcon(domain) : MessageSquare; return I ? <I className="h-3.5 w-3.5 text-text-muted" /> : null; })()}
           {domain ? titleCase(domain) : "General"}
         </div>
         )}
@@ -466,26 +466,26 @@ export function DomainContextView({
         {domain && (
           <CtxSection keyName="things" title="Your things" count={things.length || undefined} body={
             things.length ? (
-              <ul data-testid="your-things" className="grid max-w-3xl grid-cols-1 gap-1 sm:grid-cols-2">
+              <ul data-testid="your-things" className="max-w-3xl">
                 {things.map((e) => (
                   <li key={e.id}>
                     <button type="button" data-testid="your-thing" onClick={() => requestEntity({ kind: e.kind, value: e.id.slice(e.id.indexOf("/") + 1) })}
                       className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-surface-warm">
                       <KindBadge kind={e.kind} name={e.name} domain={e.domain} size={30} entity={e} />
-                      <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-text-primary">{e.name}</span>
-                      <span className="shrink-0 text-[13px] tabular-nums text-text-muted">{e.conversations}</span>
+                      <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary">{e.name}</span>
+                      <span className="shrink-0 text-[12px] tabular-nums text-text-muted" title={`${e.conversations} conversations`}>{e.conversations}</span>
                     </button>
                   </li>
                 ))}
               </ul>
-            ) : <p className="text-[14px] text-text-muted">Nothing yet. The people, places and things of your life that belong to {titleCase(domain)} show here as you talk about them.</p>
+            ) : <p className="text-[12px] text-text-muted">Nothing yet. The people, places and things of your life that belong to {titleCase(domain)} show here as you talk about them.</p>
           } />
         )}
         {/* The user's own material (source/) - goals and config they wrote. Real
             grounding context, surfaced per file so the label matches the path. */}
         {sourceFiles.length > 0 && (
           <CtxSection keyName="source" title="Source" file="source/" count={sourceFiles.length} body={
-            <ul className="flex flex-col gap-1.5">
+            <ul>
               {sourceFiles.map((f) => (
                 <CtxItem key={f.name} title={f.name} testId={`ctx-item-${f.name}`}
                   onOpen={() => showItem(f.name, f.body, `${where} · ${f.name}`)}
@@ -513,9 +513,9 @@ export function DomainContextView({
                 summary, in ONE section (was split into "Recent decisions" + "Decisions"). */}
             <CtxSection keyName="decisions" title="Decisions" file={vf("memory/decisions.jsonl", "_decisions.jsonl")} count={decisions.length || undefined} body={
               <>
-              <p className="mb-3 text-[14px] text-text-muted">Council verdicts and saved decisions, latest first.</p>
+              <p className="mb-2 text-[12px] text-text-muted">Council verdicts and saved decisions, latest first.</p>
               {decisions.length > 0 ? (
-                <ul className="flex flex-col gap-2">
+                <ul>
                   {decisions.slice(0, 8).map((d, i) => {
                     const fb = typeof d.feedback === "object" && d.feedback ? d.feedback.rating : (typeof d.feedback === "string" ? d.feedback : undefined);
                     const ago = d.ts ? formatFreshness(Math.max(0, Math.floor((Date.now() - d.ts) / 1000))) : "";
@@ -530,7 +530,7 @@ export function DomainContextView({
                     );
                   })}
                 </ul>
-              ) : <p className="text-[14px] text-text-muted">Empty. Run a council or save a decision.</p>}
+              ) : <p className="text-[12px] text-text-muted">Empty. Run a council or save a decision.</p>}
               </>
             } />
             {/* JOURNAL = the literal record of every prompt that came in (raw),
@@ -540,7 +540,7 @@ export function DomainContextView({
                 journal-named file is the pending vault-layout migration.) */}
             <CtxSection keyName="activity" title="Journal" file={vf(".system/journal.jsonl", "_intents.jsonl")} count={ctx.recent_logs.length || undefined} body={
               <>
-              <ul className="flex flex-col gap-1.5">
+              <ul>
                 {ctx.journal && (
                   <CtxItem title="Raw journal" sub="Every prompt you sent, verbatim. The distilled sections come from this."
                     onOpen={() => showItem(`${where} journal`, ctx.journal!, `${where} · journal`)}
@@ -551,28 +551,28 @@ export function DomainContextView({
                 ))}
               </ul>
               {ctx.recent_logs.length === 0 && !ctx.journal && (
-                <p className="text-[14px] text-text-muted">Empty. Your chats here build this record.</p>
+                <p className="text-[12px] text-text-muted">Empty. Your chats here build this record.</p>
               )}
               </>
             } />
             <CtxSection keyName="skills" title="Skills" file={vf("memory/skills/", "_skills/")} count={ctx.skills.length} body={
               ctx.skills.length === 0 ? (
-                <div className="text-xs text-text-muted">drop a folder under <code className="text-accent">{titleCase(domain)}/_skills/</code> with a SKILL.md.</div>
+                <div className="text-[12px] text-text-muted">No skills here yet. Add one from Toolkit, or ask a chat here to save one.</div>
               ) : (
-                <ul className="space-y-1">
+                <ul>
                   {ctx.skills.map((s) => {
                     const on = s.enabled !== false;
                     return (
-                    <li key={s.path} className={`flex items-stretch gap-1 ${on ? "" : "opacity-55"}`}>
+                    <li key={s.path} className={`group flex items-center gap-1 border-b border-border-subtle last:border-b-0 ${on ? "" : "opacity-55"}`}>
                       <button
                         onClick={() => void showFromDisk(`/${s.name}`, "read_skill", s.path)}
                         title="Preview this skill"
-                        className="flex-1 rounded-lg border border-border-subtle bg-background px-3 py-2 text-left hover:border-accent-border hover:bg-surface-warm"
+                        className="min-w-0 flex-1 py-2 text-left"
                       >
                         <div className="text-[14px] font-medium text-accent">/{s.name}</div>
                         {s.description && <div className="mt-0.5 line-clamp-2 text-[12px] text-text-muted">{s.description}</div>}
                       </button>
-                      {on && <span className="flex items-center"><CtxTool icon={ArrowRight} label={`Insert /${s.name}`} onClick={() => onInsertSkill(s.name)} /></span>}
+                      {on && <span className={`flex items-center ${REVEAL}`}><CtxTool icon={ArrowRight} label={`Insert /${s.name}`} onClick={() => onInsertSkill(s.name)} /></span>}
                       {/* Enable/disable: a disabled skill stays on disk but is
                           excluded from /skills + auto-attach. */}
                       <span className="flex shrink-0 items-center px-1" title={on ? "Enabled - slide left to disable" : "Disabled - slide right to enable"}>
@@ -590,13 +590,11 @@ export function DomainContextView({
                         <button
                           onClick={() => onTogglePreferred(s.name)}
                           title={preferredSet?.has(s.name) ? "Unpin" : "Pin: auto-attach"}
-                          className={`shrink-0 rounded border px-2 text-[11px] transition-colors ${
-                            preferredSet?.has(s.name)
-                              ? "border-accent-border bg-accent-soft text-accent"
-                              : "border-border-subtle bg-background text-text-muted hover:border-accent-border hover:text-accent"
-                          }`}
+                          aria-label={preferredSet?.has(s.name) ? `Unpin ${s.name}` : `Pin ${s.name}`}
+                          aria-pressed={!!preferredSet?.has(s.name)}
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface-warm ${preferredSet?.has(s.name) ? "text-accent" : `text-text-muted hover:text-accent ${REVEAL}`}`}
                         >
-                          {preferredSet?.has(s.name) ? "★" : "☆"}
+                          <Pin className={`h-3.5 w-3.5 ${preferredSet?.has(s.name) ? "fill-current" : ""}`} />
                         </button>
                       )}
                     </li>
@@ -633,20 +631,20 @@ export function DomainContextView({
     <button
       data-testid="ctx-folder"
       onClick={() => { void invoke("open_in_finder", { path: folder }); }}
-      title={`${folder}\nOpen in Finder`}
-      className="flex min-w-0 max-w-full items-center gap-1.5 rounded-md text-left text-[13px] text-text-muted transition-colors hover:text-accent"
+      title={`Open in Finder\n${folder}`}
+      aria-label="Open the folder in Finder"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
     >
-      <Folder className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{folder.split("/").filter(Boolean).slice(-3).join("/")}</span>
+      <Folder className="h-4 w-4" />
     </button>
   );
   const previewPane = preview && (
     <section data-testid="ctx-preview">
-      <button onClick={() => setPreview(null)} className="mb-3 inline-flex h-8 items-center gap-1.5 text-[14px] font-medium text-accent hover:underline">
+      <button onClick={() => setPreview(null)} className="mb-3 inline-flex h-8 items-center gap-1.5 text-[13px] font-medium text-accent hover:underline">
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
       <div className="mb-4 flex items-start gap-3">
-        <h3 className="min-w-0 flex-1 break-words text-2xl font-bold tracking-tight text-text-primary">{preview.title}</h3>
+        <h3 className={`min-w-0 flex-1 break-words ${DETAIL_TITLE}`}>{preview.title}</h3>
         <div className="flex shrink-0 items-center gap-0.5">{fileTools(preview.title, preview.body, preview.label)}</div>
       </div>
       <div className="max-w-3xl"><FileBody body={preview.body} empty="This file is empty." /></div>
@@ -667,13 +665,13 @@ export function DomainContextView({
           <ArrowLeft className="h-4 w-4" /> Chat
         </button>
         {DomainIcon ? <DomainIcon className="h-5 w-5 shrink-0 text-accent" /> : null}
-        <div className="min-w-0">
-          <h2 className={`min-w-0 truncate font-display font-bold tracking-tight text-text-primary ${phone ? "text-lg" : "text-2xl"}`}>
+        <div className="min-w-0 flex-1">
+          <h2 className={`min-w-0 truncate font-display font-semibold tracking-tight text-text-primary ${phone ? "text-[18px]" : "text-[22px]"}`}>
             {domainLabel} context
           </h2>
-          {finder}
         </div>
-        {added && <span role="status" className="ml-auto hidden min-w-0 truncate text-[13px] text-accent sm:inline">Added to chat: {added}</span>}
+        {added && <span role="status" className="hidden min-w-0 truncate text-[13px] text-accent sm:inline">Added to chat: {added}</span>}
+        {finder}
       </div>
       <SideSpine
         storageKey="prevail.contextSpine.collapsed"
@@ -743,25 +741,24 @@ export function PrefPickerColumn({
   onSelect,
   onClear,
 }: {
-  glyph: string;
+  glyph?: string;
   title: string;
   options: readonly { id: string; label: string; blurb: string }[];
   selected: string;
   onSelect: (id: string) => void;
   onClear: () => void;
 }) {
+  void glyph;
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div>
       <div className="mb-3 flex items-center justify-between">
-        <div className={`flex items-center gap-2 ${SECTION_LABEL}`}>
-          <span className="text-accent">{glyph}</span> {title}
-        </div>
+        <div className="text-[13px] font-semibold text-text-secondary">{title}</div>
         {selected && (
           <button
             onClick={onClear}
-            className="rounded border border-border bg-background px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+            className="text-[12px] text-text-muted hover:text-accent"
           >
-            use global
+            Use global
           </button>
         )}
       </div>
@@ -772,18 +769,14 @@ export function PrefPickerColumn({
             <button
               key={o.id}
               onClick={() => onSelect(o.id)}
-              className={`flex items-center gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
-                picked
-                  ? "border-accent bg-accent-soft"
-                  : "border-border-subtle bg-background hover:border-accent-border"
+              className={`flex items-center gap-3 rounded-md px-3 py-2 text-left transition-colors ${
+                picked ? "bg-surface-warm" : "hover:bg-surface-warm/50"
               }`}
             >
-              <span className={`shrink-0 font-mono text-sm ${picked ? "font-semibold text-accent" : "text-text-primary"}`}>{o.label}</span>
-              <span className="min-w-0 flex-1 truncate text-[11px] text-text-muted">{o.blurb}</span>
+              <span className={`shrink-0 text-[14px] ${picked ? "font-semibold text-text-primary" : "text-text-primary"}`}>{o.label}</span>
+              <span className="min-w-0 flex-1 truncate text-[12px] text-text-muted">{o.blurb}</span>
               {picked && (
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent text-background">
-                  <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                </span>
+                <Check className="h-4 w-4 shrink-0 text-accent" strokeWidth={2.5} />
               )}
             </button>
           );
@@ -800,19 +793,19 @@ export function PrefPickerColumn({
 function PrefSection({ title, subtitle, icon, right, defaultOpen = false, children }: { title: string; subtitle?: string; icon?: React.ReactNode; right?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="mb-3 overflow-hidden rounded-xl border border-border bg-surface">
-      <div className="flex items-center gap-2 px-4 py-3">
+    <section className="border-b border-border-subtle">
+      <div className="flex items-center gap-2 py-3">
         <button onClick={() => setOpen((o) => !o)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
           <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.5} />
           {icon && <span className="flex h-4 w-4 shrink-0 items-center justify-center text-text-muted">{icon}</span>}
-          <span className="shrink-0 text-[11px] font-bold text-text-primary">{title}</span>
+          <span className="shrink-0 text-[14px] font-medium text-text-primary">{title}</span>
         </button>
         {/* Right-side summary of what's inside, so the row reads at a glance
             even while collapsed (founder ask: icon left, summary right). */}
-        {subtitle && <span className="min-w-0 truncate text-right text-[11px] text-text-muted">{subtitle}</span>}
+        {subtitle && <span className="min-w-0 truncate text-right text-[12px] text-text-muted">{subtitle}</span>}
         {right && <div className="shrink-0" onClick={(e) => e.stopPropagation()}>{right}</div>}
       </div>
-      {open && <div className="border-t border-border-subtle px-4 py-4">{children}</div>}
+      {open && <div className="pb-5 pl-6">{children}</div>}
     </section>
   );
 }
@@ -958,9 +951,12 @@ export function DomainPrefsPanel({
             // B5 (Monday feedback): routing keywords weren't populating because
             // this only read the LEGACY path; v3 vaults keep domains under
             // domains/<d>/. Try the v3 path first, then legacy.
+            // v4 (data/domains/<d>, goals and config under source/) first,
+            // then v3 and the legacy flat layout.
+            const bases = [`${vaultPath}/data/domains/${domain}`, `${vaultPath}/domains/${domain}`, `${vaultPath}/${domain}`];
             const texts = await Promise.all(
-              ["goals.md", "soul.md", "config.md"].map(async (f) => {
-                for (const base of [`${vaultPath}/domains/${domain}`, `${vaultPath}/${domain}`]) {
+              [["source/goals.md", "goals.md"], ["ideal-state.md", "soul.md"], ["source/config.md", "config.md"]].map(async (names) => {
+                for (const base of bases) for (const f of names) {
                   const t = await invoke<string>("read_text_file", { path: `${base}/${f}` }).catch(() => "");
                   if (t && t.trim()) return t;
                 }
@@ -969,7 +965,7 @@ export function DomainPrefsPanel({
             );
             const STOP = new Set("the and for with that this from your you are was have has not but they them then than when what where which while will would could should about into over under each every some most more very just also like been being our their his her its only own same can may might must a an of to in on at by it is as or be do if no so we i me my".split(" "));
             const freq = new Map<string, number>();
-            for (const w of texts.join(" ").toLowerCase().split(/[^a-z][^a-z]*/)) {
+            for (const w of texts.join(" ").replace(/~[a-z_]+:\S+/gi, " ").toLowerCase().split(/[^a-z][^a-z]*/)) {
               if (w.length < 4 || STOP.has(w) || w === domain.toLowerCase()) continue;
               freq.set(w, (freq.get(w) ?? 0) + 1);
             }
@@ -1062,8 +1058,8 @@ export function DomainPrefsPanel({
       {/* Header */}
       <div className="mb-6 flex items-end justify-between gap-3">
         <div>
-          <h2 className="font-display text-[26px] font-semibold leading-tight tracking-tight text-text-primary">Preferences</h2>
-          <p className="mt-1 text-sm text-text-secondary">
+          <h2 className={DETAIL_TITLE}>Preferences</h2>
+          <p className="mt-1 text-[12px] text-text-muted">
             Domain-only overrides. Pickers apply on the next reload of this domain; global defaults still apply when these are unset.
           </p>
         </div>
@@ -1077,9 +1073,9 @@ export function DomainPrefsPanel({
             persistManifestTop({ privacy: { localOnly: false }, sandbox: { mode: "open" }, routing: { keywords: [] } });
             force();
           }}
-          className="shrink-0 rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-warn hover:text-warn"
+          className="shrink-0 text-[12px] text-text-muted hover:text-warn"
         >
-          reset all
+          Reset all
         </button>
       </div>
 
@@ -1091,13 +1087,13 @@ export function DomainPrefsPanel({
         right={pickedCli ? (
           <button
             onClick={() => { setOverride(cliKey, ""); setOverride(modelKey, ""); }}
-            className="rounded border border-border bg-background px-2 py-1 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+            className="text-[12px] text-text-muted hover:text-accent"
           >
-            use global
+            Use global
           </button>
         ) : undefined}
       >
-        <p className="mb-3 text-sm text-text-secondary">Which runtime runs every prompt in {titleCase(domain)}. Pick a provider, then its model.</p>
+        <p className="mb-3 text-[12px] text-text-muted">Which runtime runs every prompt in {titleCase(domain)}. Pick a provider, then its model.</p>
         {/* List rows; the selected CLI expands to show its models indented below. */}
         <div className="flex flex-col gap-1.5">
           {clis.filter((c) => !isBunkerOn() || isLocalCli(c.id)).map((c) => {
@@ -1111,12 +1107,8 @@ export function DomainPrefsPanel({
                   disabled={disabled}
                   onClick={() => { setOverride(cliKey, c.id); setExpandedCli(c.id); }}
                   title={disabled ? `${c.label} not installed` : c.label}
-                  className={`group flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors ${
-                    picked
-                      ? "border-accent bg-accent-soft ring-1 ring-accent/20"
-                      : disabled
-                      ? "border-border-subtle bg-background opacity-40"
-                      : "border-border bg-background hover:bg-surface-warm"
+                  className={`group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors ${
+                    picked ? "bg-surface-warm" : disabled ? "opacity-40" : "hover:bg-surface-warm/50"
                   }`}
                 >
                   {/* Expand chevron on the LEFT - toggles the model list without
@@ -1137,17 +1129,13 @@ export function DomainPrefsPanel({
                     <span className="h-5 w-5 shrink-0" />
                   )}
                   <ProviderMark vendor={c.id} size={22} />
-                  <span className={`flex-1 text-sm font-semibold ${picked ? "text-accent" : "text-text-primary"}`}>
+                  <span className={`flex-1 text-[14px] ${picked ? "font-semibold text-text-primary" : "font-medium text-text-primary"}`}>
                     {c.label}
                   </span>
                   {disabled && (
-                    <span className="font-mono text-[11px] text-text-muted">Not installed</span>
+                    <span className="text-[12px] text-text-muted">Not installed</span>
                   )}
-                  {picked && (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-background">
-                      <Check className="h-3 w-3" strokeWidth={3} />
-                    </span>
-                  )}
+                  {picked && <Check className="h-4 w-4 shrink-0 text-accent" strokeWidth={2.5} />}
                 </button>
                 {/* Models - indented under the expanded CLI, collapsed otherwise.
                     Expansion is independent of selection (expandedCli, not picked). */}
@@ -1159,15 +1147,15 @@ export function DomainPrefsPanel({
                     ? models.filter((m) => `${m.id} ${m.label ?? ""}`.toLowerCase().includes(q)).slice(0, 50)
                     : (searchable ? curated : models);
                   return (
-                  <div className="ml-4 mt-1.5 flex flex-col gap-1.5 border-l-2 border-accent-border/40 pl-4">
+                  <div className="ml-4 mt-1 flex flex-col gap-0.5 border-l border-border-subtle pl-4">
                     <div className="flex items-center justify-between pt-0.5">
-                      <span className="font-mono text-[11px] font-bold text-text-muted">Model</span>
+                      <span className="text-[12px] font-semibold text-text-secondary">Model</span>
                       {pickedModel && (
                         <button
                           onClick={() => setOverride(modelKey, "")}
-                          className="rounded border border-border bg-background px-2 py-0.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent"
+                          className="text-[12px] text-text-muted hover:text-accent"
                         >
-                          use cli default
+                          Use the runtime default
                         </button>
                       )}
                     </div>
@@ -1176,34 +1164,30 @@ export function DomainPrefsPanel({
                         value={modelSearch[c.id] ?? ""}
                         onChange={(e) => setModelSearch((s) => ({ ...s, [c.id]: e.target.value }))}
                         placeholder={`Search all ${models.length} ${c.label} models…`}
-                        className="w-full rounded-md border border-border bg-background px-2.5 py-1 font-mono text-[11px] focus:border-accent-border focus:outline-none"
+                        className="w-full rounded-md border border-border bg-background px-2.5 py-1 text-[12px] focus:border-accent-border focus:outline-none"
                       />
                     )}
-                    {shown.length === 0 && <span className="font-mono text-[11px] text-text-muted">No models match "{q}".</span>}
+                    {shown.length === 0 && <span className="text-[12px] text-text-muted">No models match "{q}".</span>}
                     {shown.map((m) => {
                       const mpicked = pickedModel === m.id;
                       return (
                         <button
                           key={m.id}
                           onClick={() => setOverride(modelKey, m.id)}
-                          className={`flex items-center gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
-                            mpicked
-                              ? "border-accent bg-accent-soft"
-                              : "border-border-subtle bg-background hover:border-accent-border"
+                          className={`flex items-center gap-3 rounded-md px-3 py-1.5 text-left transition-colors ${
+                            mpicked ? "bg-surface-warm" : "hover:bg-surface-warm/50"
                           }`}
                         >
-                          <span className={`shrink-0 font-mono text-sm ${mpicked ? "font-semibold text-accent" : "text-text-primary"}`}>{m.label}</span>
-                          {m.blurb && <span className="min-w-0 flex-1 truncate text-[11px] text-text-muted">{m.blurb}</span>}
+                          <span className={`shrink-0 text-[14px] ${mpicked ? "font-semibold text-text-primary" : "text-text-primary"}`}>{m.label}</span>
+                          {m.blurb && <span className="min-w-0 flex-1 truncate text-[12px] text-text-muted">{m.blurb}</span>}
                           {mpicked && (
-                            <span className="ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent text-background">
-                              <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                            </span>
+                            <Check className="ml-auto h-4 w-4 shrink-0 text-accent" strokeWidth={2.5} />
                           )}
                         </button>
                       );
                     })}
                     {!q && searchable && (
-                      <span className="font-mono text-[10px] text-text-muted">+{models.length - shown.length} more · search to pick any model</span>
+                      <span className="text-[12px] text-text-muted">+{models.length - shown.length} more · search to pick any model</span>
                     )}
                   </div>
                   );
@@ -1218,7 +1202,6 @@ export function DomainPrefsPanel({
       <PrefSection title="Framework & Lens" icon={<Compass className="h-4 w-4" />} subtitle={[pickedFw && pickedFw !== "none" ? "framework" : "", pickedLens && pickedLens !== "none" ? "lens" : ""].filter(Boolean).join(" + ") || "none set"}>
         <div className="grid grid-cols-1 gap-4">
           <PrefPickerColumn
-            glyph="◆"
             title="Framework"
             options={FRAMEWORKS as readonly { id: string; label: string; blurb: string }[]}
             selected={pickedFw}
@@ -1226,7 +1209,6 @@ export function DomainPrefsPanel({
             onClear={() => setOverride(fwKey, "")}
           />
           <PrefPickerColumn
-            glyph="◇"
             title="Lens"
             options={LENSES as readonly { id: string; label: string; blurb: string }[]}
             selected={pickedLens}
@@ -1237,31 +1219,25 @@ export function DomainPrefsPanel({
       </PrefSection>
 
       {/* Skills - star-toggle list with avatars; collapsed by default, indented when open */}
-      <section className="mb-6 rounded-xl border border-border bg-surface p-4">
+      <section className="border-b border-border-subtle">
         <button
           onClick={() => setSkillsOpen((v) => !v)}
-          className="flex w-full items-start gap-2 text-left"
+          className="flex w-full items-center gap-2.5 py-3 text-left"
         >
-          <ChevronRight className={`mt-1 h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${skillsOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
-          <div className="flex-1">
-            <div className="font-mono text-[11px] font-bold text-text-primary">Skills · {skills.length}</div>
-            <p className="mt-0.5 text-sm text-text-secondary">
-              Pinned skills auto-attach to every new chat in {titleCase(domain)}.
-              <span className="ml-2 text-[11px] text-text-muted">★ pinned · ☆ tap to pin</span>
-            </p>
-          </div>
+          <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${skillsOpen ? "rotate-90" : ""}`} strokeWidth={2.5} />
+          <span className="flex-1 text-[14px] font-medium text-text-primary">Skills</span>
+          <span className="text-[12px] text-text-muted">{preferredSkills.length} pinned of {skills.length}</span>
         </button>
         {skillsOpen && (skills.length === 0 ? (
-          <div className="mt-3 ml-5 rounded border border-dashed border-border bg-background p-4 text-sm text-text-muted">
-            No skills under <code className="text-accent">{titleCase(domain)}/_skills/</code> yet.
-          </div>
+          <p className="pb-4 pl-6 text-[12px] text-text-muted">No skills in {titleCase(domain)} yet.</p>
         ) : (
-          <ul className="mt-3 ml-5 flex flex-col gap-1.5 border-l border-border-subtle pl-3">
+          <ul className="pb-4 pl-6">
+            <li className="pb-1 text-[12px] text-text-muted">Pinned skills auto-attach to every new chat in {titleCase(domain)}.</li>
             {skills.map((s) => {
               const on = preferredSkills.includes(s.name);
               const color = pickSkillColor(s.name);
               return (
-                <li key={s.path} className="flex items-center gap-3 rounded-md border border-border-subtle bg-background px-3 py-2">
+                <li key={s.path} className="group flex items-center gap-3 border-b border-border-subtle py-2 last:border-b-0">
                   <span
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md font-display text-sm font-bold ring-1 ring-black/5"
                     style={{ background: color.bg, color: color.fg }}
@@ -1269,18 +1245,17 @@ export function DomainPrefsPanel({
                     {(s.name || "·").charAt(0).toUpperCase()}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="font-mono text-sm text-accent">/{s.name}</div>
-                    {s.description && <div className="line-clamp-1 text-[11px] text-text-muted">{s.description}</div>}
+                    <div className="text-[14px] font-medium text-text-primary">/{s.name}</div>
+                    {s.description && <div className="line-clamp-1 text-[12px] text-text-muted">{s.description}</div>}
                   </div>
                   <button
                     onClick={() => onTogglePreferredSkill(s.name)}
-                    className={`shrink-0 rounded-md border px-2 py-1 text-[11px] ${
-                      on
-                        ? "border-accent-border bg-accent-soft text-accent"
-                        : "border-border bg-background text-text-muted hover:border-accent-border hover:text-accent"
-                    }`}
+                    title={on ? "Pinned: auto-attaches. Click to unpin" : "Pin: auto-attach to new chats"}
+                    aria-label={on ? `Unpin ${s.name}` : `Pin ${s.name}`}
+                    aria-pressed={on}
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-surface-warm ${on ? "text-accent" : `text-text-muted hover:text-accent ${REVEAL}`}`}
                   >
-                    {on ? "★ pinned" : "☆ pin"}
+                    <Pin className={`h-3.5 w-3.5 ${on ? "fill-current" : ""}`} />
                   </button>
                 </li>
               );
@@ -1293,8 +1268,8 @@ export function DomainPrefsPanel({
       <PrefSection title="Behavior" icon={<SlidersHorizontal className="h-4 w-4" />} subtitle={autoState ? "Auto-attach on" : "Manual"}>
         <div className="flex items-center justify-between gap-3 py-2">
           <div>
-            <div className="text-sm font-semibold text-text-primary">Auto-attach state.md</div>
-            <div className="mt-0.5 text-xs text-text-secondary">
+            <div className="text-[14px] font-medium text-text-primary">Auto-attach state.md</div>
+            <div className="mt-0.5 text-[12px] text-text-muted">
               {autoState
                 ? "Each new chat starts with state.md as a context chip you can remove."
                 : "Manual: drag the domain in or use the Context drawer to attach state.md."}
@@ -1312,8 +1287,8 @@ export function DomainPrefsPanel({
       <PrefSection title="Privacy" icon={<Lock className="h-4 w-4" />} subtitle={localOnly ? "Local only" : "Standard"}>
         <div className="flex items-center justify-between gap-3 py-2">
           <div>
-            <div className="text-sm font-semibold text-text-primary">Local-only (Ollama)</div>
-            <div className="mt-0.5 text-xs text-text-secondary">
+            <div className="text-[14px] font-medium text-text-primary">Local-only (Ollama)</div>
+            <div className="mt-0.5 text-[12px] text-text-muted">
               {localOnly
                 ? "Every prompt in this domain is forced through a local model: nothing leaves your machine."
                 : "Off: prompts use the domain's configured CLI, which may call a cloud model."}
@@ -1334,7 +1309,7 @@ export function DomainPrefsPanel({
       {/* Sandbox - open | locked → manifest.sandbox.mode */}
       <PrefSection title="Sandbox" icon={<Box className="h-4 w-4" />} subtitle={sandboxMode === "locked" ? "Locked: read-only" : "Open: read + write"}>
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-text-secondary">
+          <p className="text-[13px] text-text-secondary">
             {sandboxMode === "locked"
               ? "Locked: agents can read this domain but cannot write files or run shell side-effects."
               : "Open: agents can read and write within this domain's folder."}
@@ -1365,10 +1340,10 @@ export function DomainPrefsPanel({
       >
         {/* One per-domain target (ideal-state.md). The SAME field the Loops page
             uses as its gap-target; grounds every chat in this domain. */}
-        <p className="mb-2.5 text-xs leading-relaxed text-text-muted">
+        <p className="mb-2.5 text-[12px] text-text-muted">
           What a thriving <span className="font-medium text-text-secondary">{titleCase(domain)}</span> looks like. Grounds every {titleCase(domain)} chat (under your global Ideal State) and is the target every {titleCase(domain)} loop closes the gap to. One target, used everywhere.
         </p>
-        <div className="rounded-xl border border-border-subtle bg-background p-1 transition-colors focus-within:border-accent-border focus-within:ring-2 focus-within:ring-accent-border/20">
+        <div className="rounded-md border border-border bg-background transition-colors focus-within:border-accent-border">
           <textarea
             value={domainIdeal}
             onChange={(e) => setDomainIdeal(e.target.value)}
@@ -1379,18 +1354,18 @@ export function DomainPrefsPanel({
           />
         </div>
         <div className="mt-2.5 flex items-center gap-2">
-          <button onClick={saveDomainIdeal} disabled={draftingIdeal} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-sm font-semibold text-background hover:bg-accent-hover disabled:opacity-50">
+          <button onClick={saveDomainIdeal} disabled={draftingIdeal} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50">
             <Check className="h-3.5 w-3.5" /> Save
           </button>
           <button onClick={draftIdealWithAI} disabled={draftingIdeal}
             title={`Draft from what Prevail knows about your ${titleCase(domain)} - review before saving`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent hover:bg-accent hover:text-background disabled:opacity-50">
+            className="inline-flex items-center gap-1.5 px-2 text-[13px] font-medium text-accent hover:underline disabled:opacity-50">
             {draftingIdeal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             {draftingIdeal ? "Drafting…" : domainIdeal.trim() ? "Redraft with AI" : "Draft with AI"}
           </button>
-          {domainIdealSaved && <span className="inline-flex items-center gap-1 text-[11px] text-ok"><Check className="h-3 w-3" /> saved</span>}
+          {domainIdealSaved && <span className="inline-flex items-center gap-1 text-[12px] text-ok"><Check className="h-3 w-3" /> saved</span>}
         </div>
-        {draftErr && <div className="mt-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-warn">{draftErr}</div>}
+        {draftErr && <p className="mt-2 text-[12px] text-warn">{draftErr}</p>}
       </PrefSection>
 
       {/* Channels / routing - domain name is always matched (A6); the input
@@ -1400,7 +1375,7 @@ export function DomainPrefsPanel({
         icon={<Share2 className="h-4 w-4" />}
         subtitle={(() => { const n = 1 + keywordsRaw.split(",").map((s) => s.trim()).filter(Boolean).length; return `${n} keyword${n === 1 ? "" : "s"}`; })()}
       >
-        <p className="mb-3 text-sm text-text-secondary">
+        <p className="mb-3 text-[12px] text-text-muted">
           When a bridge (e.g. Telegram) receives a message, these keywords route it to {titleCase(domain)}.
           The domain name always matches; add extras below. Saved to the domain manifest.
         </p>
@@ -1408,7 +1383,7 @@ export function DomainPrefsPanel({
           <span className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-soft px-2.5 py-1 font-mono text-xs text-accent" title="Always matched: the domain name is a built-in keyword">
             <Pin className="h-3 w-3" /> {domain.toLowerCase()}
           </span>
-          <span className="font-mono text-[10px] text-text-muted">Always on</span>
+          <span className="text-[12px] text-text-muted">Always on</span>
         </div>
         <input
           defaultValue={keywordsRaw}
@@ -1432,16 +1407,16 @@ export function DomainPrefsPanel({
           className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm focus:border-accent-border focus:outline-none"
           spellCheck={false}
         />
-        <div className="mt-2 font-mono text-[10px] text-text-muted">
+        <div className="mt-2 text-[12px] text-text-muted">
           Edits save when the field loses focus.
         </div>
       </PrefSection>
 
       <PrefSection title="Routines" icon={<Cpu className="h-4 w-4" />} subtitle={`${[daemonTaskgen, daemonReminders, daemonSkillgen].filter(Boolean).length}/3 on`}>
-        <p className="mb-2.5 text-xs leading-relaxed text-text-muted">
+        <p className="mb-2.5 text-[12px] text-text-muted">
           Background work Prevail does for {titleCase(domain)} on its own, even when the app is closed.
         </p>
-        <div className="space-y-2">
+        <div>
           {([
             { on: daemonTaskgen, set: setDaemonTaskgen, key: "taskgen", icon: ChevronRight, title: "Task generation", desc: "Proactively writes tasks for this domain from your goals and memory." },
             { on: daemonReminders, set: setDaemonReminders, key: "reminders", icon: Cpu, title: "Reminders", desc: "Fires a notification when tasks in this domain are due or overdue." },
@@ -1449,19 +1424,11 @@ export function DomainPrefsPanel({
           ] as const).map((r) => {
             const Icon = r.icon;
             return (
-              <div key={r.key} className={`flex items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors ${r.on ? "border-accent-border/50 bg-accent-soft/15" : "border-border-subtle bg-surface"}`}>
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${r.on ? "bg-accent text-background" : "bg-surface-warm text-text-muted"}`}><Icon className="h-4 w-4" /></span>
+              <div key={r.key} className="flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
+                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    {/* At-a-glance status dot: vivid green + soft pulse when running, muted grey when off. */}
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${r.on ? "bg-ok pulse-soft" : "bg-text-muted/40"}`}
-                      title={r.on ? "Running" : "Off"}
-                    />
-                    <span className="text-sm font-semibold text-text-primary">{r.title}</span>
-                    <span className={`text-[11px] ${r.on ? "text-ok" : "text-text-muted"}`}>{r.on ? "on" : "off"}</span>
-                  </div>
-                  <div className="mt-0.5 text-xs leading-relaxed text-text-secondary">{r.desc}</div>
+                  <div className="text-[14px] font-medium text-text-primary">{r.title}</div>
+                  <div className="mt-0.5 text-[12px] text-text-muted">{r.desc}</div>
                 </div>
                 <Toggle on={r.on} onChange={(v) => { r.set(v); saveDaemonCfg({ [r.key]: v }); }} />
               </div>
@@ -1480,7 +1447,7 @@ export function ContextButton({ onClick }: { onClick: () => void }) {
       data-testid="open-context"
       onClick={onClick}
       title="Show this domain's context"
-      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-accent"
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[13px] text-text-muted transition-colors hover:bg-surface-warm hover:text-text-primary"
     >
       <Layers className="h-3.5 w-3.5" /> Context
     </button>

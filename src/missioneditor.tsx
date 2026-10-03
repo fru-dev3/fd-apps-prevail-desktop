@@ -13,7 +13,7 @@ import { BODY, DETAIL_TITLE, META } from "./typescale";
 
 type Version = { name: string; path: string; ts?: number };
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
-const inputCls = "w-full resize-y rounded-lg border border-accent-border bg-background px-3 py-2 text-[15px] leading-relaxed text-text-primary focus:outline-none";
+const inputCls = "w-full resize-y rounded-lg border border-accent-border bg-background px-3 py-2 text-[14px] leading-normal text-text-primary focus:outline-none";
 
 /** Split the document into an intro and one block per `## ` section. Joining
  *  the blocks with "\n" gives the document back exactly. */
@@ -48,7 +48,7 @@ function versionWhen(v: Version): string {
   return d.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath: string; title?: string }) {
+export function MissionEditor({ vaultPath, title = "Your constitution" }: { vaultPath: string; title?: string }) {
   const [body, setBody] = useState<string | null>(() => {
     const c = peekInvoke<string>("read_ideal_state", { vault: vaultPath });
     return c === undefined ? null : c || "";
@@ -107,7 +107,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
   const editor = (
     <div data-testid="mission-editor" className="rounded-lg border border-accent-border bg-surface p-2">
       <textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={keys}
-        rows={editing === "all" ? 20 : Math.min(18, Math.max(4, draft.split("\n").length + 1))} aria-label="Edit the mission" className={inputCls} />
+        rows={editing === "all" ? 20 : Math.min(18, Math.max(4, draft.split("\n").length + 1))} aria-label="Edit the constitution" className={inputCls} />
       <div className="mt-1 flex items-center justify-end gap-1">
         <span className={`${META} mr-auto`}>Cmd-Enter saves, Esc cancels. The old text is kept as a version.</span>
         <button onClick={commit} title="Save" aria-label="Save" data-testid="mission-save" className={iconBtn}><Check className="h-4 w-4" /></button>
@@ -124,14 +124,14 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
     <section data-testid="mission-editor-page">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className={`${DETAIL_TITLE} min-w-0 flex-1`}>{title}</h2>
-        <SpineTabs label="Mission view" value={tab} onChange={(t) => { setTab(t); setEditing(null); }}
+        <SpineTabs label="Constitution view" value={tab} onChange={(t) => { setTab(t); setEditing(null); }}
           tabs={[{ id: "current", label: "Current" }, { id: "versions", label: "Versions", count: versions.length + 1 }]} />
         {tab === "current" && editing === null && (
           <button onClick={() => startEdit("all")} title="Edit all" aria-label="Edit all" data-testid="mission-edit-all" className={iconBtn}><FilePen className="h-4 w-4" /></button>
         )}
       </div>
       {err && <p className="mb-3 text-[13px] text-err">{err}</p>}
-      {body === null && <p className={`${BODY} text-text-muted`}>Reading your mission</p>}
+      {body === null && <p className={META}>Reading your constitution</p>}
       {body !== null && tab === "current" && (
         editing === "all" ? editor : (
           <div className="max-w-3xl space-y-1">
@@ -161,7 +161,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
                     className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
                     <span className="flex items-center gap-2">
                       <span className={`min-w-0 flex-1 truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{r.when}</span>
-                      {r.latest && <span data-testid="version-latest" className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-on-accent">Latest</span>}
+                      {r.latest && <span data-testid="version-latest" className="shrink-0 text-[12px] font-medium text-accent">Latest</span>}
                     </span>
                     {summary && <span className="block truncate text-[12px] text-text-muted">{summary}</span>}
                   </button>
@@ -175,7 +175,7 @@ export function MissionEditor({ vaultPath, title = "Your mission" }: { vaultPath
                 <span className={`${META} flex-1`}>Read only. Restore saves it as the new latest version; the current text is kept too.</span>
                 <button onClick={() => { if (pickedRow.text !== undefined) { void save(pickedRow.text).then(() => setPicked("latest")); } }}
                   disabled={pickedRow.text === undefined} data-testid="version-restore"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
+                  className="inline-flex h-8 items-center gap-1 text-[13px] font-medium text-accent hover:underline disabled:opacity-50">
                   <RotateCcw className="h-3.5 w-3.5" />Restore
                 </button>
               </div>

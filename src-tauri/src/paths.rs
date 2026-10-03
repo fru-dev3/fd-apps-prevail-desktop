@@ -51,6 +51,18 @@ pub(crate) fn app_scope_id(d: &str) -> Option<String> {
     Some(id.to_string())
 }
 
+// Missions (missions-plan.md) live at data/missions/<slug>/. A mission's chat
+// space is keyed `_mission-<slug>`, routed to the mission folder the same way
+// `_app-<id>` is routed to the app. Mirrors the engine's missionScopeSlug.
+pub(crate) const MISSION_SCOPE_PREFIX: &str = "_mission-";
+
+pub(crate) fn mission_scope_slug(d: &str) -> Option<String> {
+    let s = d.strip_prefix(MISSION_SCOPE_PREFIX)?;
+    let ok = !s.is_empty() && s.len() <= 80 && !s.starts_with('-')
+        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if ok { Some(s.to_string()) } else { None }
+}
+
 // v4 layout (source/ · memory/ · .system/). A domain is v4 once the migrator has
 // dropped this marker; until then every vault reads/writes the legacy flat names,
 // so this is a no-op on un-migrated vaults.
@@ -128,6 +140,9 @@ pub(crate) fn resolve_domain_base(vault: &str, d: &str) -> PathBuf {
     // engine's resolveDomainDir.
     if let Some(id) = app_scope_id(d) {
         return data_root(vault).join("apps").join(id).join(APP_SCOPE_SUBDIR);
+    }
+    if let Some(slug) = mission_scope_slug(d) {
+        return data_root(vault).join("missions").join(slug);
     }
     let v4 = data_root(vault).join("domains").join(d);
     if v4.exists() {
@@ -373,6 +388,17 @@ mod v4_path_tests {
         fs::write(dir.join(V4_MARKER), "1").unwrap();
         assert_eq!(safe_domain_subdir(&vault, &dom, "_log").unwrap(), dir.join(".system").join("log"));
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn mission_scope_routes_to_the_mission_folder() {
+        assert_eq!(mission_scope_slug("_mission-learn-the-cello").as_deref(), Some("learn-the-cello"));
+        assert_eq!(mission_scope_slug("_mission-"), None);
+        assert_eq!(mission_scope_slug("_mission-../x"), None);
+        assert_eq!(mission_scope_slug("_mission-A"), None);
+        assert_eq!(mission_scope_slug("money"), None);
+        let base = resolve_domain_base("/nonexistent-vault", "_mission-paint-the-shed");
+        assert!(base.ends_with("missions/paint-the-shed"));
     }
 
     #[test]

@@ -183,7 +183,7 @@ for (const width of [1440, 390]) {
       await expect(page.getByText("2 conversations have no home domain yet.", { exact: false })).toBeVisible({ timeout: 10_000 });
       await page.getByTestId("filing-settings").getByRole("button", { name: "Review" }).click();
     } else {
-      await page.getByTestId("app-sidebar").getByRole("button", { name: "For You" }).click();
+      await page.getByTestId("app-sidebar").getByRole("button", { name: "For You", exact: true }).click();
       const card = page.getByTestId("filing-card");
       await expect(card).toContainText("File 2 unfiled conversations", { timeout: 10_000 });
       await card.getByRole("button", { name: "Review" }).click();
@@ -209,6 +209,11 @@ for (const width of [1440, 390]) {
 for (const width of [1440, 390]) {
   test(`the composer keeps context and @refs in one row; overflow folds into +N that expands in place (${width})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
+    // A slow machine (the CI runner): frames land late, after the next keys.
+    await page.addInitScript(() => {
+      const raf = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) => { setTimeout(() => raf(cb), 120); return 0; };
+    });
     await mockTauri(page, {
       scan_vault: DOMAINS,
       apps_mirror_list: {

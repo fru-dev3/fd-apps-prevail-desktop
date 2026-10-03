@@ -39,14 +39,17 @@ fn opt(args: &mut Vec<String>, flag: &str, v: Option<&str>) {
 }
 
 // Projects are entities too (project/<slug>), with their own folder and chat.
-const KINDS: &[&str] = &["person", "place", "org", "thing", "project"];
+// Events (event/<slug>) are the Activities kind kept as entity pages.
+const KINDS: &[&str] = &["person", "place", "org", "thing", "project", "event"];
 
 // An entity id is <kind>/<name or slug>. Anything else never reaches the
 // engine, so a crafted id cannot smuggle a flag into the argument list.
 pub(crate) fn valid_id(id: &str) -> bool {
     let id = id.trim();
     match id.split_once('/') {
-        Some((kind, rest)) => KINDS.contains(&kind) && !rest.trim().is_empty() && !rest.starts_with('-') && id.len() <= 300,
+        // mission/<slug>: an @ mission in chat (the engine adds a brief of it).
+        // app/<id>: a product's app record (the engine resolves it to its product).
+        Some((kind, rest)) => (KINDS.contains(&kind) || kind == "mission" || kind == "app") && !rest.trim().is_empty() && !rest.starts_with('-') && id.len() <= 300,
         None => false,
     }
 }
@@ -261,6 +264,20 @@ pub async fn engine_entities_set_picture(vault: String, id: String, file: Option
     write_json(args).await
 }
 
+// `prevail entities rename <id> --name <n>` -> the detail. The engine writes
+// the name in Title Case and keeps the old one as an alias.
+#[tauri::command]
+pub async fn engine_entities_rename(vault: String, id: String, name: String) -> Result<serde_json::Value, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() || name.starts_with('-') || name.chars().count() > 120 || name.contains('\n') {
+        return Err("not a name".into());
+    }
+    let mut args = id_args("rename", &vault, &id)?;
+    args.push("--name".into());
+    args.push(name);
+    write_json(args).await
+}
+
 // `prevail entities set-website <id> --url <u>` -> { ok }. An empty url clears it.
 #[tauri::command]
 pub async fn engine_entities_set_website(vault: String, id: String, url: String) -> Result<serde_json::Value, String> {
@@ -332,6 +349,192 @@ pub async fn engine_entity_picture(vault: String, path: String) -> Result<String
     Ok(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
 
+// ── Entities and Activities (ia.ts in the engine) ───────────────────────────
+// Products, links both ways, a thing's or an event's fields, the calendar
+// strip, an event to a project, the calendar question and new objects by
+// talking. Every id is checked before it reaches the engine.
+
+const FIELDS: &[&str] = &["date", "end", "time", "people", "project", "calendar", "purchased", "warranty", "value", "maker", "place"];
+const DRAFT_KINDS: &[&str] = &["person", "place", "org", "thing", "event"];
+
+fn plain(v: &str, max: usize) -> Result<String, String> {
+    let v = v.trim();
+    if v.starts_with('-') || v.len() > max || v.chars().any(|c| c.is_control()) {
+        return Err("not a plain value".into());
+    }
+    Ok(v.to_string())
+}
+
+// A calendar strip row: event/<slug>, calendar:<id>, milestone:<slug>:<id> or hold:<slug>:<id>.
+pub(crate) fn valid_row(id: &str) -> bool {
+    let id = id.trim();
+    if valid_id(id) {
+        return true;
+    }
+    match id.split_once(':') {
+        Some((k, rest)) => ["calendar", "milestone", "hold"].contains(&k) && !rest.is_empty() && !rest.starts_with('-') && id.len() <= 400 && !id.chars().any(|c| c.is_control() || c.is_whitespace()),
+        None => false,
+    }
+}
+
+pub(crate) fn field_args(vault: &str, id: &str, field: &str, value: &str) -> Result<Vec<String>, String> {
+    if !FIELDS.contains(&field) {
+        return Err(format!("unknown field: {field}"));
+    }
+    let mut a = id_args("set", vault, id)?;
+    a.extend(["--field".into(), field.into(), "--value".into()]);
+    // An empty value clears the field; a value never poses as a flag.
+    a.push(if value.trim().is_empty() { String::new() } else { plain(value, 300)? });
+    Ok(a)
+}
+
+#[tauri::command]
+pub async fn ia_products(vault: String) -> Result<serde_json::Value, String> {
+    json(vec!["entities".into(), "products".into(), "--vault".into(), vault]).await
+}
+
+#[tauri::command]
+pub async fn ia_links(vault: String, id: String) -> Result<serde_json::Value, String> {
+    json(id_args("links", &vault, &id)?).await
+}
+
+#[tauri::command]
+pub async fn ia_link(vault: String, a: String, b: String, remove: Option<bool>) -> Result<serde_json::Value, String> {
+    for id in [&a, &b] {
+        if !valid_id(id) {
+            return Err(format!("not an id: {id}"));
+        }
+    }
+    let sub = if remove.unwrap_or(false) { "unlink" } else { "link" };
+    write_json(vec!["entities".into(), sub.into(), a.trim().into(), b.trim().into(), "--vault".into(), vault]).await
+}
+
+#[tauri::command]
+pub async fn ia_set_field(vault: String, id: String, field: String, value: String, name: Option<String>) -> Result<serde_json::Value, String> {
+    let mut a = field_args(&vault, &id, &field, &value)?;
+    if let Some(n) = name.as_deref() {
+        opt(&mut a, "--name", Some(&plain(n, 120)?));
+    }
+    write_json(a).await
+}
+
+#[tauri::command]
+pub async fn ia_service(vault: String, id: String, what: String, date: Option<String>, cost: Option<String>) -> Result<serde_json::Value, String> {
+    let mut a = id_args("service", &vault, &id)?;
+    a.extend(["--what".into(), plain(&what, 200)?]);
+    if let Some(d) = date.as_deref().filter(|d| !d.trim().is_empty()) { a.extend(["--date".into(), plain(d, 10)?]); }
+    if let Some(c) = cost.as_deref().filter(|c| !c.trim().is_empty()) { a.extend(["--cost".into(), plain(c, 20)?]); }
+    write_json(a).await
+}
+
+#[tauri::command]
+pub async fn ia_events(vault: String, from: Option<String>, to: Option<String>) -> Result<serde_json::Value, String> {
+    let mut a: Vec<String> = vec!["entities".into(), "events".into(), "--vault".into(), vault];
+    if let Some(f) = from.as_deref().filter(|f| !f.trim().is_empty()) { a.extend(["--from".into(), plain(f, 10)?]); }
+    if let Some(t) = to.as_deref().filter(|t| !t.trim().is_empty()) { a.extend(["--to".into(), plain(t, 10)?]); }
+    json(a).await
+}
+
+// Opening a strip row gives it a page (once); an event id comes back as it is.
+#[tauri::command]
+pub async fn ia_event_adopt(vault: String, row: String) -> Result<serde_json::Value, String> {
+    if !valid_row(&row) {
+        return Err(format!("not an event: {row}"));
+    }
+    write_json(vec!["entities".into(), "event-adopt".into(), row.trim().into(), "--vault".into(), vault]).await
+}
+
+// The calendar question. "ask" only marks it; "yes" is the user's own click
+// and the only way an event reaches their calendar; "no" declines.
+#[tauri::command]
+pub async fn ia_event_calendar(vault: String, id: String, answer: String) -> Result<serde_json::Value, String> {
+    let mut a = id_args("event-calendar", &vault, &id)?;
+    match answer.as_str() {
+        "yes" => a.push("--yes".into()),
+        "no" => a.push("--no".into()),
+        "ask" => {}
+        _ => return Err("answer is ask, yes or no".into()),
+    }
+    write_json(a).await
+}
+
+#[tauri::command]
+pub async fn ia_event_project(vault: String, id: String, project: Option<String>) -> Result<serde_json::Value, String> {
+    let mut a = id_args("event-project", &vault, &id)?;
+    if let Some(p) = project.as_deref().filter(|p| !p.trim().is_empty()) {
+        if !valid_id(p) {
+            return Err(format!("not a project: {p}"));
+        }
+        a.extend(["--project".into(), p.trim().into()]);
+    }
+    write_json(a).await
+}
+
+// One turn of "new <kind>" by talking: never creates.
+#[tauri::command]
+pub async fn ia_draft(vault: String, kind: String, turns: serde_json::Value, draft: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+    if !DRAFT_KINDS.contains(&kind.as_str()) {
+        return Err(format!("unknown kind: {kind}"));
+    }
+    let list = turns.as_array().ok_or("turns must be a list")?;
+    if list.len() > 40 {
+        return Err("too many turns".into());
+    }
+    let body = serde_json::json!({ "turns": list, "draft": draft.unwrap_or(serde_json::json!({})) }).to_string();
+    if body.len() > 64_000 {
+        return Err("the conversation is too long".into());
+    }
+    json_stdin(vec!["entities".into(), "draft".into(), "--kind".into(), kind, "--vault".into(), vault], body).await
+}
+
+// Save what the conversation drafted: only on the user's go.
+#[tauri::command]
+pub async fn ia_create(vault: String, kind: String, draft: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !DRAFT_KINDS.contains(&kind.as_str()) {
+        return Err(format!("unknown kind: {kind}"));
+    }
+    if !draft.is_object() {
+        return Err("the draft must be an object".into());
+    }
+    let body = serde_json::json!({ "draft": draft }).to_string();
+    if body.len() > 32_000 {
+        return Err("the draft is too long".into());
+    }
+    let v = json_stdin(vec!["entities".into(), "create".into(), "--kind".into(), kind, "--vault".into(), vault], body).await?;
+    if let Some(e) = v.get("error").and_then(|e| e.as_str()) {
+        return Err(e.to_string());
+    }
+    Ok(v)
+}
+
+#[cfg(test)]
+mod tests_ia {
+    use super::*;
+
+    #[test]
+    fn strip_rows_and_ids_are_checked() {
+        assert!(valid_row("event/christmas"));
+        assert!(valid_row("calendar:abc123"));
+        assert!(valid_row("milestone:plan-foo:ms-1"));
+        assert!(!valid_row("calendar:-x"));
+        assert!(!valid_row("calendar:a b"));
+        assert!(!valid_row("planet:mars"));
+        assert!(valid_id("app/foo-bank"));
+        assert!(valid_id("event/foo"));
+    }
+
+    #[test]
+    fn field_args_name_a_known_field_and_never_a_flag() {
+        assert_eq!(
+            field_args("/v", "thing/foo-watch", "warranty", "2027-03-01").unwrap(),
+            vec!["entities", "set", "thing/foo-watch", "--vault", "/v", "--field", "warranty", "--value", "2027-03-01"]
+        );
+        assert_eq!(field_args("/v", "event/foo", "place", "").unwrap().last().unwrap(), "");
+        assert!(field_args("/v", "thing/foo", "colour", "red").is_err());
+        assert!(field_args("/v", "thing/foo", "maker", "--vault").is_err());
+    }
+}
+
 #[cfg(test)]
 mod tests_folders {
     use super::*;
@@ -381,6 +584,7 @@ mod tests {
         assert!(valid_id("person/Sam Rivera"));
         assert!(valid_id("org/acme"));
         assert!(!valid_id("sam"));
+        assert!(valid_id("mission/paint-the-shed"));
         assert!(!valid_id("planet/mars"));
         assert!(!valid_id("person/--vault"));
         assert!(!valid_id("person/"));

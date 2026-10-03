@@ -65,7 +65,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
     setNote(null);
     try {
       await invoke("capture_install", { vault: vaultPath });
-      setNote("Capture turned on. Claude Code now logs live; other tools are read automatically from their chat history.");
+      setNote("Capture turned on. Claude Code and Codex now log live; other tools are read automatically from their chat history.");
       await loadCapture();
     } catch (e) {
       setNote(`Install failed: ${String(e).slice(0, 140)}`);
@@ -127,19 +127,19 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
       />
 
       {/* PROMPT CAPTURE - record prompts from each CLI into the vault --------- */}
-      <div className="rounded-lg border border-border bg-surface p-5">
+      <div>
         <div className="flex items-stretch gap-5">
           <div className="min-w-0 flex-1">
-            <h2 className="mb-1 text-xl font-semibold text-text-primary">Prompt capture</h2>
-            <div className="text-sm text-text-secondary">
-              Every prompt you submit, saved to <code className="text-accent">_meta/prompts/&lt;tool&gt;.jsonl</code> and distilled into your intents. <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-ai" /> = captured live as you type, <History className="h-3 w-3" /> = read from a tool's saved chats.</span>
+            <h2 className="mb-1 text-[15px] font-semibold text-text-primary">Prompt capture</h2>
+            <div className="text-[14px] text-text-secondary">
+              Every prompt you submit, saved in your vault <span title="_meta/prompts/<tool>.jsonl" className="underline decoration-dotted underline-offset-2">per tool</span> and distilled into your intents. <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-ai" /> = captured live as you type, <History className="h-3 w-3" /> = read from a tool's saved chats.</span>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
               <button
                 onClick={runInstall}
                 disabled={busy !== ""}
-                className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
               >
                 {busy === "install" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                 {busy === "install" ? "Installing…" : "Install capture"}
@@ -147,7 +147,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
               <button
                 onClick={runSync}
                 disabled={busy !== ""}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-1 text-[13px] text-text-muted hover:text-text-primary disabled:opacity-50"
               >
                 {busy === "sync" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 {busy === "sync" ? "Syncing…" : "Sync now"}
@@ -155,23 +155,23 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
               <button
                 onClick={openFolder}
                 disabled={!status?.meta}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-1 text-[13px] text-text-muted hover:text-text-primary disabled:opacity-50"
               >
                 <FolderOpen className="h-3 w-3" /> Open folder
               </button>
-              {note && <span className="text-[11px] text-text-secondary">{note}</span>}
+              {note && <span className="text-[12px] text-text-secondary">{note}</span>}
             </div>
           </div>
 
           <div className="flex shrink-0 flex-col items-center justify-center border-l border-border-subtle pl-6 text-center">
-            <span className="font-display text-[28px] font-bold leading-none tabular-nums text-accent">{totalCaptured.toLocaleString()}</span>
-            <span className="mt-2 text-[11px] font-semibold text-text-muted">Prompts captured</span>
+            <span className="font-display text-[24px] font-bold leading-none tabular-nums text-text-primary">{totalCaptured.toLocaleString()}</span>
+            <span className="mt-2 text-[12px] text-text-muted">Prompts captured</span>
           </div>
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-md border border-border-subtle">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-surface-warm/60 text-[11px] text-text-muted">
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full text-left text-[13px]">
+            <thead className="border-b border-border-subtle text-[12px] text-text-muted">
               <tr>
                 <th className="px-3 py-2 font-medium">Harness</th>
                 <th className="px-3 py-2 text-center font-medium">How</th>
@@ -205,7 +205,7 @@ export function PromptCapturePanel({ vaultPath }: { vaultPath: string }) {
                       {h.method === "push" ? <Zap className="h-4 w-4 text-ai" /> : <History className="h-4 w-4 text-text-muted" />}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-text-secondary">
+                  <td className="px-3 py-2 text-right tabular-nums text-text-secondary">
                     {streamCount(h.tool) > 0 ? (
                       <button onClick={() => openFile(h.tool)} className="underline-offset-2 hover:text-accent hover:underline" title="Open this file">
                         {streamCount(h.tool).toLocaleString()}

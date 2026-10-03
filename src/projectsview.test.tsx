@@ -77,7 +77,7 @@ describe("ProjectsView", () => {
     const on = (e: Event) => seen.push((e as CustomEvent).detail);
     window.addEventListener("prevail:open-settings", on);
     render(<ProjectsView vaultPath="/v" />);
-    expect(await screen.findByText("Your projects")).toBeTruthy();
+    expect(await screen.findByText("Your prompt groups")).toBeTruthy();
     expect(screen.getByTestId("spine-meta").textContent).toBe("4,313 prompts · 2 projects");
     // No duplicate list here: one link to the one home for next steps.
     expect(screen.queryByTestId("rec-row")).toBeNull();
@@ -123,15 +123,15 @@ describe("collapsible projects list", () => {
   it("collapses, widens the detail, and remembers it", async () => {
     render(<ProjectsView vaultPath="/v" />);
     await screen.findByTestId("projects-list");
-    fireEvent.click(screen.getByLabelText("Collapse projects"));
+    fireEvent.click(screen.getByLabelText("Collapse prompt groups"));
     expect(screen.queryByTestId("projects-list")).toBeNull();
     expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("collapsed");
-    expect(screen.getByText("Your projects")).toBeTruthy();
+    expect(screen.getByText("Your prompt groups")).toBeTruthy();
     expect(localStorage.getItem("prevail.intent.spine.projects")).toBe("1");
     cleanup();
     render(<ProjectsView vaultPath="/v" />);
     await screen.findByTestId("spine-collapsed");
-    fireEvent.click(screen.getByLabelText("Show projects"));
+    fireEvent.click(screen.getByLabelText("Show prompt groups"));
     expect(screen.getByTestId("projects-list")).toBeTruthy();
   });
 
@@ -139,7 +139,7 @@ describe("collapsible projects list", () => {
     phone = true;
     render(<ProjectsView vaultPath="/v" />);
     await screen.findByText("Overview");
-    expect(screen.queryByLabelText("Collapse projects")).toBeNull();
+    expect(screen.queryByLabelText("Collapse prompt groups")).toBeNull();
   });
 
   it("titles read in Title Case, keeping acronyms and small words", () => {

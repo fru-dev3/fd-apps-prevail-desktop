@@ -23,19 +23,12 @@ export const TONE_DOT: Record<Tone, string> = { ok: "bg-ok", warn: "bg-warn", er
 
 export const TONE_TEXT: Record<Tone, string> = { ok: "text-ok", warn: "text-warn", err: "text-err", muted: "text-text-muted" };
 
-// compact: a dot and a coloured label with no chip, for dense list rows.
+// Status is a small dot and a word, never a pill. compact colours the word
+// for dense list rows; otherwise the word stays muted and only the dot speaks.
 export function StatusPill({ status, compact = false }: { status: MirrorStatus; compact?: boolean }) {
   const m = statusMeta(status);
-  if (compact) {
-    return (
-      <span data-testid="status-pill" className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[12px] font-medium ${TONE_TEXT[m.tone]}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[m.tone]}`} aria-hidden />
-        {m.label}
-      </span>
-    );
-  }
   return (
-    <span data-testid="status-pill" className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-medium ring-1 ${TONE_PILL[m.tone]}`}>
+    <span data-testid="status-pill" className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] ${compact ? `font-medium ${TONE_TEXT[m.tone]}` : m.tone === "ok" || m.tone === "muted" ? "text-text-muted" : TONE_TEXT[m.tone]}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[m.tone]}`} aria-hidden />
       {m.label}
     </span>
@@ -141,11 +134,10 @@ export function PinButton({ app }: { app: MirrorApp }) {
       aria-pressed={pinned}
       onClick={() => toggleFavorite(key)}
       title={pinned ? `Unpin ${app.name} from the sidebar` : `Pin ${app.name} to the sidebar`}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors ${
-        pinned ? "border-accent-border bg-accent-soft text-accent" : "border-border text-text-secondary hover:border-accent-border hover:text-accent"
-      }`}
+      aria-label={pinned ? `Unpin ${app.name}` : `Pin ${app.name}`}
+      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-surface-strong ${pinned ? "text-accent" : "text-text-muted hover:text-text-primary"}`}
     >
-      <Pin className="h-4 w-4" /> {pinned ? "Pinned" : "Pin"}
+      <Pin className={`h-4 w-4 ${pinned ? "fill-current" : ""}`} />
     </button>
   );
 }

@@ -105,7 +105,7 @@ const WEBUI_ALLOWED: &[&str] = &[
     "reminders_daemon_status", "headless_learn_status", "activity_read",
     "engine_skills_report", "telegram_bridge_status", "hooks_read",
     // Usage + retrospect analytics (the same numbers the desktop shows).
-    "usage_entries", "retrospect_rollup",
+    "usage_entries", "engine_ai_usage", "engine_metrics", "retrospect_rollup",
     // Projects: the index and a project's replay prompt (read side; building
     // runs the synthesis model, so it stays on the desktop).
     "projects_index", "projects_replay",
@@ -129,6 +129,10 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_entities_duplicates",
     // An entity's files list (read). Pictures, websites and files are writes.
     "engine_entities_files",
+    // Entities and Activities: products, an object's links and the calendar
+    // strip (reads). Fields, links, the calendar question and new objects
+    // are writes, desktop only.
+    "ia_products", "ia_links", "ia_events",
     // Linking: what other conversations noted for a domain or entity (read).
     // Setting a relation and the autosave mode are writes, desktop only.
     "engine_updates",
@@ -137,6 +141,41 @@ const WEBUI_ALLOWED: &[&str] = &[
     "engine_suggest_structure",
     // Goals: every domain's goals file (read). Writing one stays on the Mac.
     "goals_files_read",
+    // The chief of staff's name (build/chief-of-staff.md, read).
+    "chief_of_staff_read",
+    // The Compass, its versions and ledger (read). Writing and drafting stay on the Mac.
+    "compass_read", "compass_versions", "compass_version_read", "compass_ledger",
+    // The Compass roll-up and the rules' states (read); answering a conflict stays on the Mac.
+    "engine_compass_align", "engine_compass_rules",
+    // The Compass chain and its proposed links (read); accepting a link stays on the Mac.
+    "engine_compass_tree", "engine_compass_links",
+    // Commitments and the radar are read on the phone; filing, answering,
+    // Undo, refreshing and drafting routines stay on the Mac.
+    "engine_commitments", "engine_radar",
+    // Today and the weekly review on the phone: the cards, plus the two taps
+    // the plans put on the phone (a Today tap and the weekly 1-5). Jobs,
+    // specialists, decisions and metric proposals are read here; starting,
+    // stopping, undoing and answering stay on the Mac.
+    "engine_today", "engine_today_tap", "engine_review", "engine_review_checkin",
+    "engine_jobs", "engine_job_show", "engine_specialists", "engine_compass_history", "engine_apps_imports", "engine_apps_stack_diff", "engine_decisions", "engine_metric_proposals",
+    // Missions are read on the phone; starting, changing and closing one stay on the Mac.
+    "engine_missions_list", "engine_missions_show", "engine_missions_progress",
+    // Playbooks are read on the phone; running, saving and adopting stay on the Mac.
+    "engine_playbook_rows", "engine_playbook_show", "engine_playbook_inbox",
+    // A goal's initiatives are read on the phone; proposing, choosing and retiring stay on the Mac.
+    "engine_initiatives",
+    // Stories (Your Year, a month's recap, patterns, experiments) are read on the phone; writing pages and experiments stay on the Mac.
+    "engine_story",
+    // Time against values is read on the phone; approving a hold stays on the Mac.
+    "engine_time",
+    // Telling the chief of staff anything is the phone's capture surface (a
+    // receipt and Undo, like a Today tap); the list and the open loops are read.
+    "engine_tell", "engine_tell_undo", "engine_told", "engine_forgetting",
+    // The stack and the sources are read on the phone; probes, answers,
+    // mapping, consent and syncs stay on the Mac.
+    "engine_apps_stack", "engine_apps_unknown", "engine_sources",
+    // The review card's asked measures and hypothesis answers are review taps, like the 1-5.
+    "engine_review_answer", "metrics_who5_state",
     // Settings the phone displays read-only: which machine this is, whether the
     // vault lock and the two egress guardrails are on, the auto-council setting,
     // the Google profiles' connection health, and the live model catalog.
@@ -1106,6 +1145,7 @@ fn handle(
         } else {
             WEBUI_ALLOWED.contains(&r.cmd.as_str())
                 && web_args_pinned_to_vault(&r.cmd, &r.args, active_vault_root().as_deref())
+                && !web_args_desktop_only(&r.cmd, &r.args)
         };
         if !allowed {
             let _ = req.respond(json_response(403, &serde_json::json!({ "error": format!("command '{}' is not permitted over the WebUI", r.cmd) })));
@@ -1267,6 +1307,16 @@ fn check_pair(held: Option<PairCode>, offered: &str) -> (Option<PairCode>, bool)
 /// remote mode the advertised addresses plus any Tailscale / RFC 1918 address
 /// and *.ts.net names; the tunnel hostname (exact match) whenever one is up,
 /// independent of remote mode, since the tunnel arrives on loopback.
+/// Some reads are allowed from the phone only without their costly or writing
+/// option: the Compass roll-up with the model pass spends model calls, and a
+/// radar refresh rewrites its file.
+fn web_args_desktop_only(cmd: &str, args: &serde_json::Value) -> bool {
+    let on = |k: &str| args.get(k).and_then(|x| x.as_bool()) == Some(true);
+    (cmd == "engine_compass_align" && on("model")) || (cmd == "engine_radar" && on("refresh"))
+        // A mission's match pass writes links and ledger lines: the Mac only.
+        || (cmd == "engine_missions_progress" && args.get("sub").and_then(|x| x.as_str()) == Some("sync"))
+}
+
 fn host_allowed(hostname: &str, allow_remote: bool, advertised_hosts: &[String; 2], tunnel_host: &str) -> bool {
     let ok_local = hostname == "127.0.0.1" || hostname == "localhost" || hostname == "[::1]" || hostname == "::1";
     let ok_remote = allow_remote
@@ -1503,6 +1553,16 @@ mod tests {
     }
 
     #[test]
+    fn costly_options_stay_on_the_desktop() {
+        assert!(web_args_desktop_only("engine_compass_align", &serde_json::json!({ "vault": "/v", "model": true })));
+        assert!(!web_args_desktop_only("engine_compass_align", &serde_json::json!({ "vault": "/v", "model": null })));
+        assert!(web_args_desktop_only("engine_radar", &serde_json::json!({ "refresh": true })));
+        assert!(!web_args_desktop_only("engine_radar", &serde_json::json!({})));
+        assert!(web_args_desktop_only("engine_missions_progress", &serde_json::json!({ "sub": "sync" })));
+        assert!(!web_args_desktop_only("engine_missions_progress", &serde_json::json!({ "sub": "metrics", "slug": "x" })));
+    }
+
+    #[test]
     fn the_web_allowlist_never_exposes_secrets_or_arbitrary_writes() {
         // A regression guard with teeth: these must never appear in the list,
         // however it is edited. Reading or setting the bridge password from a
@@ -1518,9 +1578,16 @@ mod tests {
             "bunker_set", "vault_lock_set", "engine_acts_approve", "engine_gws_approve",
             "engine_acts_deny", "engine_acts_rule_revoke",
             "engine_entity_note_append", "engine_entities_merge", "engine_entities_not_same",
-            "engine_entities_set_picture", "engine_entities_set_website", "engine_entities_add_file", "entities_note", "entities_save", "goals_file_write",
+            "engine_entities_set_picture", "engine_entities_set_website", "engine_entities_rename", "engine_entities_add_file", "entities_note", "entities_save", "goals_file_write",
             "engine_entities_set_relation", "engine_config_autosave_set", "engine_config_autosave_get",
             "engine_projects_create", "engine_projects_set", "engine_suggest_accept", "engine_suggest_dismiss",
+            "engine_missions_create", "engine_missions_set", "engine_missions_attach", "engine_missions_milestone",
+            "engine_missions_budget", "engine_missions_state", "engine_missions_log", "engine_missions_closeout_plan",
+            "engine_missions_closeout_apply", "engine_missions_undo", "engine_missions_draft", "engine_missions_create_from_draft",
+            "engine_playbook_save", "engine_playbook_adopt", "engine_playbook_run",
+            "engine_job_act", "engine_playbook_seen", "engine_playbook_trigger",
+            "engine_initiatives_generate", "engine_initiative_choose", "engine_initiative_retire", "engine_initiatives_review",
+            "engine_story_write", "engine_experiment", "engine_time_hold",
             "engine_schedule_thread_add", "engine_schedule_set_enabled", "engine_schedule_remove",
             "engine_schedule_run",
             "engine_agent_run", "read_file", "read_text_file",
@@ -1529,6 +1596,7 @@ mod tests {
             "engine_app_set_runtime", "engine_app_set_enabled", "engine_app_sync",
             "engine_autonomy_set", "engine_budget_set", "engine_lock_set", "autonomy_policy_set",
             "google_scaffold", "open_in_finder", "mirror_generate", "mirror_refresh",
+            "engine_after_turn", "engine_touch_undo", "engine_decision_undo", "engine_compass_yearly_save",
         ] {
             assert!(!WEBUI_ALLOWED.contains(&banned), "{banned} must not be web-invokable");
         }

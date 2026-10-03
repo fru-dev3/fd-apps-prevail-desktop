@@ -8,7 +8,7 @@ import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
 import { requestEntity, type EntityKindName } from "./entitystore";
 import { MIRROR_SELECT_KEY } from "./appsmirror-parts";
-import { openStructure } from "./trackedprojects";
+import { openStructure } from "./missions";
 
 export type RecCategory = "rules" | "projects" | "structure" | "apps" | "people" | "models" | "context";
 export type SpineKey = "all" | "start" | RecCategory;
@@ -42,7 +42,7 @@ export const SPINE: { key: SpineKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "start", label: "Start here" },
   { key: "rules", label: "Rules" },
-  { key: "projects", label: "Projects" },
+  { key: "projects", label: "Prompt groups" },
   { key: "structure", label: "Structure" },
   { key: "apps", label: "Apps" },
   { key: "people", label: "People and places" },

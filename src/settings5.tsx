@@ -41,22 +41,22 @@ export function GatewayLogsCard({ vaultPath }: { vaultPath: string }) {
   const load = () => { invoke<string[]>("gateway_log_read", { vault: vaultPath, limit: 300 }).then((l) => setLines(Array.isArray(l) ? l : [])).catch(() => setLines([])); };
   useEffect(() => { if (open) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open, vaultPath]);
   return (
-    <div className="mt-6 rounded-xl border border-border bg-surface">
+    <div className="mt-6 ">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-left">
         <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? "rotate-90" : ""}`} />
         <span className="text-sm font-semibold">Gateway logs</span>
-        <span className="rounded-full bg-surface-warm px-2 py-0.5 text-[11px] text-text-secondary">{lines.length}</span>
-        <span className="ml-auto text-[11px] text-text-muted">Kept on disk</span>
+        <span className="rounded-full bg-surface-warm px-2 py-0.5 text-[12px] text-text-secondary">{lines.length}</span>
+        <span className="ml-auto text-[12px] text-text-muted">Kept on disk</span>
       </button>
       {open && (
         <div className="border-t border-border-subtle p-3">
           <div className="mb-2 flex items-center gap-2">
-            <button onClick={load} className="rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">Refresh</button>
-            <button onClick={() => { invoke("gateway_log_clear", { vault: vaultPath }).then(load).catch(() => {}); }} className="rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:border-err hover:text-err">Clear</button>
+            <button onClick={load} className="rounded-md border border-border px-2.5 py-1 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent">Refresh</button>
+            <button onClick={() => { invoke("gateway_log_clear", { vault: vaultPath }).then(load).catch(() => {}); }} className="rounded-md border border-border px-2.5 py-1 text-[12px] text-text-muted hover:border-err hover:text-err">Clear</button>
           </div>
           {lines.length === 0
             ? <div className="px-1 py-2 text-xs text-text-muted">No gateway activity logged yet. Start a bridge (Telegram, etc.) and events appear here, kept across restarts.</div>
-            : <pre className="max-h-72 overflow-auto rounded-md border border-border-subtle bg-background p-2 text-[11px] leading-relaxed text-text-secondary">{lines.join("\n")}</pre>}
+            : <pre className="max-h-72 overflow-auto rounded-md border border-border-subtle bg-background p-2 text-[12px] leading-relaxed text-text-secondary">{lines.join("\n")}</pre>}
         </div>
       )}
     </div>
@@ -124,7 +124,7 @@ export function GatewaySection() {
               <div key={g.name} className={SETTINGS_ROW}>
                 <GatewayMark icon={g.icon} mono={g.mono} />
                 <span className="flex-1 text-sm text-text-secondary">{g.name}</span>
-                <span className="font-mono text-[11px] text-text-muted">Native pending</span>
+                <span className="font-mono text-[12px] text-text-muted">Native pending</span>
               </div>
             ))}
           </div>
@@ -286,7 +286,7 @@ export function TelegramCard() {
     // TG-1: cleaner top-to-bottom flow - header carries the live status; setup
     // (credentials + routing) is one labelled block; one primary action row;
     // running stats + feed only appear when relevant; help is a quiet footer.
-    <div className="rounded-xl border border-border bg-surface p-5">
+    <div className="border-t border-border-subtle pt-4">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#229ED9]/15">
           <svg width={20} height={20} viewBox="0 0 24 24" fill="#229ED9" aria-hidden><path d={siTelegram.path} /></svg>
@@ -295,7 +295,7 @@ export function TelegramCard() {
           <h3 className="font-semibold">Telegram bridge</h3>
           <p className="text-xs text-text-muted">Two-way chat: messages to your bot route to the chosen model and the reply is pushed back.</p>
         </div>
-        <span className={`shrink-0 self-start rounded-full px-2 py-0.5 text-[11px] ${
+        <span className={`shrink-0 self-start rounded-full px-2 py-0.5 text-[12px] ${
           bridge?.running ? "border border-accent-border bg-accent-soft text-accent" : "border border-border bg-background text-text-muted"
         }`}>
           {bridge?.running ? "● live" : "○ stopped"}
@@ -307,21 +307,21 @@ export function TelegramCard() {
         <div className="rounded-lg border border-border bg-background p-4">
           <div className="space-y-3">
             <label className="block">
-              <div className="flex items-center gap-2 text-[11px] text-text-muted">
+              <div className="flex items-center gap-2 text-[12px] text-text-muted">
                 Bot token
-                {tokenSaved && <span className="rounded-full bg-accent-soft px-1.5 py-0 font-mono text-[10px] tracking-wider text-accent">In keychain</span>}
+                {tokenSaved && <span className="rounded-full bg-accent-soft px-1.5 py-0 font-mono text-[12px] tracking-wider text-accent">In keychain</span>}
               </div>
               <input type="password" value={token} onChange={(e) => setToken(e.target.value)}
                 placeholder={tokenSaved ? "•••••••• (type to replace)" : "123456:ABC-XYZ…"}
                 className="mt-1 w-full rounded border border-border bg-surface px-3 py-2 font-mono text-sm focus:border-accent-border focus:outline-none" spellCheck={false} />
             </label>
             <label className="block">
-              <div className="text-[11px] text-text-muted">Chat ID</div>
+              <div className="text-[12px] text-text-muted">Chat ID</div>
               <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="-1001234567890"
                 className="mt-1 w-full rounded border border-border bg-surface px-3 py-2 font-mono text-sm focus:border-accent-border focus:outline-none" spellCheck={false} />
             </label>
             <label className="block">
-              <div className="text-[11px] text-text-muted">Route to model</div>
+              <div className="text-[12px] text-text-muted">Route to model</div>
               <select value={bridgeCli} onChange={(e) => setBridgeCli(e.target.value)}
                 className="mt-1 w-full rounded border border-border bg-surface px-2 py-2 text-sm focus:border-accent-border focus:outline-none">
                 {routableClis.length === 0 ? (
@@ -334,7 +334,7 @@ export function TelegramCard() {
               </select>
             </label>
             <label className="block">
-              <div className="text-[11px] text-text-muted">Model</div>
+              <div className="text-[12px] text-text-muted">Model</div>
               <select value={bridgeModel} onChange={(e) => setBridgeModel(e.target.value)}
                 className="mt-1 w-full rounded border border-border bg-surface px-2 py-2 text-sm focus:border-accent-border focus:outline-none">
                 <option value="">{`Provider default (${modelsFor(bridgeCli)[0]?.label ?? "default"})`}</option>
@@ -359,7 +359,7 @@ export function TelegramCard() {
           {status.kind === "ok" && <span className="text-xs text-ok"><Check className="mr-1 inline h-3 w-3" />{status.msg}</span>}
           {status.kind === "err" && <span className="text-xs text-warn">{status.msg}</span>}
           {bridge?.running && (
-            <span className="ml-auto font-mono text-[10px] text-text-muted">
+            <span className="ml-auto font-mono text-[12px] text-text-muted">
               in {bridge.inbound_count} · out {bridge.outbound_count}{bridge.last_inbound_ts ? ` · last ${Math.round((Date.now() / 1000 - bridge.last_inbound_ts))}s ago` : ""}
             </span>
           )}
@@ -372,7 +372,7 @@ export function TelegramCard() {
         {feed.length > 0 && (
           <ul className="max-h-40 overflow-y-auto rounded-lg border border-border-subtle bg-background px-2 py-1.5">
             {feed.map((f, i) => (
-              <li key={i} className="font-mono text-[10px] leading-relaxed">
+              <li key={i} className="font-mono text-[12px] leading-relaxed">
                 <span className={f.dir === "in" ? "text-accent" : "text-text-muted"}>{f.dir === "in" ? "▶" : "◀"}</span>{" "}
                 <span className={f.dir === "in" ? "text-text-primary" : "text-text-secondary"}>{f.text.slice(0, 200)}{f.text.length > 200 ? "…" : ""}</span>
               </li>
@@ -381,7 +381,7 @@ export function TelegramCard() {
         )}
 
         {/* Quiet footer: routing + setup help. */}
-        <p className="text-[11px] leading-relaxed text-text-muted">
+        <p className="text-[12px] leading-relaxed text-text-muted">
           Inbound messages route to a domain by its keywords (set per-domain under <span className="font-mono text-text-secondary">Domain → Prefs → Channels &amp; routing</span>).
           {" "}New to bots? <a href="https://core.telegram.org/bots/features#botfather" target="_blank" rel="noreferrer" className="text-accent hover:underline">Create one via @BotFather</a>, then use getUpdates to find your chat ID.
         </p>
@@ -461,7 +461,7 @@ export function WebhookCard() {
 
   const running = !!bridge?.running;
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="border-t border-border-subtle pt-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <GatewayMark mono={Webhook} />
@@ -490,18 +490,18 @@ export function WebhookCard() {
         <div className="flex items-center gap-2">
           <span className={secretSaved ? "text-ok" : "text-text-muted"}>{secretSaved ? "✓ stored in Keychain" : "none yet"}</span>
           <button onClick={generateSecret} disabled={running}
-            className="rounded border border-border px-2 py-0.5 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
+            className="rounded border border-border px-2 py-0.5 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">
             {secretSaved ? "regenerate" : "generate"}
           </button>
         </div>
       </div>
 
-      <div className="mt-3 rounded-md border border-border-subtle bg-background px-3 py-2 text-[11px] text-text-muted">
+      <div className="mt-3 rounded-md border border-border-subtle bg-background px-3 py-2 text-[12px] text-text-muted">
         curl -s 127.0.0.1:{port || "8765"}/hook -H "Authorization: Bearer &lt;secret&gt;" \<br />
         &nbsp;&nbsp;-d '{`{"message":"how's my runway?","domain":"wealth"}`}'
       </div>
       {running && bridge && (
-        <div className="mt-2 font-mono text-[10px] text-text-muted">in {bridge.inbound_count ?? 0} · out {bridge.outbound_count ?? 0}{bridge.last_error ? ` · err: ${bridge.last_error.slice(0, 50)}` : ""}</div>
+        <div className="mt-2 font-mono text-[12px] text-text-muted">in {bridge.inbound_count ?? 0} · out {bridge.outbound_count ?? 0}{bridge.last_error ? ` · err: ${bridge.last_error.slice(0, 50)}` : ""}</div>
       )}
       {status.msg && <div className={`mt-2 text-xs ${status.kind === "err" ? "text-err" : status.kind === "ok" ? "text-ok" : "text-text-muted"}`}>{status.msg}</div>}
     </div>
@@ -574,7 +574,7 @@ export function NativeBridgeCard({ platform, label, icon, mono, urlLabel, urlPla
 
   const running = !!bridge?.running;
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="border-t border-border-subtle pt-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <GatewayMark icon={icon} mono={mono} />
@@ -597,7 +597,7 @@ export function NativeBridgeCard({ platform, label, icon, mono, urlLabel, urlPla
           <div className="flex items-center gap-2">
             <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={tokenSaved ? "saved · replace…" : "access token"} disabled={running}
               className="flex-1 rounded-md border border-border bg-background px-2 py-1 focus:border-accent-border focus:outline-none disabled:opacity-60" />
-            {tokenSaved && <span className="font-mono text-[11px] text-ok">Stored</span>}
+            {tokenSaved && <span className="font-mono text-[12px] text-ok">Stored</span>}
           </div>
         </>}
         <span className="text-text-muted">Model</span>
@@ -607,7 +607,7 @@ export function NativeBridgeCard({ platform, label, icon, mono, urlLabel, urlPla
         </select>
       </div>
       {running && bridge && (
-        <div className="mt-2 text-[11px] text-text-muted">in {bridge.inbound_count ?? 0} · out {bridge.outbound_count ?? 0}{bridge.last_error ? ` · err: ${bridge.last_error.slice(0, 50)}` : ""}</div>
+        <div className="mt-2 text-[12px] text-text-muted">in {bridge.inbound_count ?? 0} · out {bridge.outbound_count ?? 0}{bridge.last_error ? ` · err: ${bridge.last_error.slice(0, 50)}` : ""}</div>
       )}
       {status.msg && <div className={`mt-2 text-xs ${status.kind === "err" ? "text-err" : "text-text-muted"}`}>{status.msg}</div>}
     </div>
@@ -629,7 +629,7 @@ function useBridgeCli(key: string) {
 }
 function BridgeFooter({ bridge, status }: { bridge: TgBridgeStatus | null; status: { kind: string; msg: string } }) {
   return (<>
-    {bridge?.running && <div className="mt-2 font-mono text-[10px] text-text-muted">in {bridge.inbound_count ?? 0} · out {bridge.outbound_count ?? 0}{bridge.last_error ? ` · err: ${bridge.last_error.slice(0, 50)}` : ""}</div>}
+    {bridge?.running && <div className="mt-2 font-mono text-[12px] text-text-muted">in {bridge.inbound_count ?? 0} · out {bridge.outbound_count ?? 0}{bridge.last_error ? ` · err: ${bridge.last_error.slice(0, 50)}` : ""}</div>}
     {status.msg && <div className={`mt-2 text-xs ${status.kind === "err" ? "text-err" : "text-text-muted"}`}>{status.msg}</div>}
   </>);
 }
@@ -665,7 +665,7 @@ export function DiscordCard() {
   }
   const running = !!bridge?.running;
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="border-t border-border-subtle pt-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5"><GatewayMark icon={siDiscord} /><div>
           <div className="text-sm font-semibold text-text-primary">Discord</div>
@@ -675,7 +675,7 @@ export function DiscordCard() {
       </div>
       <div className="mt-3 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-xs">
         <span className="text-text-muted">Bot token</span>
-        <div className="flex items-center gap-2"><input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={saved ? "saved · replace…" : "bot token"} disabled={running} className={`flex-1 ${FIELD}`} />{saved && <span className="font-mono text-[11px] text-ok">Stored</span>}</div>
+        <div className="flex items-center gap-2"><input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={saved ? "saved · replace…" : "bot token"} disabled={running} className={`flex-1 ${FIELD}`} />{saved && <span className="font-mono text-[12px] text-ok">Stored</span>}</div>
         <span className="text-text-muted">Channel ID</span>
         <input value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="123456789012345678" disabled={running} className={`font-mono ${FIELD}`} />
         <span className="text-text-muted">Model</span>
@@ -711,7 +711,7 @@ export function SlackCard() {
   }
   const running = !!bridge?.running;
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="border-t border-border-subtle pt-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5"><GatewayMark mono={MessagesSquare} /><div>
           <div className="text-sm font-semibold text-text-primary">Slack</div>
@@ -721,9 +721,9 @@ export function SlackCard() {
       </div>
       <div className="mt-3 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-xs">
         <span className="text-text-muted">App token</span>
-        <div className="flex items-center gap-2"><input type="password" value={appTok} onChange={(e) => setAppTok(e.target.value)} placeholder={appSaved ? "saved · replace…" : "xapp-…"} disabled={running} className={`flex-1 ${FIELD}`} />{appSaved && <span className="font-mono text-[11px] text-ok">Stored</span>}</div>
+        <div className="flex items-center gap-2"><input type="password" value={appTok} onChange={(e) => setAppTok(e.target.value)} placeholder={appSaved ? "saved · replace…" : "xapp-…"} disabled={running} className={`flex-1 ${FIELD}`} />{appSaved && <span className="font-mono text-[12px] text-ok">Stored</span>}</div>
         <span className="text-text-muted">Bot token</span>
-        <div className="flex items-center gap-2"><input type="password" value={botTok} onChange={(e) => setBotTok(e.target.value)} placeholder={botSaved ? "saved · replace…" : "xoxb-…"} disabled={running} className={`flex-1 ${FIELD}`} />{botSaved && <span className="font-mono text-[11px] text-ok">Stored</span>}</div>
+        <div className="flex items-center gap-2"><input type="password" value={botTok} onChange={(e) => setBotTok(e.target.value)} placeholder={botSaved ? "saved · replace…" : "xoxb-…"} disabled={running} className={`flex-1 ${FIELD}`} />{botSaved && <span className="font-mono text-[12px] text-ok">Stored</span>}</div>
         <span className="text-text-muted">Channel ID</span>
         <input value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="C0123456789" disabled={running} className={`font-mono ${FIELD}`} />
         <span className="text-text-muted">Model</span>
@@ -762,7 +762,7 @@ export function EmailCard() {
   }
   const running = !!bridge?.running;
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="border-t border-border-subtle pt-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5"><GatewayMark mono={Mail} /><div>
           <div className="text-sm font-semibold text-text-primary">Email</div>
@@ -776,7 +776,7 @@ export function EmailCard() {
         <span className="text-text-muted">Username</span><input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="you@gmail.com" disabled={running} className={FIELD} />
         <span className="text-text-muted">From address</span><input value={fromAddr} onChange={(e) => setFromAddr(e.target.value)} placeholder="you@gmail.com" disabled={running} className={FIELD} />
         <span className="text-text-muted">Password</span>
-        <div className="flex items-center gap-2"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={pwSaved ? "saved · replace…" : "app password"} disabled={running} className={`flex-1 ${FIELD}`} />{pwSaved && <span className="font-mono text-[11px] text-ok">Stored</span>}</div>
+        <div className="flex items-center gap-2"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={pwSaved ? "saved · replace…" : "app password"} disabled={running} className={`flex-1 ${FIELD}`} />{pwSaved && <span className="font-mono text-[12px] text-ok">Stored</span>}</div>
         <span className="text-text-muted">Model</span><CliSelect cli={cli} setCli={setCli} routable={routable} disabled={running} />
       </div>
       <BridgeFooter bridge={bridge} status={status} />
@@ -788,14 +788,14 @@ export function McpCard() {
   const [enabled, setEnabled] = useState(lsGet(LS.mcpEnabled) === "1");
   useEffect(() => { lsSet(LS.mcpEnabled, enabled ? "1" : ""); }, [enabled]);
   return (
-    <div className="rounded-xl border border-border bg-surface p-5">
+    <div className="border-t border-border-subtle pt-4">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-ai/15 text-ai">
           <Network className="h-5 w-5" />
         </div>
         <div>
           <h3 className="font-semibold">
-            MCP server <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">Preview</span>
+            MCP server <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[12px] text-warn">Preview</span>
           </h3>
           <p className="text-xs text-text-muted">Expose your vault to Claude Desktop or any MCP client over localhost.</p>
         </div>
@@ -888,14 +888,14 @@ export function McpSection({ vaultPath }: { vaultPath: string }) {
     <>
       <SettingsHeader title="MCP" icon={Wrench} subtitle="Drive your vault from another AI tool, with no UI." />
       <div className="mb-5">
-        <div className="mb-2 text-[11px] font-bold text-text-primary">Connected servers (Prevail consumes)</div>
+        <div className="mb-2 text-[14px] font-semibold text-text-primary">Connected servers (Prevail consumes)</div>
         <McpCard />
       </div>
-      <div className="rounded-lg border border-border bg-surface p-5">
-        <div className="mb-1 text-[11px] font-bold text-text-primary">Expose Prevail to your agent</div>
+      <div className="border-t border-border-subtle pt-4">
+        <div className="mb-1 text-[14px] font-semibold text-text-primary">Expose Prevail to your agent</div>
         <div className="mb-3 text-xs text-text-secondary">Copy the config into your tool and restart it, then test the handshake.</div>
         {mcpPathUnstable && (
-          <div className="mb-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-[11px] text-warn">
+          <div className="mb-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-[12px] text-warn">
             <div className="mb-2 font-medium">Prevail is not in your Applications folder.</div>
             <div className="mb-2">MCP requires a stable path. Move Prevail.app to /Applications/ once and this resolves permanently.</div>
             <div className="flex flex-wrap items-center gap-2">
@@ -910,17 +910,17 @@ export function McpSection({ vaultPath }: { vaultPath: string }) {
                   setMoving(false);
                 }}
                 disabled={moving || !enginePath}
-                className="inline-flex items-center gap-1.5 rounded border border-warn bg-warn/20 px-2.5 py-1 text-[11px] font-semibold hover:bg-warn/30 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded border border-warn bg-warn/20 px-2.5 py-1 text-[12px] font-semibold hover:bg-warn/30 disabled:opacity-50"
               >
                 {moving ? "Moving…" : "Move to Applications automatically"}
               </button>
               <button
                 onClick={() => invoke("open_in_finder", { path: "/Applications" }).catch(() => {})}
-                className="inline-flex items-center gap-1.5 rounded border border-warn/40 bg-warn/10 px-2.5 py-1 text-[11px] hover:bg-warn/20"
+                className="inline-flex items-center gap-1.5 rounded border border-warn/40 bg-warn/10 px-2.5 py-1 text-[12px] hover:bg-warn/20"
               >
                 <Folder className="h-3 w-3" /> Open Applications folder
               </button>
-              {moveMsg && <span className="w-full text-[11px]">{moveMsg}</span>}
+              {moveMsg && <span className="w-full text-[12px]">{moveMsg}</span>}
             </div>
           </div>
         )}
@@ -932,20 +932,20 @@ export function McpSection({ vaultPath }: { vaultPath: string }) {
             </button>
           ))}
         </div>
-        <pre className="overflow-auto rounded-md border border-border-subtle bg-background p-3 text-[11px] text-text-secondary whitespace-pre-wrap">{active.body}</pre>
-        <div className="mt-1.5 text-[11px] text-text-muted">{active.note}</div>
+        <pre className="overflow-auto rounded-md border border-border-subtle bg-background p-3 text-[12px] text-text-secondary whitespace-pre-wrap">{active.body}</pre>
+        <div className="mt-1.5 text-[12px] text-text-muted">{active.note}</div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button onClick={() => { navigator.clipboard.writeText(active.body).catch(() => {}); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] text-text-muted hover:border-accent-border hover:text-accent">
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-text-muted hover:border-accent-border hover:text-accent">
             {copied ? "Copied" : `Copy ${active.kind === "shell" ? "command" : "config"}`}
           </button>
           <button onClick={runHandshake} disabled={testing}
-            className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-3 py-1.5 text-[11px] text-accent hover:bg-accent hover:text-background disabled:opacity-50">
+            className="inline-flex items-center gap-1.5 rounded-md border border-accent-border bg-accent-soft px-3 py-1.5 text-[12px] text-accent hover:bg-accent hover:text-background disabled:opacity-50">
             {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
             {testing ? "Testing…" : "Test handshake"}
           </button>
           {handshake && (
-            <span className={`font-mono text-[11px] ${handshake.ok ? "text-ok" : "text-warn"}`}>
+            <span className={`font-mono text-[12px] ${handshake.ok ? "text-ok" : "text-warn"}`}>
               {handshake.ok ? "✓ " : "✗ "}{handshake.msg}
             </span>
           )}
@@ -1133,7 +1133,7 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
       const json = await invoke<string>("read_text_file", { path });
       const cfg = JSON.parse(json) as Record<string, string>;
       // An imported file must NOT silently relax safety settings or inject
-      // credentials — reject security prefs + secrets (O61).
+      // credentials, reject security prefs + secrets (O61).
       const BLOCKED = /(pref\.bunkerMode|pref\.redactSecrets|pref\.approvalMode|pref\.allowPrivateUrls|pass|token|secret|api[_-]?key|webui)/i;
       for (const [k, v] of Object.entries(cfg)) {
         if (!k.startsWith("prevail.") || BLOCKED.test(k)) continue;
@@ -1291,11 +1291,11 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
               : checking ? "Checking…" : readyToInstall ? "Install update" : "Check for updates"}
           </button>
           {latest ? (
-            <span className={`font-mono text-[10px] ${upToDate ? "text-accent" : "text-warn"}`}>
+            <span className={`font-mono text-[12px] ${upToDate ? "text-accent" : "text-warn"}`}>
               {upToDate ? `latest (${latest})` : newer ? `update ready: ${latest}` : `latest: ${latest}`}
             </span>
           ) : (
-            <span className="font-mono text-[10px] text-text-muted">In-place updates</span>
+            <span className="font-mono text-[12px] text-text-muted">In-place updates</span>
           )}
         </div>
         {/* In-place download progress bar. */}
@@ -1308,7 +1308,7 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
           <div className="flex w-full flex-wrap items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-3 py-1.5 text-xs text-warn">
             <span className="min-w-0 flex-1">{checkErr}</span>
             {manualUrl && (
-              <a href={manualUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded border border-warn/50 bg-warn/10 px-2 py-0.5 text-[11px] hover:bg-warn/20">
+              <a href={manualUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded border border-warn/50 bg-warn/10 px-2 py-0.5 text-[12px] hover:bg-warn/20">
                 Download manually ›
               </a>
             )}
@@ -1335,8 +1335,8 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
       </div>
 
       {/* Beta / liability disclaimer */}
-      <div className="mt-3 rounded-xl border border-border bg-surface px-4 py-3 shadow-sm">
-        <div className="mb-1.5 text-[11px] font-bold text-text-primary">Beta software</div>
+      <div className="mt-3 border-t border-border-subtle pt-3">
+        <div className="mb-1.5 text-[14px] font-semibold text-text-primary">Beta software</div>
         <p className="text-xs leading-relaxed text-text-secondary">
           Prevail is a beta release. It is provided "as is",
           without warranty of any kind, express or implied, and you use it at your own risk. The authors are not liable
@@ -1355,8 +1355,8 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
       </div>
 
       {/* Config - export / import / reset */}
-      <div className="mt-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
-        <div className="mb-3 text-[11px] font-bold text-text-primary">Configuration</div>
+      <div className="mt-3 border-t border-border-subtle pt-4">
+        <div className="mb-3 text-[14px] font-semibold text-text-primary">Configuration</div>
         <div className="flex flex-wrap gap-2">
           <button onClick={exportConfig}
             className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-text-secondary hover:border-accent-border hover:text-accent">Export config…</button>
@@ -1369,9 +1369,9 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
       </div>
 
       {/* Diagnostics - a real health check, one row per thing Prevail needs. */}
-      <div className="mt-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
+      <div className="mt-3 border-t border-border-subtle pt-4">
         <div className="mb-1 flex items-center justify-between">
-          <div className="font-mono text-[11px] font-bold text-text-primary">Health check</div>
+          <div className="font-mono text-[14px] font-semibold text-text-primary">Health check</div>
           <div className="flex gap-2">
             <button onClick={runDiagnosis} disabled={diagRunning}
               className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-50">{diagRunning ? "Checking…" : "Run check"}</button>
@@ -1391,10 +1391,10 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
                 }`}>{c.status === "ok" ? "✓" : c.status === "fail" ? "✗" : c.status === "warn" ? "!" : "·"}</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[11px] font-semibold text-text-primary">{c.label}</span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary" title={c.detail}>{c.detail}</span>
+                    <span className="text-[12px] font-semibold text-text-primary">{c.label}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-text-secondary" title={c.detail}>{c.detail}</span>
                   </div>
-                  <div className="text-[11px] leading-snug text-text-muted">{c.why}</div>
+                  <div className="text-[12px] leading-snug text-text-muted">{c.why}</div>
                 </div>
               </div>
             ))}
@@ -1404,7 +1404,7 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
 
       {/* Danger zone - uninstall (never touches the vault) */}
       <div className="mt-3 rounded-xl border border-warn/30 bg-warn/5 p-4">
-        <div className="mb-1 text-[11px] text-warn">Danger zone</div>
+        <div className="mb-1 text-[12px] text-warn">Danger zone</div>
         <div className="mb-3 text-xs text-text-secondary">Removes the app and its data. Your vault is never deleted.</div>
         <div className="flex flex-col gap-2">
           <button onClick={() => uninstall("app")}
@@ -1420,7 +1420,7 @@ export function AboutSection({ vaultPath }: { vaultPath: string }) {
         </div>
       </div>
 
-      <div className="mt-6 flex items-center justify-between gap-3 px-1 text-[11px] text-text-muted">
+      <div className="mt-6 flex items-center justify-between gap-3 px-1 text-[12px] text-text-muted">
         <span>GPL-3.0 licensed · Open source</span>
         <span>Local-first · Vault stays on this Mac</span>
       </div>

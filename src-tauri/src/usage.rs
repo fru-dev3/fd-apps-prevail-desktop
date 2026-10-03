@@ -35,6 +35,10 @@ pub(crate) struct UsageRecord {
     #[serde(default)]
     pub cost_usd: Option<f64>,
     pub ok: bool,
+    /// "estimated" when the counts are a character estimate (the engine's
+    /// chat usage event says so); the engine then records them as estimates.
+    #[serde(default)]
+    pub token_source: Option<String>,
 }
 
 // Translate a desktop UsageRecord into the engine's `usage record` stdin input
@@ -51,6 +55,7 @@ pub(crate) fn usage_record_payload(r: &UsageRecord) -> serde_json::Value {
         "outputTokens": r.output_tokens.unwrap_or(0),
         "billed": false,
         "ts": r.ts,
+        "tokenSource": r.token_source,
     })
 }
 
@@ -149,6 +154,44 @@ fn usage_summary_inner(vault: &str, domain: Option<&str>) -> Result<UsageSummary
 pub(crate) fn usage_entries(vault: String) -> Result<serde_json::Value, String> {
     let out = engine::run_engine_json(&["--vault", &vault, "usage", "entries", "--json"])?;
     Ok(out)
+}
+
+/// Every AI tool's usage this month, read by the engine from the tools' own
+/// local records on every machine (tokens, API-equivalent cost, what the
+/// tool reported, what is paid). `month` is YYYY-MM; omitted = this month.
+#[tauri::command(async)]
+pub(crate) fn engine_ai_usage(vault: String, month: Option<String>) -> Result<serde_json::Value, String> {
+    let mut args: Vec<&str> = vec!["--vault", &vault, "ai", "usage", "--json"];
+    let m = month.unwrap_or_default();
+    if !m.is_empty() {
+        if !(m.len() == 7 && m.as_bytes()[4] == b'-' && m.chars().filter(|c| c.is_ascii_digit()).count() == 6) {
+            return Err(format!("month must be YYYY-MM: {m}"));
+        }
+        args.push("--month");
+        args.push(&m);
+    }
+    engine::run_engine_json(&args)
+}
+
+/// Metrics (engine `prevail metrics`): this week at a glance, every metric
+/// with its tier, coverage and sources, or the rhythm plot's dots. The engine
+/// reads the per-host events and the vault's own files and computes them.
+#[tauri::command(async)]
+pub(crate) fn engine_metrics(vault: String, view: String, week: Option<String>) -> Result<serde_json::Value, String> {
+    let sub = match view.as_str() {
+        "glance" | "list" | "rhythm" | "sources" | "lived" | "guardrails" | "lags" | "proxies" | "themes" | "hypotheses" | "seasons" => view.as_str(),
+        _ => return Err(format!("unknown metrics view: {view}")),
+    };
+    let mut args: Vec<&str> = vec!["--vault", &vault, "metrics", sub, "--json"];
+    let w = week.unwrap_or_default();
+    if sub == "glance" && !w.is_empty() {
+        if !(w.len() == 10 && w.as_bytes()[4] == b'-' && w.as_bytes()[7] == b'-') {
+            return Err(format!("week must be YYYY-MM-DD: {w}"));
+        }
+        args.push("--week");
+        args.push(&w);
+    }
+    engine::run_engine_json(&args)
 }
 
 #[tauri::command(async)]

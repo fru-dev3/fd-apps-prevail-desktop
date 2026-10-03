@@ -29,11 +29,11 @@ export async function loadDuplicates(vault: string): Promise<DupPair[]> {
 
 function Side({ s, keep }: { s: DupSide; keep: boolean }) {
   return (
-    <div className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2.5 ${keep ? "border-accent-border bg-accent-soft/40" : "border-border"}`}>
+    <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
       <KindBadge kind={s.kind} name={s.name} size={36} entity={entitySnapshot().byId.get(s.id)} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold text-text-primary">{s.name}</span>
-        <span className="block text-[13px] text-text-muted">{KIND_LABEL[s.kind] ?? s.kind} · {s.mentions} {s.mentions === 1 ? "mention" : "mentions"}</span>
+        <span className="block truncate text-[15px] font-medium text-text-primary" title={s.name}>{s.name}</span>
+        <span className="block text-[12px] text-text-muted">{KIND_LABEL[s.kind] ?? s.kind} · {s.mentions} {s.mentions === 1 ? "mention" : "mentions"}</span>
       </span>
       {keep && <span className="shrink-0 text-[12px] font-medium text-accent">Keep</span>}
     </div>
@@ -59,20 +59,20 @@ function PairCard({ vault, p, onDone }: { vault: string; p: DupPair; onDone: (pa
   };
   const other = keep === "a" ? p.b : p.a;
   return (
-    <li data-testid="dup-pair" className="rounded-xl border border-border p-4">
+    <li data-testid="dup-pair" className="border-b border-border-subtle py-4 last:border-b-0">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Side s={p.a} keep={keep === "a"} />
         <ArrowLeftRight className="h-4 w-4 shrink-0 self-center text-text-muted" aria-hidden />
         <Side s={p.b} keep={keep === "b"} />
       </div>
-      <p className="mt-3 text-[14px] text-text-secondary">{p.reason}</p>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <p className="mt-1 text-[12px] text-text-muted">{p.reason}</p>
+      <div className="mt-2.5 flex flex-wrap items-center gap-4">
         <button onClick={() => void run("merge")} disabled={busy !== null} data-testid="dup-merge"
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[14px] font-medium text-white hover:bg-accent-hover disabled:opacity-60">
-          {busy === "merge" && <Loader2 className="h-4 w-4 animate-spin" />}Merge
+          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60">
+          {busy === "merge" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Merge
         </button>
         <button onClick={() => void run("not")} disabled={busy !== null} data-testid="dup-not-same"
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[14px] font-medium text-text-secondary hover:border-accent-border hover:text-accent disabled:opacity-60">
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-text-secondary hover:text-text-primary disabled:opacity-60">
           {busy === "not" && <Loader2 className="h-4 w-4 animate-spin" />}Not the same
         </button>
         <button onClick={() => setKeep((k) => (k === "a" ? "b" : "a"))} disabled={busy !== null} data-testid="dup-flip"
@@ -89,10 +89,10 @@ export function DuplicatesPane({ vault, pairs, onDone }: { vault: string; pairs:
   return (
     <div data-testid="entity-duplicates" className="min-h-0 flex-1 overflow-y-auto">
       <DetailTitle>Possible duplicates</DetailTitle>
-      <p className="mt-1 text-[14px] text-text-muted">Each pair may be one entity. Merging keeps both names, every mention and your notes.</p>
+      <p className="mt-1 text-[12px] text-text-muted">Each pair may be one entity. Merging keeps both names, every mention and your notes.</p>
       {pairs.length === 0
-        ? <p className="mt-6 text-[15px] text-text-muted">Nothing left to review.</p>
-        : <ul className="mt-5 flex flex-col gap-3">{pairs.map((p) => <PairCard key={p.pair} vault={vault} p={p} onDone={onDone} />)}</ul>}
+        ? <p className="mt-4 text-[12px] text-text-muted">Nothing left to review.</p>
+        : <ul className="mt-2">{pairs.map((p) => <PairCard key={p.pair} vault={vault} p={p} onDone={onDone} />)}</ul>}
     </div>
   );
 }

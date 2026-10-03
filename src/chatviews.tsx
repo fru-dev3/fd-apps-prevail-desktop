@@ -1,14 +1,18 @@
 // Chat-display leaf components extracted from App.tsx: ChatBubble (one rendered
 // turn), MessageList (windowed transcript), DomainStatusBar, and DomainHome.
+import { JobCard } from "./jobcard";
+import { BringInCard, DomainMissions, MissionStartCard } from "./missioncards";
+import { filedIdOf, jobIdOf, toldIdOf } from "./plansmodel";
+import { DecisionOfferCard, FiledCard, ToldCard } from "./filedcard";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ReplyApps } from "./chatrefs";
-import { AcrossCard, TouchedLine } from "./linking";
+import { AcrossCard, DecisionReceipt, TouchedLine, undoDecision, undoTouched } from "./linking";
 import { ArrowRight, BookmarkPlus, Check, ChevronDown, ChevronRight, ListPlus, NotebookPen, Pin, Repeat, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { FRAMEWORKS, LENSES, MODELS } from "./constants";
 import { useIsPhone } from "./useisphone";
 import { titleCase } from "./format";
-import { splitThinking, vendorAccent } from "./helpers";
+import { splitThinking } from "./helpers";
 import { buildQuickActions, modelLabel } from "./helpers2";
 import { PREF, getDomainToggle, getPref, incognitoActive, isBunkerOn, setDomainToggle, setPref } from "./storage";
 import { ThinkingDisclosure, Toggle } from "./ui";
@@ -17,7 +21,8 @@ import { DomainAppsStrip, PreamblePicker, SkillsList, SurfacePanel, TasksPanel }
 import { domainIcon } from "./icons";
 import { ThinkingDots, ThinkingWord, useFrameworkLens } from "./hooks";
 import { extractCliError, renderSkillTokens } from "./textutil";
-import { ProviderMark } from "./marks";
+import { MemberMarker, ReplyMetaLine, SpeakerFace, memberName, type MemberMark } from "./groupchat";
+import { avatarColor } from "./specialistavatar";
 import { stripActMarkers } from "./waiting";
 import type { ChatMessage, DomainContextBundle, DomainToggle, RouteInfo } from "./types";
 
@@ -268,7 +273,10 @@ export function ChatBubble({
   onMakeSkill,
   onAddToEntityNotes,
   footer,
+  chief,
 }: {
+  // The chief of staff's name (the user's choice), for replies that carry no speaker.
+  chief?: string | null;
   // Entity chat: append this reply to the entity's "Your notes".
   onAddToEntityNotes?: (text: string) => void;
   // Rendered right under a user bubble (the routing chip row in General).
@@ -373,32 +381,26 @@ export function ChatBubble({
   const empty = !msg.content && !msg.streaming;
   // Per-provider brand color for the name + bubble accent so each
   // model's turns are visually distinguishable at a glance.
-  const { accent, tint } = vendorAccent(vendor);
+  // Who wrote it: the speaker the reply recorded, else the chief of staff.
+  const meta = msg.meta;
+  const speakerId = meta?.speaker ?? "chief";
+  const speakerName = speakerId === "chief" ? (chief || meta?.name || "Chief of staff") : (meta?.name ?? memberName(speakerId));
+  const accent = avatarColor(speakerId);
+  const tint = `color-mix(in oklch, ${accent} 12%, transparent)`;
   // The real failure reason from the CLI's stderr, if any.
   const cliError = empty ? extractCliError(msg.stderr) : null;
   // Brand styling only on normal replies - error bubbles keep the warn
   // palette so failures still read as failures.
-  const bubbleStyle: React.CSSProperties = empty
-    ? {}
-    : { borderLeftColor: accent, borderLeftWidth: 3, background: tint };
+  const bubbleStyle: React.CSSProperties = {};
   return (
     <div data-role="assistant" className="group mb-8 flex items-start gap-3">
-      {/* BP3 (clarified): the Prevail logo is the assistant identity; the provider
-          mark + model/lens/framework still appear as metadata in the header. */}
-      <img src="/logo.png" alt="Prevail" className="h-8 w-8 shrink-0 rounded-lg shadow-sm" />
+      {/* The speaker's own face: the chief of staff or the specialist who answered. */}
+      <span className="mt-0.5 shrink-0" data-testid="reply-speaker-face"><SpeakerFace id={speakerId} size={phone ? 26 : 30} working={!!msg.streaming} /></span>
       <div className="min-w-0 flex-1">
-        <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-text-secondary">
-          {/* The avatar already says this is the assistant; on a phone the word
-              is 70px of a row that has to fit a name, a model and a time. */}
-          {!phone && <span className="font-display font-semibold tracking-tight text-text-primary">Assistant</span>}
-          <ProviderMark vendor={vendor} size={14} />
-          <span className="font-display font-semibold tracking-tight" style={{ color: accent }}>{vendorName}</span>
-          {/* I9: which model + how it was shaped (framework/lens) - so each turn
-              is self-describing, not a mystery. */}
+        <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium text-text-secondary">
+          <span data-testid="reply-speaker" data-speaker={speakerId} className="text-[14px] font-semibold text-text-primary" title={`${vendorName}${msg.model ? ` · ${modelLabel(msg.cli, msg.model)}` : ""}`}>{speakerName}</span>
+          {meta && <ReplyMetaLine meta={{ ...meta, ...(msg.model && !meta.model ? { model: `${vendorName} · ${modelLabel(msg.cli, msg.model)}` } : {}) }} phone={phone} />}
           {msg.role === "assistant" && msg.route && <RouteChip route={msg.route} onRerun={onRetry} />}
-          {msg.role === "assistant" && msg.model && !msg.route && (
-            <span className="font-mono text-[11px] lowercase text-text-muted" title={`Model: ${msg.model}`}>{modelLabel(msg.cli, msg.model)}</span>
-          )}
           {/* "none" is the id of the no-framework and no-lens options, so these
               were rendering a NONE chip on almost every turn: two badges that
               only ever said "nothing was applied". Show them when something
@@ -446,11 +448,20 @@ export function ChatBubble({
             msg.role === "assistant" ? (() => {
               const showThinking = getPref(PREF.showThinking, "1") === "1";
               // The gate's approval marker is for the app, not the reader.
-              const { thinking, answer } = splitThinking(stripActMarkers(msg.content));
+              const tid = msg.told?.id ?? toldIdOf(msg.content);
+              const content0 = tid ? msg.content.replace(/\s*\[told:[A-Za-z0-9_-]+\]\s*$/, "") : msg.content;
+              const fid = msg.filed?.id ?? filedIdOf(content0);
+              const body0 = fid ? content0.replace(/\s*\[filed:[A-Za-z0-9_-]+\]\s*$/, "") : content0;
+              const jid = msg.jobId ?? jobIdOf(body0);
+              const { thinking, answer } = splitThinking(stripActMarkers(jid ? body0.replace(/\s*\[job:[A-Za-z0-9_-]+\]\s*$/, "") : body0));
               return (
                 <>
                   {showThinking && thinking && <ThinkingDisclosure text={thinking} open={!answer} />}
                   {answer ? (msg.streaming ? <StreamingPlain source={answer} /> : <Markdown source={answer} />) : (!thinking && msg.streaming ? <ThinkingDots /> : null)}
+                  {jid && <JobCard id={jid} />}
+                  {fid && <FiledCard id={fid} filed={msg.filed} />}
+                  {tid && <ToldCard id={tid} told={msg.told} />}
+                  {msg.decisionOffer && <DecisionOfferCard offer={msg.decisionOffer} />}
                 </>
               );
             })() : (
@@ -494,7 +505,20 @@ export function ChatBubble({
           )}
           {msg.streaming && msg.content && <span className="cursor-blink text-accent">▌</span>}
         </div>
-        {msg.role === "assistant" && msg.touched && <TouchedLine touched={msg.touched} />}
+        {msg.role === "assistant" && (() => {
+          // Receipts: what this turn noted in other domains and a decision it
+          // saved, live from the stream or kept with the turn; each with Undo.
+          const m = msg.meta;
+          const touched = msg.touched ?? (m?.noted?.length ? { thread: m.notedThread, ts: m.notedTs, domains: m.noted, entities: [] } : null);
+          const decision = msg.decisionSaved ?? m?.decision ?? null;
+          const undone = m?.undone ?? [];
+          return (
+            <>
+              {touched && <TouchedLine touched={touched} undone={undone.includes("noted")} onUndo={() => undoTouched(touched)} />}
+              {decision && <DecisionReceipt decision={decision} undone={undone.includes("decision")} onUndo={() => undoDecision(decision)} />}
+            </>
+          );
+        })()}
         {msg.content && (
           <div className="mt-1 flex h-5 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <ActionButton
@@ -560,7 +584,10 @@ export function ChatBubble({
 // ─────────────────────────────────────────────────────────────────────
 // COUNCIL PANEL
 
-export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMakeTask, onSaveNote, onPinMemory, onMakeLoop, onMakeSkill, onAddToEntityNotes, userFooter, assistantFooter }: {
+export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMakeTask, onSaveNote, onPinMemory, onMakeLoop, onMakeSkill, onAddToEntityNotes, userFooter, assistantFooter, chief, marks = [] }: {
+  chief?: string | null;
+  // Group chat: when members joined or left, before which message.
+  marks?: MemberMark[];
   onAddToEntityNotes?: (text: string) => void;
   // Extra row under a user message, by index (General's routing chips).
   userFooter?: (m: ChatMessage, i: number) => React.ReactNode;
@@ -600,8 +627,10 @@ export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMak
         const after = m.role === "assistant" && assistantFooter ? assistantFooter(m, i) : null;
         return (
           <Fragment key={i}>
+          {marks.filter((k) => k.at === i).map((k, j) => <MemberMarker key={`mk${j}`} m={k} />)}
           <ChatBubble
             msg={m}
+            chief={chief}
             onCopy={onCopy}
             onRetry={m.role === "assistant" ? () => onRetry(i) : undefined}
             onEdit={m.role === "user" ? (text) => onEdit(text, i) : undefined}
@@ -613,10 +642,13 @@ export function MessageList({ messages, resetKey, onCopy, onRetry, onEdit, onMak
             onAddToEntityNotes={m.role === "assistant" ? onAddToEntityNotes : undefined}
             footer={m.role === "user" && userFooter ? userFooter(m, i) : undefined}
           />
+          {m.role === "assistant" && !m.streaming && m.bringIn && <div className="mx-auto w-full max-w-3xl px-4"><BringInCard b={m.bringIn} lastUser={[...messages.slice(0, i)].reverse().find((x) => x.role === "user")?.content ?? ""} /></div>}
+          {m.role === "assistant" && !m.streaming && m.missionDraft && <div className="mx-auto w-full max-w-3xl px-4"><MissionStartCard d={m.missionDraft} /></div>}
           {after}
           </Fragment>
         );
       })}
+      {marks.filter((k) => k.at >= messages.length).map((k, j) => <MemberMarker key={`end${j}`} m={k} />)}
     </>
   );
 }
@@ -1006,6 +1038,7 @@ export function DomainHome({
     <div className="flex h-full w-full flex-col px-6 py-6">
       <div className="flex-1 overflow-y-auto">
         {!isApp && <DomainAppsStrip domain={domain} />}
+        {!isApp && <DomainMissions vaultPath={vaultPath} domain={domain} />}
         {loading && <div className="text-sm text-text-muted">loading domain context…</div>}
         {!loading && ctx && (
           <div>

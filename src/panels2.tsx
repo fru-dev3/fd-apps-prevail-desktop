@@ -42,7 +42,7 @@ export function InsightsPanel({ vaultPath, domain, onSeed }: { vaultPath: string
                   className="block w-full rounded-lg border border-border bg-surface px-3 py-2 text-left hover:-translate-y-px hover:border-accent-border hover:shadow-sm"
                 >
                   <div className="line-clamp-2 text-sm text-text-primary">{String(it.message ?? "(no text)")}</div>
-                  <div className="mt-0.5 font-mono text-[10px] text-text-muted">
+                  <div className="mt-0.5 font-mono text-[12px] text-text-muted">
                     {/* The name, not the id the ledger stored. */}
                     {it.cli ? titleCase(String(it.cli)) : ""}{it.model ? ` · ${modelLabel(String(it.cli ?? ""), String(it.model))}` : ""}{it.ts ? ` · ${formatFreshness((Date.now() - it.ts) / 1000)}` : ""}
                   </div>
@@ -107,7 +107,7 @@ export function UsageDashboard({
           stats appear here once you start chatting.
         </span>
         <button onClick={reload} title="Check for usage now"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-text-secondary hover:border-accent-border hover:text-accent">
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent">
           {loaded ? <RefreshCw className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />} Refresh
         </button>
       </div>
@@ -145,11 +145,11 @@ export function UsageDashboard({
 
   return (
     <div className="mt-3 w-full">
-      <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-text-primary">
+      <div className="mb-2 flex items-center gap-2 text-[14px] font-semibold text-text-primary">
         <Activity className="h-3.5 w-3.5" />
         Usage
         <button onClick={reload} title="Refresh usage now"
-          className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-text-muted hover:border-accent-border hover:text-accent">
+          className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[12px] font-medium normal-case tracking-normal text-text-muted hover:border-accent-border hover:text-accent">
           {loaded ? <RefreshCw className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />} Refresh
         </button>
       </div>
@@ -162,11 +162,11 @@ export function UsageDashboard({
               <s.icon className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <div className="font-mono text-[11px] text-text-muted">{s.label}</div>
+              <div className="font-mono text-[12px] text-text-muted">{s.label}</div>
               <div className="font-display text-2xl font-semibold leading-tight tabular-nums text-text-primary">
                 {s.value}
               </div>
-              <div className="truncate text-[11px] text-text-muted">{s.sub}</div>
+              <div className="truncate text-[12px] text-text-muted">{s.sub}</div>
             </div>
           </div>
         ))}
@@ -176,10 +176,10 @@ export function UsageDashboard({
       {days.length > 1 && (
         <div className="mt-3 rounded-xl border border-border-subtle bg-surface p-4">
           <div className="mb-3 flex items-center justify-between">
-            <div className="font-mono text-[11px] font-bold text-text-primary">
+            <div className="font-mono text-[14px] font-semibold text-text-primary">
               Activity · last {days.length} day{days.length === 1 ? "" : "s"}
             </div>
-            <div className="font-mono text-[11px] text-text-muted">
+            <div className="font-mono text-[12px] text-text-muted">
               {summary.total_turns} turn{summary.total_turns === 1 ? "" : "s"} total
             </div>
           </div>
@@ -202,7 +202,7 @@ export function UsageDashboard({
           {days.length <= 14 && (
             <div className="mt-1.5 flex gap-1.5">
               {days.map((d) => (
-                <div key={d.key} className="flex-1 truncate text-center font-mono text-[10px] text-text-muted">
+                <div key={d.key} className="flex-1 truncate text-center font-mono text-[12px] text-text-muted">
                   {shortDay(d.key)}
                 </div>
               ))}
@@ -250,9 +250,9 @@ export function PreambleColumn({
         <div className="mb-3 border-b border-border-subtle pb-3">
           <div className="flex items-center gap-2.5">
             <span className="text-lg text-accent">{glyph}</span>
-            <h3 className="text-[19px] font-semibold text-text-primary">{title}</h3>
+            <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
             <span className="font-mono text-xs text-text-muted">{options.length}</span>
-            <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border border-accent-border bg-accent-soft px-2.5 py-0.5 text-[11px] text-accent">
+            <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border border-accent-border bg-accent-soft px-2.5 py-0.5 text-[12px] text-accent">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />
               Active · {active?.label ?? "Off"}
             </span>
