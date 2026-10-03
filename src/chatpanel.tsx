@@ -1,6 +1,7 @@
 // The primary single-model Chat panel, extracted from App.tsx: composer, message
 // stream, per-domain context, agent picker, and the domain sub-views. Renders the
 // shared chatviews + domainpanels.
+import { composerMessage, engineBuildsContext, engineKey, scopeOf, type ChatScope } from "./chatscope";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Activity, ArrowUpRight, BookOpen, Boxes, Briefcase, CalendarClock, Check, ClipboardList, Compass, FileText, Ghost, Home, Image as ImageIcon, Layers, Lightbulb, ListChecks, Loader2, MessageSquare, Paperclip, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, Settings as SettingsIcon, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
@@ -134,7 +135,12 @@ export function ChatPanel({
   scopeApp = null,
   mission = null,
   scopeGoogleAccount = null,
+  scope,
 }: {
+  /// The space this chat runs in (chatscope.ts). For a domain or a project the
+  /// engine builds the context and the desktop sends only what the composer
+  /// adds. Derived from domain, mission, scopeApp and entity when absent.
+  scope?: ChatScope;
   /// A Google app's Account picker: an account id or "all". Sent as
   /// --google-account and wins over every other account source.
   scopeGoogleAccount?: string | null;
@@ -203,6 +209,9 @@ export function ChatPanel({
   // has no room, and the composer placeholder is short.
   phone?: boolean;
 }) {
+
+  // The space each turn runs in (chatscope.ts).
+  const turnScope: ChatScope = scope ?? scopeOf({ domain, mission, scopeApp, entity });
   const available = useMemo(() => clis.filter((c) => c.available), [clis]);
   // Thread storage scope: the app's own space when given, else the domain.
   // `domain` keeps driving grounding/engine; `tDomain` drives where the
@@ -369,7 +378,7 @@ export function ChatPanel({
       const d = (e as CustomEvent).detail as { band?: string; fromModel?: string; toModel?: string } | undefined;
       if (!d || !d.toModel || !vaultPath) return;
       // Match the engine's normalization: an empty domain is the General bucket.
-      const engineDomain = mission ? `_mission-${mission.slug}` : domain || "general";
+      const engineDomain = engineKey(turnScope);
       invoke("route_learn_record", {
         vault: vaultPath,
         domain: engineDomain,
@@ -2227,18 +2236,19 @@ export function ChatPanel({
       routedPreamble = await buildRoutedContext(vaultPath, routedOf(filingRef.current)).catch(() => "");
     }
     const history = buildChatContext(messages, 40000);
-    // A mission's context (memory, owner and consulted domains, tasks, skills,
-    // people) is built by the engine's scope resolver, the same as on the CLI,
-    // MCP and Telegram; the desktop sends only what this composer adds.
-    const promptText = mission ? fwLens.buildPrompt(
-      history
-        ? `${planPreamble}${attachPreamble}${primedPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
-        : `${planPreamble}${attachPreamble}${primedPreamble}${visible}`
-    ) : fwLens.buildPrompt(
+    // A domain's or a project's context (constitution, profile, Compass, goals,
+    // memory, skills) is built by the engine's scope resolver, the same as on
+    // the CLI, MCP and Telegram; the desktop sends only what this composer
+    // adds (chatscope.ts). The full desktop prompt stays for General, app and
+    // entity chats, and for the native path when the engine is not there.
+    const engineText = fwLens.buildPrompt(composerMessage({ plan: planPreamble, attach: attachPreamble, primed: primedPreamble, skills: skillsPreamble, history, visible }));
+    const fullText = fwLens.buildPrompt(
       history
         ? `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}You are mid-conversation. Below is the prior turn history; use it as context but do NOT repeat it back to the user.\n\n--- PRIOR TURNS ---\n${history}\n--- END PRIOR TURNS ---\n\nUser's next message: ${visible}`
         : `${planPreamble}${userPreamble}${profilePreamble}${omegaPreamble}${memoryPreamble}${routedPreamble}${attachPreamble}${primedPreamble}${skillsPreamble}${linkPreamble}${visible}`
     );
+    const scopeContext = engineBuildsContext(turnScope) && engineAvailable;
+    const promptText = scopeContext ? engineText : fullText;
     pushHistory(visible);
     setAttachments([]);
     setAttachedSkills([]);
@@ -2367,7 +2377,7 @@ export function ChatPanel({
     turnAppNamesRef.current = [...(scopeApp ? [scopeApp.name] : []), ...refsRef.current.filter((r) => r.kind === "app" && r.id !== scopeApp?.id).map((r) => r.label)];
     // The engine treats General as the "general" domain (general_dir), so a
     // null/empty domain maps to that here.
-    const engineDomain = mission ? `_mission-${mission.slug}` : domain || "general";
+    const engineDomain = engineKey(turnScope);
     // Act mode: this domain routes sends through the AGENT runtime (real,
     // broker-gated tools + a Prevail-verified action ledger) instead of an
     // advisory text reply. Requires the engine; off in Bunker Mode; if the
@@ -2461,13 +2471,16 @@ export function ChatPanel({
           entities: turnRefs.entities,
           refDomains: turnRefs.refDomains,
           scopeApp: scopeApp?.id ?? null,
+          // A domain or project turn: the engine built the context; the link
+          // format the reply needs (so its chips render) rides as a hint.
+          outputHint: scopeContext ? linkPreamble : null,
         });
       } else {
         await invoke("chat_send", {
           args: {
             cli: sendCli,
             model: nativeModel,
-            prompt: promptText,
+            prompt: fullText,
             session_id: sessionRef.current,
             timeout_sec: (() => { const n = parseInt(getPref(PREF.llmPromptTimeoutSec, "300"), 10); return Number.isFinite(n) && n > 0 ? n : null; })(),
             web: webAllowed,
@@ -2486,7 +2499,7 @@ export function ChatPanel({
             args: {
               cli: chatCli,
               model: nativeModel,
-              prompt: promptText,
+              prompt: fullText,
               session_id: sessionRef.current,
               timeout_sec: (() => { const n = parseInt(getPref(PREF.llmPromptTimeoutSec, "300"), 10); return Number.isFinite(n) && n > 0 ? n : null; })(),
             },

@@ -2641,6 +2641,10 @@ pub async fn engine_chat(
     // Incognito turns leave no trace, so the engine must not link them into
     // other domains or entities (--incognito skips the touch step).
     incognito: Option<bool>,
+    // How the reply should be written (the desktop's prevail:// link format).
+    // Output format only: the engine puts it in the system channel, so a
+    // domain turn's context stays what its scope resolver built.
+    #[allow(non_snake_case)] outputHint: Option<String>,
 ) -> Result<(), String> {
     let refs = chat_ref_args(entity, apps, entities, ref_domains, scope_app)?;
     // Build the arg vector. `--vault V` goes BEFORE the subcommand,
@@ -2714,6 +2718,10 @@ pub async fn engine_chat(
     }
     if inheritUserMcp.unwrap_or(false) {
         args.push("--inherit-user-mcp".to_string());
+    }
+    if let Some(h) = outputHint.filter(|s| !s.trim().is_empty()) {
+        args.push("--output-hint".to_string());
+        args.push(h.chars().take(8000).collect());
     }
     if let Some(t) = thread.filter(|s| !s.trim().is_empty()) {
         args.push("--thread".to_string());
