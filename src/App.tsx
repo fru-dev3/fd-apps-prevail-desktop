@@ -37,7 +37,7 @@ import { useAppearance, useFrameworkLens } from "./hooks";
 import { distillCfgFromPrefs, intentDaemonCfgFromPrefs, skillgenCfgFromPrefs, taskgenCfgFromPrefs } from "./daemoncfg";
 import { autoVerifyClis } from "./verify";
 import { bumpBackupChangeCount, startBackupScheduler } from "./backup";
-import { startLoopsScheduler, readLoops, ensureBriefingLoop } from "./loops";
+import { startLoopsScheduler } from "./loops";
 import { startAppsScheduler } from "./appstatus";
 import { startOmegaScheduler } from "./omega";
 import { OnboardingTour } from "./onboarding";
@@ -1103,11 +1103,9 @@ export default function App() {
     const id = window.setInterval(tick, 10 * 60_000); // evaluate every 10 min
     return () => window.clearInterval(id);
   }, [decisionsCount, dueAlert]);
-  // Insights (recommendations) + Loops counts — surfaced as always-visible badges on
-  // the top-nav tabs so the user sees how much is waiting without opening either view.
-  // Both are computed in the background on a slow poll + event refresh, same cadence as
-  // the decisions/due pills. Recommendations come from the learning engine; loop count
-  // is summed across every domain's loop doc (mirrors the Loop Board's own aggregation).
+  // Insights (recommendations) count, surfaced as an always-visible badge on the
+  // top-nav tab so the user sees how much is waiting. Computed in the background on
+  // a slow poll + event refresh, same cadence as the decisions/due pills.
   const [recCount, setRecCount] = useState(0);
   useEffect(() => {
     if (!vaultPath) return;
@@ -1131,30 +1129,6 @@ export default function App() {
     window.addEventListener("prevail:loops-advanced", onEvt);
     return () => { alive = false; window.clearInterval(id); window.removeEventListener("prevail:recommendations-changed", onEvt); window.removeEventListener("prevail:loops-advanced", onEvt); };
   }, [vaultPath, selectedDomain]);
-
-  const [loopCount, setLoopCount] = useState(0);
-  useEffect(() => {
-    if (!vaultPath || domains.length === 0) return;
-    let alive = true;
-    const poll = async () => {
-      try {
-        // Scope the Loops count to the selected domain (global only on General /
-        // no domain), so the badge matches the domain the user is on.
-        const targetDomains = selectedDomain ? domains.filter((d) => d.name === selectedDomain) : domains;
-        const docs = await Promise.all(targetDomains.map((d) => readLoops(d.path).then((doc) => ensureBriefingLoop(doc, d.name).doc).catch(() => null)));
-        if (!alive) return;
-        let n = 0;
-        for (const doc of docs) n += Array.isArray(doc?.loops) ? doc!.loops.length : 0;
-        setLoopCount(n);
-      } catch { /* ignore */ }
-    };
-    void poll();
-    const id = window.setInterval(poll, 120000);
-    const onEvt = () => { void poll(); };
-    window.addEventListener("prevail:loops-advanced", onEvt);
-    window.addEventListener("prevail:loops-changed", onEvt);
-    return () => { alive = false; window.clearInterval(id); window.removeEventListener("prevail:loops-advanced", onEvt); window.removeEventListener("prevail:loops-changed", onEvt); };
-  }, [vaultPath, domains, selectedDomain]);
 
   // Lets in-app links (e.g. the Demo ribbon) open a specific Settings section.
   const [settingsJump, setSettingsJump] = useState<{ section: string; n: number } | null>(null);
@@ -2065,8 +2039,8 @@ export default function App() {
                     }`}
                   >
                     <Layers className="h-4 w-4" /> Details
-                    {(dueAlert.open > 0 || recCount > 0 || loopCount > 0) && (
-                      <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ai px-1.5 font-mono text-[10px] font-bold leading-none text-white">{cap9(dueAlert.open + recCount + loopCount)}</span>
+                    {(dueAlert.open > 0 || recCount > 0) && (
+                      <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ai px-1.5 font-mono text-[10px] font-bold leading-none text-white">{cap9(dueAlert.open + recCount)}</span>
                     )}
                   </button>
                   <button

@@ -279,8 +279,15 @@ pub(crate) async fn engine_playbook_trigger(vault: String, id: String, domain: S
         if !ok { return Err("invalid event".into()); }
         a.push("--on".into()); a.push(o);
     }
-    if off == Some(true) { a.push("--off".into()); }
+    // Some(true) switches the schedule off, Some(false) back on; the cadence stays.
+    match off { Some(true) => a.push("--off".into()), Some(false) => a.push("--resume".into()), None => {} }
     blocking(a).await
+}
+
+/// Playbooks replace loops: carry any loop not yet carried into a scheduled playbook (idempotent; the loops file stays).
+#[tauri::command]
+pub(crate) async fn engine_playbooks_migrate_loops(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "playbook", "migrate-loops", "--json"])).await
 }
 
 // ── Goals G4: initiatives (the plan's paths) ──
