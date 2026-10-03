@@ -264,6 +264,20 @@ pub async fn engine_entities_set_picture(vault: String, id: String, file: Option
     write_json(args).await
 }
 
+// `prevail entities rename <id> --name <n>` -> the detail. The engine writes
+// the name in Title Case and keeps the old one as an alias.
+#[tauri::command]
+pub async fn engine_entities_rename(vault: String, id: String, name: String) -> Result<serde_json::Value, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() || name.starts_with('-') || name.chars().count() > 120 || name.contains('\n') {
+        return Err("not a name".into());
+    }
+    let mut args = id_args("rename", &vault, &id)?;
+    args.push("--name".into());
+    args.push(name);
+    write_json(args).await
+}
+
 // `prevail entities set-website <id> --url <u>` -> { ok }. An empty url clears it.
 #[tauri::command]
 pub async fn engine_entities_set_website(vault: String, id: String, url: String) -> Result<serde_json::Value, String> {

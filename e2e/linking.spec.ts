@@ -154,7 +154,8 @@ for (const width of [1440, 390]) {
       const list = page.getByTestId("entities-list");
       await expect(list.getByTestId("entity-row")).toHaveCount(1);
       await expect(list).not.toContainText("Foo the Elder");
-      await expect(list.getByTestId("domain-chip").first()).toBeVisible();
+      // A row never lists the domains an entity came up in (ux round 1).
+      await expect(list.getByTestId("domain-chip")).toHaveCount(0);
       await shot(page, "entities-yours");
       await ref.click();
       await expect(list.getByTestId("entity-row")).toHaveCount(1);
