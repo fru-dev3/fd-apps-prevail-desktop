@@ -179,7 +179,7 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
           <li key={r.n} data-testid="playbook-step" className="flex items-start gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
             <span className={`${META} w-5 shrink-0 pt-0.5 text-right tabular-nums`}>{r.n}</span>
             <span className="min-w-0 flex-1">
-              <span className={`${ROW_TITLE} block`}>{r.specialists.length ? r.specialists.map(label).join(" + ") : r.kind === "task" ? "For you" : label(r.kind)}</span>
+              <span className={`${ROW_TITLE} block`}>{r.specialists.length ? r.specialists.map(label).join(" + ") : r.kind === "task" ? "For you" : r.kind === "loop" ? "On its schedule" : label(r.kind)}</span>
               <span className={`${META} mt-0.5 block break-words`}>
                 {r.label}
                 {r.kind !== "task" && r.returns.length > 0 && ` · returns ${r.returns.join(", ")}`}

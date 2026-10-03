@@ -46,7 +46,8 @@ function readFocus(): Sel {
 export function SpecialistsPage({ vaultPath }: { vaultPath: string }) {
   const phone = useIsPhone();
   const [sel, setSel] = useState<Sel>(readFocus);
-  const [picked, setPicked] = useState(false);
+  // A link to one specialist opens it (on a phone too), not the list.
+  const [picked, setPicked] = useState(() => sel !== "setup");
   useEffect(() => {
     const on = () => { setSel(readFocus()); setPicked(true); };
     window.addEventListener("prevail:specialists-focus", on);
