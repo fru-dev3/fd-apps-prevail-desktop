@@ -21,6 +21,11 @@ const FIX = {
   chief_of_staff_read: "---\nname: Quill\nhandoff: offer\n---\n",
   engine_missions_list: [],
   save_thread: "/tmp/smoke-vault/data/domains/general/_threads/foo-group.md",
+  entities_list: { generated_ts: 1, total: 1, entities: [{ id: "person/ben-foo", name: "Ben Foo", kind: "person", aliases: [], mention_count: 3, conversations: 2, last_ts: 1, saved: true, has_page: true, relation: "yours", relation_confidence: 0.9 }] },
+  entities_show: { found: true, id: "person/ben-foo", name: "Ben Foo", kind: "person", kinds: ["person"], aliases: [], mention_count: 3, conversations: 2, mentions: [], co_mentions: [], digest: "", notes: "", relation: "yours" },
+  engine_entity_threads: [],
+  engine_entities_duplicates: [],
+  engine_specialist_show: { spec: spec("researcher", "Researcher", "know"), notebooks: [], involvement: [] },
 };
 const calls = (page: Page, cmd: string) => page.evaluate((c) =>
   ((window as unknown as { __invokeLog: Array<{ cmd: string; args: Record<string, unknown> }> }).__invokeLog ?? [])
@@ -125,4 +130,36 @@ test("regression: @Planner typed in General goes to the engine as a name, never 
   await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(1);
   expect((await calls(page, "engine_chat"))[0]).toMatchObject({ to: ["planner"], members: ["planner"] });
   expect((await calls(page, "chat_send")).length).toBe(0);
+});
+
+test("a specialist's own chat sends every message to it; one brought into a person's chat and removed keeps working", async ({ page }) => {
+  await home(page, 1280);
+  // Its page opens on its own chat, with it as the member.
+  await page.evaluate(() => { localStorage.setItem("prevail.specialists.focus", "spec:researcher"); window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "specialists" })); });
+  const chat = page.getByTestId("specialist-chat");
+  await expect(chat).toBeVisible({ timeout: 10_000 });
+  await chat.locator("textarea").first().fill("which foo grants close this month?");
+  await chat.locator("textarea").first().press("Enter");
+  await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(1);
+  expect((await calls(page, "engine_chat"))[0]).toMatchObject({ members: ["researcher"] });
+
+  // A person's chat: bring the Planner in, then take it out; the next turn goes without it.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "entities" })));
+  await page.getByTestId("entity-row").filter({ hasText: "Ben Foo" }).first().click();
+  await page.getByTestId("entity-tab-chat").click();
+  const box = page.getByTestId("entity-chat").locator("textarea").first();
+  await expect(box).toBeVisible({ timeout: 10_000 });
+  await box.pressSequentially("@Pla");
+  await page.getByTestId("ref-option-specialist-planner").click();
+  await box.pressSequentially("plan a foo dinner with Ben");
+  await box.press("Enter");
+  await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(2);
+  expect((await calls(page, "engine_chat"))[1]).toMatchObject({ members: ["planner"] });
+  await play(page, said("planner", "Planner", "Saturday at seven works for the foo dinner."));
+  await page.getByTestId("entity-chat").getByTestId("chat-members").locator("button").first().click();
+  await page.getByTestId("member-remove-planner").click();
+  await box.pressSequentially("and the wine?");
+  await box.press("Enter");
+  await expect.poll(async () => (await calls(page, "engine_chat")).length).toBe(3);
+  expect((await calls(page, "engine_chat"))[2]).toMatchObject({ members: [] });
 });
