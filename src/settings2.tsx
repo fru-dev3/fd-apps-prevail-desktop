@@ -17,6 +17,7 @@ import { VENDOR_BRAND, isHarnessRuntime } from "./constants";
 import { useDetectedClis } from "./hooks";
 import type { DaemonStatus } from "./types";
 import { DETAIL_TITLE } from "./typescale";
+import { TintIcon } from "./tint";
 
 // One collapsible card per routine. Routes through the canonical CollapsibleSection
 // (icon + title left, summary + running dot right, collapsed by default) so the
@@ -220,7 +221,7 @@ export function DaemonsSection({ vaultPath, embedded = false, sel: selProp }: { 
         return (
           <button key={it.id} data-testid={`daemon-row-${it.id}`} aria-current={on ? "true" : undefined} onClick={() => { setSel(it.id); setPicked(true); }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={Icon} />
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-sm ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{it.title}</span>
               <span className="block truncate text-[12px] text-text-muted">{[it.hubOnly ? "Hub only" : null, typeof it.summary === "string" ? it.summary : null].filter(Boolean).join(" · ")}</span>

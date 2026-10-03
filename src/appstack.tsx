@@ -23,6 +23,7 @@ import {
   ACTION_LABEL, HEALTH_LABEL, VERDICT_LABEL, activeShare, appsIn, healthTone, money, needsFda, stackSubtitle,
   type Stack, type StackApp, type StackCard, type UnknownSignal,
 } from "./stackmodel";
+import { TintIcon } from "./tint";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const ACTION_ICON: Record<string, LucideIcon> = { keep: Check, snooze: Clock, "cancel-steps": FileText, archive: Archive, fix: Wrench, review: HelpCircle, done: Check };
@@ -184,7 +185,7 @@ export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: Rea
   const row = (k: string, label: string, Icon: LucideIcon, count?: number) => (
     <button key={k} type="button" data-testid={`stack-spine-${k}`} aria-current={isOn(k) ? "true" : undefined} onClick={() => choose(k)}
       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${isOn(k) ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-      <Icon className={`h-4 w-4 shrink-0 ${isOn(k) ? "text-accent" : "text-text-muted"}`} />
+      <TintIcon icon={Icon} />
       <span className={`min-w-0 flex-1 truncate text-[14px] ${isOn(k) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{label}</span>
       {count !== undefined && <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{count}</span>}
     </button>

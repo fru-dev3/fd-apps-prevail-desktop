@@ -16,6 +16,7 @@ import { useIsPhone } from "./useisphone";
 import { USAGE_VIEWS, UsageDashboard, type UsageView } from "./usagedashboard";
 import type { EngineApp } from "./types";
 import { DETAIL_TITLE } from "./typescale";
+import { TintIcon } from "./tint";
 
 // These mirror the engine's activity-ledger producer types (cli activity.ts).
 // Keep them in lockstep: any type the engine writes must be representable here,
@@ -293,7 +294,7 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
           <button key={f.id} data-testid={`activity-kind-${f.id}`} aria-current={on ? "true" : undefined}
             onClick={() => { setUsageView(null); setTypeFilter(f.id); setPicked(true); setExpandedId(null); }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={Icon} />
             <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{f.label}</span>
             <span className="text-[13px] tabular-nums text-text-muted">{counts[f.id]}</span>
           </button>
@@ -307,7 +308,7 @@ export function SystemActivity({ vaultPath, initial }: { vaultPath: string; init
           <button key={v.id} data-testid={`usage-view-${v.id}`} aria-current={on ? "true" : undefined}
             onClick={() => { setUsageView(v.id); setPicked(true); }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={Icon} />
             <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{v.label}</span>
           </button>
         );

@@ -5,6 +5,7 @@
 // (entitystore.requestEntity). The Entities page shows one kind per tab
 // (`kind`); Products list companies and their apps as one list (the engine's
 // products adapter). Intent embeds the all-kinds view.
+import { TintIcon } from "./tint";
 import { useEffect, useMemo, useState } from "react";
 import { VIRTUAL_MIN, VirtualRows } from "./virtualrows";
 import { BookUser, CopyCheck, LayoutGrid, Loader2, MapPin, Package, Plus, RefreshCw, Search, Users, Watch, type LucideIcon } from "lucide-react";
@@ -230,7 +231,7 @@ export function EntitiesView({ vaultPath, embedded = false, kind, onSelected, cl
         {FILTERS.map((f) => (
           <button key={f.id} role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)} data-testid={`entity-filter-${f.id}`}
             className={`inline-flex h-7 min-w-0 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-md px-1.5 text-[12px] ${filter === f.id ? "bg-surface font-semibold text-text-primary shadow-sm ring-1 ring-black/5" : "text-text-muted hover:text-text-secondary"}`}>
-            <f.icon aria-hidden className={`h-3.5 w-3.5 shrink-0 ${filter === f.id ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={f.icon} tint={f.id} square={false} />
             {f.label}
           </button>
         ))}

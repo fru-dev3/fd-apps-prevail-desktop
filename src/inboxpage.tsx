@@ -24,6 +24,7 @@ import { SettingsHeader } from "./sectionutil";
 import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { useWaiting, type WaitingKind } from "./waiting";
+import { TintIcon } from "./tint";
 
 type Tab = InboxCategory | "results" | "briefing" | "jobs";
 const TABS: { key: Tab; label: string }[] = [
@@ -89,7 +90,7 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
         return (
           <button key={k} data-testid={`briefing-${k}`} aria-current={on ? "true" : undefined} onClick={() => { setBrief(k); setPicked(true); }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={Icon} tint={k} />
             <span className={`truncate text-[14px] text-text-primary ${on ? "font-semibold" : ""}`}>{label}</span>
           </button>
         );
@@ -103,7 +104,7 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
         return (
           <button key={k} data-testid={`inbox-jobs-${k}`} aria-current={on ? "true" : undefined} onClick={() => { setJobGroup(k); setPicked(true); }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={Icon} tint={k} />
             <span className={`min-w-0 flex-1 truncate text-[14px] text-text-primary ${on ? "font-semibold" : ""}`}>{text}</span>
             <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{jobGroupsNow[k].length}</span>
           </button>
@@ -130,7 +131,7 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
           <button key={r.id} data-testid="inbox-row" data-category={r.category} aria-current={on ? "true" : undefined}
             onClick={() => { setSel(r.id); setPicked(true); }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"} ${r.snoozed ? "opacity-60" : ""}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={Icon} tint={r.category} />
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-primary"}`}>{r.title}</span>
               <span className="block truncate text-[12px] text-text-muted">{scopeLabel(r.domain || "general")}{r.ts ? ` · ${relTime(r.ts)}` : ""}{r.snoozed ? " · snoozed" : ""}</span>

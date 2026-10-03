@@ -17,6 +17,7 @@ import {
 } from "./goalsmodel";
 import type { BoardTask } from "./types";
 import { openMission, useMissions } from "./missions";
+import { TintIcon } from "./tint";
 
 type Tab = "all" | "active" | "done";
 type Sel = "overview" | `goal:${string}`;
@@ -85,7 +86,7 @@ export function DomainGoals({ vaultPath }: { vaultPath: string }) {
   const isOn = (s: Sel) => sel === s && (!phone || picked);
   const fixedRow = (s: Sel, label: string, Icon: typeof Target, sub?: string) => (
     <button key={s} data-testid={`goal-row-${s}`} aria-current={isOn(s) ? "true" : undefined} onClick={() => choose(s)} className={rowCls(isOn(s))}>
-      <Icon className={`h-4 w-4 shrink-0 ${isOn(s) ? "text-accent" : "text-text-muted"}`} />
+      <TintIcon icon={Icon} />
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-[14px] ${isOn(s) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{label}</span>
         {sub && <span className="block truncate text-[12px] text-text-muted">{sub}</span>}

@@ -7,7 +7,7 @@ import { Check, Circle, CircleDot, Compass, Pencil, Sigma, X, type LucideIcon } 
 import { invoke } from "./bridge";
 import { invokeCached, setQueryData, useEngineQuery } from "./query";
 import { titleCase } from "./format";
-import { isUserDomain } from "./helpers";
+import { domainColor, isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { OmegaSection } from "./omega";
@@ -16,6 +16,7 @@ import { AlignmentCard } from "./panels";
 import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { BODY, DETAIL_TITLE, META } from "./typescale";
+import { TintIcon } from "./tint";
 
 const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent";
 
@@ -90,7 +91,7 @@ export function IdealsSection({ vaultPath, initial }: { vaultPath: string; initi
     return (
       <button key={id} data-testid={`ideal-row-${id}`} aria-current={on ? "true" : undefined} onClick={() => choose(id)}
         className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-        {Icon ? <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} /> : <CircleDot className="h-4 w-4 shrink-0 text-text-muted" />}
+        <TintIcon icon={Icon ?? CircleDot} color={id.startsWith("domain:") ? domainColor(id.slice(7)) : undefined} />
         <span className="min-w-0 flex-1">
           <span className={`block truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{label}</span>
           {sub && <span className="block truncate text-[12px] text-text-muted">{sub}</span>}

@@ -27,6 +27,7 @@ import { lsSet } from "./storage";
 import { TOOLKIT_FOCUS_KEY } from "./navdefs";
 import { TOOL_STATE_LABEL, goTo, useToolList, type Tool } from "./toolspanel";
 import type { SkillEntry } from "./types";
+import { TintIcon } from "./tint";
 
 type Group = "skills" | "tools" | "frameworks";
 type Pick = { group: "skills"; id: string } | { group: "tools"; id: string } | { group: "frameworks"; id: string };
@@ -313,7 +314,7 @@ export function ToolkitSection({ vaultPath }: { vaultPath: string }) {
         {groupHead("tools", "Tools", `${toolsOn} of ${tools.length} on`, tools.length)}
         {isOpen("tools") && shownTools.map((t) => (
           <button key={t.name} data-testid={`toolkit-tool-${t.name}`} onClick={() => choose({ group: "tools", id: t.name })} className={rowCls(isPick("tools", t.name))}>
-            {(() => { const I = TOOL_ICON[t.name] ?? Wrench; return <I className={`h-4 w-4 shrink-0 ${isPick("tools", t.name) ? "text-accent" : "text-text-muted"}`} />; })()}
+            {(() => { const I = TOOL_ICON[t.name] ?? Wrench; return <TintIcon icon={I} />; })()}
             <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{t.name}</span>
             <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-text-muted">{t.state !== "on" && TOOL_STATE_LABEL[t.state]}{dot(t.state !== "soon")}</span>
           </button>

@@ -7,6 +7,7 @@
 // result each returns, Run (in a domain, for a playbook that names none),
 // Adopt for a draft, and its run history (each step's job opens its card).
 // Data: `prevail playbook rows | show <id>`; the engine owns every file.
+import { TintIcon } from "./tint";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Check, ChevronRight, CircleDot, FilePen, Hand, Library, Loader2, Pause, Play, Workflow } from "lucide-react";
 import { invoke } from "./bridge";
@@ -65,7 +66,7 @@ export function PlaybooksPage({ vaultPath }: { vaultPath: string }) {
         return (
           <div key={g.id}>
             <div className="flex items-center gap-2 px-2.5 pb-1 pt-3 text-[13px] font-semibold text-text-secondary">
-              <Icon className="h-3.5 w-3.5" />{g.label}<span className="ml-auto tabular-nums text-text-muted">{list.length}</span>
+              <TintIcon icon={Icon} tint={g.id} square={false} />{g.label}<span className="ml-auto tabular-nums text-text-muted">{list.length}</span>
             </div>
             {g.id !== "scheduled" ? list.map(rowButton) : bySpace(list).map(({ space, rows: rs }) => {
               const open = openSpace[space] ?? rs.some((r) => r.id === current);

@@ -20,6 +20,7 @@ type Entry = {
 type DimId = "model" | "domain" | "surface" | "host" | "cli";
 import { modelLabel } from "./helpers2";
 import { DETAIL_TITLE, META, SCORE, SECTION_TITLE } from "./typescale";
+import { TintIcon } from "./tint";
 
 const DIMS: { id: DimId; label: string; get: (e: Entry) => string }[] = [
   { id: "model", label: "Model", get: (e) => e.model || "(default)" },
@@ -236,7 +237,7 @@ export function UsageDashboard({ vaultPath, embedded = false, view: viewProp }: 
         return (
           <button key={v.id} data-testid={`usage-view-${v.id}`} aria-current={on ? "true" : undefined} onClick={() => { setView(v.id); setPicked(true); }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <TintIcon icon={Icon} />
             <span className={`min-w-0 flex-1 truncate text-[14px] ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{v.label}</span>
             {v.id !== "overview" && <span className="text-[12px] tabular-nums text-text-muted">{distinct(v.id)}</span>}
           </button>

@@ -14,6 +14,7 @@ import { BODY, DETAIL_TITLE, META, SECTION_TITLE } from "./typescale";
 import { EmbeddedChat } from "./embeddedchat";
 import { openUpdateThread } from "./linking";
 import { DECISIONS_FOCUS_KEY, decisionStatus, fmtDue, label, scopeLabel, type DecisionRecord } from "./plansmodel";
+import { TintIcon } from "./tint";
 
 const input = "h-9 w-full rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary";
 const textLink = "inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-50 disabled:no-underline";
@@ -61,7 +62,7 @@ export function DecisionsPage({ vaultPath }: { vaultPath: string }) {
   const row = (r: DecisionRecord) => (
     <button key={key(r)} data-testid="decision-row" aria-current={isOn(key(r)) ? "true" : undefined} onClick={() => choose(key(r))}
       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${isOn(key(r)) ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-      <Gavel className={`h-4 w-4 shrink-0 ${isOn(key(r)) ? "text-accent" : "text-text-muted"}`} />
+      <TintIcon icon={Gavel} tint="decisions" />
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-[14px] ${isOn(key(r)) ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{r.question}</span>
         <span className="block truncate text-[12px] text-text-muted">{scopeLabel(r.domain)}{decisionStatus(r) ? ` · ${decisionStatus(r)}` : ""}</span>
@@ -73,11 +74,11 @@ export function DecisionsPage({ vaultPath }: { vaultPath: string }) {
     <nav className="space-y-0.5 p-2" aria-label="Decisions">
       <button data-testid="decision-row-calibration" aria-current={isOn("calibration") ? "true" : undefined} onClick={() => choose("calibration")}
         className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left ${isOn("calibration") ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-        <Target className={`h-4 w-4 ${isOn("calibration") ? "text-accent" : "text-text-muted"}`} /><span className="text-[14px] text-text-secondary">Calibration</span>
+        <TintIcon icon={Target} /><span className="text-[14px] text-text-secondary">Calibration</span>
       </button>
       <button onClick={() => void scanTasks()} disabled={scan === "busy"} data-testid="decisions-scan"
         className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] text-text-secondary hover:bg-surface-warm/50 disabled:opacity-50">
-        {scan === "busy" ? <Loader2 className="h-4 w-4 animate-spin text-text-muted" /> : <ListChecks className="h-4 w-4 text-text-muted" />}Scan my tasks
+        {scan === "busy" ? <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-text-muted" /></span> : <TintIcon icon={ListChecks} />}Scan my tasks
       </button>
       {scan && scan !== "busy" && <p className="px-2.5 text-[12px] text-text-muted" data-testid="decisions-scan-note">{scan}</p>}
       {head("Open", open.length)}
