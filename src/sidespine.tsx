@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Archive, ArrowLeft, BarChart3, CheckCircle2, ChevronsLeft, ChevronsRight, CircleDot, Compass, Cpu, Eye, FileText, FolderKanban, Grid3x3,
+  Archive, ArrowLeft, BarChart3, Briefcase, CheckCircle2, ChevronsLeft, ChevronsRight, CircleDot, Compass, Cpu, Eye, FileText, FolderKanban, Grid3x3,
   HelpCircle, Hourglass, History, Inbox as InboxIcon, KeyRound, Layers, LayoutGrid, ListChecks, Mail, Network, Pause, Play, Plug, Repeat,
   Snowflake, Sparkles, Target, Trash2, Users, Workflow, Newspaper, type LucideIcon,
 } from "lucide-react";
@@ -174,7 +174,7 @@ export const TAB_ICON: Record<string, LucideIcon> = {
   waiting: Hourglass, trash: Trash2, icebox: Snowflake, compass: Compass, goals: Target, ideals: Sparkles,
   clis: Cpu, api: Network, direct: KeyRound, briefing: Newspaper, actions: Play, google: Mail, automations: Repeat, tasks: ListChecks,
   results: Workflow, current: FileText, versions: History, noticed: Eye, history: History, projects: FolderKanban, entities: Users,
-  metrics: BarChart3, stack: Layers, connectors: Plug, summary: FileText, domains: Grid3x3, questions: HelpCircle, inbox: InboxIcon,
+  metrics: BarChart3, stack: Layers, connectors: Plug, summary: FileText, domains: Grid3x3, questions: HelpCircle, inbox: InboxIcon, jobs: Briefcase,
 };
 
 export function SpineTabs<T extends string>({ tabs, value, onChange, label }: {

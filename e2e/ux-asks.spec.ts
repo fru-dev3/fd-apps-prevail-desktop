@@ -90,11 +90,13 @@ test.describe("specialist faces", () => {
     // Specialists page: the list and the detail header.
     await side.getByTestId("sidebar-specialist-scout").click();
     await expect(page.getByTestId("specialist-detail")).toHaveAttribute("data-id", "scout");
-    await expect(page.getByTestId("specialist-detail").locator("[data-specialist=scout]")).toHaveAttribute("role", "img");
+    await expect(page.getByTestId("specialist-detail").locator("[data-specialist=scout]").first()).toHaveAttribute("role", "img");
     await expect(page.getByTestId("specialists-list").locator("[data-specialist=coach]")).toBeVisible();
     await shot(page, "avatars-specialists");
-    // The job card's team line: Researcher done, Scout working, Editor next.
-    await page.getByTestId("specialists-row-jobs:running").click();
+    // The job card's team line: Researcher done, Scout working, Editor next (jobs live in the Inbox).
+    await fire(page, "prevail:work-section", "inbox");
+    await page.getByTestId("tab-jobs").click();
+    await page.getByTestId("inbox-jobs-running").click();
     await page.getByTestId("job-row").first().click();
     const chips = page.getByTestId("job-team-chip");
     await expect(chips.nth(1).locator("[data-specialist=scout]")).toHaveAttribute("data-state", "working");

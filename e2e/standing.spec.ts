@@ -62,8 +62,10 @@ async function noOverflow(page: Page) {
   expect(over).toEqual([]);
 }
 async function openJob(page: Page) {
-  await fire(page, "prevail:work-section", "specialists");
-  await page.getByTestId("specialists-row-jobs:done").click();
+  await fire(page, "prevail:work-section", "inbox");
+  // Jobs live in the Inbox now.
+  await page.getByTestId("tab-jobs").click();
+  await page.getByTestId("inbox-jobs-done").click();
   await page.getByTestId("job-row").first().getByRole("button").first().click();
   return page.getByTestId("job-card").first();
 }

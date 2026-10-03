@@ -6,14 +6,18 @@
 // this page only frames it. On a phone: tabs, then the list, then the item.
 // Results (Specialists Phase 3): playbook runs the user did not start (a
 // loop's clock, a radar event) wait here until marked seen.
+// Jobs (owner feedback round 1): the work the chief of staff staffed, Running,
+// Waiting on you and Done, each opening as its card (moved here from
+// Specialists: jobs are work, not specialists).
 import { SpecialistAvatar } from "./specialistavatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, CalendarDays, CheckCheck, Inbox, Mail, Play, Repeat, ShieldAlert, Sun, Workflow, type LucideIcon } from "lucide-react";
+import { Bot, Briefcase, CalendarDays, Clock, Hourglass, CheckCheck, Inbox, Mail, Play, Repeat, ShieldAlert, Sun, Workflow, type LucideIcon } from "lucide-react";
 import { Briefing } from "./todaycard";
 import { DecisionInbox, type InboxCategory, type InboxRow } from "./decisioninbox";
 import { invoke } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
-import { label, openPlaybook, scopeLabel, type InboxResult } from "./plansmodel";
+import { jobGroups, label, openPlaybook, scopeLabel, type InboxResult, type Job } from "./plansmodel";
+import { JobRow } from "./specialistspage";
 import { BODY, DETAIL_TITLE, META } from "./typescale";
 import { relTime } from "./format";
 import { SettingsHeader } from "./sectionutil";
@@ -21,7 +25,7 @@ import { SideSpine, SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { useWaiting, type WaitingKind } from "./waiting";
 
-type Tab = InboxCategory | "results" | "briefing";
+type Tab = InboxCategory | "results" | "briefing" | "jobs";
 const TABS: { key: Tab; label: string }[] = [
   { key: "briefing", label: "Briefing" },
   { key: "all", label: "All" },
@@ -30,6 +34,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "automations", label: "Automations" },
   { key: "tasks", label: "Tasks" },
   { key: "results", label: "Results" },
+  { key: "jobs", label: "Jobs" },
 ];
 type Row = InboxRow | (Omit<InboxRow, "category"> & { category: "results" });
 const ICON: Record<Row["category"], LucideIcon> = { actions: Play, google: Mail, automations: Repeat, tasks: Bot, results: Workflow };
@@ -44,6 +49,9 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
   const resQ = useInvokeQuery<InboxResult[]>("engine_playbook_inbox", { vault: vaultPath }, { staleMs: 30_000 });
   const results = useMemo(() => (Array.isArray(resQ.data) ? resQ.data : []), [resQ.data]);
   const resultRows: Row[] = results.map((r) => ({ id: `result:${r.runId}`, category: "results" as const, title: `${r.name}: ${r.ok ? (r.waiting ? `${r.waiting} step${r.waiting === 1 ? "" : "s"} wait for you` : "done") : "did not finish"}`, domain: r.domain ?? "general", ts: r.ts }));
+  const jobsQ = useInvokeQuery<Job[]>("engine_jobs", { vault: vaultPath }, { staleMs: 5_000 });
+  const jobGroupsNow = useMemo(() => jobGroups(Array.isArray(jobsQ.data) ? jobsQ.data : []), [jobsQ.data]);
+  const [jobGroup, setJobGroup] = useState<"running" | "waiting" | "done">("running");
   const [rows, setRows] = useState<InboxRow[] | null>(null);
   const onRows = useCallback((r: InboxRow[]) => setRows(r), []);
   const [sel, setSel] = useState<string | null>(null);
@@ -53,13 +61,13 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
   // store before that.
   const waiting = useWaiting(vaultPath);
   const counts = useMemo(() => {
-    const c: Record<Tab, number> = { briefing: 0, all: 0, actions: 0, google: 0, automations: 0, tasks: 0, results: resultRows.length };
+    const c: Record<Tab, number> = { briefing: 0, all: 0, actions: 0, google: 0, automations: 0, tasks: 0, results: resultRows.length, jobs: jobGroupsNow.running.length + jobGroupsNow.waiting.length };
     if (rows) for (const r of rows) { c[r.category]++; c.all++; }
     else for (const it of waiting.items) { c[KIND_CATEGORY[it.kind] ?? "actions"]++; c.all++; }
     c.all += resultRows.length;
     return c;
-  }, [rows, waiting, resultRows.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tabs = TABS.filter((t) => t.key === "briefing" || t.key === "all" || t.key === tab || counts[t.key] > 0).map((t) => ({ id: t.key, label: t.label, count: counts[t.key] }));
+  }, [rows, waiting, resultRows.length, jobGroupsNow]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tabs = TABS.filter((t) => t.key === "briefing" || t.key === "all" || t.key === "jobs" || t.key === tab || counts[t.key] > 0).map((t) => ({ id: t.key, label: t.label, count: counts[t.key] }));
   const shown: Row[] = [...(rows ?? []), ...(rows ? resultRows : [])].filter((r) => tab === "all" || r.category === tab);
   const pickedResult = sel?.startsWith("result:") ? results.find((r) => `result:${r.runId}` === sel) ?? null : null;
   const pickTab = (k: Tab) => {
@@ -88,6 +96,29 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
       })}
     </nav>
   );
+  const jobsList = (
+    <nav className="space-y-0.5 p-2" aria-label="Jobs" data-testid="inbox-jobs">
+      {([["running", "Running", Clock], ["waiting", "Waiting on you", Hourglass], ["done", "Done", Briefcase]] as const).map(([k, text, Icon]) => {
+        const on = jobGroup === k && (!phone || picked);
+        return (
+          <button key={k} data-testid={`inbox-jobs-${k}`} aria-current={on ? "true" : undefined} onClick={() => { setJobGroup(k); setPicked(true); }}
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
+            <Icon className={`h-4 w-4 shrink-0 ${on ? "text-accent" : "text-text-muted"}`} />
+            <span className={`min-w-0 flex-1 truncate text-[14px] text-text-primary ${on ? "font-semibold" : ""}`}>{text}</span>
+            <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{jobGroupsNow[k].length}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+  const jobsDetail = (
+    <section data-testid="inbox-jobs-detail">
+      <h2 className={DETAIL_TITLE}>{jobGroup === "running" ? "Running" : jobGroup === "waiting" ? "Waiting on you" : "Done"}</h2>
+      <p className={`${META} mt-1`}>Jobs your chief of staff staffed, and playbook runs.</p>
+      {!jobGroupsNow[jobGroup].length && <p className={`${META} mt-4`}>{jobGroup === "running" ? "Nothing is running." : jobGroup === "waiting" ? "Nothing waits on you." : "No finished jobs yet."}</p>}
+      <ul className="mt-3 max-w-3xl">{jobGroupsNow[jobGroup].map((j) => <JobRow key={j.id} job={j} vaultPath={vaultPath} />)}</ul>
+    </section>
+  );
   const list = (
     <nav className="space-y-0.5 p-2" aria-label="Waiting items" data-testid="inbox-items">
       {rows === null && <p className={`${META} px-2.5 py-2`}>Reading what is waiting</p>}
@@ -114,21 +145,22 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background" data-testid="inbox-page">
       <SettingsHeader title="Inbox" icon={Inbox} subtitle={counts.all === 0 ? "Nothing waiting on you" : `${counts.all} waiting on you`}
-        right={<SpineTabs label="Inbox categories" value={tab} onChange={pickTab} tabs={tabs} />} />
+        tabs={<SpineTabs label="Inbox categories" value={tab} onChange={pickTab} tabs={tabs} />} />
       <SideSpine storageKey="prevail.inbox.spine" title={TABS.find((t) => t.key === tab)?.label ?? "All"} label="items" testId="inbox-spine"
         phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="All items"
         detail={
           <div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>
-            {tab === "briefing" ? <Briefing which={brief} vaultPath={vaultPath} phone={phone} />
+            {tab === "jobs" ? jobsDetail
+              : tab === "briefing" ? <Briefing which={brief} vaultPath={vaultPath} phone={phone} />
               : pickedResult
               ? <><ResultDetail r={pickedResult} vaultPath={vaultPath} onSeen={() => { setSel(null); void resQ.refresh(); }} /><div hidden><DecisionInbox vaultPath={vaultPath} category="all" selected={null} onRows={onRows} /></div></>
               : <DecisionInbox vaultPath={vaultPath} category={tab === "results" ? "all" : tab} selected={tab === "results" ? null : sel} onRows={onRows} />}
           </div>
         }>
-        {tab === "briefing" ? briefList : list}
+        {tab === "briefing" ? briefList : tab === "jobs" ? jobsList : list}
       </SideSpine>
       {/* On a phone's list the detail is not mounted, so this keeps the column fed. */}
-      {phone && !picked && <div hidden><DecisionInbox vaultPath={vaultPath} category={tab === "results" || tab === "briefing" ? "all" : tab} selected={null} onRows={onRows} /></div>}
+      {phone && !picked && <div hidden><DecisionInbox vaultPath={vaultPath} category={tab === "results" || tab === "briefing" || tab === "jobs" ? "all" : tab} selected={null} onRows={onRows} /></div>}
     </div>
   );
 }
