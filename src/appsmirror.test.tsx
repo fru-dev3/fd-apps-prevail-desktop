@@ -293,7 +293,7 @@ describe("Apps uses the canonical SideSpine", () => {
     expect(within(col).getByText("Connectors")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Collapse connectors"));
     expect(screen.queryByTestId("apps-list")).toBeNull();
-    expect(screen.getByTestId("spine-collapsed").className).toContain("w-9");
+    expect(screen.getByTestId("spine-collapsed").className).toContain("w-12");
     expect(screen.getByTestId("spine-detail").getAttribute("data-spine")).toBe("collapsed");
     expect(localStorage.getItem("prevail.apps.spine")).toBe("1");
     fireEvent.click(screen.getByLabelText("Show connectors"));
