@@ -1,5 +1,5 @@
 // Specialists Phase 4: the last four on with their own faces, Yours (a preset
-// from a pack and an outside agent), Packs per vertical, and a new specialist
+// and an outside agent), and a new specialist
 // made by talking (fields optional, nothing made until go). Invented data
 // only. With SPEC_SHOTS=<dir>, each screen is captured at 390, 768, 1280, 1920.
 import { test, expect, type Page } from "@playwright/test";
@@ -13,20 +13,13 @@ const SPECIALISTS = [
   spec("researcher", "Researcher", "know", "findings"), spec("negotiator", "Negotiator", "decide", "strategy", { ceiling: "draft" }),
   spec("liaison", "Liaison", "do", "nudges", { ceiling: "draft" }), spec("tutor", "Tutor", "grow", "lessons", { ceiling: "write-vault" }),
   spec("confidant", "Confidant", "grow", "reflection"),
-  spec("deal-analyst", "Deal analyst", "know", "numbers", { builtIn: false, base: "analyst", pack: "investors", source: "build/specialists/deal-analyst.md" }),
+  spec("deal-analyst", "Deal analyst", "know", "numbers", { builtIn: false, base: "analyst", source: "build/specialists/deal-analyst.md" }),
   spec("foo-travel-agent", "Foo travel agent", "know", "findings", { builtIn: false, tools: [], outside: { endpoint: "https://agents.example.com/rpc", tool: "plan_trip", perDay: 3 }, source: "build/specialists/foo-travel-agent.md" }),
-];
-const PACKS = [
-  { id: "investors", name: "Investors", who: "People who manage their own investments or rental property", specialists: [{ id: "deal-analyst", name: "Deal analyst", base: "analyst", mandate: "Underwrites one deal." }, { id: "diligence", name: "Diligence", base: "researcher", mandate: "Due diligence." }],
-    compass: [{ kind: "value", title: "Financial independence" }], metrics: { track: ["m-spend"], define: [{ id: "m-cash-months", title: "Months of costs in cash" }] }, installed: { specialists: ["deal-analyst"], compass: [], metrics: [] } },
-  { id: "creators", name: "Creators", who: "People who publish videos, writing or audio", specialists: [{ id: "channel-analyst", name: "Channel analyst", base: "analyst", mandate: "Reads the channel." }],
-    compass: [{ kind: "value", title: "Craft" }], metrics: { track: [], define: [] }, installed: { specialists: [], compass: [], metrics: [] } },
 ];
 const D1 = { draft: { name: "Foo grant finder", base: "researcher", mandate: "Finds grants for foo projects." }, filled: ["name", "base", "mandate"], dropped: [{ field: "ceiling", value: "act", why: "a specialist never acts on its own" }], question: "What should it never do?", reply: "A grant finder built on the Researcher. What should it never do?", ready: true, missing: [], go: false };
 const D2 = { ...D1, draft: { ...D1.draft, never: "Apply for anything." }, filled: ["never"], question: null, reply: "Got it. Say go to add it.", go: true };
 const FIX: Record<string, unknown> = {
   engine_specialists: SPECIALISTS, engine_specialist_show: { spec: SPECIALISTS[6], notebooks: [] }, engine_jobs: [],
-  engine_packs: PACKS, engine_pack_install: { pack: "creators", added: [{ part: "specialists", what: "Channel analyst" }], skipped: [] },
   engine_specialist_draft: D1, engine_specialist_create: { ok: true, spec: { id: "foo-grant-finder" }, path: "build/specialists/foo-grant-finder.md", dropped: [] },
   chief_of_staff_read: "---\nname: Foo\n---\n",
 };
@@ -66,20 +59,6 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect(page.getByTestId("specialist-origin")).toContainText("asks before every call");
       await noOverflow(page);
       await shot(page, "spec4-outside");
-    });
-
-    test("packs: what each adds, one tap to add", async ({ page }) => {
-      await open(page, width);
-      await page.getByTestId("specialists-row-packs").click();
-      const rows = page.getByTestId("pack-row");
-      await expect(rows).toHaveCount(2);
-      await expect(rows.first()).toContainText("1 Compass line · 2 metrics · 1 of 5 added");
-      await rows.nth(1).hover();
-      await rows.nth(1).getByTestId("pack-install").click();
-      await expect.poll(async () => (await calls(page, "engine_pack_install"))[0]).toMatchObject({ id: "creators" });
-      await expect(page.getByTestId("packs-msg")).toContainText("Added Channel analyst");
-      await noOverflow(page);
-      await shot(page, "spec4-packs");
     });
 
     test("a new specialist by talking: the draft fills, nothing is made until go", async ({ page }) => {

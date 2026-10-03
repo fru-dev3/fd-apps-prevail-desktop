@@ -685,6 +685,8 @@ pub fn run() {
             step6::engine_specialist_create,
             step6::engine_compass_history,
             step6::engine_compass_yearly,
+            step6::engine_compass_yearly_list,
+            step6::engine_compass_yearly_save,
             step6::engine_compass_fresh,
             step6::engine_compass_export,
             step6::engine_metrics_say,

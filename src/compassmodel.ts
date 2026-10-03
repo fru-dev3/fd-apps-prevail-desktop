@@ -209,3 +209,115 @@ export function dropLines(doc: CompassDoc, ids: string[], reason = "dropped"): {
   }
   return { doc: next, changes };
 }
+
+// ── Editing lines (Compass round 1, 2026-10-02) ─────────────────────────────
+// Every line can be added, edited, archived (roles) or deleted from the page.
+// Each change is one ledger line with what it was and what it became, so a
+// line's history and the page's History list read the same ledger.
+
+export type LineKind = Exclude<Kind, "other" | "capacity">;
+const PREFIX: Record<LineKind, string> = { value: "v", statement: "st", vision: "vi", objective: "o", role: "r", goal: "g", rule: "nn", negotiable: "ng", routine: "rt" };
+const HEADING: Record<LineKind | "mission", string> = {
+  mission: "Purpose", value: "Values", statement: "Mission statement", vision: "Vision", objective: "Objectives",
+  goal: "Goals", role: "Roles", rule: "Non-negotiables", negotiable: "Negotiables", routine: "Routines",
+};
+const ORDER: (LineKind | "mission")[] = ["mission", "value", "statement", "vision", "objective", "goal", "role", "rule", "negotiable", "routine"];
+const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "line";
+export const isArchived = (x: { tokens: Record<string, string> }) => x.tokens.status === "archived";
+
+function sectionFor(doc: CompassDoc, kind: LineKind | "mission"): CompassSection {
+  let s = doc.sections.find((x) => x.kind === kind);
+  if (s) return s;
+  s = { heading: `## ${HEADING[kind]}`, kind, blocks: kind === "mission" ? [] : [{ raw: "" }] };
+  if (kind === "mission") s.mission = { text: "", tokens: {}, fields: [], raw: [""], dirty: true };
+  const at = doc.sections.findIndex((x) => x.kind !== "other" && ORDER.indexOf(x.kind as LineKind) > ORDER.indexOf(kind));
+  if (at < 0) doc.sections.push(s); else doc.sections.splice(at, 0, s);
+  return s;
+}
+
+/** Add one line in the user's words, theirs at once (never proposed), dated. Pure. */
+export function addLine(doc: CompassDoc, kind: LineKind, title: string, now = Date.now()): { doc: CompassDoc; changes: LedgerChange[]; id: string } {
+  const t = title.replace(/\s+/g, " ").trim().slice(0, 200);
+  if (!t) return { doc, changes: [], id: "" };
+  const next = parseCompass(serializeCompass(doc));
+  const have = new Set(items(next).map((i) => i.id));
+  let id = `${PREFIX[kind]}-${slug(t)}`;
+  for (let n = 2; have.has(id); n++) id = `${PREFIX[kind]}-${slug(t)}-${n}`;
+  const tokens: Record<string, string> = { added: ymd(now) };
+  if (kind === "value") tokens.rank = String(items(next, "value").filter((v) => !isArchived(v)).length + 1);
+  if (kind === "goal") tokens.status = "confirmed";
+  const it: CompassItem = { kind, id, title: t, done: kind === "goal" ? false : null, tokens, flags: [], fields: [], paths: [], raw: [], dirty: true };
+  const s = sectionFor(next, kind);
+  let last = -1;
+  s.blocks.forEach((b, i) => { if ("item" in b) last = i; });
+  if (last >= 0) s.blocks.splice(last + 1, 0, { item: it });
+  else {
+    if (!s.blocks.length || !("raw" in s.blocks[0]) || s.blocks[0].raw !== "") s.blocks.unshift({ raw: "" });
+    s.blocks.splice(1, 0, { item: it });
+    if (!s.blocks[2] || !("raw" in s.blocks[2]) || s.blocks[2].raw !== "") s.blocks.splice(2, 0, { raw: "" });
+  }
+  return { doc: next, changes: [{ id, from: "", to: t, reason: "added", by: "user" }], id };
+}
+
+/** Change a line's words (the purpose too, as id "mission"). Pure. */
+export function editLine(doc: CompassDoc, id: string, title: string): { doc: CompassDoc; changes: LedgerChange[] } {
+  const t = title.replace(/\r\n/g, "\n").trim().slice(0, id === "mission" ? 2000 : 200);
+  const next = parseCompass(serializeCompass(doc));
+  if (id === "mission") {
+    const m = missionOf(next) ?? sectionFor(next, "mission").mission!;
+    const before = m.text;
+    if (!t || t === before) return { doc, changes: [] };
+    m.text = t; m.dirty = true;
+    return { doc: next, changes: [{ id, from: before, to: t, reason: before ? "edited" : "added", by: "user" }] };
+  }
+  const it = items(next).find((i) => i.id === id);
+  const one = t.replace(/\s+/g, " ");
+  if (!it || !one || one === it.title) return { doc, changes: [] };
+  const before = it.title;
+  it.title = one; it.dirty = true;
+  // A drafted line the user rewrites is theirs: it stops being proposed.
+  const changes: LedgerChange[] = [{ id, from: before, to: one, reason: "edited", by: "user" }];
+  if (isProposed(it)) { if (it.kind === "goal") it.tokens.status = "confirmed"; else delete it.tokens.status; changes.push({ id, from: "proposed", to: "confirmed", reason: "edited", by: "user" }); }
+  return { doc: next, changes };
+}
+
+/** Archive (or bring back) a line: it stays in the file, out of the chain and every chat. Pure. */
+export function archiveLine(doc: CompassDoc, id: string, on = true): { doc: CompassDoc; changes: LedgerChange[] } {
+  const next = parseCompass(serializeCompass(doc));
+  const it = items(next).find((i) => i.id === id);
+  if (!it || isArchived(it) === on) return { doc, changes: [] };
+  const from = it.tokens.status ?? "confirmed";
+  if (on) it.tokens.status = "archived"; else if (it.kind === "goal") it.tokens.status = "confirmed"; else delete it.tokens.status;
+  it.dirty = true;
+  return { doc: next, changes: [{ id, from: on ? from : "archived", to: on ? "archived" : it.tokens.status ?? "confirmed", reason: on ? "archived" : "restored", by: "user" }] };
+}
+
+/** Delete a line (any state). The file before is kept as a version and the ledger keeps its words. Pure. */
+export function deleteLine(doc: CompassDoc, id: string): { doc: CompassDoc; changes: LedgerChange[] } {
+  const next = parseCompass(serializeCompass(doc));
+  const changes: LedgerChange[] = [];
+  for (const s of next.sections) {
+    s.blocks = s.blocks.filter((b) => {
+      if (!("item" in b) || b.item.id !== id) return true;
+      changes.push({ id, from: b.item.title, to: "", reason: "deleted", evidence: b.item.raw, by: "user" });
+      return false;
+    });
+  }
+  return changes.length ? { doc: next, changes } : { doc, changes: [] };
+}
+
+/** One ledger line in words: what happened, before and after. */
+export interface LedgerRow { ts: number; id: string; from: string; to: string; reason: string; by?: string }
+export function changeText(l: LedgerRow): { what: string; before: string; after: string } {
+  const r = l.reason;
+  if (r === "added") return { what: "Added", before: "", after: l.to };
+  if (r === "edited" && l.from !== "proposed") return { what: "Edited", before: l.from, after: l.to };
+  if (r === "deleted") return { what: "Deleted", before: l.from, after: "" };
+  if (r === "archived" || l.to === "archived") return { what: "Archived", before: "", after: "" };
+  if (r === "restored") return { what: "Brought back", before: "", after: "" };
+  if (l.to === "dropped") return { what: "Dropped", before: "", after: "" };
+  if (l.from === "proposed") return { what: "Confirmed", before: "", after: "" };
+  return { what: titleWord(r || "Changed"), before: l.from, after: l.to };
+}
+const titleWord = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

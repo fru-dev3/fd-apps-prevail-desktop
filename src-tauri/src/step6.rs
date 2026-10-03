@@ -41,6 +41,21 @@ pub(crate) async fn engine_compass_yearly(vault: String, draft: Option<bool>, wr
     blocking(a).await
 }
 
+/// Every saved yearly review, newest first, with its text.
+#[tauri::command]
+pub(crate) async fn engine_compass_yearly_list(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "compass", "yearly", "list"])).await
+}
+
+/// Save the user's edit of one yearly review (the engine keeps the text before).
+#[tauri::command]
+pub(crate) async fn engine_compass_yearly_save(vault: String, year: u32, text: String) -> Result<serde_json::Value, String> {
+    if !(1900..=3000).contains(&year) { return Err("a year like 2026".into()); }
+    if text.len() > 200_000 { return Err("the review is too long".into()); }
+    let y = year.to_string();
+    blocking_stdin(v(&["--vault", &vault, "compass", "yearly", "save", "--year", &y, "--file", "-"]), text).await
+}
+
 /// Fresh starts on today (new year, birthday, a new quarter, a move or a new job).
 #[tauri::command]
 pub(crate) async fn engine_compass_fresh(vault: String) -> Result<serde_json::Value, String> {
