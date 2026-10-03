@@ -5,7 +5,7 @@
 // mission starts only on the user's go: the Start button, or saying "go".
 // A small toggle shows the same draft as fields, for anyone who wants them.
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, ListChecks, Loader2, MessageSquare, Play } from "lucide-react";
+import { ArrowUp, GraduationCap, Hammer, ListChecks, Loader2, MessageSquare, Plane, Play, ShoppingBag, Wrench } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { useIsPhone } from "./useisphone";
@@ -14,7 +14,9 @@ import { ChiefAvatar, SpecialistAvatar } from "./specialistavatar";
 import { useChiefOfStaff } from "./chiefofstaff";
 import { createMission, MISSIONS_CHANGED, type Mission } from "./missions";
 import { MISSION_DRAFT_KEY } from "./missioncards";
-import { draftFromFields, draftTurn, NEW_MODE_KEY, STARTERS, summaryBits, type DraftTurn, type MissionDraft } from "./missiondraft";
+import { draftFromFields, draftTurn, NEW_MODE_KEY, STARTERS, summaryBits, type DraftTurn, type MissionDraft, type StarterKind } from "./missiondraft";
+
+const KIND_ICON: Record<StarterKind, typeof Plane> = { trip: Plane, purchase: ShoppingBag, learning: GraduationCap, build: Hammer, remodel: Wrench };
 
 const inputCls = "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
 const fieldLabel = "mb-1 block text-[13px] font-medium text-text-secondary";
@@ -44,6 +46,7 @@ export function NewMission({ vaultPath, domains, onCancel, onMade }: { vaultPath
   const [busy, setBusy] = useState<"think" | "start" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [kind, setKind] = useState<StarterKind | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { if (turns.length) end.current?.scrollIntoView({ block: "end" }); }, [turns.length, busy]);
@@ -69,7 +72,7 @@ export function NewMission({ vaultPath, domains, onCancel, onMade }: { vaultPath
     const next: DraftTurn[] = [...turns, { role: "user", text: t }];
     setTurns(next); setText(""); setBusy("think"); setErr(null);
     try {
-      const r = await draftTurn(vaultPath, [{ role: "assistant", text: opener }, ...next], draft);
+      const r = await draftTurn(vaultPath, [{ role: "assistant", text: opener }, ...next], draft, kind);
       setDraft(r.draft); setReady(r.ready); setFresh(r.filled);
       setTurns([...next, { role: "assistant", text: r.reply }]);
       setBusy(null);
@@ -114,10 +117,16 @@ export function NewMission({ vaultPath, domains, onCancel, onMade }: { vaultPath
           <Line who="chief" name={chief}><p>{opener}</p></Line>
           {turns.length === 0 && !handed && (
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 pl-10" data-testid="mission-starters">
-              {STARTERS.map((s) => (
-                <button key={s} type="button" onClick={() => { setText(s); requestAnimationFrame(() => { const b = box.current; if (b) { b.focus(); b.setSelectionRange(s.length, s.length); } }); }}
-                  className="h-8 text-[13px] text-text-secondary underline decoration-border underline-offset-4 hover:text-accent hover:decoration-accent">{s.trim()}...</button>
-              ))}
+              {STARTERS.map((s) => {
+                const I = KIND_ICON[s.kind];
+                return (
+                  <button key={s.kind} type="button" data-testid={`mission-starter-${s.kind}`} aria-pressed={kind === s.kind}
+                    onClick={() => { setKind(s.kind); setText(s.opening); requestAnimationFrame(() => { const b = box.current; if (b) { b.focus(); b.setSelectionRange(s.opening.length, s.opening.length); } }); }}
+                    className={`inline-flex h-8 items-center gap-1.5 text-[13px] underline-offset-4 hover:text-accent ${kind === s.kind ? "text-accent" : "text-text-secondary"}`}>
+                    <I className="h-3.5 w-3.5" aria-hidden />{s.label}
+                  </button>
+                );
+              })}
             </div>
           )}
           {turns.map((t, i) => t.role === "user"

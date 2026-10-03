@@ -157,14 +157,18 @@ test.describe("a project by talking", () => {
       await expect(chat.getByTestId("mission-starters")).toBeVisible();
       await shot(page, "mission-chat-empty");
       // A starter goes into the box for the user to finish; nothing is sent.
-      await chat.getByRole("button", { name: "I want to learn to..." }).click();
-      await expect(chat.getByTestId("mission-chat-input")).toHaveValue("I want to learn to ");
+      // Starters per kind: a trip, a purchase, learning, a build, a remodel.
+      for (const k of ["trip", "purchase", "learning", "build", "remodel"]) await expect(chat.getByTestId(`mission-starter-${k}`)).toBeVisible();
+      await chat.getByTestId("mission-starter-learning").click();
+      await expect(chat.getByTestId("mission-chat-input")).toHaveValue("Learn to ");
       expect(await calls(page, "engine_missions_draft")).toEqual([]);
       await chat.getByTestId("mission-chat-input").fill("I want to learn the cello and play a piece for my family");
       await chat.getByTestId("mission-chat-input").press("Enter");
       await expect(chat.getByTestId("mission-chat-reply").last()).toContainText("By when would you like to play it?");
       const first = (await calls(page, "engine_missions_draft"))[0]!;
       expect(first.draft).toEqual({});
+      // The kind travels with the message, so the engine seeds the usual milestones and specialists.
+      expect(first.kind).toBe("learning");
       expect((first.turns as { role: string; text: string }[]).at(-1)).toEqual({ role: "user", text: "I want to learn the cello and play a piece for my family" });
       const sum = page.getByTestId("mission-draft-summary");
       await expect(sum).toContainText("Learn the cello · Hobbies owns it");

@@ -99,7 +99,7 @@ export function YearlyReview({ vaultPath }: { vaultPath: string }) {
 interface HMember { id: string; name: string; relation: string; added: string; consent: Record<"compass" | "metrics", boolean>; hasCompass: boolean }
 interface HShared { id: string; title: string; members: string[]; names: string[]; hours?: number; done: boolean }
 interface HConflict { kind: string; who: string; goal: string; question: string; evidence: string[] }
-interface HView { members: HMember[]; shared: HShared[]; conflicts: HConflict[] }
+interface HView { members: HMember[]; shared: HShared[]; conflicts: HConflict[]; projects?: { slug: string; name: string; members: string[] }[] }
 
 const field = "h-9 min-w-0 rounded-md border border-border bg-background px-2.5 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
 
@@ -183,6 +183,17 @@ export function Household({ vaultPath }: { vaultPath: string }) {
         </form>
       )}
 
+      {(v.projects ?? []).length > 0 && (
+        <>
+          <h3 className={`${SECTION_TITLE} mt-7`}>Shared projects</h3>
+          <ul className="mt-1">{v.projects!.map((p) => (
+            <li key={p.slug} data-testid="shared-project" className="border-b border-border-subtle py-2 last:border-b-0">
+              <p className={ROW_TITLE}>{p.name}</p>
+              <p className={`${META} mt-0.5`}>With {p.members.map((id) => v.members.find((m) => m.id === id)?.name ?? id).join(", ")}</p>
+            </li>
+          ))}</ul>
+        </>
+      )}
       {v.conflicts.length > 0 && (
         <>
           <h3 className={`${SECTION_TITLE} mt-7`}>Between people</h3>
