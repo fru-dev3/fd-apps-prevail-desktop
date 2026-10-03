@@ -113,3 +113,27 @@ pub(crate) async fn engine_household_shared_add(vault: String, title: String, me
     if let Some(h) = hours.filter(|h| *h > 0.0 && *h < 200.0) { a.push("--hours".into()); a.push(format!("{h}")); }
     blocking(a).await
 }
+
+// ── Metrics M6: family metrics with consent per person ────────────────────
+
+#[tauri::command]
+pub(crate) async fn engine_metrics_family(vault: String) -> Result<serde_json::Value, String> {
+    blocking(v(&["--vault", &vault, "metrics", "family"])).await
+}
+
+#[tauri::command]
+pub(crate) async fn engine_metrics_family_add(vault: String, title: String) -> Result<serde_json::Value, String> {
+    let t: String = title.chars().take(60).collect();
+    if t.trim().is_empty() { return Err("a family metric needs a title".into()); }
+    blocking(v(&["--vault", &vault, "metrics", "family", "add", "--title", &t])).await
+}
+
+/// Log one number; for a household member the engine checks they share their numbers.
+#[tauri::command]
+pub(crate) async fn engine_metrics_say(vault: String, id: String, value: f64, member: Option<String>) -> Result<serde_json::Value, String> {
+    if !value.is_finite() || value < 0.0 || value > 1e7 { return Err("a number between 0 and 10,000,000".into()); }
+    let n = format!("{value}");
+    let mut a = v(&["--vault", &vault, "metrics", "say", ok_id(&id)?, &n]);
+    if let Some(m) = member.filter(|m| !m.is_empty()) { a.push("--member".into()); a.push(ok_id(&m)?.to_string()); }
+    blocking(a).await
+}

@@ -20,6 +20,7 @@ import { LS, lsGet } from "./storage";
 import { EDITOR_NAV, WORK_NAV, navSection } from "./navdefs";
 import type { CliInfo, Domain, DomainTab, LifeReadiness, TabId, ThreadMeta } from "./types";
 import { DETAIL_TITLE } from "./typescale";
+import { PhoneGlance } from "./metricsfamily";
 
 export type PhoneScreen = "chat" | "domains" | "work" | "settings";
 
@@ -342,7 +343,10 @@ export function PhoneShell({
       {screen === "work" && workView === "list" && (
         <>
           <Header title="Work" />
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+            {/* The week at a glance (Metrics M6), the phone's widget. */}
+            <PhoneGlance vaultPath={vaultPath} />
+            <div className="px-4 pt-4">
             <section className="mb-5">
               <ul className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
                 {PHONE_TOP.map((it, i) => (
@@ -362,6 +366,7 @@ export function PhoneShell({
                 </ul>
               </section>
             ))}
+            </div>
           </div>
         </>
       )}
