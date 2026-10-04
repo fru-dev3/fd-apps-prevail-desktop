@@ -630,7 +630,12 @@ export default function App() {
     // Keep config.json (the engine/daemon source of truth) in lockstep with the
     // active vault, so switching vaults in the UI moves the engine + daemons too
     // instead of stranding them on a stale folder.
-    void invoke("engine_set_config_vault", { path: vaultPath }).catch(() => {});
+    // A production config refuses a demo vault; the UI then follows the
+    // config instead of showing a vault the engine is not using.
+    void invoke("engine_set_config_vault", { path: vaultPath }).catch(async () => {
+      const cfg = await invoke<string | null>("engine_config_vault").catch(() => null);
+      if (cfg && cfg !== vaultPath) { lsSet(LS.vault, cfg); setVaultPath(cfg); }
+    });
   }, [vaultPath]);
   const refreshDomainStats = useCallback(async (names: string[]) => {
     const results = await Promise.all(

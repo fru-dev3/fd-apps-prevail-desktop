@@ -1667,6 +1667,27 @@ pub fn engine_config_vault() -> Option<String> {
     v.get("vaultPath").and_then(|x| x.as_str()).map(|s| s.to_string())
 }
 
+/// A demo vault path never replaces a production vault in config.json: that
+/// write is how a stale UI value once moved the engine, capture and daemons
+/// onto the demo vault silently (2026-10-03).
+pub(crate) fn refuses_demo_over_production(cfg: &serde_json::Value, path: &str) -> bool {
+    let production = cfg.get("appMode").and_then(|m| m.as_str()) == Some("production");
+    let demo = path.contains("/.prevail/demo-vault") || path.ends_with("demo-vault");
+    production && demo
+}
+
+#[cfg(test)]
+mod demo_guard_tests {
+    #[test]
+    fn production_config_never_takes_a_demo_vault() {
+        let prod = serde_json::json!({ "appMode": "production", "vaultPath": "/x/Vault" });
+        let demo = serde_json::json!({ "appMode": "demo" });
+        assert!(super::refuses_demo_over_production(&prod, "/Users/a/.prevail/demo-vault"));
+        assert!(!super::refuses_demo_over_production(&prod, "/Users/a/Vault"));
+        assert!(!super::refuses_demo_over_production(&demo, "/Users/a/.prevail/demo-vault"));
+    }
+}
+
 /// Point the engine's config at `path`, preserving every other field. Called by
 /// the desktop whenever the active vault changes so the daemons + engine follow
 /// the UI instead of stranding on a stale vault.
@@ -1676,8 +1697,13 @@ pub fn engine_set_config_vault(path: String) -> Result<(), String> {
     // call (including no-arg ones like `connectors list`)
     // injects PREVAIL_VAULT_ROOT and resolves the real vault, not a dev fallback.
     // Encrypted vaults also set this on unlock; plaintext vaults rely on this hook.
-    set_vault_root(Some(path.clone()));
     let p = engine_config_path().ok_or("no HOME")?;
+    let current: serde_json::Value = std::fs::read_to_string(&p).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_else(|| serde_json::json!({}));
+    if refuses_demo_over_production(&current, &path) {
+        eprintln!("[config] refused to point a production config at the demo vault: {path}");
+        return Err("refused: this Mac is in production mode, so config.json keeps its real vault".into());
+    }
+    set_vault_root(Some(path.clone()));
     if let Some(dir) = p.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
