@@ -17,6 +17,7 @@ mod entities_bridge;
 mod linking;
 mod structure;
 mod appscope;
+mod knowledge;
 mod goals;
 mod compass;
 mod plans;
@@ -624,9 +625,13 @@ pub fn run() {
             appscope::engine_apps_access_log,
             appscope::engine_apps_threads,
             appscope::engine_apps_accounts,
-            appscope::engine_apps_add_source,
             appscope::engine_apps_remove_source,
             appscope::apps_untrusted_sources,
+            knowledge::engine_knowledge_sources,
+            knowledge::engine_knowledge_add,
+            knowledge::engine_knowledge_check,
+            knowledge::engine_knowledge_use,
+            knowledge::engine_knowledge_remove,
             goals::goals_files_read,
             goals::goals_file_write,
             compass::chief_of_staff_read,

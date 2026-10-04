@@ -565,7 +565,7 @@ pub(crate) async fn engine_apps_offboard(vault: String, id: String) -> Result<se
 /// Every source with this Mac's consent and its last sync.
 #[tauri::command]
 pub(crate) async fn engine_sources(vault: String) -> Result<serde_json::Value, String> {
-    blocking(v(&["--vault", &vault, "sources", "list"])).await
+    blocking(v(&["--vault", &vault, "sources", "list", "--consent"])).await
 }
 
 /// Turn one source on or off on this Mac.
