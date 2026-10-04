@@ -5,13 +5,13 @@
 // Gated profiles require their passcode inline before switching.
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Lock, Plus, Settings2 } from "lucide-react";
-import { getActiveId, initials, loadProfiles, setActiveId, setDefaultId, verifyPasscode, type Profile } from "./profiles";
+import { getActiveId, initials, offeredProfiles, setActiveId, setDefaultId, verifyPasscode, type Profile } from "./profiles";
 
 // The sidebar header: avatar with a presence dot, the profile name, a second
 // line naming the workspace (with the switcher chevron), and a `trailing` slot
 // on the right (the sidebar puts its settings button there).
 export function ProfileSwitcher({ collapsed, trailing }: { collapsed: boolean; trailing?: ReactNode }) {
-  const [profiles, setProfiles] = useState<Profile[]>(() => loadProfiles());
+  const [profiles, setProfiles] = useState<Profile[]>(() => offeredProfiles());
   const [activeId, setActive] = useState<string | null>(() => getActiveId());
   const [open, setOpen] = useState(false);
   const [gateId, setGateId] = useState<string | null>(null); // profile awaiting passcode
@@ -19,7 +19,7 @@ export function ProfileSwitcher({ collapsed, trailing }: { collapsed: boolean; t
   const [err, setErr] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  const refresh = () => { setProfiles(loadProfiles()); setActive(getActiveId()); };
+  const refresh = () => { setProfiles(offeredProfiles()); setActive(getActiveId()); };
   useEffect(() => {
     const f = () => refresh();
     window.addEventListener("prevail:profiles-changed", f);

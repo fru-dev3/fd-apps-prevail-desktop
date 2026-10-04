@@ -11,7 +11,7 @@ import { titleCase } from "./format";
 import type { CliInfo, Domain, DomainTab, EngineApp, TabId, ThreadMeta } from "./types";
 import { BUNKER_LS, LS, PREF, getPref, hydrateUiPrefs, hydrateProfilePrefs, saveProfilePrefs, isBunkerOn, lsGet, lsSet } from "./storage";
 import { track } from "./telemetry";
-import { ensureDefaultProfile, getOwnedProfile } from "./profiles";
+import { ensureDefaultProfile, getOwnedProfile, isDemoVaultPath, nameFromUserMd, reconcileProductionProfiles, setProfilesProduction } from "./profiles";
 import { QuickCapture } from "./quickcapture";
 import { BridgeStatusChips, DemoRibbon, ResizeHandle } from "./widgets";
 import { useProcesses } from "./processes";
@@ -298,7 +298,7 @@ export default function App() {
   useEffect(() => {
     const load = () =>
       invoke<{ mode: "demo" | "production" }>("engine_appmode_get")
-        .then((m) => setAppMode(m.mode))
+        .then((m) => { if (!m?.mode) return; setProfilesProduction(m.mode === "production"); setAppMode(m.mode); window.dispatchEvent(new CustomEvent("prevail:profiles-changed")); })
         .catch(() => {});
     void load();
     window.addEventListener("prevail:appmode", load);
@@ -364,6 +364,7 @@ export default function App() {
     const onSwitch = (e: Event) => {
       const vp = (e as CustomEvent<{ vaultPath?: string; profileId?: string }>).detail?.vaultPath;
       if (!vp || vp === vaultPath) return;
+      if (isDemoVaultPath(vp) && appMode === "production") return;
       const prevVault = vaultPath;
       setSelectedApp(null);
       setAppView(false);
@@ -390,7 +391,7 @@ export default function App() {
     };
     window.addEventListener("prevail:switch-profile", onSwitch as EventListener);
     return () => window.removeEventListener("prevail:switch-profile", onSwitch as EventListener);
-  }, [vaultPath]);
+  }, [vaultPath, appMode]);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   // Obsidian import modal, opened from the sidebar's Obsidian icon (or Vault
@@ -555,14 +556,24 @@ export default function App() {
         // Demo mode (or no mode yet) always re-seeds so the user always lands
         // in the populated sandbox with the latest bundled sample data.
         const mode = await invoke<{ mode: "demo" | "production" }>("engine_appmode_get").catch(() => null);
-        if (mode?.mode === "production") {
+        // A failed mode read (the engine is slow on a cold boot) must not drop
+        // into the demo branch below, which opened the startup profile's vault
+        // over the config vault: with a config vault, trust it.
+        const cfgFirst = mode ? null : await invoke<string | null>("engine_config_vault").catch(() => null);
+        if (mode?.mode === "production" || cfgFirst) {
           // config.json is the SINGLE source of truth for the active vault: the
           // engine and the headless daemons read it. Prefer it over localStorage
           // so the UI can never strand on a different vault than the engine (the
           // bug behind blank history/activity/usage + mismatched domains). Sync
           // localStorage so the rest of the app agrees.
-          const cfgVault = await invoke<string | null>("engine_config_vault").catch(() => null);
+          if (mode?.mode === "production") setProfilesProduction(true);
+          const cfgVault = cfgFirst ?? await invoke<string | null>("engine_config_vault").catch(() => null);
           if (cfgVault) {
+            // The profile follows the config vault, never the reverse: a demo
+            // profile left active must not head (or write back over) it.
+            const md = await invoke<string>("read_user_md", { vault: cfgVault }).catch(() => "");
+            reconcileProductionProfiles(cfgVault, nameFromUserMd(md));
+            window.dispatchEvent(new CustomEvent("prevail:profiles-changed"));
             // Config.json is THE source of truth in production. Trust it even if
             // the existence probe flakes during boot - otherwise we strand on a
             // stale localStorage vault (the demo-vault revert bug) and the sync
@@ -630,8 +641,10 @@ export default function App() {
     // Keep config.json (the engine/daemon source of truth) in lockstep with the
     // active vault, so switching vaults in the UI moves the engine + daemons too
     // instead of stranding them on a stale folder.
-    // A production config refuses a demo vault; the UI then follows the
-    // config instead of showing a vault the engine is not using.
+    // In production this moves only the UI's engine calls (VAULT_ROOT):
+    // config.json keeps the main vault, so capture and the daemons stay on it.
+    // A production config refuses a demo vault outright; the UI then follows
+    // the config instead of showing a vault the engine is not using.
     void invoke("engine_set_config_vault", { path: vaultPath }).catch(async () => {
       const cfg = await invoke<string | null>("engine_config_vault").catch(() => null);
       if (cfg && cfg !== vaultPath) { lsSet(LS.vault, cfg); setVaultPath(cfg); }
@@ -1590,6 +1603,8 @@ export default function App() {
     }
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") {
+      // Picking the vault here is the owner choosing the main vault.
+      await invoke("engine_set_config_vault", { path: dir, main: true }).catch(() => {});
       setVaultPath(dir);
       lsSet(LS.vault, dir);
       void invoke("remember_vault", { path: dir }).catch(() => {});
@@ -1655,6 +1670,8 @@ export default function App() {
         onBunkerChange={applyBunker}
         onSetupDomains={() => { setOnboardDismissed(false); setOnboardOpen(true); }}
         onVaultMoved={(p) => {
+          // Settings' vault actions are the owner changing the main vault.
+          void invoke("engine_set_config_vault", { path: p, main: true }).catch(() => {});
           setVaultPath(p);
           lsSet(LS.vault, p);
           void invoke("remember_vault", { path: p }).catch(() => {});

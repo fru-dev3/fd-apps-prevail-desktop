@@ -10,7 +10,7 @@ import { invoke, isBrowser } from "./bridge";
 import { SettingsHeader } from "./sectionutil";
 import { isUserDomain } from "./helpers";
 import {
-  getActiveId, getDefaultId, hashPasscode, imageFileToDataUrl, loadProfiles, newProfileId, PROFILE_COLORS,
+  getActiveId, getDefaultId, hashPasscode, imageFileToDataUrl, loadProfiles, offeredProfiles, newProfileId, PROFILE_COLORS,
   removeProfile, setActiveId, setDefaultId, upsertProfile, verifyPasscode, type Profile,
 } from "./profiles";
 
@@ -33,7 +33,7 @@ function Avatar({ p, size }: { p: { label: string; email?: string; color?: strin
 }
 
 export function ProfilesSection() {
-  const [profiles, setProfiles] = useState<Profile[]>(() => loadProfiles());
+  const [profiles, setProfiles] = useState<Profile[]>(() => offeredProfiles());
   const [activeId, setActive] = useState<string | null>(() => getActiveId());
   const [defaultId, setDefault] = useState<string | null>(() => getDefaultId());
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -45,7 +45,7 @@ export function ProfilesSection() {
   // that can't be scanned (path gone, not yet created) simply stays absent.
   const [counts, setCounts] = useState<Record<string, number>>({});
 
-  const refresh = () => { setProfiles(loadProfiles()); setActive(getActiveId()); setDefault(getDefaultId()); };
+  const refresh = () => { setProfiles(offeredProfiles()); setActive(getActiveId()); setDefault(getDefaultId()); };
   useEffect(() => {
     const f = () => refresh();
     window.addEventListener("prevail:profiles-changed", f);

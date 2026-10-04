@@ -215,12 +215,14 @@ export function DemoModeSection({ vaultPath, onVaultMoved, onSetupDomains, heade
     window.addEventListener("prevail:appmode", loadMode);
     return () => window.removeEventListener("prevail:appmode", loadMode);
   }, []);
-  // When we're in production, the current vaultPath IS the production vault -
-  // remember it (covers vaults set up before this round-trip logic existed).
+  // In production the main vault is config.json's, not whichever profile the
+  // UI shows: remembering the UI vault here made a switched-to profile the
+  // "production vault".
   useEffect(() => {
-    if (appMode === "production" && vaultPath && !vaultPath.includes("/.prevail/demo-vault")) {
-      if (vaultPath !== prodVault) { setProdVault(vaultPath); lsSet(LS.vaultProduction, vaultPath); }
-    }
+    if (appMode !== "production") return;
+    void invoke<string | null>("engine_config_vault").then((cfg) => {
+      if (cfg && cfg !== prodVault) { setProdVault(cfg); lsSet(LS.vaultProduction, cfg); }
+    }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMode, vaultPath]);
 
