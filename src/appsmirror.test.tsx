@@ -120,11 +120,7 @@ const defaultInvoke = async (cmd: string, _args?: Record<string, unknown>): Prom
       { ts: Date.now() - 60_000, tool: "list_threads", access: "read", outcome: "ran", thread: "2026-09-28_foo", domain: "work", summary: "query: from the foo team", app: "bar-mail" },
       { ts: Date.now() - 30_000, tool: "send_message", access: "blocked", outcome: "queued", thread: "2026-09-28_foo", summary: "to: [an email address]", app: "bar-mail" },
     ] : [];
-    case "engine_apps_add_source": return {
-      app: { id: "context-fru-dev", name: "Context (fru.dev)", runtime: "claude", server: "context-fru-dev", status: "connected", signin_hint: "", syncable: false, domains: [], trusted: true, integration: "mcp-remote", urls: ["https://context.fru.dev/mcp"] },
-      probe: { ok: true, checked_at: 1, tools: [{ name: "search", kind: "read", read_only_hint: true }, { name: "list_sources", kind: "read", read_only_hint: true }], server: { name: "ibis-context" } },
-      adopted: false,
-    };
+    case "engine_knowledge_check": return { source: { id: "foo-src" }, probe: { ok: true, checked_at: 1, tools: [{ name: "search", kind: "read", read_only_hint: true }] }, adopted: true, found: "1 read-only tool: search" };
     case "ingestion_cli_providers": return [];
     case "apps_mirror_recipe_save": return { ok: true, app: { ...mail, recipe: { prompt: "List new threads", domains: ["money"], schedule: "weekly", read_tools: ["list_threads"] } } };
     default: return undefined;
@@ -225,15 +221,14 @@ describe("AppsMirrorPanel", () => {
     expect(invokeMock.mock.calls.find((c) => c[0] === "engine_apps_access_log")?.[1]).toMatchObject({ vault: "/v", app: "bar-mail" });
   });
 
-  it("adds the suggested source in one click and shows what it found", async () => {
+  it("Add a source opens Knowledge sources, the one place sources are added", async () => {
+    const seen: string[] = [];
+    const on = (e: Event) => seen.push(String((e as CustomEvent<string>).detail));
+    window.addEventListener("prevail:settings-section", on);
     render(<AppsMirrorPanel vaultPath="/v" />);
     fireEvent.click(await screen.findByTestId("apps-row-add-source"));
-    const s = await screen.findByTestId("suggested-source");
-    expect(within(s).getByText("Context (fru.dev)")).toBeTruthy();
-    fireEvent.click(within(s).getByRole("button", { name: /Add/ }));
-    await waitFor(() => expect(screen.getByTestId("probe-ok")).toBeTruthy());
-    expect(invokeMock).toHaveBeenCalledWith("engine_apps_add_source", { vault: "/v", kind: "mcp-remote", urls: ["https://context.fru.dev/mcp"], name: "Context (fru.dev)" });
-    expect(screen.getByText("list_sources")).toBeTruthy();
+    window.removeEventListener("prevail:settings-section", on);
+    expect(seen).toEqual(["knowledge-sources"]);
   });
 
   it("offers to trust a source that synced from another Mac", async () => {
@@ -241,7 +236,7 @@ describe("AppsMirrorPanel", () => {
     fireEvent.click(await screen.findByTestId("apps-row-untrusted-foo-src"));
     expect(within(await screen.findByTestId("untrusted-source")).getByText("Not trusted on this Mac yet")).toBeTruthy();
     fireEvent.click(screen.getByTestId("trust-here"));
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("engine_apps_add_source", { vault: "/v", kind: "mcp-remote", urls: ["https://foo.example/mcp"], name: "Foo Source" }));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("engine_knowledge_check", { vault: "/v", id: "foo-src" }));
   });
 
   it("reads untrusted sources from the engine's fields, without the manifest fallback", async () => {

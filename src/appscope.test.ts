@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addRef, appStepLabel, appUseLabel, appUses, asGoogleAccounts, effectiveGoogleAccount, isGoogleApp, parseUrls, refsToChatArgs, slugifyId } from "./appscope";
+import { addRef, appStepLabel, appUseLabel, appUses, asGoogleAccounts, effectiveGoogleAccount, isGoogleApp, refsToChatArgs } from "./appscope";
 import { atMatchAt } from "./chatrefs";
 import type { MirrorApp } from "./appsmirror-model";
 
@@ -59,11 +59,6 @@ describe("app scope helpers", () => {
     expect(atMatchAt("@", 1)).toEqual({ token: "", start: 0, end: 1 });
     expect(atMatchAt("mail me@foo", 11)).toBeNull();
     expect(atMatchAt("ask @foo then", 13)).toBeNull();
-  });
-
-  it("slugs a source name the way the engine does and reads addresses", () => {
-    expect(slugifyId("Context (fru.dev)")).toBe("context-fru-dev");
-    expect(parseUrls("foo.example/a\nhttps://bar.example/b, foo.example/a")).toEqual(["https://foo.example/a", "https://bar.example/b"]);
   });
 });
 

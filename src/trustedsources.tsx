@@ -1,10 +1,10 @@
-// Trusted sources: the owner's own data sites, added as apps that feed the
-// agent read only (a remote MCP address, a site with llms.txt / openapi.json,
-// or a list of links). The engine adds and checks them (`apps add-source`)
-// and archives them (`apps remove-source`, never a delete). Once added, a
-// source behaves like any app: Chat, @-mention, Activity.
+// Trusted sources as apps: the owner's knowledge sources (an MCP address, a
+// site or feed, links, a folder, a database) feed the agent read only. They
+// are added and scoped on Settings > Connections > Knowledge sources
+// (knowledgesources.tsx); here a source behaves like any app: Chat,
+// @-mention, Activity, Check again and Archive (never a delete).
 import { useState } from "react";
-import { Archive, Check, FileText, Globe, Link2, Loader2, Plug, Plus, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Archive, Check, Database, FileText, FolderOpen, Globe, Link2, Loader2, Plug, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
 import { RowMenu } from "./ui";
 import { toast } from "./toast";
@@ -13,21 +13,19 @@ import { AppLogo } from "./appsmirror-parts";
 import { statusMeta, type MirrorApp } from "./appsmirror-model";
 import { AppScopeView } from "./appchat";
 import { DetailTitle, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
-import {
-  SOURCE_KINDS, SOURCE_KIND_LABEL, SUGGESTED_SOURCES, isWebSource, parseUrls, slugifyId,
-  type AddSourceResult, type SourceKind, type SourceProbe, type UntrustedSource,
-} from "./appscope";
+import { SOURCE_KIND_LABEL, isWebSource, type SourceKind, type SourceProbe, type UntrustedSource } from "./appscope";
 
 // Plain sections, no boxes: the page is one column of quiet content.
 const card = "";
-const field = "w-full rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary placeholder:text-text-muted/70 focus:border-accent-border focus:outline-none";
 const primary = "inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-45";
 const secondary = "inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline disabled:opacity-45 disabled:no-underline";
 
-export const KIND_ICON: Record<string, typeof Plug> = { "mcp-remote": Plug, web: Globe, links: Link2 };
+export const KIND_ICON: Record<string, typeof Plug> = { "mcp-remote": Plug, web: Globe, links: Link2, folder: FolderOpen, database: Database };
 
-async function addSource(vaultPath: string, kind: SourceKind, urls: string[], name: string): Promise<AddSourceResult> {
-  return invoke<AddSourceResult>("engine_apps_add_source", { vault: vaultPath, kind, urls, name });
+// Look at a source again through the knowledge sources engine, which knows
+// every kind (and trusts on this Mac one that synced in from another).
+async function checkSource(vaultPath: string, id: string): Promise<{ probe: SourceProbe }> {
+  return invoke<{ probe: SourceProbe }>("engine_knowledge_check", { vault: vaultPath, id });
 }
 
 // What the engine found when it looked at the source, in plain words.
@@ -72,113 +70,6 @@ export function ProbeView({ probe, kind }: { probe: SourceProbe; kind: string })
   );
 }
 
-export function AddSourcePane({ vaultPath, existing, onAdded, onOpen }: {
-  vaultPath: string;
-  existing: string[];
-  onAdded: () => void;
-  onOpen: (id: string) => void;
-}) {
-  const [kind, setKind] = useState<SourceKind>("mcp-remote");
-  const [urls, setUrls] = useState("");
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<(AddSourceResult & { kind: SourceKind; urls: string[]; name: string }) | null>(null);
-  const desktop = !isBrowser();
-  const meta = SOURCE_KINDS.find((k) => k.id === kind)!;
-  const list = parseUrls(urls);
-
-  async function add(k: SourceKind, u: string[], n: string, key: string) {
-    setBusy(key); setErr(null);
-    try {
-      const r = await addSource(vaultPath, k, u, n);
-      setDone({ ...r, kind: k, urls: u, name: n });
-      onAdded();
-      if (r.probe?.ok) toast.success(`${r.app?.name ?? n} added`);
-    } catch (e) { setErr(String(e).replace(/^Error:\s*/, "")); }
-    finally { setBusy(null); }
-  }
-
-  const suggestions = SUGGESTED_SOURCES.filter((s) => !existing.includes(slugifyId(s.name)) && done?.app?.id !== slugifyId(s.name));
-  return (
-    <div data-testid="add-source" className="space-y-5 p-4 sm:p-6">
-      <div>
-        <DetailTitle>Add a source</DetailTitle>
-        <p className={`${META} mt-1`}>Your own data sites, read only. Once added, chat with it, or @-mention it in any chat.</p>
-      </div>
-
-      {done && (
-        <section data-testid="add-source-result" className={card}>
-          <div className="flex items-center gap-3">
-            <AppLogo name={done.app?.name ?? done.name} url={done.urls[0]} size={32} />
-            <div className="min-w-0 flex-1">
-              <div className={`${ROW_TITLE} truncate`}>{done.app?.name ?? done.name}</div>
-              <div className={META}>{done.adopted ? "Already here, checked again" : "Added"} · {SOURCE_KIND_LABEL[done.kind]}</div>
-            </div>
-            {done.probe.ok
-              ? <button type="button" className={primary} onClick={() => onOpen(done.app.id)}>Open</button>
-              : <button type="button" className={secondary} disabled={!!busy} onClick={() => void add(done.kind, done.urls, done.name, "retry")}>
-                  {busy === "retry" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Retry
-                </button>}
-          </div>
-          <div className="mt-3"><ProbeView probe={done.probe} kind={done.kind} /></div>
-        </section>
-      )}
-
-      {suggestions.length > 0 && (
-        <section aria-label="Suggested">
-          <h3 className={`${SECTION_TITLE} mb-2`}>Suggested</h3>
-          {suggestions.map((s) => (
-            <div key={s.url} data-testid="suggested-source" className="flex items-center gap-3 border-b border-border-subtle py-2.5 last:border-b-0">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <AppLogo name={s.name} url={s.url} size={32} />
-                <div className="min-w-0">
-                  <div className={`${ROW_TITLE} truncate`}>{s.name}</div>
-                  <div className={`${META} line-clamp-2`} title={s.blurb}>{s.blurb}</div>
-                </div>
-              </div>
-              <button type="button" className={`${secondary} shrink-0`} disabled={!desktop || !!busy} onClick={() => void add(s.kind, [s.url], s.name, s.url)}>
-                {busy === s.url ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add
-              </button>
-            </div>
-          ))}
-        </section>
-      )}
-
-      <section aria-label="Your own" className={card}>
-        <h3 className={SECTION_TITLE}>Your own</h3>
-        <div role="radiogroup" aria-label="Kind" className="mt-3 flex w-fit items-center rounded-lg bg-surface-warm p-1 max-sm:w-full">
-          {SOURCE_KINDS.map((k) => {
-            const I = KIND_ICON[k.id];
-            return (
-              <button key={k.id} type="button" role="radio" aria-checked={kind === k.id} data-testid={`source-kind-${k.id}`} onClick={() => setKind(k.id)}
-                className={`inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[14px] max-sm:flex-1 max-sm:justify-center max-sm:px-1.5 max-sm:text-[13px] ${kind === k.id ? "bg-background font-semibold text-text-primary shadow-sm" : "text-text-muted hover:text-text-secondary"}`}>
-                <I className="h-4 w-4" /> {k.label}
-              </button>
-            );
-          })}
-        </div>
-        <p className={`${META} mt-2`}>{meta.hint}</p>
-        <label className="mt-3 block text-[13px] font-semibold text-text-primary" htmlFor="source-urls">{kind === "links" ? "Addresses" : "Address"}</label>
-        {kind === "links"
-          ? <textarea id="source-urls" rows={3} value={urls} onChange={(e) => setUrls(e.target.value)} placeholder={meta.placeholder} className={`${field} mt-1.5 resize-y`} />
-          : <input id="source-urls" value={urls} onChange={(e) => setUrls(e.target.value)} placeholder={meta.placeholder} className={`${field} mt-1.5`} />}
-        <label className="mt-3 block text-[13px] font-semibold text-text-primary" htmlFor="source-name">Name</label>
-        <input id="source-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Foo data" className={`${field} mt-1.5`} />
-        {err && <p data-testid="add-source-error" className="mt-3 flex items-start gap-2 text-[13px] text-err"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0 break-words">{err}</span></p>}
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="button" className={primary} data-testid="add-source-submit"
-            disabled={!desktop || !!busy || !name.trim() || !list.length || (kind === "mcp-remote" && list.length !== 1)}
-            onClick={() => void add(kind, list, name.trim(), "form")}>
-            {busy === "form" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add and check
-          </button>
-          <span className={META}>{desktop ? "Prevail looks at it before it is used. No passwords or keys: the address must work without them." : "Adding a source runs on your Mac."}</span>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 // A source that synced in from another Mac: trusting is per machine, so it
 // waits for a click here.
 export function UntrustedSourceDetail({ vaultPath, source, onTrusted }: { vaultPath: string; source: UntrustedSource; onTrusted: () => void }) {
@@ -188,7 +79,7 @@ export function UntrustedSourceDetail({ vaultPath, source, onTrusted }: { vaultP
   async function trust() {
     setBusy(true); setErr(null);
     try {
-      const r = await addSource(vaultPath, source.integration, source.urls, source.name);
+      const r = await checkSource(vaultPath, source.id);
       setProbe(r.probe);
       if (r.probe?.ok) { toast.success(`${source.name} is trusted on this Mac`); onTrusted(); }
     } catch (e) { setErr(String(e).replace(/^Error:\s*/, "")); }
@@ -232,7 +123,7 @@ export function TrustedSourceDetail({ vaultPath, app, onChanged }: { vaultPath: 
 
   async function check() {
     setBusy("check"); setErr(null);
-    try { const r = await addSource(vaultPath, kind, urls, app.name); setProbe(r.probe); onChanged(); }
+    try { const r = await checkSource(vaultPath, app.id); setProbe(r.probe); onChanged(); }
     catch (e) { setErr(String(e).replace(/^Error:\s*/, "")); }
     finally { setBusy(null); }
   }
