@@ -23,6 +23,7 @@ import type { EntityChatRequest } from "./entitychat";
 import { AcrossYourLife, DomainChip, isYours, setRelation, type Relation } from "./linking";
 import { EventDetails, LinksPane, ProductApps, ProductConnection, ThingDetails } from "./objectparts";
 import type { AppRecord, ObjectFields } from "./ia";
+import { maskSecrets } from "./secretmask";
 
 // The chat is the whole chat panel, so it is its own chunk. A detail starts
 // fetching it as it mounts, so the Chat tab paints at once when clicked.
@@ -163,7 +164,7 @@ function MentionRow({ m }: { m: EntityMention }) {
             <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary">{where}</span>
             <span className="shrink-0 text-[12px] text-text-muted">{fmtDay(m.ts)}</span>
           </span>
-          {m.snippet && <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-text-secondary">{m.snippet}</span>}
+          {m.snippet && <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-text-secondary">{maskSecrets(m.snippet)}</span>}
         </span>
       </button>
     </li>
@@ -471,7 +472,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             {/* Empty sections render nothing (owner, 2026-10-02). */}
             {d.found && d.digest && (
               <Section title="In your vault">
-                <div className="text-[14px] leading-normal text-text-primary"><Markdown source={d.digest} /></div>
+                <div className="text-[14px] leading-normal text-text-primary"><Markdown source={maskSecrets(d.digest)} /></div>
               </Section>
             )}
             {relation === "yours" && (

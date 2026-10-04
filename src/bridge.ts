@@ -8,6 +8,7 @@
 // Server-Sent Events to the in-app bridge server (see src-tauri/src/webui.rs).
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, emit as tauriEmit, type UnlistenFn, type EventCallback } from "@tauri-apps/api/event";
+import { maskDeep } from "./secretmask";
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -92,7 +93,11 @@ function signedOut(): void {
   try { window.dispatchEvent(new Event("prevail:web-unauthorized")); } catch { /* no window */ }
 }
 
+// Secrets never enter the vault: a saved thread is masked before it is written.
+const MASKED_WRITES = new Set(["save_thread"]);
+
 export async function invoke<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  if (args && MASKED_WRITES.has(cmd)) args = { ...args, title: maskDeep(args.title).value, turns: maskDeep(args.turns).value };
   if (isTauri) return tauriInvoke<T>(cmd, args);
   const res = await fetch("/api/invoke", {
     method: "POST",
