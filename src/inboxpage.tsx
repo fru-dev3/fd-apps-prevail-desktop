@@ -42,6 +42,8 @@ const ICON: Record<Row["category"], LucideIcon> = { actions: Play, google: Mail,
 const KIND_CATEGORY: Record<WaitingKind, InboxRow["category"]> = { act: "actions", gws: "google", loop: "automations", task: "tasks" };
 const CAT_KEY = "prevail.inbox.category";
 
+let lastRows: InboxRow[] | null = null;
+
 export function InboxPage({ vaultPath }: { vaultPath: string }) {
   const phone = useIsPhone();
   const [tab, setTab] = useState<Tab>(() => {
@@ -53,8 +55,10 @@ export function InboxPage({ vaultPath }: { vaultPath: string }) {
   const jobsQ = useInvokeQuery<Job[]>("engine_jobs", { vault: vaultPath }, { staleMs: 5_000 });
   const jobGroupsNow = useMemo(() => jobGroups(Array.isArray(jobsQ.data) ? jobsQ.data : []), [jobsQ.data]);
   const [jobGroup, setJobGroup] = useState<"running" | "waiting" | "done">("running");
-  const [rows, setRows] = useState<InboxRow[] | null>(null);
-  const onRows = useCallback((r: InboxRow[]) => setRows(r), []);
+  // A second visit shows the last list at once (refreshed underneath), like
+  // every other page's cached data, instead of "Reading what is waiting".
+  const [rows, setRows] = useState<InboxRow[] | null>(() => lastRows);
+  const onRows = useCallback((r: InboxRow[]) => { lastRows = r; setRows(r); }, []);
   const [sel, setSel] = useState<string | null>(null);
   const [picked, setPicked] = useState(false);
 
