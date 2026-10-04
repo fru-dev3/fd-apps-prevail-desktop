@@ -27,7 +27,7 @@ const PRODUCTS = { products: [
 ] };
 const EVENTS = { events: [
   { id: "event/foo-dinner", name: "Foo family dinner", date: ymd(1), time: "18:30", source: "prevail", has_page: true, place: { id: "place/foo-house", name: "Foo House" }, calendar: "ask" },
-  { id: "calendar:cal-1", name: "Foo dentist", date: ymd(2), source: "calendar", has_page: false, calendar: "synced" },
+  { id: "calendar:cal-1", name: "Foo dentist", date: ymd(0), source: "calendar", has_page: false, calendar: "synced" },
   { id: "milestone:paint-the-shed:ms-paint", name: "Paint bought", date: ymd(4), source: "milestone", has_page: false, project: { id: "mission/paint-the-shed", name: "Paint the shed" } },
   { id: "event/christmas", name: "Christmas", date: ymd(40), source: "prevail", has_page: true, project: { id: "mission/plan-christmas", name: "Plan Christmas" } },
 ] };
