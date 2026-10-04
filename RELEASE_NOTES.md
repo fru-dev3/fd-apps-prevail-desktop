@@ -1,8 +1,8 @@
-# Prevail 0.4.7
+# Prevail 0.4.8
 
 A big one. Prevail now knows what you live by, works with a team of
 specialists, and keeps your life in two clear groups: Entities and Activities.
-It also carries everything from 0.4.5 and 0.4.6, which were never published: every
+It also carries everything from 0.4.5 to 0.4.7, which were never published: every
 conversation has a home domain, copy on select, and For You.
 
 **Compass.** One page for what you live by, in your own words: Purpose,
