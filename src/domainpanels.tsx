@@ -24,6 +24,7 @@ import { pickSkillColor } from "./sectionutil";
 import { ProviderMark } from "./marks";
 import type { CliInfo, DomainContextBundle, DomainManifest, SkillEntry } from "./types";
 import { DETAIL_TITLE } from "./typescale";
+import { SourcesInUse } from "./knowledgesources";
 
 export const SECTION_LABEL =
   "text-[13px] font-semibold text-text-secondary";
@@ -463,6 +464,8 @@ export function DomainContextView({
           <CtxSection keyName="across" title="Across your life" file="memory/updates.jsonl" count={across.lines.length || undefined}
             body={<AcrossYourLife vaultPath={vaultPath} target={{ domain }} emptyName={titleCase(domain)} />} />
         )}
+        {/* The knowledge sources this space's briefings and chats read. */}
+        <CtxSection keyName="knowledge" title="Knowledge sources" body={<SourcesInUse vaultPath={vaultPath} domain={domain || "general"} />} />
         {domain && (
           <CtxSection keyName="things" title="Your things" count={things.length || undefined} body={
             things.length ? (

@@ -80,7 +80,33 @@ export function getActiveId(): string | null {
   return lsGet(ACTIVE_KEY) || null;
 }
 
+// A demo or sample vault: the bundled synthetic persona's sandbox. Mirrors
+// refuses_demo_over_production in src-tauri/src/engine.rs.
+export function isDemoVaultPath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  return /(^|\/)(\.prevail\/demo-vault|demo-vault|vault-\d+-demo|resources\/sample-vault)\/?$/.test(path.trim());
+}
+
+// Production mode, set at boot by App. In production a demo-vault profile is
+// kept in storage but never offered and never made active or default.
+let production = false;
+export function setProfilesProduction(on: boolean): void {
+  production = on;
+}
+
+function isBlocked(id: string): boolean {
+  if (!production) return false;
+  const p = loadProfiles().find((x) => x.id === id);
+  return !!p && isDemoVaultPath(p.vaultPath);
+}
+
+// The profiles the switcher and settings offer.
+export function offeredProfiles(list: Profile[] = loadProfiles()): Profile[] {
+  return production ? list.filter((p) => !isDemoVaultPath(p.vaultPath)) : list;
+}
+
 export function setActiveId(id: string): void {
+  if (isBlocked(id)) return;
   lsSet(ACTIVE_KEY, id);
 }
 
@@ -90,7 +116,39 @@ export function getDefaultId(): string | null {
 }
 
 export function setDefaultId(id: string): void {
+  if (isBlocked(id)) return;
   lsSet(DEFAULT_KEY, id);
+}
+
+// The display name in a vault's build/user.md: its first heading, cut at the
+// first separator ("# Sam, Who I Am" -> "Sam"). Null when there is none or it
+// reads as a demo persona.
+export function nameFromUserMd(md: string | null | undefined): string | null {
+  const h = (md ?? "").match(/^#\s+(.+)$/m)?.[1]?.trim();
+  if (!h) return null;
+  const name = h.split(/\s+[\u2014\u2013-]\s+|,|:/)[0].trim();
+  if (!name || name.length > 40 || /\b(demo|sample)\b/i.test(h)) return null;
+  return name;
+}
+
+const normPath = (p: string) => p.trim().replace(/\/+$/, "");
+
+// Production boot: config.json names THE vault, so the active and default
+// profile must be the one whose vaultPath is that vault. A profile left active
+// from demo mode (the bundled persona) otherwise headed the real vault, and its
+// vaultPath was what the UI wrote back into config (2026-10-03). Creates the
+// profile when none points at the config vault: named from user.md, else
+// "Personal", never a demo name or picture.
+export function reconcileProductionProfiles(configVault: string, userName?: string | null): Profile {
+  const want = normPath(configVault);
+  let p = loadProfiles().find((x) => normPath(x.vaultPath) === want);
+  if (!p) {
+    p = { id: newProfileId(), label: userName?.trim() || "Personal", vaultPath: configVault, color: PROFILE_COLORS[0] };
+    upsertProfile(p);
+  }
+  lsSet(ACTIVE_KEY, p.id);
+  lsSet(DEFAULT_KEY, p.id);
+  return p;
 }
 
 export function getActiveProfile(): Profile | null {

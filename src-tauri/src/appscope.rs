@@ -1,8 +1,7 @@
 // Apps as chat scopes, and trusted sources. The engine owns the data
-// (`prevail apps access-log`, `apps threads`, `apps add-source`,
-// `apps remove-source`); these are thin bridges. The engine probes a source
-// when it is added (an MCP address lists its tools, a site its llms.txt and
-// openapi.json) and returns what it found.
+// (`prevail apps access-log`, `apps threads`, `apps remove-source`); these are
+// thin bridges. Sources are added and checked as knowledge sources
+// (knowledge.rs, `prevail sources`).
 
 use serde_json::{json, Value};
 
@@ -75,41 +74,9 @@ pub async fn engine_apps_accounts(vault: String, id: String) -> Result<Value, St
     engine_json(accounts_args(&vault, &id)?).await
 }
 
-const SOURCE_KINDS: &[&str] = &["mcp-remote", "web", "links"];
-
-// The engine checks each address (https only, no credentials); this only keeps
-// a value from posing as a flag.
-pub(crate) fn clean_urls(urls: &[String]) -> Result<Vec<String>, String> {
-    let mut out: Vec<String> = Vec::new();
-    for u in urls.iter().map(|u| u.trim()).filter(|u| !u.is_empty()) {
-        if u.starts_with('-') { return Err(format!("not a web address: {u}")); }
-        if !out.iter().any(|x| x == u) { out.push(u.to_string()); }
-    }
-    if out.is_empty() { return Err("add at least one address".into()); }
-    Ok(out)
-}
-
-pub(crate) fn add_source_args(vault: &str, kind: &str, urls: &[String], name: &str) -> Result<Vec<String>, String> {
-    if !SOURCE_KINDS.contains(&kind) { return Err(format!("unknown source kind: {kind}")); }
-    let name = name.trim();
-    if name.is_empty() || name.starts_with('-') { return Err("give the source a name".into()); }
-    let urls = clean_urls(urls)?;
-    if kind == "mcp-remote" && urls.len() != 1 { return Err("an MCP source has one address".into()); }
-    let mut args: Vec<String> = vec!["apps".into(), "add-source".into(), "--kind".into(), kind.into()];
-    for u in urls { args.push("--url".into()); args.push(u); }
-    args.extend(["--name".into(), name.to_string(), "--vault".into(), vault.to_string(), "--json".into()]);
-    Ok(args)
-}
-
-// Add a trusted source (an app with integration mcp-remote, web or links).
-// Never takes database credentials: the MCP or API in front of the data is
-// the supported path.
-#[tauri::command]
-pub async fn engine_apps_add_source(vault: String, kind: String, urls: Vec<String>, name: String) -> Result<Value, String> {
-    let v = engine_json(add_source_args(&vault, &kind, &urls, &name)?).await?;
-    if let Some(e) = v.get("error").and_then(|e| e.as_str()) { return Err(e.to_string()); }
-    Ok(v)
-}
+// The kinds a trusted source folder may carry (knowledge sources); they are
+// added through `sources add` (knowledge.rs), never here.
+const SOURCE_KINDS: &[&str] = &["mcp-remote", "web", "links", "folder", "database"];
 
 // Archive a trusted source: its folder moves to data/apps/_archive, never
 // deleted. -> { ok, archived: { id, from, to } }.
@@ -178,18 +145,6 @@ mod tests {
     fn accounts_args_shape() {
         assert_eq!(accounts_args("/v", "gmail").unwrap(), ["apps", "accounts", "gmail", "--vault", "/v", "--json"]);
         assert!(accounts_args("/v", "--x").is_err());
-    }
-
-    #[test]
-    fn add_source_args_shape() {
-        let a = add_source_args("/v", "mcp-remote", &["https://foo.example/mcp".into()], "Foo").unwrap();
-        assert_eq!(a, ["apps", "add-source", "--kind", "mcp-remote", "--url", "https://foo.example/mcp", "--name", "Foo", "--vault", "/v", "--json"]);
-        let l = add_source_args("/v", "links", &["https://a.example/x".into(), " https://b.example/y ".into()], "Bar").unwrap();
-        assert_eq!(l.iter().filter(|x| *x == "--url").count(), 2);
-        assert!(add_source_args("/v", "turso", &["https://a.example".into()], "x").is_err());
-        assert!(add_source_args("/v", "web", &["--rm".into()], "x").is_err());
-        assert!(add_source_args("/v", "web", &["https://a.example".into()], "-x").is_err());
-        assert!(add_source_args("/v", "mcp-remote", &["https://a.example/1".into(), "https://a.example/2".into()], "x").is_err());
     }
 
     #[test]

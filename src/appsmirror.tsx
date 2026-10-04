@@ -21,7 +21,8 @@ import { RUNTIME_MARK, groupByRuntime, type ArchiveResult, type MirrorApp, type 
 import { AppLogo, MIRROR_SELECT_KEY, SigninHelp, StatusPill } from "./appsmirror-parts";
 import { MirrorDetail } from "./appsmirror-detail";
 import { AppsLane, type AppsLaneId } from "./appsfallback";
-import { AddSourcePane, TrustedSourceDetail, UntrustedSourceDetail } from "./trustedsources";
+import { TrustedSourceDetail, UntrustedSourceDetail } from "./trustedsources";
+import { openKnowledgeSources } from "./knowledgesources";
 import { SOURCE_KIND_LABEL, type UntrustedSource } from "./appscope";
 import { isUserDomain } from "./helpers";
 
@@ -302,8 +303,9 @@ export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?:
             <LaneRow key={u.id} id={`untrusted-${u.id}`} icon={ShieldCheck} title={u.name} sub="Not trusted on this Mac yet"
               selected={effectiveId === `untrusted:${u.id}`} onSelect={() => pick(`untrusted:${u.id}`)} />
           ))}
-          <LaneRow id="add-source" icon={Plus} title="Add a source" sub="An MCP address, a site or links"
-            selected={effectiveId === "lane:add-source"} onSelect={() => pick("lane:add-source")} />
+          {/* Sources are added in one place: Settings > Connections > Knowledge sources. */}
+          <LaneRow id="add-source" icon={Plus} title="Add a source" sub="An MCP server, a site, a folder or a database"
+            selected={false} onSelect={openKnowledgeSources} />
         </div>
       </section>
       <section className="mb-3 last:mb-0" aria-label="Without a connector">
@@ -319,9 +321,7 @@ export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?:
 
   const lane = effectiveId?.startsWith("lane:") ? effectiveId.slice(5) : null;
   const untrustedPick = untrusted.find((u) => `untrusted:${u.id}` === effectiveId || u.id === effectiveId) ?? null;
-  const detail = lane === "add-source" ? (
-    <AddSourcePane vaultPath={vaultPath} existing={apps.map((a) => a.id)} onAdded={() => { void load(true); void untrustedQ.refresh(); }} onOpen={pick} />
-  ) : lane ? (
+  const detail = lane ? (
     <AppsLane lane={lane as AppsLaneId} vaultPath={vaultPath} domains={domains} />
   ) : untrustedPick ? (
     <UntrustedSourceDetail key={untrustedPick.id} vaultPath={vaultPath} source={untrustedPick} onTrusted={() => { void load(true); void untrustedQ.refresh(); pick(untrustedPick.id); }} />

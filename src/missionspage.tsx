@@ -36,6 +36,7 @@ import {
   type CloseoutPlan, type Mission, type MissionStatus, type MissionTask, type Receipt,
 } from "./missions";
 import { TintIcon } from "./tint";
+import { SourcesInUse } from "./knowledgesources";
 
 type Tab = MissionStatus | "all";
 type DTab = "chat" | "milestones" | "tasks" | "calendar" | "budget" | "artifacts" | "timeline" | "setup";
@@ -686,6 +687,7 @@ function Setup({ vaultPath, m }: { vaultPath: string; m: Mission }) {
   );
   return (
     <section data-testid="mission-setup" className="grid max-w-3xl gap-4">
+      <SourcesInUse vaultPath={vaultPath} project={m.slug} />
       {text("name", "Name", m.name)}
       {text("outcome", "Outcome", m.outcome, "What done looks like, in one line")}
       {text("why", "Why, in your words", m.why, "", true)}

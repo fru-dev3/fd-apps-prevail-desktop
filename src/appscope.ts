@@ -79,29 +79,13 @@ export function activityRecorded(runtime: RuntimeId | string | undefined): boole
 }
 
 // ── Trusted sources ─────────────────────────────────────────────────────────
-export type SourceKind = "mcp-remote" | "web" | "links";
-export const SOURCE_KINDS: { id: SourceKind; label: string; hint: string; placeholder: string }[] = [
-  { id: "mcp-remote", label: "MCP address", hint: "A remote MCP server. Its tools are read only.", placeholder: "https://example.com/mcp" },
-  { id: "web", label: "Site", hint: "A site with an llms.txt or openapi.json. Documented GET endpoints only.", placeholder: "https://example.com" },
-  { id: "links", label: "Links", hint: "Pages the agent may read. One address per line.", placeholder: "https://example.com/page" },
-];
-export const SOURCE_KIND_LABEL: Record<SourceKind, string> = { "mcp-remote": "MCP address", web: "Site", links: "Links" };
+export type SourceKind = "mcp-remote" | "web" | "links" | "folder" | "database";
+export const SOURCE_KIND_LABEL: Record<SourceKind, string> = { "mcp-remote": "MCP address", web: "Site", links: "Links", folder: "Folder", database: "Database" };
 export function isWebSource(a: Pick<MirrorApp, "integration">): boolean {
   return a.integration === "web" || a.integration === "links";
 }
-// Suggested sources, one click to add. Public addresses only. The engine
-// slugs the name into the app id ("context-fru-dev").
-export const SUGGESTED_SOURCES: { name: string; kind: SourceKind; url: string; blurb: string }[] = [
-  { name: "Context (fru.dev)", kind: "mcp-remote", url: "https://context.fru.dev/mcp", blurb: "Public data sites behind context.fru.dev: list them, search them, query one." },
-];
-export function slugifyId(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
-}
-export function parseUrls(text: string): string[] {
-  return Array.from(new Set(text.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).map((u) => (/^[a-z]+:\/\//i.test(u) ? u : `https://${u}`))));
-}
-// What `apps add-source` returns: the app, and what the engine found when it
-// looked at the source. A failed probe still adds it, with status "error".
+// What the engine found when it looked at a source. A failed probe still
+// adds it, with status "error".
 export type SourceProbe = {
   ok: boolean;
   checked_at?: number;
@@ -112,7 +96,6 @@ export type SourceProbe = {
   openapi?: boolean;
   urls?: { url: string; status: number | null; ok: boolean }[];
 };
-export type AddSourceResult = { app: MirrorApp; probe: SourceProbe; adopted: boolean };
 // A source whose folder synced from another Mac, not yet trusted on this one.
 export type UntrustedSource = { id: string; name: string; integration: SourceKind; urls: string[] };
 

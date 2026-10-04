@@ -35,13 +35,10 @@ const FIX = {
     { id: "bar@example.com", label: "Bar", default: false, via: "gws" },
   ],
   apps_untrusted_sources: [],
-  engine_apps_add_source: {
-    app: { id: "context-fru-dev", name: "Context (fru.dev)", runtime: "claude", server: "context-fru-dev", url: "https://context.fru.dev/mcp", status: "connected", signin_hint: "", syncable: false, domains: [], trusted: true, integration: "mcp-remote", urls: ["https://context.fru.dev/mcp"] },
-    probe: { ok: true, checked_at: 1, server: { name: "ibis-context", version: "1.0.0", protocol: "2025-06-18" }, tools: [
-      { name: "list_sources", kind: "read", read_only_hint: true }, { name: "search", kind: "read", read_only_hint: true },
-      { name: "query_source", kind: "read", read_only_hint: true }, { name: "source_spec", kind: "read", read_only_hint: true },
-    ] },
-    adopted: false,
+  engine_knowledge_sources: [],
+  engine_knowledge_add: {
+    source: { id: "context-fru-dev", name: "Context (fru.dev)", kind: "mcp", integration: "mcp-remote", location: "https://context.fru.dev/mcp", urls: ["https://context.fru.dev/mcp"], scope: { briefings: true, general: true, domains: [], projects: [] }, last_checked: 1, status: "ready", trusted_here: true, found: "4 read-only tools: list_sources, search, query_source, source_spec" },
+    probe: { ok: true }, adopted: false, found: "4 read-only tools: list_sources, search, query_source, source_spec", detected: "MCP server",
   },
   entities_list: { generated_ts: 1, total: 1, entities: [{ id: "person/foo", name: "Foo Bar", kind: "person", aliases: [], mention_count: 3, conversations: 1, last_ts: 1, saved: true, has_page: true }] },
 };
@@ -121,14 +118,15 @@ for (const width of [1440, 390]) {
       await expect(page.getByTestId("app-scope")).toHaveCount(0);
     });
 
-    test("adding a trusted source: the suggestion, one click, what it found", async ({ page }) => {
+    test("adding a trusted source opens Knowledge sources: the suggestion, one click, what it found", async ({ page }) => {
       await openApps(page);
       await page.getByTestId("apps-row-add-source").click();
-      await expect(page.getByTestId("suggested-source")).toContainText("Context (fru.dev)");
+      if (width < 500) await page.getByTestId("hub-row-knowledge").click({ timeout: 10_000 });
+      await expect(page.getByTestId("knowledge-suggested")).toContainText("Context (fru.dev)", { timeout: 10_000 });
       await shot(page, "add-source");
-      await page.getByTestId("suggested-source").getByRole("button", { name: /Add/ }).click();
-      await expect(page.getByTestId("probe-ok")).toContainText("4 read-only tools");
-      expect((await calls(page, "engine_apps_add_source"))[0]).toMatchObject({ kind: "mcp-remote", urls: ["https://context.fru.dev/mcp"], name: "Context (fru.dev)" });
+      await page.getByTestId("knowledge-suggested").getByRole("button", { name: /Add/ }).click();
+      await expect(page.getByTestId("knowledge-found")).toContainText("4 read-only tools");
+      expect((await calls(page, "engine_knowledge_add"))[0]).toMatchObject({ text: "https://context.fru.dev/mcp", name: "Context (fru.dev)" });
       await shot(page, "add-source-done");
     });
 

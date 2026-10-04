@@ -18,6 +18,7 @@ import { useIsPhone, useStacked } from "./useisphone";
 import { BODY, DETAIL_TITLE, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import { RowMenu, StatusDot } from "./ui";
 import { JobCard } from "./jobcard";
+import { SourcesInUse } from "./knowledgesources";
 import { bySpace, label, scopeLabel, scheduleLine, PLAYBOOKS_FOCUS_KEY, PLAYBOOK_GROUPS, playbookGroups, RADAR_EVENT_LABEL, triggerLine, type PlaybookGroup, type PlaybookRow, type PlaybookView } from "./plansmodel";
 
 const GROUP_ICON: Record<PlaybookGroup, typeof Workflow> = { running: CircleDot, scheduled: CalendarClock, yours: Workflow, drafts: FilePen, "built-in": Library };
@@ -157,6 +158,8 @@ function PlaybookDetail({ id, vaultPath, onChanged }: { id: string; vaultPath: s
         </div>
       )}
       {pb.goal && <p className={`${BODY} mt-3 break-words text-text-secondary`}>{pb.goal}</p>}
+      {/* What its agent and synthesize steps read: the knowledge sources in scope for where it runs. */}
+      <div className="mt-2"><SourcesInUse vaultPath={vaultPath} domain={sched?.space ?? pb.domain ?? "general"} briefing /></div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {needsDomain && (

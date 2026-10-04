@@ -806,7 +806,7 @@ export function Sidebar({
                     </button>
                   )}
                   {open && (
-                    <div className={`space-y-0.5 ${!collapsed && !single ? "pl-3" : ""}`}>
+                    <div className={`space-y-0.5 ${!collapsed && !single ? "pl-7" : ""}`}>
                       {group.items.map((it) => (
                         <NavRow key={it.id} icon={it.icon} tint={it.id} label={it.label} active={editorActive === it.id} collapsed={collapsed} onClick={() => selectEditor(it.id)} onPrefetch={() => prefetchSection("settings", it.id, vaultPath)} />
                       ))}

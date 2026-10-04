@@ -31,6 +31,8 @@ export const TINT_HUE: Record<string, number> = {
   briefing: 215, today: 40, week: 205, actions: 150, google: 20, automations: 268, tasks: 250, results: 205,
   jobs: 255, history: 240, versions: 240, noticed: 175, metrics: 225, stack: 262, clis: 262, api: 205, direct: 300,
   summary: 240, questions: 285, trash: 18,
+  // knowledge sources and their kinds
+  knowledge: 315, mcp: 290, web: 210, folder: 45, database: 180,
 };
 // Quiet concepts: the hue at low chroma, a slate tint rather than a color.
 const QUIET = new Set(["settings", "archived", "paused", "icebox", "general"]);

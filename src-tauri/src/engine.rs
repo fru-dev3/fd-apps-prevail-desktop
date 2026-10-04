@@ -1667,24 +1667,105 @@ pub fn engine_config_vault() -> Option<String> {
     v.get("vaultPath").and_then(|x| x.as_str()).map(|s| s.to_string())
 }
 
-/// Point the engine's config at `path`, preserving every other field. Called by
-/// the desktop whenever the active vault changes so the daemons + engine follow
-/// the UI instead of stranding on a stale vault.
+/// A demo vault path never replaces a production vault in config.json: that
+/// write is how a stale UI value once moved the engine, capture and daemons
+/// onto the demo vault silently (2026-10-03).
+pub(crate) fn refuses_demo_over_production(cfg: &serde_json::Value, path: &str) -> bool {
+    let production = cfg.get("appMode").and_then(|m| m.as_str()) == Some("production");
+    let demo = is_demo_vault_path(path);
+    production && demo
+}
+
+/// The bundled persona's sandbox (mirrors isDemoVaultPath in src/profiles.ts).
+pub(crate) fn is_demo_vault_path(path: &str) -> bool {
+    let p = path.trim().trim_end_matches('/');
+    p.ends_with("/.prevail/demo-vault")
+        || p.ends_with("demo-vault")
+        || p.ends_with("resources/sample-vault")
+        || p.rsplit('/').next().map_or(false, |leaf| {
+            leaf.len() > 11 && leaf.starts_with("vault-") && leaf.ends_with("-demo") && leaf[6..leaf.len() - 5].chars().all(|c| c.is_ascii_digit())
+        })
+}
+
+/// What a config vault write may do. In production config.json names the
+/// owner's MAIN vault: the engine, prompt capture and every daemon read it.
+/// Switching profile only moves the UI (this process's VAULT_ROOT); only an
+/// explicit main-vault change (`main`) rewrites config.json. Switching profile
+/// used to rewrite it, which moved capture and the daemons onto a demo vault
+/// (2026-10-03).
+#[derive(Debug, PartialEq)]
+pub(crate) enum ConfigVaultWrite { Write, UiOnly, Refuse }
+
+pub(crate) fn config_vault_write(cfg: &serde_json::Value, path: &str, main: bool) -> ConfigVaultWrite {
+    if refuses_demo_over_production(cfg, path) {
+        return ConfigVaultWrite::Refuse;
+    }
+    let production = cfg.get("appMode").and_then(|m| m.as_str()) == Some("production");
+    let current = cfg.get("vaultPath").and_then(|v| v.as_str()).map(|s| s.trim_end_matches('/'));
+    if production && !main && current.is_some() && current != Some(path.trim_end_matches('/')) {
+        return ConfigVaultWrite::UiOnly;
+    }
+    ConfigVaultWrite::Write
+}
+
+#[cfg(test)]
+mod demo_guard_tests {
+    use super::{config_vault_write, ConfigVaultWrite::*};
+
+    #[test]
+    fn production_config_never_takes_a_demo_vault() {
+        let prod = serde_json::json!({ "appMode": "production", "vaultPath": "/x/Vault" });
+        let demo = serde_json::json!({ "appMode": "demo" });
+        assert!(super::refuses_demo_over_production(&prod, "/Users/a/.prevail/demo-vault"));
+        assert!(super::refuses_demo_over_production(&prod, "/Users/a/Documents/vault-2-demo"));
+        assert!(!super::refuses_demo_over_production(&prod, "/Users/a/Vault"));
+        assert!(!super::refuses_demo_over_production(&demo, "/Users/a/.prevail/demo-vault"));
+        // Even an explicit main-vault change never takes a demo vault.
+        assert_eq!(config_vault_write(&prod, "/Users/a/.prevail/demo-vault", true), Refuse);
+        assert!(!super::is_demo_vault_path("/Users/a/vault-demo"));
+    }
+
+    #[test]
+    fn production_profile_switch_never_rewrites_the_main_vault() {
+        let prod = serde_json::json!({ "appMode": "production", "vaultPath": "/x/Vault" });
+        assert_eq!(config_vault_write(&prod, "/x/Other", false), UiOnly);
+        assert_eq!(config_vault_write(&prod, "/x/Vault/", false), Write);
+        assert_eq!(config_vault_write(&prod, "/x/Other", true), Write);
+        let demo = serde_json::json!({ "appMode": "demo", "vaultPath": "/a/.prevail/demo-vault" });
+        assert_eq!(config_vault_write(&demo, "/x/Other", false), Write);
+        let fresh = serde_json::json!({ "appMode": "production" });
+        assert_eq!(config_vault_write(&fresh, "/x/Vault", false), Write);
+    }
+}
+
+/// Point the engine's config at `path`, preserving every other field. The
+/// desktop calls it whenever the UI's vault changes; in production that moves
+/// only this process's VAULT_ROOT unless `main` says the owner chose a new
+/// main vault (see config_vault_write).
 #[tauri::command(async)]
-pub fn engine_set_config_vault(path: String) -> Result<(), String> {
+pub fn engine_set_config_vault(path: String, main: Option<bool>) -> Result<(), String> {
     // Mirror the configured vault into the in-memory VAULT_ROOT so EVERY engine
     // call (including no-arg ones like `connectors list`)
     // injects PREVAIL_VAULT_ROOT and resolves the real vault, not a dev fallback.
     // Encrypted vaults also set this on unlock; plaintext vaults rely on this hook.
-    set_vault_root(Some(path.clone()));
     let p = engine_config_path().ok_or("no HOME")?;
+    let current: serde_json::Value = std::fs::read_to_string(&p).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_else(|| serde_json::json!({}));
+    match config_vault_write(&current, &path, main.unwrap_or(false)) {
+        ConfigVaultWrite::Refuse => {
+            eprintln!("[config] refused to point a production config at the demo vault: {path}");
+            return Err("refused: this Mac is in production mode, so config.json keeps its real vault".into());
+        }
+        ConfigVaultWrite::UiOnly => {
+            set_vault_root(Some(path));
+            return Ok(());
+        }
+        ConfigVaultWrite::Write => {}
+    }
+    set_vault_root(Some(path.clone()));
     if let Some(dir) = p.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    let mut v: serde_json::Value = std::fs::read_to_string(&p)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_else(|| serde_json::json!({}));
+    let mut v = current;
     v["vaultPath"] = serde_json::Value::String(path);
     let body = serde_json::to_string_pretty(&v).map_err(|e| e.to_string())?;
     std::fs::write(&p, body).map_err(|e| format!("write config.json failed: {e}"))

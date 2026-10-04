@@ -11,7 +11,7 @@ const SAM = {
   mention_count: 2, conversations: 2, last_ts: Date.parse("2026-09-19T10:00:00Z"),
   mentions: [
     { source: "prompt", ref: "abc", domain: "home", project: "maple", title: "Maple St rental", tool: "claude", ts: Date.parse("2026-09-19T10:00:00Z"), snippet: "Draft a note to Sam Rivera about the roof" },
-    { source: "thread", ref: "data/domains/home/memory/threads/t1.md", domain: "home", project: "", title: "Lease questions", ts: Date.parse("2026-09-18T10:00:00Z"), snippet: "Ask Sam about Maple St." },
+    { source: "thread", ref: "data/domains/home/memory/threads/t1.md", domain: "home", project: "", title: "Lease questions", ts: Date.parse("2026-09-18T10:00:00Z"), snippet: "Ask Sam about Maple St. Starter password: Invented-77x" },
   ],
   co_mentions: [{ id: "place/maple-st", name: "Maple St", kind: "place", count: 2 }],
   page_path: "data/entities/people/sam-rivera.md", saved: false, digest: "You asked Sam about the roof.", notes: "Prefers text.",
@@ -101,6 +101,9 @@ describe("entity detail", () => {
     expect(screen.getByRole("heading", { name: "Sam Rivera", level: 2 })).toBeTruthy();
     expect((screen.getByLabelText("Your notes") as HTMLTextAreaElement).value).toBe("Prefers text.");
     expect(screen.getAllByTestId("entity-mention")).toHaveLength(2);
+    // A credential in a mention snippet is masked on display (backstop).
+    expect(screen.getByTestId("entity-detail").textContent).not.toContain("Invented-77x");
+    expect(screen.getByTestId("entity-detail").textContent).toContain("Starter password: [redacted]");
     const chip = within(screen.getByTestId("entity-detail")).getByText("Maple St");
     expect(chip.closest("[data-entity]")?.getAttribute("data-entity")).toBe("place");
     // The file path lives in the "..." menu, not on the page.

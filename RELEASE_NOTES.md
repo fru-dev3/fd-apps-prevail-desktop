@@ -1,8 +1,8 @@
-# Prevail 0.4.6
+# Prevail 0.4.7
 
 A big one. Prevail now knows what you live by, works with a team of
 specialists, and keeps your life in two clear groups: Entities and Activities.
-It also carries everything from 0.4.5, which was never published: every
+It also carries everything from 0.4.5 and 0.4.6, which were never published: every
 conversation has a home domain, copy on select, and For You.
 
 **Compass.** One page for what you live by, in your own words: Purpose,
@@ -46,6 +46,14 @@ playbooks, with the same schedules and approvals.
 **Design.** Quieter type, actions that appear on hover, colorful icons,
 collapsed sidebar sections that open when you need them, and side columns
 that collapse to an icon rail.
+
+**Knowledge sources.** Add an MCP server, a website or feed, a folder or a
+read-only database in Settings, Connections. Briefings and playbooks read the
+sources you choose and cite them. Everything is read-only, and passwords go to
+your Keychain.
+
+**Privacy.** Passwords, keys and card numbers are masked wherever text enters
+your vault. Your main vault stays put when you switch profiles.
 
 Breaking: Loops are now Playbooks. Missions are called Projects. Household
 and Packs were removed.
