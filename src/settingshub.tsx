@@ -11,7 +11,7 @@ import { SideSpine } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { TintIcon } from "./tint";
 
-export type HubItem = { id: string; label: string; icon: LucideIcon; status?: string; render: () => ReactNode };
+export type HubItem = { id: string; label: string; icon: LucideIcon; tint?: string; status?: string; render: () => ReactNode };
 export type HubGroup = { heading?: string; items: HubItem[] };
 
 export function SettingsHub({ id, title, icon, subtitle, right, groups, sel, onSelect }: {
@@ -41,7 +41,7 @@ export function SettingsHub({ id, title, icon, subtitle, right, groups, sel, onS
             return (
               <button key={it.id} data-testid={`hub-row-${it.id}`} aria-current={on ? "true" : undefined} onClick={() => choose(it.id)}
                 className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/50"}`}>
-                <TintIcon icon={Icon} />
+                <TintIcon icon={Icon} tint={it.tint} />
                 <span className={`min-w-0 flex-1 truncate text-sm ${on ? "font-semibold text-text-primary" : "text-text-secondary"}`}>{it.label}</span>
                 {it.status && <span className="shrink-0 text-[12px] text-text-muted">{it.status}</span>}
               </button>

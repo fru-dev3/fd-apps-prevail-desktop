@@ -95,6 +95,8 @@ export const EDITOR_NAV: NavGroup[] = [
 // Old Settings ids, and the page and side row they open now.
 export const EDITOR_SUBS: Record<string, [page: string, row: string]> = {
   phone: ["connections", "phone"],
+  knowledge: ["connections", "knowledge"],
+  "knowledge-sources": ["connections", "knowledge"],
   gateway: ["connections", "gateway"],
   mcp: ["connections", "mcp"],
   hooks: ["connections", "hooks"],

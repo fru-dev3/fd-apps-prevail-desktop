@@ -1,7 +1,7 @@
 // The Settings page shell, extracted from App.tsx. Owns the section router /
 // left-nav and composes every Settings section from its own module.
 import { useEffect, useState } from "react";
-import { BarChart3, Bot, Database, EyeOff, Github, Keyboard, ListChecks, Lock, MessagesSquare, Network, Palette, Send, Settings as SettingsIcon, Shield, ShieldCheck, SlidersHorizontal, Smartphone, UserRound, Webhook, Wrench } from "lucide-react";
+import { BarChart3, Bot, Database, EyeOff, Github, Keyboard, Library, ListChecks, Lock, MessagesSquare, Network, Palette, Send, Settings as SettingsIcon, Shield, ShieldCheck, SlidersHorizontal, Smartphone, UserRound, Webhook, Wrench } from "lucide-react";
 import { useInvokeQuery } from "./query";
 import { useAppearance } from "./hooks";
 import { SettingsHub, type HubGroup } from "./settingshub";
@@ -26,6 +26,7 @@ import { WorkspaceSection } from "./settings8";
 import { BenchmarkPanel } from "./benchpanel";
 import { HooksSection } from "./hookssection";
 import { ProfilesSection } from "./profilessection";
+import { KnowledgeSourcesSection, useKnowledgeSources } from "./knowledgesources";
 import type { CliInfo } from "./types";
 
 // Sections that are a SideSpine screen: they fill the pane edge to edge and
@@ -89,14 +90,18 @@ export function SettingsPanel({
   const webQ = useInvokeQuery<{ running?: boolean }>("webui_status", connOn);
   const mcpQ = useInvokeQuery<{ clients?: { registered: boolean }[] }>("mcp_install_status", connOn);
   const roleQ = useInvokeQuery<string>("machine_role_get", connOn);
+  const knowQ = useKnowledgeSources(section === "connections" ? vaultPath : "");
   const mcpN = (mcpQ.data?.clients ?? []).filter((x) => x.registered).length;
   const conn: { phone?: string; mcp?: string; network?: string } = {
     phone: webQ.loading ? undefined : webQ.data?.running ? "On" : "Off",
     mcp: mcpQ.loading ? undefined : `${mcpN} client${mcpN === 1 ? "" : "s"}`,
     network: roleQ.loading ? undefined : roleQ.data === "client" ? "Client" : "Hub",
   };
+  const knowN = Array.isArray(knowQ.data) ? knowQ.data.length : null;
 
   const connections: HubGroup[] = [{ items: [
+    // What briefings and chats read (knowledge sources); the first row because it is the one people come for.
+    { id: "knowledge", label: "Knowledge sources", icon: Library, tint: "knowledge", status: knowN === null ? undefined : String(knowN), render: () => <KnowledgeSourcesSection vaultPath={vaultPath} /> },
     { id: "phone", label: "Phone", icon: Smartphone, status: conn.phone, render: () => <PhoneSection /> },
     { id: "gateway", label: "Gateway", icon: MessagesSquare, render: () => <><GatewaySection /><GatewayLogsCard vaultPath={vaultPath} /></> },
     { id: "mcp", label: "MCP", icon: Wrench, status: conn.mcp, render: () => <IntegrationsPanel vaultPath={vaultPath} clis={clis} /> },
@@ -156,7 +161,7 @@ export function SettingsPanel({
           {/* Activity gathers what Prevail did (by kind) and Usage. */}
           {section === "activity" && <SystemActivity vaultPath={vaultPath} initial={row ?? undefined} />}
           {section === "connections" && <SettingsHub id="connections" title="Connections" icon={Network}
-            subtitle="Your phone, the gateway, MCP clients, hooks and the network." groups={connections} sel={row} onSelect={setRow} />}
+            subtitle="Knowledge sources, your phone, the gateway, MCP clients, hooks and the network." groups={connections} sel={row} onSelect={setRow} />}
           {section === "privacy-safety" && <SettingsHub id="privacy-safety" title="Privacy & Safety" icon={ShieldCheck}
             subtitle="Where your data can go and what agents may do." groups={privacySafety} sel={row} onSelect={setRow} />}
           {section === "settings" && <SettingsHub id="settings" title="Settings" icon={SettingsIcon}
