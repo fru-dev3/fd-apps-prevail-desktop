@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertCircle, ArrowDown, ArrowDownToLine, ArrowLeft, ArrowUp, ArrowUpRight, ArrowUpToLine, BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronsLeft, ChevronsRight,
+  AlertCircle, ArrowDown, ArrowRight, ArrowDownToLine, ArrowLeft, ArrowUp, ArrowUpRight, ArrowUpToLine, BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronsLeft, ChevronsRight,
   Circle, Clock, CornerDownRight, FileText, Folder, FolderKanban, Globe, GripVertical, Hand, Laptop, Layers, Lightbulb, ListChecks, ListPlus, ListTodo, Loader2, Mail,
   MessageSquareText, Mic, Pause, PenLine, Play, Plug, Plus, RotateCcw, Search, Send, Server, ShieldCheck, SlidersHorizontal, Sparkles, Split, Square, TerminalSquare, User, Users, X,
   type LucideIcon,
@@ -676,20 +676,20 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
       </Section>
 
       <Section title="Who is on it" testId="work-team">
-        <div className="flex items-center gap-2.5">
-          <SpecialistAvatar id="chief" size={26} state={t.status === "running" ? "working" : "idle"} label="Chief of staff" />
-          <span className="min-w-0"><span className="block text-[14px] font-medium text-text-primary">Chief of staff</span><span className="block text-[12px] text-text-muted">Routed it and brought the team in</span></span>
+        {/* One row: the chief of staff, then everyone it brought in. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+          <span className="inline-flex items-center gap-1.5" title="Chief of staff: routed it and brought the team in">
+            <SpecialistAvatar id="chief" size={22} state={t.status === "running" ? "working" : "idle"} label="Chief of staff" />
+            <span className="text-[14px] font-medium text-text-primary">Chief of staff</span>
+          </span>
+          {team.length > 0 && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-hidden />}
+          {team.map((s) => (
+            <span key={s} data-testid="work-specialist" className="inline-flex items-center gap-1.5" title={`${titleCase(s)} joined the work`}>
+              <SpecialistAvatar id={s} size={22} state={t.status === "running" ? "working" : "idle"} label={titleCase(s)} />
+              <span className="text-[14px] text-text-primary">{titleCase(s)}</span>
+            </span>
+          ))}
         </div>
-        {team.length > 0 && (
-          <ul className="ml-[12px] mt-2 space-y-2 border-l border-border-subtle pl-5">
-            {team.map((s) => (
-              <li key={s} data-testid="work-specialist" className="flex items-center gap-2.5">
-                <SpecialistAvatar id={s} size={24} state={t.status === "running" ? "working" : "idle"} label={titleCase(s)} />
-                <span className="min-w-0"><span className="block text-[14px] text-text-primary">{titleCase(s)}</span><span className="block text-[12px] text-text-muted">Joined the work</span></span>
-              </li>
-            ))}
-          </ul>
-        )}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5" />{t.agentKind}</>} triggerClass={pill} />
           <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><look.Icon className="h-3.5 w-3.5" style={{ color: look.color }} />{machineLabel(machines, t.machine)}</>} triggerClass={pill} />

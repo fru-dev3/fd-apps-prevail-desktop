@@ -253,7 +253,7 @@ test("the item panel: status, where it went with its icon, who is on it, what it
   await expect(d.getByTestId("work-destination")).toContainText("Health");
   await expect(d.getByTestId("work-destination")).toContainText("Domain");
   await expect(d.getByTestId("work-team")).toContainText("Chief of staff");
-  await expect(d.getByTestId("work-specialist")).toHaveText([/Planner\s*Joined the work/, /Scout\s*Joined the work/]);
+  await expect(d.getByTestId("work-specialist")).toHaveText([/Planner/, /Scout/]);
   await expect(d.getByTestId("work-context")).toContainText("Your home city, from your profile");
   await expect(d.getByTestId("work-activity-line")).toHaveText([/Sent to Health/, /Your rules apply: nothing is paid or bought\./, /Started/, /Searching the web/]);
   // Never engine words or ids.
