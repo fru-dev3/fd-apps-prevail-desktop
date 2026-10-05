@@ -32,8 +32,12 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
-/** `embedded`: inside a list row that already shows the ask, so no box and no repeated title. */
-export function JobCard({ id, vaultPath, embedded = false }: { id: string; vaultPath?: string; embedded?: boolean }) {
+/**
+ * `embedded`: inside a list row that already shows the ask, so no box and no repeated title.
+ * `controls={false}`: the row owns Start, Stop and Not now (a Work mode task, whose own
+ * start files the result into its thread); the card keeps Adjust.
+ */
+export function JobCard({ id, vaultPath, embedded = false, controls = true }: { id: string; vaultPath?: string; embedded?: boolean; controls?: boolean }) {
   const vault = vaultPath ?? lsGet(LS.vault, "");
   const q = useInvokeQuery<JobView>("engine_job_show", vault ? { vault, id } : null, { staleMs: 2_000 });
   const v = q.data && typeof q.data === "object" && q.data.job ? q.data : null;
@@ -69,7 +73,7 @@ export function JobCard({ id, vaultPath, embedded = false }: { id: string; vault
           {!embedded && <p title={job.ask} className={`${ROW_TITLE} line-clamp-2 break-words`}>{job.ask}</p>}
           <p className="mt-0.5 text-[12px] text-text-muted"><span data-testid="job-status">{jobStatusLabel(job)}</span>{job.started ? ` · ${elapsed(job)}` : ""}{job.cost ? ` · about $${job.cost.usd.toFixed(2)}` : ""}</p>
         </div>
-        {running && <button onClick={() => void act("stop", "engine_job_action", { action: "stop" })} disabled={!!busy} title="Stop" aria-label="Stop the job" data-testid="job-stop" className={iconBtn}><Square className="h-4 w-4" /></button>}
+        {running && controls && <button onClick={() => void act("stop", "engine_job_action", { action: "stop" })} disabled={!!busy} title="Stop" aria-label="Stop the job" data-testid="job-stop" className={iconBtn}><Square className="h-4 w-4" /></button>}
       </div>
       {!done && (
         <div className="mt-2 border-t border-border-subtle pt-1">
@@ -88,12 +92,12 @@ export function JobCard({ id, vaultPath, embedded = false }: { id: string; vault
       <CompassChips job={job} />
       {waiting && (
         <div className="mt-2">
-          {job.askReason && <p className="text-[13px] text-text-secondary">Asking first: {job.askReason}.</p>}
-          {job.note && <p className="text-[13px] text-text-secondary">{job.note}</p>}
+          {job.askReason && controls && <p className="text-[13px] text-text-secondary">Asking first: {job.askReason}.</p>}
+          {job.note && controls && <p className="text-[13px] text-text-secondary">{job.note}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-4">
-            <button onClick={() => void act("start", "engine_job_action", { action: "start" })} disabled={!!busy} data-testid="job-start" className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent disabled:opacity-50">{busy === "start" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Start</button>
+            {controls && <button onClick={() => void act("start", "engine_job_action", { action: "start" })} disabled={!!busy} data-testid="job-start" className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent disabled:opacity-50">{busy === "start" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Start</button>}
             <button onClick={() => setAdjust((x) => !x)} aria-expanded={adjust} data-testid="job-adjust" className={textLink}><SlidersHorizontal className="h-3.5 w-3.5" /> Adjust</button>
-            <button onClick={() => void act("stop", "engine_job_action", { action: "stop" })} disabled={!!busy} className={textLink}>Not now</button>
+            {controls && <button onClick={() => void act("stop", "engine_job_action", { action: "stop" })} disabled={!!busy} className={textLink}>Not now</button>}
           </div>
         </div>
       )}
@@ -101,7 +105,7 @@ export function JobCard({ id, vaultPath, embedded = false }: { id: string; vault
       {(job.status === "failed" || job.status === "stopped") && (
         <div className="mt-2">
           <p className="text-[13px] text-text-secondary">{job.note ?? "It did not finish."}</p>
-          <button onClick={() => void act("start", "engine_job_action", { action: "start" })} disabled={!!busy} className={`${textLink} mt-1.5`}><Play className="h-3.5 w-3.5" /> Run again</button>
+          {controls && <button onClick={() => void act("start", "engine_job_action", { action: "start" })} disabled={!!busy} className={`${textLink} mt-1.5`}><Play className="h-3.5 w-3.5" /> Run again</button>}
         </div>
       )}
       {done && job.result && (

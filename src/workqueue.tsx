@@ -25,7 +25,7 @@ import type { EngineApp } from "./types";
 import { lsGet, lsSet } from "./storage";
 import {
   ACTION_LABEL, actionsFor, asMachines, asPrompts, asSettings, asWorkspaces, backlog, canDispatchTo, engineLacksWork, groupByGoal, HERDR_STATE_LABEL,
-  leaseElsewhere, machineAddCommand, machineLabel, promptStatus, promptSummary, queuePrompts, STATUS_LABEL, STATUS_TONE,
+  leaseElsewhere, machineAddCommand, machineLabel, mirrorTail, promptStatus, promptSummary, queuePrompts, STATUS_LABEL, STATUS_TONE,
   type BacklogFilter, type DestKind, type Destination, type Machine, type WorkAction, type WorkPrompt, type WorkSettings, type WorkTask,
 } from "./workqueuemodel";
 
@@ -341,7 +341,8 @@ function PromptDetail({ prompt, pending, selTask, onSelTask, machines, agentKind
       )}
       {groupByGoal(prompt.tasks).map((g) => (
         <section key={g.goal} className="mt-5">
-          <h3 className={`${SECTION_TITLE} text-text-secondary`}>{g.goal}</h3>
+          {/* A goal that is just its one task says it once. */}
+          {!(g.tasks.length === 1 && g.tasks[0]!.text === g.goal) && <h3 className={`${SECTION_TITLE} text-text-secondary`}>{g.goal}</h3>}
           <div className="mt-1.5 border-l border-border-subtle pl-3">
             {g.tasks.map((t) => (
               <TaskRow key={t.id} t={t} open={open === t.id} onOpen={() => onSelTask(open === t.id ? "" : t.id)}
@@ -441,10 +442,10 @@ function TaskRow({ t, open, onOpen, machines, agentKinds, domains, host, busy, v
 
       {open && (
         <div data-testid="work-task-detail" className="mt-3">
-          {t.executor === "engine" && t.jobId && <JobCard id={t.jobId} vaultPath={vault} embedded />}
+          {t.executor === "engine" && t.jobId && <JobCard id={t.jobId} vaultPath={vault} embedded controls={false} />}
           {t.executor === "herdr" && (
             t.herdr?.lastRead
-              ? <pre data-testid="work-herdr-output" className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-warm p-3 font-mono text-[12px] leading-relaxed text-text-secondary">{t.herdr.lastRead}</pre>
+              ? <pre data-testid="work-herdr-output" className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-warm p-3 font-mono text-[12px] leading-relaxed text-text-secondary">{mirrorTail(t.herdr.lastRead)}</pre>
               : <p className={META}>Nothing from the Herdr tab yet.</p>
           )}
           {t.log.length > 0 && (

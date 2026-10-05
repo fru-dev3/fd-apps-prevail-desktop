@@ -180,3 +180,16 @@ export function leaseElsewhere(t: Pick<WorkTask, "lease">, host: string, now = D
 
 // The engine names a machine by its label everywhere (a task's machine, a lease's host, --machine).
 export const machineLabel = (machines: Machine[], x: string) => machines.find((m) => m.label === x || m.id === x)?.label ?? (x === "local" ? "This Mac" : x);
+
+/**
+ * What the Herdr tab last showed, for the task detail: the engine keeps a raw
+ * tail (cut mid-line, with the terminal's rules, input line and footer), so
+ * start at a whole line and drop that chrome, as the engine does for the thread.
+ */
+export function mirrorTail(raw: string): string {
+  // The engine keeps the last 2,000 characters: at that length the first line is a cut one.
+  const whole = raw.length < 2000 || !raw.includes("\n") ? raw : raw.slice(raw.indexOf("\n") + 1);
+  return whole.split("\n")
+    .filter((l) => !/^\s*[\u2500\u2501\u2550]{3,}/.test(l) && !/^\s*\u276f\s*$/.test(l) && !/^\s*\u23f5\u23f5/.test(l) && !/^\s*\u273b /.test(l))
+    .join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}

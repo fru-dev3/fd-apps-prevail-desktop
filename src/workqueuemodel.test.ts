@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   actionsFor, asMachines, asPrompts, asSettings, asWorkspaces, backlog, engineLacksWork, FALLBACK_AGENT_KINDS, groupByGoal, leaseElsewhere,
-  machineAddCommand, promptStatus, promptSummary, queuePrompts, type WorkPrompt, type WorkTask,
+  machineAddCommand, mirrorTail, promptStatus, promptSummary, queuePrompts, type WorkPrompt, type WorkTask,
 } from "./workqueuemodel";
 
 const task = (over: Partial<WorkTask> = {}): WorkTask => ({
@@ -80,5 +80,10 @@ describe("work queue model", () => {
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 2000 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: true });
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 500 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: false });
     expect(leaseElsewhere(task({ lease: { host: "foo-laptop", until: 2000 } }), "foo-laptop", 1000).elsewhere).toBe(false);
+  });
+  test("the Herdr tail starts at a whole line and drops the terminal chrome", () => {
+    const raw = ["x".repeat(2000) + "oo cut mid-word", "Foo summary:", "- the foo plan is on track", "", "\u273b Baked for 9s", "\u2500".repeat(30) + " foo-tab \u2500", "\u276f ", "  \u23f5\u23f5 foo mode on"].join("\n");
+    expect(mirrorTail(raw)).toBe("Foo summary:\n- the foo plan is on track");
+    expect(mirrorTail("one line")).toBe("one line");
   });
 });
