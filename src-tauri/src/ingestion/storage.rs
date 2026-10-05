@@ -248,7 +248,7 @@ mod tests {
             "must live under ~/.prevail/browser-profiles: {s}"
         );
         assert!(s.ends_with("fidelity-com/profile"), "unexpected leaf: {s}");
-        assert!(!s.contains("/data/apps/"), "must not be under a vault: {s}");
+        assert!(!s.contains("/data/entities/products/"), "must not be under a vault: {s}");
         assert!(
             !s.contains("Application Support"),
             "must not be under app-support: {s}"
@@ -268,7 +268,7 @@ mod tests {
     fn sanitize_connector_id_rules() {
         assert_eq!(sanitize_connector_id("Fidelity-COM"), "fidelity-com");
         assert_eq!(sanitize_connector_id("a b!c@d"), "a-b-c-d");
-        assert_eq!(sanitize_connector_id("/vault/data/apps/gmail"), "gmail");
+        assert_eq!(sanitize_connector_id("/vault/data/entities/products/gmail"), "gmail");
         assert_eq!(sanitize_connector_id(".."), "connector");
         assert_eq!(sanitize_connector_id(""), "connector");
         assert_eq!(sanitize_connector_id("keeps.dots_and-dashes"), "keeps.dots_and-dashes");
