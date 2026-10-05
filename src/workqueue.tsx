@@ -331,7 +331,7 @@ function PromptDetail({ prompt, pending, selTask, onSelTask, machines, agentKind
 }) {
   const open = selTask ?? prompt.tasks[0]?.id ?? null;
   return (
-    <div data-testid="work-prompt" className="px-4 py-4 sm:px-6">
+    <div data-testid="work-prompt" className="min-w-0 px-4 py-4 sm:px-6">
       <p className="whitespace-pre-wrap break-words text-[17px] font-semibold leading-snug text-text-primary">{prompt.text}</p>
       <p className={`mt-1 ${META}`}>{[titleCase(prompt.surface), machineLabel(machines, prompt.machine), ago(prompt.ts)].join(" · ")}</p>
       {pending && (
@@ -445,7 +445,7 @@ function TaskRow({ t, open, onOpen, machines, agentKinds, domains, host, busy, v
           {t.executor === "engine" && t.jobId && <JobCard id={t.jobId} vaultPath={vault} embedded controls={false} />}
           {t.executor === "herdr" && (
             t.herdr?.lastRead
-              ? <pre data-testid="work-herdr-output" className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-warm p-3 font-mono text-[12px] leading-relaxed text-text-secondary">{mirrorTail(t.herdr.lastRead)}</pre>
+              ? <pre data-testid="work-herdr-output" className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-lg bg-surface-warm p-3 font-mono text-[12px] leading-relaxed text-text-secondary">{mirrorTail(t.herdr.lastRead)}</pre>
               : <p className={META}>Nothing from the Herdr tab yet.</p>
           )}
           {t.log.length > 0 && (

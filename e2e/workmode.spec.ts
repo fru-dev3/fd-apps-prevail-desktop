@@ -20,8 +20,10 @@ const PROMPTS = [
         thread: { space: "health", session: "foo-2" }, ask: { kind: "start", detail: "Over your limit of $1 and 10 minutes. Start it?" } },
       { ...base, id: "t3", promptId: "p1", goal: "Send the bar report", text: "Draft the bar report for Sam Foo", dest: dest("project", "bar-app", "Bar app", "career"),
         specialists: ["writer"], agentKind: "codex", status: "done", executor: "herdr", thread: { space: "_mission-bar-app", session: "foo-3" },
-        herdr: { machine: "local", workspaceLabel: "foo-reports", tabId: "w1:t2", lastRead: "Drafted the bar report.\nSaved to the Bar app project notes." },
-        suggestions: [{ kind: "entity", name: "Sam Foo", why: "Named in the prompt, not in your people yet", state: "open" }] },
+        herdr: { machine: "local", workspaceLabel: "foo-reports", tabId: "w1:t2", lastRead: "Drafted the bar report.\nSaved to the Bar app project notes.\n" + "\u2500".repeat(400) + "\n/tmp/foo/" + "bar".repeat(120) },
+        log: [{ ts: NOW - 90_000, ev: "asks", detail: "the agent in its Herdr tab is waiting for an answer there (it may be asking whether to trust the folder); answer it in Herdr, then Start" }],
+        suggestions: [{ kind: "entity", name: "Sam Foo", why: "Named in the prompt, not in your people yet", state: "open" },
+          { kind: "domain", name: "foo notes folder path", why: "User said 'this folder' but no path was provided for the foo notes", state: "open" }] },
     ],
   },
   {
@@ -99,7 +101,7 @@ test("route chip with Undo, re-route by machine, Pause, and suggestions", async 
   await expect(task(page, 1).getByTestId("work-ask")).toContainText("Over your limit");
   await task(page, 1).getByTestId("work-answer-yes").click();
   await expect.poll(async () => (await calls(page, "engine_work_answer"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t2", answer: "yes" });
-  await task(page, 2).getByTestId("work-suggest-accept").click();
+  await task(page, 2).getByTestId("work-suggest-accept").first().click();
   await expect.poll(async () => (await calls(page, "engine_work_action"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: "t3", action: "accept", n: 1 });
 });
 
@@ -111,6 +113,14 @@ test("a done Herdr task shows Keep and Close and its mirrored output", async ({ 
   await expect(t.getByTestId("work-act-close")).toBeVisible();
   await t.getByText("Draft the bar report for Sam Foo").click();
   await expect(t.getByTestId("work-herdr-output")).toContainText("Drafted the bar report.");
+  // A long unbroken line (terminal rule, long path) must wrap inside the box, never widen the page.
+  const wide = await page.getByTestId("work-queue").evaluate((root) => {
+    const out: string[] = [];
+    for (let el: Element | null = root; el; el = el.parentElement) if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== "auto") out.push(`${el.tagName}.${el.getAttribute("data-testid") ?? ""} ${el.scrollWidth}>${el.clientWidth}`);
+    root.querySelectorAll("*").forEach((el) => { if (el.getBoundingClientRect().right > window.innerWidth + 1 && !el.closest("pre")) out.push(`${el.tagName}.${el.getAttribute("data-testid") ?? ""} right=${Math.round(el.getBoundingClientRect().right)}`); });
+    return out.slice(0, 8);
+  });
+  expect(wide).toEqual([]);
   await t.getByTestId("work-act-close").click();
   await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t3", action: "close" });
 });
