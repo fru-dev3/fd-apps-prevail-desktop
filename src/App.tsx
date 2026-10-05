@@ -1022,7 +1022,8 @@ export default function App() {
   const [noModelDismissed, setNoModelDismissed] = useState(false);
   const noModelConfigured = clisDetected && clis.length > 0 && !clis.some((c) => c.available);
   // The conversation opens the way the composer's Council toggle was left.
-  const [tab, setTab] = useState<TabId>(() => (answerWithCouncil({ toggle: councilToggleOn() }) ? "council" : "chat"));
+  // Work is where the day is spent: the app opens on it; Chat is one click away.
+  const [tab, setTab] = useState<TabId>("queue");
   // Work mode is focused: no sidebar, no thread rail. One quiet control shows the sidebar there for a while.
   // Anything that opens the plain chat (a thread pick, New chat) leaves the Council toggle off, so it always says what is showing.
   useEffect(() => { if (tab === "chat") setCouncilToggle(false); }, [tab]);
