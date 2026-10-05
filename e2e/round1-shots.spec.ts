@@ -1,6 +1,7 @@
 // Owner feedback round 1: the screens it changed, at 390, 768, 1280 and 1920,
 // for a critical look. Runs only with ROUND1_SHOTS=<dir>. Invented data.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const OUT = process.env.ROUND1_SHOTS;
@@ -52,7 +53,7 @@ async function boot(page: Page, width: number) {
   await page.addInitScript(() => localStorage.setItem("prevail.desktop.defaultChatCli", "claude"));
   await mockTauri(page, FIX);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 }
 const work = (page: Page, id: string, focus?: [string, string]) => page.evaluate(([w, f]) => { if (f) localStorage.setItem(f[0], f[1]); window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: w })); }, [id, focus ?? null] as [string, [string, string] | null]);
 const shot = async (page: Page, name: string, width: number) => { await page.waitForTimeout(350); await page.mouse.move(1, 1); await page.screenshot({ path: `${OUT}/${name}-${width}.png` }); };

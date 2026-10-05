@@ -3,6 +3,7 @@
 // page that draws its own header or surfaces fails here. With SHELL_SHOTS set,
 // each page is also captured at 1440 in the light theme for side-by-side review.
 import { test, expect } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const HOME = ["inbox", "insights", "recommendations", "missions", "task-list", "compass", "apps"];
@@ -12,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockTauri(page, { ui_settings_get: JSON.stringify({ theme: "light" }) });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 });
 
 for (const [area, ids, event] of [["home", HOME, "prevail:work-section"], ["settings", SETTINGS, "prevail:open-settings"]] as const) {

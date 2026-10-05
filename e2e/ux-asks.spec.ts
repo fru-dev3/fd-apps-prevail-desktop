@@ -4,6 +4,7 @@
 // by talking (fields optional). Invented data only. With UX_SHOTS=<dir>, each
 // surface is captured at 390, 768, 1280 and 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const spec = (id: string, name: string, family: string, returns: string, on = true) => ({
@@ -53,7 +54,7 @@ async function home(page: Page, width: number, extra: Record<string, unknown> = 
   await page.addInitScript(() => { localStorage.setItem("prevail.desktop.defaultChatCli", "claude"); });
   await mockTauri(page, { ...FIX, ...extra });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   // Sections start collapsed at each launch: open Specialists.
   const head = page.getByTestId("sidebar-head-specialists").locator("[aria-expanded]");
   if (await head.isVisible().catch(() => false) && (await head.getAttribute("aria-expanded")) === "false") await head.click();

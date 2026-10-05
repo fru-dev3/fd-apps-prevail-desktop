@@ -2,6 +2,7 @@
 // demo vault): the sidebar must head the config vault's own profile, and the
 // switcher must not offer the demo one.
 import { test, expect } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 test("production boot shows the real profile, never a stale demo one", async ({ page }) => {
@@ -14,7 +15,7 @@ test("production boot shows the real profile, never a stale demo one", async ({ 
   });
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 
   const switcher = page.getByRole("button", { name: "Switch profile" });
   await expect(switcher).toContainText("Sam", { timeout: 10_000 });
@@ -44,7 +45,7 @@ test("switching profile in production never asks to rewrite the main vault", asy
     localStorage.setItem("prevail.profiles.activeId", "p_main");
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Switch profile" }).click();
   await page.getByRole("button", { name: /Side Project/ }).click();
   await expect(page.getByRole("button", { name: "Switch profile" })).toContainText("Side Project", { timeout: 10_000 });
@@ -71,7 +72,7 @@ test("production boot with four profiles stays on the config vault's profile and
     localStorage.setItem("prevail.desktop.vaultProduction", "/tmp/smoke-vault");
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.waitForTimeout(4_000);
   const state = await page.evaluate(() => ({
     active: localStorage.getItem("prevail.profiles.activeId"),
@@ -97,7 +98,7 @@ test("a failed mode read on a cold boot still opens the config vault's profile, 
     localStorage.setItem("prevail.profiles.defaultId", "p_b");
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Switch profile" })).toContainText("Sam", { timeout: 10_000 });
   expect(await page.evaluate(() => localStorage.getItem("prevail.desktop.vaultPath"))).toBe("/tmp/smoke-vault");
 });

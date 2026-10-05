@@ -1,6 +1,7 @@
 // Conversation filing: chips at the top of a conversation, "Also filed here"
 // in a secondary domain, and the filing plan. Plus the composer's one chip row.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri, invokedCommands } from "./tauri-mock";
 
 const SHOTS = process.env.MOBILE_SHOTS_DIR || "/tmp";
@@ -58,7 +59,7 @@ async function openDomain(page: Page, name: string) {
 }
 
 async function openFoo(page: Page) {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   if ((page.viewportSize()?.width ?? 1440) < 500) {
     await page.getByRole("button", { name: /^Threads/ }).first().click();
     await page.getByText("Foo plan").first().click();
@@ -126,7 +127,7 @@ test("a secondary domain lists the thread as Also filed here", async ({ page }) 
   await mockTauri(page, fixtures(["career", "health"]));
   await listByDomain(page, { health: [meta(FOO, "Foo plan", ["career", "health"], { linked_from: "general", filed_as: "also" })] });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await openDomain(page, "Health");
   await expect(page.getByTestId("thread-linked").first()).toHaveText("Also filed here", { timeout: 10_000 });
 });
@@ -172,7 +173,7 @@ for (const width of [1440, 390]) {
       }, 0);
     });
     await page.goto("/");
-    await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+    await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
     if (width < 500) {
       const handle = page.getByTestId("phone-nav-handle");
       if (await handle.count()) await handle.click();
@@ -223,7 +224,7 @@ for (const width of [1440, 390]) {
       domain_context: { state: "Foo state.", journal: "", recent_logs: [], skills: [] },
     });
     await page.goto("/");
-    await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+    await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
     if (width < 500) {
       const handle = page.getByTestId("phone-nav-handle");
       if (await handle.count()) await handle.click();

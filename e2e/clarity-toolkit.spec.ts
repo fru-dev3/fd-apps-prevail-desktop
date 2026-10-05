@@ -2,6 +2,7 @@
 // single-skill source folded into one row, and the detail says what the item
 // is (a type badge) above labeled actions such as "Chat with it".
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const SKILL_MD = [
@@ -28,7 +29,7 @@ const FX = {
 
 async function openToolkit(page: Page) {
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Toolkit", exact: true }).click();
   const col = page.getByTestId("toolkit-list");
@@ -63,7 +64,7 @@ test("Toolkit groups start collapsed, remember the choice, and a single-skill so
   // The open Skills group survives a reload; the others stay collapsed.
   await page.reload();
   const again = page.getByTestId("toolkit-list");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 }).catch(() => {});
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 }).catch(() => {});
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Toolkit", exact: true }).click();
   await expect(again.getByTestId("toolkit-group-skills")).toHaveAttribute("aria-expanded", "true", { timeout: 10_000 });

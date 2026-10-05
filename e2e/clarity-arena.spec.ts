@@ -3,6 +3,7 @@
 // leaderboard. Model ids here are invented ("foo", "bar") so no real model name
 // lands in a test.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const RUN = (over: Record<string, unknown>) => ({
@@ -39,7 +40,7 @@ async function openArena(page: Page, localStorageSeed: Record<string, string> = 
   }, localStorageSeed);
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "benchmark" })));
   await expect(page.getByTestId("arena-page")).toBeVisible({ timeout: 10_000 });
 }

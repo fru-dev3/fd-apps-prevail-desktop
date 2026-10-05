@@ -6,6 +6,7 @@
 // keyboard makes expensive to break: scanning the code gets you in, and a
 // password field never appears.
 import { test, expect } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { FIXTURES } from "./tauri-mock";
 
 const CODE = "deadbeefdeadbeefdeadbeefdeadbeef";
@@ -40,7 +41,7 @@ test("a scanned code signs the phone in, and no password field is ever shown", a
   const pairCalls = await serveBridge(page);
   await page.goto(`/#p=${CODE}`);
 
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 20_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByPlaceholder("Password")).toHaveCount(0);
   expect(pairCalls).toHaveLength(1);
   expect(pairCalls[0]).toContain(CODE);
@@ -70,7 +71,7 @@ test("an expired code falls back to the sign-in form instead of a dead end", asy
 test("the phone inherits the Mac's vault and is never shown a folder picker", async ({ page }) => {
   await serveBridge(page);
   await page.goto(`/#p=${CODE}`);
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 20_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Pick your vault folder")).toHaveCount(0);
 });
 

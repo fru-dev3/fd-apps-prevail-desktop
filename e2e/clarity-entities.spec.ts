@@ -2,6 +2,7 @@
 // Chat tab's height and speed, the one-line kind filter, and the duplicates
 // review. Names are invented.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const FOO = { id: "person/foo", name: "Foo Bar", kind: "person", aliases: ["Foo"], mention_count: 3, conversations: 1, last_ts: 1, saved: true, has_page: true };
@@ -28,7 +29,7 @@ const args = (page: Page, cmd: string) => page.evaluate((c) =>
 
 async function openEntities(page: Page) {
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "entities" })));
   await expect(page.getByTestId("entity-detail")).toContainText("Foo Bar", { timeout: 10_000 });
 }
@@ -173,7 +174,7 @@ for (const bunker of [false, true]) {
       engine_entities_set_picture: { ok: true },
     });
     await page.goto("/");
-    await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+    await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "products" })));
     const row = page.getByTestId("entity-row").first();
     await expect(row).toContainText("Foo Labs", { timeout: 10_000 });

@@ -4,7 +4,7 @@ import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode
 import { invokeCached } from "./query";
 import { answerWithCouncil, councilToggleOn, setCouncilToggle } from "./councilmode";
 import { lazyPanel, loadBenchmarkPanel, loadChatPanel, loadCouncilPanel, loadSettingsPanel, loadWorkPanel, loadWorkQueue, prefetchPanelsWhenIdle } from "./prefetch";
-import { useIsPhone, useVisualViewportHeight } from "./useisphone";
+import { isPhoneNow, useIsPhone, useVisualViewportHeight } from "./useisphone";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { USE_COUNCIL_EVENT } from "./council";
@@ -1022,8 +1022,9 @@ export default function App() {
   const [noModelDismissed, setNoModelDismissed] = useState(false);
   const noModelConfigured = clisDetected && clis.length > 0 && !clis.some((c) => c.available);
   // The conversation opens the way the composer's Council toggle was left.
-  // Work is where the day is spent: the app opens on it; Chat is one click away.
-  const [tab, setTab] = useState<TabId>("queue");
+  // Work is where the day is spent: the desktop opens on it; Chat is one click away. The phone
+  // frame keeps its own bottom tabs (its Chat screen is this conversation), so it opens on chat.
+  const [tab, setTab] = useState<TabId>(() => (isPhoneNow() ? "chat" : "queue"));
   // Work mode is focused: no sidebar, no thread rail. One quiet control shows the sidebar there for a while.
   // Anything that opens the plain chat (a thread pick, New chat) leaves the Council toggle off, so it always says what is showing.
   useEffect(() => { if (tab === "chat") setCouncilToggle(false); }, [tab]);

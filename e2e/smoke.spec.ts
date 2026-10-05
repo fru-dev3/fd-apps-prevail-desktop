@@ -3,6 +3,7 @@
 // backend command. A crash, a dead button, or a gutted section fails here
 // before a tag can build.
 import { test, expect } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri, invokedCommands } from "./tauri-mock";
 
 test.beforeEach(async ({ page }) => {
@@ -12,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("1 · home renders: headline, composer, and a trust ribbon that says only what matters", async ({ page }) => {
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
   // Everything is in its protective state in the fixtures, so the ribbon says
   // so once rather than printing three segments that each describe the
   // ordinary state. The detail is on the segment.
@@ -44,7 +45,7 @@ test("1 · home renders: headline, composer, and a trust ribbon that says only w
 });
 
 test("2 · the Inbox page: tabs filter the column, the detail is the picked item; approving uses the token spine", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByTestId("nav-inbox").click();
   const inbox = page.getByTestId("inbox-page");
   await expect(inbox).toBeVisible({ timeout: 10_000 });
@@ -77,7 +78,7 @@ test("2 · the Inbox page: tabs filter the column, the detail is the picked item
 });
 
 test("3 · Privacy & Safety: each control has its own row; the guardrail toggle drives both engine flags", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" })));
   // The old Privacy id opens the page on its first control.
   await expect(page.getByTestId("hub-detail-bunker")).toContainText("Bunker Mode", { timeout: 10_000 });
@@ -96,7 +97,7 @@ test("3 · Privacy & Safety: each control has its own row; the guardrail toggle 
 });
 
 test("4 · Editor sections switch without crashing (tools, skills, usage, intent)", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   for (const section of ["tools", "skills", "usage", "intents"]) {
     await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), section);
     await page.waitForTimeout(400); // sections lazy-load; a crash throws pageerror
@@ -117,7 +118,7 @@ test("6 · Remote: Wi-Fi address in the pair card; Share over the internet swaps
   const on = { ...off, remote_url: "https://witty-otter-cat.trycloudflare.com", tunnel_url: "https://witty-otter-cat.trycloudflare.com", tunnel_state: "on" };
   await mockTauri(page, { webui_status: off, webui_secret_get: "hunter2", webui_tunnel_start: on, webui_tunnel_stop: off, webui_pair_code: "http://192.168.1.20:8787/#p=deadbeefdeadbeef" });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "phone" })));
   const card = page.getByTestId("remote-pair");
   await expect(card).toBeVisible({ timeout: 10_000 });
@@ -150,7 +151,7 @@ test("7 · Phone is a top-level section and turns itself on in one tap", async (
   const live = { ...offline, running: true, remote: true, remote_url: "http://192.168.1.20:8787", lan_url: "http://192.168.1.20:8787", pair_ready: true };
   await mockTauri(page, { webui_status: offline, webui_secret_get: "", webui_pair_code: "http://192.168.1.20:8787/#p=deadbeefdeadbeef" });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 
   // Reachable by name from the Settings sidebar, not only by deep link: the
   // Connections row, then Phone in its side column.
@@ -175,7 +176,7 @@ test("7 · Phone is a top-level section and turns itself on in one tap", async (
 });
 
 test("5 · telemetry: section navigation emits allowlisted feature_used events only", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "skills" })));
   await page.waitForTimeout(300);
   const log = await page.evaluate(() => localStorage.getItem("prevail.telemetry.log") ?? "[]");
@@ -204,7 +205,7 @@ test("8 · connected phones are listed and can be disconnected one at a time", a
   const afterRevoke = { ...live, devices: [two[1]] };
   await mockTauri(page, { webui_status: live, webui_secret_get: "x", webui_pair_code: "http://192.168.1.20:8787/#p=abc123abc123", webui_device_revoke: afterRevoke, webui_device_revoke_all: { ...live, devices: [] } });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "phone" })));
 
   const list = page.getByTestId("remote-devices");
@@ -242,7 +243,7 @@ test("9 · Bunker Mode blocks phone access and explains why", async ({ page }) =
   };
   await mockTauri(page, { webui_status: blocked });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "phone" })));
   await expect(page.getByText("Bunker Mode is on, so phones cannot connect")).toBeVisible({ timeout: 10_000 });
   // No way to switch it on from here: the block is real, not advisory.
@@ -273,7 +274,7 @@ test("10 · a spent pairing code names the device that used it and offers to cut
     webui_device_revoke: { ...base, pair_ready: false, devices: [] },
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "phone" })));
   const card = page.getByTestId("remote-pair");
   await expect(card).toBeVisible({ timeout: 10_000 });
@@ -300,7 +301,7 @@ test("10 · a spent pairing code names the device that used it and offers to cut
 test("11 · the trust ribbon names an axis that is not protective", async ({ page }) => {
   await mockTauri(page, { vault_lock_status: { enabled: false }, egress_guard_get: { mode: "off" } });
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/^Vault unlocked$/)).toBeVisible();
   await expect(page.getByText(/^Guardrail off$/)).toBeVisible();
   // And it does not also claim to be protected.
@@ -320,7 +321,7 @@ test("12 · the trust ribbon never claims Bunker Mode the engine does not have",
   // Seed the optimistic mirror, exactly as a stale or pre-auth state would.
   await page.addInitScript(() => localStorage.setItem("prevail.pref.bunkerMode", "1"));
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
   // The engine says off, so nothing on screen may say otherwise.
   await expect(page.getByText(/Bunker mode/i)).toHaveCount(0);
   // And the mirror is corrected rather than left lying for the next reader.
@@ -353,7 +354,7 @@ function chatFixtures(act: Record<string, unknown>) {
   };
 }
 async function openFooThread(page: import("@playwright/test").Page) {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByTestId("threads-list").getByText("Foo report").first().click();
   await expect(page.getByText("Sending it needs your approval.")).toBeVisible({ timeout: 10_000 });
 }
@@ -399,7 +400,7 @@ test("14 · Always is hidden for an ineligible act; Deny declines without a foll
 test("15 · Waiting for you: the thread row says so, and the sidebar Inbox count opens the Inbox", async ({ page }) => {
   await mockTauri(page, chatFixtures({ alwaysEligible: true }));
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   const row = page.getByTestId("threads-list").locator("li", { hasText: "Foo report" });
   await expect(row.getByTestId("waiting-chip")).toBeVisible({ timeout: 10_000 });
   const inbox = page.getByTestId("nav-inbox");
@@ -453,7 +454,7 @@ test("16 · the chat header schedules the conversation in the flow", async ({ pa
 });
 
 test("17 · Autonomy lists what runs without asking, with a revoke per row", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "privacy" })));
   const row = page.getByTestId("hub-row-always");
   await expect(row).toHaveText(/Runs without asking/, { timeout: 10_000 });
@@ -470,7 +471,7 @@ test("17 · Autonomy lists what runs without asking, with a revoke per row", asy
 });
 
 test("17b · Settings > Vault has no Rebuild structure or hygiene tools", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "vault" })));
   await expect(page.getByTestId("hub-row-vault")).toHaveAttribute("aria-current", "true", { timeout: 10_000 });
   await expect(page.getByText("Rebuild structure")).toHaveCount(0);
@@ -478,7 +479,7 @@ test("17b · Settings > Vault has no Rebuild structure or hygiene tools", async 
 });
 
 test("18 · the Inbox approves a queued Google write with the token spine", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "inbox" })));
   await page.getByTestId("tab-google").click();
   await expect(page.getByTestId("inbox-row")).toHaveCount(1);
@@ -495,7 +496,7 @@ test("18 · the Inbox approves a queued Google write with the token spine", asyn
 });
 
 test("19 · apps live in Products: no APPS section; Products opens the Apps page in Home", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await expect(page.getByTestId("sidebar-apps")).toHaveCount(0);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "products" })));
   await page.getByTestId("products-open-apps").click();
@@ -510,16 +511,16 @@ test("19 · apps live in Products: no APPS section; Products opens the Apps page
 });
 
 test("20 · links to removed screens land on Home; old ids reach their new pages", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   for (const gone of ["spark", "automations", "loopboard", "calendar", "notes"]) {
     // Leave Home first, so landing back on it proves the route.
     await page.getByTestId("nav-inbox").click();
     await expect(page.getByTestId("inbox-page")).toBeVisible({ timeout: 10_000 });
     await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), gone);
-    await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 10_000 });
+    await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("nav-home")).toHaveAttribute("aria-current", "page");
     await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: s })), gone);
-    await expect(page.getByText("What should we work on?")).toBeVisible();
+    await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible();
   }
   // The Work board id opens Tasks; the old Settings Apps id opens the Home Apps page.
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "tasks" })));
@@ -537,7 +538,7 @@ test("21 · Tasks is a plain list: rows, the waiting chip, no board or view swit
     ],
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: /^Tasks/ }).click();
   const list = page.getByTestId("tasks-list");
   await expect(list).toBeVisible({ timeout: 10_000 });
@@ -561,6 +562,7 @@ test("22 · the Briefing: dismissing a row shares the Recommendations set; hidin
   await mockTauri(page, { engine_recommendations: { ok: true, recommendations: recs } });
   await page.addInitScript(() => localStorage.setItem("prevail.pref.showHomeBriefing", "1"));
   await page.goto("/");
+  await openChatTab(page);
   const briefing = page.getByTestId("home-briefing");
   await expect(briefing).toBeVisible({ timeout: 15_000 });
   await expect(briefing.getByTestId("briefing-row")).toHaveCount(2);
@@ -590,7 +592,7 @@ test("23 · Context: one click shows Memory, a Source file previews inline, the 
     domain_context: { state: "", journal: "", recent_logs: [], skills: [], layoutV4: true },
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByTestId("open-context").first().click();
   const view = page.getByTestId("context-view");
   await expect(view).toBeVisible({ timeout: 10_000 });
@@ -620,7 +622,7 @@ const councilPrefs = (page: import("@playwright/test").Page) => page.evaluate(()
 });
 
 test("24 · Council: build a named council, and the legacy panel keys follow the Default", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "council" })));
   const col = page.getByTestId("council-list");
   await expect(col.getByTestId("council-row-default")).toBeVisible({ timeout: 10_000 });
@@ -662,7 +664,7 @@ test("24 · Council: build a named council, and the legacy panel keys follow the
 });
 
 test("24b · Council: Use in chat opens the chat Council tab on that council, and the chat never rewrites the saved chair", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => {
     localStorage.setItem("prevail.council.list", JSON.stringify([
       { id: "default", name: "Default council", seats: ["claude::sonnet"], chair: "claude::sonnet" },
@@ -693,7 +695,7 @@ test("25 · Arena: the page header sits above the side column, and internal fold
     ],
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "benchmark" })));
   const arena = page.getByTestId("arena-page");
   const header = page.locator("[data-shell=header]");
@@ -724,7 +726,7 @@ const TOOLKIT_FX = {
 test("26 · Toolkit: one page with Skills, Tools and Frameworks; a skill turns off with the same command", async ({ page }) => {
   await mockTauri(page, TOOLKIT_FX);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Toolkit", exact: true }).click();
   for (const gone of ["Skills", "Tools", "Frameworks"]) {
@@ -755,7 +757,7 @@ test("26 · Toolkit: one page with Skills, Tools and Frameworks; a skill turns o
 test("27 · old Skills, Tools and Frameworks links open Toolkit on that group", async ({ page }) => {
   await mockTauri(page, TOOLKIT_FX);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "skills" })));
   await expect(page.getByTestId("toolkit-list")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("toolkit-detail-skill")).toContainText("Foo Review");
@@ -778,7 +780,7 @@ async function headerAboveColumn(page: import("@playwright/test").Page, title: s
   return col;
 }
 async function openSettings(page: import("@playwright/test").Page, section: string) {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: s })), section);
 }
 
@@ -861,7 +863,7 @@ test("31b · Usage leads with every AI tool's own records: API price, paid, and 
 const EDITOR_ROWS = ["Models", "Council", "Toolkit", "Arena", "Intent", "Activity", "Connections", "Privacy & Safety", "Settings"];
 
 test("32 · the Settings nav is 9 rows, and each opens a header above a side column", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Settings" }).click();
   const nav = page.getByTestId("app-sidebar");
   await expect(nav.getByRole("button", { name: "Back to Home" })).toBeVisible({ timeout: 10_000 });
@@ -887,7 +889,7 @@ test("32 · the Settings nav is 9 rows, and each opens a header above a side col
 });
 
 test("33 · old Settings ids land on the new page with the right row picked", async ({ page }) => {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   const cases: Array<[string, string, string]> = [
     ["privacy", "hub-privacy-safety", "hub-row-bunker"],
     ["phone", "hub-connections", "hub-row-phone"],
@@ -929,7 +931,7 @@ const invokeArgs = (page: import("@playwright/test").Page, cmd: string) => page.
     .filter((e) => e.cmd === c).map((e) => e.args), cmd);
 
 async function openFoo(page: import("@playwright/test").Page) {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "entities" })));
   await expect(page.getByTestId("entity-detail")).toContainText("Foo Bar", { timeout: 10_000 });
 }
@@ -972,7 +974,7 @@ test("35 · Add to notes appends a reply to the entity's notes", async ({ page }
 test("36 · Your conversations lists the entity's threads and opens one; the General rail marks it", async ({ page }) => {
   await mockTauri(page, withThread);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await expect(page.getByTestId("threads-list").getByTestId("thread-entity-chip")).toContainText("Foo Bar", { timeout: 10_000 });
   await openFoo(page);
   await page.getByTestId("entity-tab-conversations").click();
@@ -993,7 +995,7 @@ test("37 · Compass > Goals: domain goals, a new goal writes source/goals.md, a 
     goals_file_write: "/tmp/smoke-vault/data/domains/general/source/goals.md",
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Compass" }).click();
   await expect(page.getByTestId("work-page").getByTestId("page-header").first()).toContainText("Compass", { timeout: 10_000 });
   await page.getByTestId("tab-goals").click();
@@ -1022,7 +1024,7 @@ test("38 · Tasks: a task opens in the right pane, and no fixed side panel exist
     ],
   });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: /^Tasks/ }).click();
   const header = page.getByTestId("work-page").getByTestId("page-header").first();
   await expect(header.getByTestId("tab-open")).toContainText("2", { timeout: 10_000 });
@@ -1057,7 +1059,7 @@ const missionFx = {
   write_ideal_state: null,
 };
 async function openMission(page: import("@playwright/test").Page) {
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "ideal-state" })));
   await expect(page.getByTestId("mission-editor-page")).toBeVisible({ timeout: 10_000 });
 }
@@ -1141,7 +1143,7 @@ const compassWrites = (page: import("@playwright/test").Page) => page.evaluate((
 test("41 · Compass: proposed lines show their words and source; confirm one, drop one, then confirm all", async ({ page }) => {
   await mockTauri(page, { compass_read: COMPASS, compass_write: null, compass_versions: [], compass_ledger: [] });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Compass" }).click();
   const header = page.getByTestId("work-page").getByTestId("page-header").first();
   await expect(header).toContainText("Compass", { timeout: 10_000 });
@@ -1183,7 +1185,7 @@ test("41 · Compass: proposed lines show their words and source; confirm one, dr
 test("42 · Compass: with nothing yet, one button drafts it from the vault", async ({ page }) => {
   await mockTauri(page, { compass_read: "", engine_compass_bootstrap: { added: [], rejected: [], method: "model" } });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Compass" }).click();
   await page.getByTestId("compass-draft").click();
   await expect.poll(async () => (await invokedCommands(page)).includes("engine_compass_bootstrap")).toBe(true);
@@ -1215,7 +1217,7 @@ test("43 · Insights > Metrics: the week against your normal, tiers, coverage an
     (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_metrics = (a: { view: string }) => (fx as Record<string, unknown>)[a.view];
   }, METRICS_FX);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.getByTestId("app-sidebar").getByRole("button", { name: "Insights" }).click();
   await page.getByTestId("tab-metrics").click();
   const week = page.getByTestId("metrics-week");

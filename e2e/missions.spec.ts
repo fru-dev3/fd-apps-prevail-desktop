@@ -7,6 +7,7 @@
 // label on the Compass. Invented names only. With MISSION_SHOTS=<dir>, each
 // view is captured at 390, 768, 1280 and 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { openSidebar } from "./sidebar-open";
 import { mockTauri } from "./tauri-mock";
 
@@ -106,7 +107,7 @@ async function home(page: Page, width: number, extra: Record<string, unknown> = 
   await page.addInitScript(() => localStorage.setItem("prevail.desktop.defaultChatCli", "claude"));
   await mockTauri(page, { ...FIX, ...extra });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 }
 async function openMissions(page: Page) {
   await fire(page, "prevail:work-section", "missions");

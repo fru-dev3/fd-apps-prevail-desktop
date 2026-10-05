@@ -5,6 +5,7 @@
 // proposals and the Compass path it carries out. Invented data only. With
 // T4_SHOTS=<dir>, each view is captured at 390, 768, 1280 and 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const DECISIONS = [
@@ -79,7 +80,7 @@ async function setup(page: Page, width: number) {
     (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_missions_progress = (a: { sub?: string }) => (a?.sub === "metrics" ? m : a?.sub === "events-pending" ? p : []);
   }, [METRICS, PENDING] as [unknown, unknown]);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 }
 
 for (const width of [390, 768, 1280, 1920]) {

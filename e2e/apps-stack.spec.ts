@@ -4,6 +4,7 @@
 // consent screen. Invented apps only. With STACK_SHOTS=<dir>, each view is
 // captured at 390, 768, 1280 and 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const usage = (id: string, d30: number, minutes = 0) => ({ id, active_days: { d7: Math.min(7, d30), d30, d90: d30 + 5 }, minutes_30d: minutes, device_minutes_30d: minutes ? { mac: minutes - 20, "device-abc": 20 } : {}, web_visits_30d: 12, ai_sessions_30d: 0, trend: "flat", signals: [{ kind: "domain", value: `${id}.example` }], hosts: ["mac-a"] });
@@ -86,7 +87,7 @@ async function openApps(page: Page, width: number) {
   await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
   await mockTauri(page, FIX);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "apps" })));
   await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
 }

@@ -3,6 +3,7 @@
 // metrics turned into an experiment, and For You's line that opens the year.
 // Invented data only. With PLANS_SHOTS=<dir>, captured at 390, 768, 1280, 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const days = (n: number, v: (i: number) => number) => Array.from({ length: n }, (_, i) => ({ date: new Date(Date.UTC(2026, 0, 1 + i * 3)).toISOString().slice(0, 10), value: v(i) }));
@@ -44,7 +45,7 @@ async function setup(page: Page, width: number) {
     engine_story_write: { ok: true, html: "x" }, engine_experiment: { ok: true },
   });
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
   // One command, four answers: set it in the page (a fixture table entry may be a function there).
   await page.evaluate((d) => {
     (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_story = (a: { kind: string }) => (a.kind === "year" ? d.YEAR : a.kind === "recap" ? d.RECAP : a.kind === "patterns" ? d.PATTERNS : d.EXPS);

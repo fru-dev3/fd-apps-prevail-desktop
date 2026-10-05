@@ -3,6 +3,7 @@
 // Inferred filter, Technical details folded, and prompts shown verbatim.
 // Names are invented.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const T = Date.parse("2026-09-20T12:00:00Z");
@@ -31,7 +32,7 @@ async function open(page: Page) {
   await mockTauri(page, FIX);
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   // Intent > Projects (Work > Projects is the projects you track).
   await page.evaluate(() => { localStorage.setItem("prevail.mirror.view", "projects"); window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "intent" })); });
   await page.getByTestId("projects-list").getByText("Foo Shop for the Web").click({ timeout: 10_000 });

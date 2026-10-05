@@ -4,6 +4,7 @@
 // native path gets the same through the engine's after-turn step. Invented
 // data. RECEIPT_SHOTS=<dir> captures the thread at 1280 and 390.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const TS = 1_791_000_000_000;
@@ -30,7 +31,7 @@ for (const width of [1280, 390]) {
     await page.addInitScript(() => localStorage.setItem("prevail.desktop.defaultChatCli", "claude"));
     await mockTauri(page, FIX);
     await page.goto("/");
-    await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+    await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
     const box = page.locator("[data-tour=composer] textarea").first();
     await box.fill("I've decided to learn the foo cello. Also making a YouTube video and the tenant wants to renew.");
     await box.press("Enter");

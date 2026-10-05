@@ -2,6 +2,7 @@
 // across runtimes and models, status in words, Auto routing as its own
 // section, and runtime errors as one plain sentence (ANSI stripped).
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const CLIS = [
@@ -13,7 +14,7 @@ async function openModels(page: Page) {
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await mockTauri(page, { detect_clis: CLIS, verify_cli_model: "ok" });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "models" })));
   await expect(page.getByTestId("runtimes-list")).toBeVisible({ timeout: 10_000 });
 }
@@ -81,7 +82,7 @@ test("models · the runtime meta line shows the version, or leaves it out; never
   // No version and no bin, as a runtime can arrive: the segment is omitted.
   await mockTauri(page, { detect_clis: [{ id: "claude", label: "Foo Runtime", available: true }], verify_cli_model: "ok" });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "models" })));
   const meta = page.getByTestId("runtime-meta").first();
   await expect(meta).toBeVisible({ timeout: 10_000 });

@@ -4,6 +4,7 @@
 // entity as yours, and the "Save entities as you chat" setting. With
 // LINK_SHOTS set, each view is captured at 1440 and 390. Invented names.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const now = Date.now();
@@ -44,7 +45,7 @@ const fire = (page: Page, name: string, detail: unknown) =>
 
 async function home(page: Page) {
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 }
 async function play(page: Page, events: Record<string, unknown>[]) {
   const [last] = (await calls(page, "engine_chat")).slice(-1);
