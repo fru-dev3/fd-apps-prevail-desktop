@@ -583,3 +583,5 @@
 .tint-ic { color: color-mix(in oklab, var(--tint) 82%, black); flex-shrink: 0; }
 :root[data-theme="dark"] .tint-sq { color: color-mix(in oklab, var(--tint) 70%, white); background: color-mix(in oklab, var(--tint) 22%, transparent); }
 :root[data-theme="dark"] .tint-ic { color: color-mix(in oklab, var(--tint) 70%, white); }
+/* A row's own controls (a drag grip, a menu) stay out of the icon rail. */
+[data-rail] [data-rail-skip] { display: none; }

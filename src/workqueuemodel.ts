@@ -22,7 +22,8 @@ export interface RoutedTask {
   effort: Effort; agentKind: string; machine: string; suggestions: Suggestion[];
 }
 export interface RouterPlan { goals: { text: string; tasks: RoutedTask[] }[]; source: "model" | "code" }
-export type WorkStatus = "routed" | "needs-you" | "running" | "paused" | "done" | "failed" | "closed";
+// "queued": may start, waiting for a free slot (the engine runs up to maxRunning at once, in queue order).
+export type WorkStatus = "routed" | "queued" | "needs-you" | "running" | "paused" | "done" | "failed" | "closed";
 export type AskKind = "start" | "herdr-workspace" | "keep-close" | "machine-add";
 export interface WorkTask extends RoutedTask {
   id: string; promptId: string; status: WorkStatus; executor: "engine" | "herdr"; jobId?: string;
@@ -39,25 +40,25 @@ export interface Machine {
   id: string; hostname?: string; label: string; role?: "hub" | "client"; current: boolean;
   herdr: "saved" | "disabled" | "missing" | "local"; vaultRoot?: string; lastSeen?: number;
 }
-export interface WorkSettings { herdr: boolean; workspace?: string }
+export interface WorkSettings { herdr: boolean; workspace?: string; maxRunning?: number }
 /** `work settings` answers `{ ok, settings }`. */
 export function asSettings(v: unknown): WorkSettings {
   const o = (v ?? {}) as { settings?: WorkSettings } & Partial<WorkSettings>;
   const s = o.settings ?? o;
-  return { herdr: !!s.herdr, workspace: s.workspace };
+  return { herdr: !!s.herdr, workspace: s.workspace, ...(typeof s.maxRunning === "number" ? { maxRunning: s.maxRunning } : {}) };
 }
 
 // Used when the engine names no agent kinds (an older Herdr, say).
 export const FALLBACK_AGENT_KINDS = ["claude", "codex", "gemini", "agy"];
 
 export const STATUS_LABEL: Record<WorkStatus, string> = {
-  routed: "Routed", "needs-you": "Needs you", running: "Running", paused: "Paused", done: "Done", failed: "Failed", closed: "Closed",
+  routed: "Routed", queued: "Queued", "needs-you": "Needs you", running: "Running", paused: "Paused", done: "Done", failed: "Failed", closed: "Closed",
 };
 // The DotTone each status wears (ui.tsx StatusDot).
 export const STATUS_TONE: Record<WorkStatus, "ok" | "warn" | "err" | "accent" | "muted"> = {
-  routed: "accent", "needs-you": "warn", running: "accent", paused: "muted", done: "ok", failed: "err", closed: "muted",
+  routed: "accent", queued: "muted", "needs-you": "warn", running: "accent", paused: "muted", done: "ok", failed: "err", closed: "muted",
 };
-export const ACTIVE: ReadonlySet<WorkStatus> = new Set(["routed", "needs-you", "running", "paused", "failed"]);
+export const ACTIVE: ReadonlySet<WorkStatus> = new Set(["routed", "queued", "needs-you", "running", "paused", "failed"]);
 
 export type WorkAction = "pause" | "continue" | "start" | "stop" | "keep" | "close" | "reopen";
 export const ACTION_LABEL: Record<WorkAction, string> = {
@@ -69,6 +70,8 @@ export function actionsFor(t: Pick<WorkTask, "status" | "executor" | "ask">): Wo
   const herdr = t.executor === "herdr";
   switch (t.status) {
     case "routed": return ["start"];
+    // It starts by itself when a slot frees; Pause holds it back.
+    case "queued": return ["pause"];
     // Its question (Start / Not now, Keep / Close...) carries the choice.
     case "needs-you": return [];
     case "running": return ["pause"];
@@ -89,33 +92,47 @@ export function groupByGoal<T extends Pick<WorkTask, "goal">>(tasks: T[]): { goa
   return out;
 }
 
-/** "2 tasks · 1 needs you": the one meta line under a prompt in the queue. */
-export function promptSummary(p: Pick<WorkPrompt, "tasks">): string {
-  if (p.tasks.length === 0) return "Routing";
-  const parts = [`${p.tasks.length} ${p.tasks.length === 1 ? "task" : "tasks"}`];
-  const order: WorkStatus[] = ["needs-you", "running", "paused", "failed", "routed", "done", "closed"];
-  for (const s of order) {
-    const n = p.tasks.filter((t) => t.status === s).length;
-    if (n > 0) parts.push(`${n} ${STATUS_LABEL[s].toLowerCase()}`);
-  }
+/** A queue row: the task and a summary of the prompt it came from. */
+export type QueueTask = WorkTask & { prompt?: { id: string; ts: number; text: string; surface?: WorkPrompt["surface"] } };
+const OPEN_IN_QUEUE: ReadonlySet<WorkStatus> = new Set(["routed", "queued", "needs-you", "running", "paused"]);
+
+/**
+ * The queue, flat and in the engine's order (first runs first, newest at the
+ * bottom). The engine answers `{ tasks }`; an older one answers `{ prompts }`,
+ * whose open tasks are taken oldest prompt first.
+ */
+export function asQueue(v: unknown): QueueTask[] {
+  const o = (v ?? {}) as { tasks?: unknown; prompts?: unknown };
+  if (Array.isArray(o.tasks)) return (o.tasks as QueueTask[]).filter((t) => t && typeof t.id === "string" && OPEN_IN_QUEUE.has(t.status));
+  return asPrompts(v).sort((a, b) => a.ts - b.ts)
+    .flatMap((p) => p.tasks.filter((t) => OPEN_IN_QUEUE.has(t.status)).map((t): QueueTask => ({ ...t, prompt: { id: p.id, ts: p.ts, text: p.text, surface: p.surface } })));
+}
+
+/** "2 running · 1 queued · 1 needs you": the queue's one meta line. */
+export function queueSummary(ts: Pick<WorkTask, "status">[]): string {
+  const n = (s: WorkStatus) => ts.filter((t) => t.status === s).length;
+  const parts = [`${ts.length} ${ts.length === 1 ? "task" : "tasks"}`];
+  for (const s of ["running", "queued", "needs-you", "paused"] as WorkStatus[]) if (n(s)) parts.push(`${n(s)} ${STATUS_LABEL[s].toLowerCase()}`);
   return parts.join(" · ");
 }
 
-/** The status a prompt shows as a whole: the most urgent of its tasks. */
-export function promptStatus(p: Pick<WorkPrompt, "tasks">): WorkStatus | null {
-  for (const s of ["needs-you", "failed", "running", "paused", "routed", "done", "closed"] as WorkStatus[]) {
-    if (p.tasks.some((t) => t.status === s)) return s;
-  }
-  return null;
-}
-
-/** Queue: prompts with work still open, newest first. Backlog shows everything. */
-export function queuePrompts(ps: WorkPrompt[]): WorkPrompt[] {
-  return [...ps].filter((p) => p.tasks.length === 0 || p.tasks.some((t) => t.status !== "closed")).sort((a, b) => b.ts - a.ts);
+/**
+ * Move `id` so it lands at insertion point `at` (0..n, in the list as it is
+ * now). Returns the new order and what to tell the engine (before the task now
+ * after it, or after the last), or null when nothing moves.
+ */
+export function moveInQueue<T extends { id: string }>(list: T[], id: string, at: number): { list: T[]; args: { before: string } | { after: string } } | null {
+  const from = list.findIndex((t) => t.id === id);
+  if (from < 0 || at < 0 || at > list.length || at === from || at === from + 1) return null;
+  const rest = list.filter((t) => t.id !== id);
+  const i = at > from ? at - 1 : at;
+  const next = [...rest.slice(0, i), list[from]!, ...rest.slice(i)];
+  const after = next[i + 1];
+  return { list: next, args: after ? { before: after.id } : { after: next[i - 1]!.id } };
 }
 
 export type BacklogFilter = "open" | "done" | "all";
-const URGENCY: Record<WorkStatus, number> = { "needs-you": 0, failed: 1, running: 2, paused: 3, routed: 4, done: 5, closed: 6 };
+const URGENCY: Record<WorkStatus, number> = { "needs-you": 0, failed: 1, running: 2, queued: 3, paused: 4, routed: 5, done: 6, closed: 7 };
 
 /** Every task across prompts: filtered by state and words, most urgent first, then newest. */
 export function backlog(ps: WorkPrompt[], filter: BacklogFilter = "open", query = ""): (WorkTask & { promptTs: number })[] {

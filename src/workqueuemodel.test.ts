@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   actionsFor, asMachines, asPrompts, asSettings, asWorkspaces, backlog, engineLacksWork, FALLBACK_AGENT_KINDS, groupByGoal, leaseElsewhere,
-  machineAddCommand, mirrorTail, promptStatus, promptSummary, queuePrompts, type WorkPrompt, type WorkTask,
+  machineAddCommand, mirrorTail, moveInQueue, asQueue, queueSummary, type WorkPrompt, type WorkTask,
 } from "./workqueuemodel";
 
 const task = (over: Partial<WorkTask> = {}): WorkTask => ({
@@ -29,20 +29,33 @@ describe("work queue model", () => {
     expect(actionsFor(task({ status: "closed" }))).toEqual([]);
   });
 
-  test("a prompt reads as one line and one status", () => {
-    const p = prompt({ tasks: [task({ status: "running" }), task({ id: "t2", status: "needs-you" })] });
-    expect(promptSummary(p)).toBe("2 tasks · 1 needs you · 1 running");
-    expect(promptStatus(p)).toBe("needs-you");
-    expect(promptSummary(prompt({ tasks: [] }))).toBe("Routing");
+  test("the queue is flat and in the engine's order; an older engine's prompts become oldest first, open tasks only", () => {
+    const q = asQueue({ ok: true, view: "queue", tasks: [task({ id: "b", status: "queued" }), task({ id: "a", status: "running" }), task({ id: "x", status: "done" })] });
+    expect(q.map((t) => t.id)).toEqual(["b", "a"]);
+    const old = asQueue({ prompts: [prompt({ id: "new", ts: 2, tasks: [task({ id: "c", status: "needs-you" })] }), prompt({ id: "old", ts: 1, tasks: [task({ id: "a", status: "running" }), task({ id: "d", status: "closed" })] })] });
+    expect(old.map((t) => [t.id, t.prompt?.id])).toEqual([["a", "old"], ["c", "new"]]);
+    expect(queueSummary(q)).toBe("2 tasks · 1 running · 1 queued");
+    expect(actionsFor(task({ status: "queued" }))).toEqual(["pause"]);
   });
 
-  test("the queue drops fully closed prompts; the backlog sorts by urgency then newest", () => {
+  test("moving a task names its new neighbour for the engine", () => {
+    const l = ["a", "b", "c", "d"].map((id) => ({ id }));
+    const ids = (r: ReturnType<typeof moveInQueue>) => r && [r.list.map((x) => x.id).join(""), r.args];
+    expect(ids(moveInQueue(l, "d", 0))).toEqual(["dabc", { before: "a" }]);
+    expect(ids(moveInQueue(l, "a", 4))).toEqual(["bcda", { after: "d" }]);
+    expect(ids(moveInQueue(l, "a", 2))).toEqual(["bacd", { before: "c" }]);
+    expect(ids(moveInQueue(l, "c", 1))).toEqual(["acbd", { before: "b" }]);
+    expect(moveInQueue(l, "b", 1)).toBeNull();
+    expect(moveInQueue(l, "b", 2)).toBeNull();
+    expect(moveInQueue(l, "nope", 0)).toBeNull();
+  });
+
+  test("the backlog sorts by urgency then newest", () => {
     const ps = [
       prompt({ id: "old", ts: 1, tasks: [task({ id: "a", status: "running" })] }),
       prompt({ id: "new", ts: 2, tasks: [task({ id: "b", status: "running", text: "bar report" }), task({ id: "c", status: "needs-you" })] }),
       prompt({ id: "shut", ts: 3, tasks: [task({ id: "d", status: "closed" })] }),
     ];
-    expect(queuePrompts(ps).map((p) => p.id)).toEqual(["new", "old"]);
     expect(backlog(ps).map((t) => t.id)).toEqual(["c", "b", "a"]);
     expect(backlog(ps, "done").map((t) => t.id)).toEqual(["d"]);
     expect(backlog(ps, "all", "bar").map((t) => t.id)).toEqual(["b"]);

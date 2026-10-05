@@ -1602,7 +1602,7 @@ mod tests {
             "engine_app_set_runtime", "engine_app_set_enabled", "engine_app_sync",
             "engine_autonomy_set", "engine_budget_set", "engine_lock_set", "autonomy_policy_set",
             "google_scaffold", "open_in_finder", "mirror_generate", "mirror_refresh",
-            "engine_work_route", "engine_work_action", "engine_work_answer", "engine_work_settings",
+            "engine_work_route", "engine_work_action", "engine_work_answer", "engine_work_settings", "engine_work_reorder",
             "engine_work_machine_add", "engine_work_herdr_workspaces",
             "engine_after_turn", "engine_touch_undo", "engine_decision_undo", "engine_compass_yearly_save",
         ] {

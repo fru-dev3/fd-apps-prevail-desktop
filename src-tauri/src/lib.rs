@@ -662,6 +662,7 @@ pub fn run() {
             work::engine_work_route,
             work::engine_work_action,
             work::engine_work_answer,
+            work::engine_work_reorder,
             work::engine_work_settings,
             work::engine_work_machines,
             work::engine_work_machine_add,

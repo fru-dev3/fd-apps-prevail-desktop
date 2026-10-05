@@ -88,11 +88,33 @@ pub(crate) async fn engine_work_answer(vault: String, id: String, answer: String
     blocking(a).await
 }
 
-/// Work mode settings: read them (no arguments), or turn Herdr on or off.
+/// Work mode settings: read them (no arguments), turn Herdr on or off, or set
+/// how many tasks run at once (`max_running`, 1 to 20).
 #[tauri::command]
-pub(crate) async fn engine_work_settings(vault: String, herdr: Option<bool>) -> Result<serde_json::Value, String> {
+pub(crate) async fn engine_work_settings(vault: String, herdr: Option<bool>, max_running: Option<u32>) -> Result<serde_json::Value, String> {
     let mut a = v(&["--vault", &vault, "work", "settings"]);
     if let Some(h) = herdr { a.push("--herdr".into()); a.push(if h { "on" } else { "off" }.into()); }
+    if let Some(n) = max_running {
+        if !(1..=20).contains(&n) { return Err("max running is 1 to 20".into()); }
+        a.push("--max-running".into()); a.push(n.to_string());
+    }
+    blocking(a).await
+}
+
+/// Move a task in the queue: before or after another task, or to an index
+/// (0 is first). Reordering changes which queued task starts next.
+#[tauri::command]
+pub(crate) async fn engine_work_reorder(vault: String, id: String, before: Option<String>, after: Option<String>, to: Option<u32>) -> Result<serde_json::Value, String> {
+    let mut a = v(&["--vault", &vault, "work", "reorder", ok_id(&id)?]);
+    if let Some(b) = before.filter(|b| !b.is_empty()) {
+        a.push("--before".into()); a.push(ok_id(&b)?.to_string());
+    } else if let Some(b) = after.filter(|b| !b.is_empty()) {
+        a.push("--after".into()); a.push(ok_id(&b)?.to_string());
+    } else if let Some(n) = to {
+        a.push("--to".into()); a.push(n.to_string());
+    } else {
+        return Err("say where the task goes".into());
+    }
     blocking(a).await
 }
 

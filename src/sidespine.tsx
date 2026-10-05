@@ -56,6 +56,8 @@ type ColumnProps = {
   toolbar?: ReactNode;
   // Pinned at the bottom of the column.
   footer?: ReactNode;
+  // A wider column, for a screen whose list is the main view (the Work queue).
+  wide?: boolean;
   children: ReactNode;
 };
 
@@ -84,7 +86,7 @@ function RailTitles({ children }: { children: ReactNode }) {
   return <div ref={ref} className="flex min-h-0 w-full flex-1 flex-col">{children}</div>;
 }
 
-export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, actions, toolbar, footer, children }: Omit<ColumnProps, "storageKey"> & { collapsed: boolean; onToggle: () => void }) {
+export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, actions, toolbar, footer, wide = false, children }: Omit<ColumnProps, "storageKey"> & { collapsed: boolean; onToggle: () => void }) {
   if (collapsed) {
     return (
       <div data-testid="spine-collapsed" className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-surface/40 py-2">
@@ -98,7 +100,7 @@ export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, a
     );
   }
   return (
-    <div data-testid={testId} data-spine-column data-shell="column" className="flex w-72 shrink-0 flex-col border-r border-border bg-surface/40">
+    <div data-testid={testId} data-spine-column data-shell="column" className={`flex ${wide ? "w-[26rem]" : "w-72"} shrink-0 flex-col border-r border-border bg-surface/40`}>
       <div className="flex shrink-0 items-center justify-between gap-2 pl-4 pr-2 pt-2">
         <span className="min-w-0">
           <span className="block truncate text-[13px] font-semibold text-text-secondary">{title}</span>
