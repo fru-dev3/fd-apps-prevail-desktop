@@ -21,6 +21,7 @@ mod knowledge;
 mod goals;
 mod compass;
 mod plans;
+mod work;
 mod step6;
 mod missions;
 mod appcmds;
@@ -655,6 +656,16 @@ pub fn run() {
             missions::engine_missions_event_approve,
             missions::engine_missions_link_path,
             missions::engine_missions_from_path,
+            work::engine_work_add,
+            work::engine_work_list,
+            work::engine_work_show,
+            work::engine_work_route,
+            work::engine_work_action,
+            work::engine_work_answer,
+            work::engine_work_settings,
+            work::engine_work_machines,
+            work::engine_work_machine_add,
+            work::engine_work_herdr_workspaces,
             plans::engine_today,
             plans::engine_today_tap,
             plans::engine_review,

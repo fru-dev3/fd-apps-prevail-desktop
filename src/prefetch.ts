@@ -21,6 +21,7 @@ export const loadCouncilPanel = tracked(() => import("./councilpanel"));
 export const loadSettingsPanel = tracked(() => import("./settingspanel"));
 export const loadWorkPanel = tracked(() => import("./workpanel"));
 export const loadBenchmarkPanel = tracked(() => import("./benchpanel"));
+export const loadWorkQueue = tracked(() => import("./workqueue"));
 
 /**
  * A code-split panel: lazy until its chunk is here, then rendered directly.
@@ -72,7 +73,7 @@ export function prefetchPanelsWhenIdle() {
     once("work", loadWorkPanel);
     idle(() => {
       once("settings", loadSettingsPanel);
-      idle(() => { once("chat", loadChatPanel); once("council", loadCouncilPanel); });
+      idle(() => { once("chat", loadChatPanel); once("council", loadCouncilPanel); once("queue", loadWorkQueue); });
     });
   });
 }

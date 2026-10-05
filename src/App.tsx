@@ -2,7 +2,7 @@ import { PhoneGlance, isGlanceView } from "./metricsfamily";
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode, type UnlistenFn } from "./bridge";
 import { invokeCached } from "./query";
-import { lazyPanel, loadBenchmarkPanel, loadChatPanel, loadCouncilPanel, loadSettingsPanel, loadWorkPanel, prefetchPanelsWhenIdle } from "./prefetch";
+import { lazyPanel, loadBenchmarkPanel, loadChatPanel, loadCouncilPanel, loadSettingsPanel, loadWorkPanel, loadWorkQueue, prefetchPanelsWhenIdle } from "./prefetch";
 import { useIsPhone, useVisualViewportHeight } from "./useisphone";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -28,6 +28,7 @@ const CouncilPanel = lazyPanel(loadCouncilPanel, (m) => m.CouncilPanel);
 const SettingsPanel = lazyPanel(loadSettingsPanel, (m) => m.SettingsPanel);
 const WorkPanel = lazyPanel(loadWorkPanel, (m) => m.WorkPanel);
 const BenchmarkPanel = lazyPanel(loadBenchmarkPanel, (m) => m.BenchmarkPanel);
+const WorkQueue = lazyPanel(loadWorkQueue, (m) => m.WorkQueue);
 // The phone frame (bottom tab bar, big header, one full-width surface). Only
 // fetched at phone width, so the desktop bundle stays as it was.
 const PhoneShell = lazy(() => import("./phoneshell").then((m) => ({ default: m.PhoneShell })));
@@ -144,6 +145,7 @@ import {
   ChevronsLeft,
   MessageSquarePlus,
   ListChecks,
+  ListTodo,
   Blocks,
   Compass,
   ShieldCheck,
@@ -190,6 +192,8 @@ function notifyWeb(title: string, body: string) {
 const TABS: { id: TabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "council", label: "Council", icon: Scale },
+  // Work mode: fire prompts into one queue; the chief of staff routes and runs them.
+  { id: "queue", label: "Work", icon: ListTodo },
 ];
 
 // Keep nav badges to a single digit: anything over 9 shows "9+" so the top bar
@@ -1023,7 +1027,7 @@ export default function App() {
   // T18: record which primary surface is in use (inert until keys exist;
   // default-OFF; "settings" is not a tracked feature so it's simply skipped).
   useEffect(() => {
-    if (tab === "chat" || tab === "council" || tab === "benchmark") track("feature_used", { feature: tab });
+    if (tab === "chat" || tab === "council" || tab === "queue" || tab === "benchmark") track("feature_used", { feature: tab });
   }, [tab]);
   // Cross-domain Decision Inbox count — surfaced as a top-bar pill so pending
   // approvals / AI reviews are visible without opening Settings. Cheap call
@@ -1793,6 +1797,9 @@ export default function App() {
                 />
               </div>
             )}
+            {tab === "queue" && vaultPath && (
+              <WorkQueue vaultPath={vaultPath} active={tab === "queue"} domains={domains.map((d) => d.name)} phone={phone} />
+            )}
             {/* Per-domain benchmark, full screen - scoped to whatever domain
                 you're in. Remounts (via key) when you switch domains so it
                 re-scopes cleanly. STAYS MOUNTED (hidden) on other tabs so an
@@ -1921,8 +1928,9 @@ export default function App() {
             when you switch to Benchmark. Picking a thread on Benchmark jumps
             back to Chat with that thread open.
             On a phone the rail cannot share the width with the conversation, so
-            it is hidden; threads stay reachable from the drawer's domain view. */}
-        {!phone && (
+            it is hidden; threads stay reachable from the drawer's domain view.
+            The Work tab has its own queue column, so the rail steps aside there. */}
+        {!phone && tab !== "queue" && (
           <>
             <ThreadsRail
               threads={threads}
@@ -1967,6 +1975,7 @@ export default function App() {
               return (
                 <button
                   key={t.id}
+                  data-testid={`top-tab-${t.id}`}
                   onClick={() => {
                     setTab(t.id);
                     // Chat is also the way back from a sub-view (app Runs/Settings,

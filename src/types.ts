@@ -271,7 +271,8 @@ export interface Lens {
   instruction: string;
 }
 
-export type TabId = "chat" | "council" | "benchmark" | "settings" | "work" | "retrospect" | "tools";
+// "queue" is the Work tab (Work mode); "work" is the older WorkPanel hub.
+export type TabId = "chat" | "council" | "queue" | "benchmark" | "settings" | "work" | "retrospect" | "tools";
 
 export type DomainTab = "chat" | "welcome" | "soul" | "context" | "insights" | "usage" | "state" | "decisions" | "journal" | "logs" | "skills" | "prefs" | "apps" | "work";
 

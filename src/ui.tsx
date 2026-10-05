@@ -20,12 +20,16 @@ export type RowMenuItem =
   | { kind: "separator" }
   | { kind: "heading"; label: string };
 
-export function RowMenu({ items, label = "More actions", reveal = false, className = "" }: {
+export function RowMenu({ items, label = "More actions", reveal = false, className = "", trigger, triggerClass, testId }: {
   items: RowMenuItem[];
   label?: string;
   // When true the trigger is hidden until the row (a `group`) is hovered.
   reveal?: boolean;
   className?: string;
+  // A chip that opens the menu in place of the kebab (a route or machine chip).
+  trigger?: React.ReactNode;
+  triggerClass?: string;
+  testId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -56,11 +60,12 @@ export function RowMenu({ items, label = "More actions", reveal = false, classNa
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-surface-strong hover:text-text-primary ${
+        data-testid={testId}
+        className={trigger ? triggerClass : `flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-surface-strong hover:text-text-primary ${
           open ? "bg-surface-strong text-text-primary" : reveal ? "text-text-muted opacity-0 focus-visible:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" : "text-text-muted"
         }`}
       >
-        <MoreVertical className="h-4 w-4" />
+        {trigger ?? <MoreVertical className="h-4 w-4" />}
       </button>
       {open && pos && createPortal(
         <div data-rowmenu role="menu" onClick={(e) => e.stopPropagation()} style={{ top: pos.top, left: pos.left }}

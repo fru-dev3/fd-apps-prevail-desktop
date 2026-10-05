@@ -157,6 +157,9 @@ const WEBUI_ALLOWED: &[&str] = &[
     // specialists, decisions and metric proposals are read here; starting,
     // stopping, undoing and answering stay on the Mac.
     "engine_today", "engine_today_tap", "engine_review", "engine_review_checkin",
+    // Work mode: the phone adds prompts and reads the queue and the machines;
+    // routing, actions, answers and settings stay on the Mac.
+    "engine_work_add", "engine_work_list", "engine_work_show", "engine_work_machines",
     "engine_jobs", "engine_job_show", "engine_specialists", "engine_compass_history", "engine_apps_imports", "engine_apps_stack_diff", "engine_decisions", "engine_metric_proposals",
     // Missions are read on the phone; starting, changing and closing one stay on the Mac.
     "engine_missions_list", "engine_missions_show", "engine_missions_progress",
@@ -1599,6 +1602,8 @@ mod tests {
             "engine_app_set_runtime", "engine_app_set_enabled", "engine_app_sync",
             "engine_autonomy_set", "engine_budget_set", "engine_lock_set", "autonomy_policy_set",
             "google_scaffold", "open_in_finder", "mirror_generate", "mirror_refresh",
+            "engine_work_route", "engine_work_action", "engine_work_answer", "engine_work_settings",
+            "engine_work_machine_add", "engine_work_herdr_workspaces",
             "engine_after_turn", "engine_touch_undo", "engine_decision_undo", "engine_compass_yearly_save",
         ] {
             assert!(!WEBUI_ALLOWED.contains(&banned), "{banned} must not be web-invokable");

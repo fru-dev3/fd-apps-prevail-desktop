@@ -62,7 +62,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
 
 // Where the transcription runs is the Mac either way; only the transport
 // differs: a browser uploads the bytes, the Tauri window passes base64.
-async function transcribe(blob: Blob): Promise<Transcript> {
+export async function transcribe(blob: Blob): Promise<Transcript> {
   const ext = ((blob.type.split("/")[1] || "webm").split(";")[0] || "webm").replace("x-m4a", "m4a");
   if (isBrowser()) {
     const path = await uploadAudio(blob);

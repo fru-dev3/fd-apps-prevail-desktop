@@ -9,11 +9,11 @@ import { Check, Mic, Settings2, Sparkles, Square, X } from "lucide-react";
 import { invoke } from "./bridge";
 import { addNote } from "./notesstore";
 
-function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
+export function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   const w = window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
-interface SpeechRecognitionLike {
+export interface SpeechRecognitionLike {
   continuous: boolean; interimResults: boolean; lang: string;
   onresult: ((e: { resultIndex: number; results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null;
   onerror: ((e: { error?: string }) => void) | null;
