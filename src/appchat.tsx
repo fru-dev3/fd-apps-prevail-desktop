@@ -83,7 +83,6 @@ function AppChat({ vaultPath, app, threads, request, onCurrent, onThreadsChanged
         vaultPath={vaultPath}
         clis={clis}
         fwLens={fwLens}
-        onSwitchToCouncil={() => {}}
         activeThreadPath={path}
         chatViewNonce={nonce}
         onActiveThreadChange={(p) => {

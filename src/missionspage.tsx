@@ -325,7 +325,7 @@ function MissionChat({ vaultPath, m }: { vaultPath: string; m: Mission }) {
       )}
       <ChatPanel
         domain={null} domainPath={null} threadDomain={key} vaultPath={vaultPath} clis={clis} fwLens={fwLens}
-        onSwitchToCouncil={() => {}} activeThreadPath={path} chatViewNonce={nonce}
+        activeThreadPath={path} chatViewNonce={nonce}
         onActiveThreadChange={(p) => setPath(p)}
         onThreadsChanged={() => { void threads.refresh(); window.dispatchEvent(new Event("prevail:threads-changed")); }}
         onStreamStart={() => {}} onStreamEnd={() => {}}

@@ -68,7 +68,6 @@ export function EntityChat({ vaultPath, entity, threads, request, onCurrent, onT
         vaultPath={vaultPath}
         clis={clis}
         fwLens={fwLens}
-        onSwitchToCouncil={() => {}}
         activeThreadPath={path}
         chatViewNonce={nonce}
         onActiveThreadChange={(p) => {

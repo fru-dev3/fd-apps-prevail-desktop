@@ -49,6 +49,7 @@ import type { UnlistenFn } from "./bridge";
 import { savePastedImages } from "./paste";
 import { HANDOFF_EVENT, HANDOFF_PENDING_EVENT, takePendingHandoff, withHandoff } from "./dragref";
 import { useChiefOfStaff } from "./chiefofstaff";
+import { CouncilToggle } from "./councilmode";
 
 // Per-domain cache of the cheap (no-audit) context score. engine_score spawns the
 // engine binary; users switch domains often, so re-opening a domain within the TTL
@@ -132,7 +133,7 @@ export function ChatPanel({
   vaultPath,
   clis,
   fwLens,
-  onSwitchToCouncil: _onSwitchToCouncil,
+  onSwitchToCouncil,
   activeThreadPath,
   chatViewNonce,
   onActiveThreadChange,
@@ -208,7 +209,8 @@ export function ChatPanel({
   clis: CliInfo[];
   fwLens: ReturnType<typeof useFrameworkLens>;
   /** Kept on the contract: callers still route into Council from elsewhere. */
-  onSwitchToCouncil: () => void;
+  /** The main conversation passes this: the composer then shows the Council toggle (off here), which switches the answer to the council. */
+  onSwitchToCouncil?: () => void;
   activeThreadPath: string | null;
   chatViewNonce: number;
   onActiveThreadChange: (p: string | null) => void;
@@ -3998,6 +4000,10 @@ export function ChatPanel({
             >
               <ListChecks className="h-3.5 w-3.5" /> {planMode ? "Plan on" : "Plan"}
             </button>}
+            {/* Council is a way of answering: the same toggle sits in the Council
+                composer, on, to come back. Only the main conversation has it;
+                the phone keeps its Chat | Council switch in its header. */}
+            {!phone && onSwitchToCouncil && <CouncilToggle on={false} onChange={() => onSwitchToCouncil()} />}
             <div className="flex-1" />
 
             {/* Model picker pill - Codex-style. Click opens cascading
@@ -4124,13 +4130,6 @@ export function ChatPanel({
             </div>
 
             {phoneMic}
-
-            {/* No Council pill here. Every surface that shows this composer
-                already carries a Chat | Council switch in its header - the
-                phone in its own header, the desktop in the tab strip above the
-                transcript - so a third way to make the same move was one more
-                button in the row you look at most. onSwitchToCouncil stays on
-                the props so callers that route into Council still can. */}
 
             {(() => {
               const last = messages[messages.length - 1];

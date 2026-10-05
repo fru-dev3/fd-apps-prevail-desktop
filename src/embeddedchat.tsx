@@ -42,7 +42,6 @@ export function EmbeddedChat({ vaultPath, storageKey, defaultMembers, initialInp
           vaultPath={vaultPath}
           clis={clis}
           fwLens={fwLens}
-          onSwitchToCouncil={() => {}}
           activeThreadPath={path}
           chatViewNonce={nonce}
           onActiveThreadChange={(p) => { setPath(p); write(storageKey, p); }}

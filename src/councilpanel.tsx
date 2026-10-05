@@ -2,7 +2,8 @@
 // (CLI, model) slots over a question, stream each panelist, then synthesize a
 // chair verdict. Renders the shared DomainStatusBar + DomainContextView.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, BookOpen, Check, ChevronRight, Crown, Folder, Ghost, Layers, MessageSquare, Plus, Scale, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { CouncilToggle } from "./councilmode";
+import { ArrowRight, BookOpen, Check, ChevronRight, Crown, Folder, Ghost, Layers, Plus, Scale, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { invoke, listen } from "./bridge";
 import { savePastedImages } from "./paste";
 import { titleCase } from "./format";
@@ -1587,6 +1588,8 @@ export function CouncilPanel({
           {/* Single inline toolbar: toggles · spacer · chair · chat · send */}
           <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2">
             <DomainStatusBar domain={domain} fwLens={fwLens} surface="council" />
+            {/* The same Council toggle, in the same spot, as the chat composer: off goes back to a single model. */}
+            <CouncilToggle on onChange={() => onSwitchToChat()} />
             <div className="flex-1" />
 
             {/* Which council: the Default, or any named one (Settings > Council). */}
@@ -1677,14 +1680,6 @@ export function CouncilPanel({
               )}
             </div>
 
-            <button
-              onClick={onSwitchToChat}
-              title="Back to single-model conversation"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 font-mono text-xs text-text-secondary hover:border-accent-border hover:bg-accent-soft hover:text-accent"
-            >
-              <MessageSquare className="h-3.5 w-3.5" />
-              Chat
-            </button>
             {(phase === "panelists" || phase === "synthesizing") ? (
               <button
                 onClick={async () => {

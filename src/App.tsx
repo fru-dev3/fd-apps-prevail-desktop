@@ -2,6 +2,7 @@ import { PhoneGlance, isGlanceView } from "./metricsfamily";
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode, type UnlistenFn } from "./bridge";
 import { invokeCached } from "./query";
+import { answerWithCouncil, councilToggleOn, setCouncilToggle } from "./councilmode";
 import { lazyPanel, loadBenchmarkPanel, loadChatPanel, loadCouncilPanel, loadSettingsPanel, loadWorkPanel, loadWorkQueue, prefetchPanelsWhenIdle } from "./prefetch";
 import { useIsPhone, useVisualViewportHeight } from "./useisphone";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -113,7 +114,6 @@ import {
   
   
   
-  Scale,
   
   Swords,
 
@@ -184,16 +184,14 @@ function notifyWeb(title: string, body: string) {
 
 
 
-// Top-level tabs. Council is NOT its own tab (a mode toggle inside Chat) and
-// Tools is NOT its own tab (a section inside Settings), keeping the surface
-// count low so each tab has a clear job.
-// B2-25: Chat + Council are the prominent primary tabs on the LEFT. Benchmark and
-// the rest live in the smaller, de-emphasized right cluster.
+// Top-level tabs: Work first, then Chat. Council is NOT a tab: it is a toggle
+// in the composer (councilmode.tsx), and the "council" TabId is the
+// conversation answered by the council. Tools is a section inside Settings.
+// Benchmark and the rest live in the smaller, de-emphasized right cluster.
 const TABS: { id: TabId; label: string; icon: typeof MessageSquare }[] = [
-  { id: "chat", label: "Chat", icon: MessageSquare },
-  { id: "council", label: "Council", icon: Scale },
-  // Work mode: fire prompts into one queue; the chief of staff routes and runs them.
+  // Work mode: fire prompts into one ordered queue; the chief of staff routes and runs them.
   { id: "queue", label: "Work", icon: ListTodo },
+  { id: "chat", label: "Chat", icon: MessageSquare },
 ];
 
 // Keep nav badges to a single digit: anything over 9 shows "9+" so the top bar
@@ -1023,7 +1021,12 @@ export default function App() {
   const [clisDetected, setClisDetected] = useState(false);
   const [noModelDismissed, setNoModelDismissed] = useState(false);
   const noModelConfigured = clisDetected && clis.length > 0 && !clis.some((c) => c.available);
-  const [tab, setTab] = useState<TabId>("chat");
+  // The conversation opens the way the composer's Council toggle was left.
+  const [tab, setTab] = useState<TabId>(() => (answerWithCouncil({ toggle: councilToggleOn() }) ? "council" : "chat"));
+  // Work mode is focused: no sidebar, no thread rail. One quiet control shows the sidebar there for a while.
+  const [workSidebar, setWorkSidebar] = useState(false);
+  // Anything that opens the plain chat (a thread pick, New chat) leaves the Council toggle off, so it always says what is showing.
+  useEffect(() => { if (tab === "chat") setCouncilToggle(false); }, [tab]);
   // T18: record which primary surface is in use (inert until keys exist;
   // default-OFF; "settings" is not a tracked feature so it's simply skipped).
   useEffect(() => {
@@ -1662,6 +1665,7 @@ export default function App() {
   // the lazy panels) - the cause of the "mode switch feels slow" report. Now the
   // shell + sidebar stay mounted and only the CENTER region swaps by tab.
   const isMainMode = tab !== "settings" && tab !== "work";
+  const workFocus = tab === "queue" && !workSidebar;
   const editorCenter = (
     <PanelBoundary resetKey={tab}>
     <Suspense fallback={<PanelLoading />}>
@@ -1754,7 +1758,7 @@ export default function App() {
                 vaultPath={vaultPath}
                 clis={clis}
                 fwLens={fwLens}
-                onSwitchToCouncil={() => setTab("council")}
+                onSwitchToCouncil={() => { setCouncilToggle(true); setTab("council"); }}
                 activeThreadPath={activeThreadPath}
                 chatViewNonce={chatViewNonce}
                 onActiveThreadChange={setActiveThreadPath}
@@ -1787,7 +1791,7 @@ export default function App() {
                   activeThreadPath={activeThreadPath}
                   onActiveThreadChange={setActiveThreadPath}
                   onOpenInFinder={() => openInFinder(selectedDomainPath)}
-                  onSwitchToChat={() => setTab("chat")}
+                  onSwitchToChat={() => { setCouncilToggle(false); setTab("chat"); }}
                   onThreadsChanged={() => void refreshThreads()}
                   seedPrompt={councilSeed}
                   seedAutoConvene={councilAutoConvene}
@@ -1913,10 +1917,10 @@ export default function App() {
         </Suspense>
       ) : (
       <div className="flex min-h-0 flex-1">
-        {sidebarEl}
+        {!workFocus && sidebarEl}
         {/* Center region swaps by mode; the sidebar above stays mounted. */}
         {!isMainMode ? (tab === "settings" ? editorCenter : workCenter) : (<>
-        {!phone && !sidebarCollapsed && (
+        {!phone && !sidebarCollapsed && !workFocus && (
           <ResizeHandle
             ariaLabel="Resize domain rail"
             onChange={(dx) => setDomainRailWidth((w) => Math.max(180, Math.min(420, w + dx)))}
@@ -1957,27 +1961,43 @@ export default function App() {
             {/* Quick visual cue: are we in an APP or a DOMAIN? An icon (no text)
                 at the far left, so the two contexts are instantly distinguishable.
                 App = plug, domain/general = layers. */}
+            {tab === "queue" ? (
+              // Work is focused: the sidebar steps aside; this shows it (and hides it again).
+              <button
+                type="button"
+                data-testid="work-sidebar-toggle"
+                onClick={() => setWorkSidebar((v) => !v)}
+                title={workSidebar ? "Hide the sidebar" : "Show the sidebar"}
+                aria-label={workSidebar ? "Hide the sidebar" : "Show the sidebar"}
+                aria-pressed={workSidebar}
+                className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
+              >
+                {workSidebar ? <ChevronsLeft className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
+              </button>
+            ) : (
             <span
               title={onApp ? `App: ${selectedApp?.title ?? ""}` : `Domain: ${titleCase(selectedDomain || "general")}`}
               className={`mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${onApp ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-secondary"}`}
             >
               {onApp ? <Plug className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
             </span>
+            )}
             {/* Chat + Council sit on the LEFT for BOTH apps and domains, so the
                 conversation is always in the same place. The app's / domain's
                 OTHER views (Runs / Settings / Domains, or Insights / Preferences)
                 live in the right cluster below. */}
             {TABS.map((t) => {
               const Icon = t.icon;
+              // Chat is the conversation, answered by one model or by the council.
               const active = t.id === "chat"
-                ? tab === "chat" && (onApp || domainTab === "chat")
+                ? (tab === "chat" && (onApp || domainTab === "chat")) || tab === "council"
                 : tab === t.id;
               return (
                 <button
                   key={t.id}
                   data-testid={`top-tab-${t.id}`}
                   onClick={() => {
-                    setTab(t.id);
+                    setTab(t.id === "chat" && answerWithCouncil({ toggle: councilToggleOn() }) ? "council" : t.id);
                     // Chat is also the way back from a sub-view (app Runs/Settings,
                     // or domain Insights/Preferences) to the conversation.
                     if (t.id === "chat" && !onApp) setDomainTab("chat");
@@ -1994,6 +2014,8 @@ export default function App() {
               );
             })}
             <div className="flex-1" />
+            {/* Work is focused: the domain's own controls step aside there. */}
+            {tab !== "queue" && (<>
             {/* Insights / Preferences / actions - available for General too,
                 not just domains. They toggle the Chat sub-view (jumping to Chat
                 first if you're on Council/Benchmark). The actions menu hides
@@ -2104,6 +2126,7 @@ export default function App() {
               />
               </>)}
             </div>
+            </>)}
           </div>
 
           {/* App view: a slim, always-visible identity bar above the canvas.
