@@ -271,8 +271,15 @@ test("the item panel: status, where it went with its icon, who is on it, what it
   await expect(d.getByTestId("work-team")).toContainText("Ben");
   await expect(d.getByTestId("work-team")).toHaveAttribute("title", "Ben, with Planner and Scout");
   await expect(d.getByTestId("work-team")).not.toContainText("Chief of staff");
-  await expect(d.getByTestId("work-specialist")).toHaveText([/Planner/, /Scout/]);
+  await expect(d.getByTestId("work-specialist")).toHaveCount(2);
   await expect(d.locator("h3", { hasText: /Where it went|Who is on it/ })).toHaveCount(0);
+  // A balanced header: the status (with its time) and the people sit at the top right, not an empty corner.
+  const right = d.getByTestId("work-head-right");
+  await expect(right.getByTestId("work-status")).toHaveText("Working on it");
+  await expect(right).toContainText(/· (just now|\d+m)/);
+  await expect(right.getByTestId("work-team")).toBeVisible();
+  const [rb, pb] = [await right.boundingBox(), await panel(page).boundingBox()];
+  expect(pb!.x + pb!.width - (rb!.x + rb!.width)).toBeLessThan(40);
   await expect(d.getByTestId("work-updates")).toHaveText("Working on it, nothing needed from you.");
   // The steps stay hidden until Details is opened: the panel shows the ask and its result.
   await expect(d.getByTestId("work-activity")).toBeHidden();
@@ -358,7 +365,9 @@ test("the check box marks a task done in the engine and the row leaves; a finish
   await openWork(page);
   await openRow(page, "t6");
   // It never closes itself: it says what came of it and asks.
-  await expect(detail(page).getByTestId("work-update")).toHaveText(["Done: Drafted the bar report email to Sam Foo; it is in your drafts, nothing was sent.", "Can I close this task?"]);
+  await expect(detail(page).getByTestId("work-update")).toHaveText(["Done: Drafted the bar report email to Sam Foo; it is in your drafts, nothing was sent.", /^Can I close this task\?/]);
+  // The quick replies sit right under the question they answer.
+  await expect(detail(page).getByTestId("work-update").last().getByTestId("work-quick-reply")).toHaveText(["Go ahead and close it", "Continue"]);
   await expect(detail(page).getByTestId("work-status")).toHaveText("Done");
   await row(page, "t1").getByTestId("work-check").click();
   await expect(row(page, "t1").getByTestId("work-check")).toHaveAttribute("aria-checked", "true");
@@ -694,7 +703,7 @@ test("the panel: pills in two rows at most, then a light back-and-forth that ask
   const h = await d.getByTestId("work-facts").evaluate((el) => el.getBoundingClientRect().height);
   expect(h).toBeLessThanOrEqual(64);
   expect(await d.getByTestId("work-facts").evaluate((el) => [...el.querySelectorAll("*")].filter((c) => { const b = c.getBoundingClientRect(); return b.width > 0 && b.right > el.getBoundingClientRect().right + 1; }).length)).toBe(0);
-  await expect(d.getByTestId("work-update")).toHaveText(["Working on it, nothing needed from you.", "Which notes, the spring or the autumn foo trip?", "The autumn one", "Done: Three pages of autumn foo trip notes, summarized in five lines.", "Can I close this task?"]);
+  await expect(d.getByTestId("work-update")).toHaveText(["Working on it, nothing needed from you.", "Which notes, the spring or the autumn foo trip?", "The autumn one", "Done: Three pages of autumn foo trip notes, summarized in five lines.", /^Can I close this task\?/]);
   await expect(d.locator("[data-testid=work-update][data-from=you]")).toHaveText(["The autumn one"]);
   await expect(d.getByTestId("work-followup-input")).toHaveAttribute("placeholder", "Reply, or say close it");
   await d.getByTestId("work-quick-reply").filter({ hasText: "Go ahead and close it" }).click();
@@ -715,4 +724,48 @@ test("a narrow column keeps each card on one line: the name stays readable, meta
     expect(await r.evaluate((el) => { const n = el.querySelector("button[title] > span") as HTMLElement; return n.getBoundingClientRect().width; })).toBeGreaterThan(100);
     expect(await r.evaluate((el) => [...el.querySelectorAll("*")].filter((c) => { const b = c.getBoundingClientRect(); return b.width > 0 && b.right > el.getBoundingClientRect().right + 1; }).map((c) => `${c.tagName}.${c.getAttribute("data-testid") ?? ""}.${(c.className as unknown as string).toString().slice(0, 40)}`))).toEqual([]);
   }
+});
+
+test("a follow-up shows at once with a thinking line until the task answers; a failed send offers Retry", async ({ page }) => {
+  await openWork(page);
+  await openRow(page, "t1");
+  const d = detail(page);
+  await d.getByTestId("work-followup-input").fill("Hey, what is going on?");
+  await d.getByTestId("work-followup-input").press("Enter");
+  await expect(d.locator("[data-testid=work-update][data-from=you]")).toHaveText(["Hey, what is going on?"]);
+  await expect(d.getByTestId("work-thinking")).toContainText("Ben is on it");
+  // The engine records the message and answers: the thinking line gives way to the reply.
+  await page.evaluate(() => {
+    const fx = (window as unknown as { __fixtures: { __queue: { tasks: { id: string; updates?: unknown[] }[] } } }).__fixtures;
+    const now = Date.now();
+    fx.__queue = { ...fx.__queue, tasks: fx.__queue.tasks.map((t) => (t.id === "t1" ? { ...t, updates: [{ ts: now - 60_000, from: "task", text: "Working on it, nothing needed from you." }, { ts: now, from: "you", text: "Hey, what is going on?" }, { ts: now + 1, from: "task", text: "On it: looking into that now." }] } : t)) };
+  });
+  await d.getByTestId("work-followup-input").fill("x");
+  await d.getByTestId("work-followup-input").fill("");
+  await expect(d.getByTestId("work-thinking")).toHaveCount(0, { timeout: 15_000 });
+  await expect(d.getByTestId("work-update").last()).toHaveText("On it: looking into that now.");
+  await expect(d.locator("[data-testid=work-update][data-from=you]")).toHaveCount(1);
+  // A call that fails says so plainly, with Retry.
+  await page.evaluate(() => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_work_followup = () => { throw new Error("engine down"); }; });
+  await d.getByTestId("work-followup-input").fill("Still there?");
+  await d.getByTestId("work-followup-input").press("Enter");
+  await expect(d.getByTestId("work-send-failed")).toContainText("That did not reach the task.");
+  await page.evaluate(() => { (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures.engine_work_followup = { ok: true }; });
+  await d.getByTestId("work-retry").click();
+  await expect(d.getByTestId("work-thinking")).toBeVisible();
+  await expect.poll(async () => (await calls(page, "engine_work_followup")).filter((a) => a.text === "Still there?").length).toBe(2);
+});
+
+test("a planned task shows what it understood and its questions as a short list", async ({ page }) => {
+  const T9P = { ...T5, id: "t9", name: "Europe Trip", text: "Book a trip to Europe", status: "needs-you", planning: true, waiting: "A few questions before I start.", domains: ["travel", "money", "health"],
+    updates: [{ ts: NOW - 5_000, from: "task", text: "Before I start: this spends money and time, so I brought in Travel, Money, Health. From your vault: Your past trip: Foo Lisbon Trip; Travel budget: 3,000 foo dollars a year. A few things only you can tell me:",
+      questions: ["Where in Europe: which cities or places?", "When, and for how long?", "What budget should I keep to?"] }] };
+  await openWork(page);
+  await page.evaluate((t9) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t9] }; }, T9P);
+  await openRow(page, "t9");
+  const d = detail(page);
+  await expect(d.getByTestId("work-status")).toHaveText("Needs you");
+  await expect(d.getByTestId("work-plan-questions").locator("li")).toHaveText(["Where in Europe: which cities or places?", "When, and for how long?", "What budget should I keep to?"]);
+  await expect(d.getByTestId("work-domain")).toHaveText([/Travel/, /Money/, /Health/]);
+  await expect(d.getByTestId("work-followup-input")).toHaveAttribute("placeholder", "Answer it");
 });

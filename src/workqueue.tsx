@@ -691,33 +691,60 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
   ];
   const lines = activityLines(t);
   const chiefName = useChiefOfStaff(vault || null) ?? "Chief of staff";
+  // Every follow-up shows at once and gets visible feedback: thinking, then the engine's reply, or a failure with Retry.
+  const [pending, setPending] = useState<SendState | null>(null);
+  const send = (text: string, asTask = false) => {
+    const at = Date.now();
+    setPending({ text, asTask, at, state: "sending" });
+    void run(`${t.id}:followup`, "engine_work_followup", { id: t.id, text, ...(asTask ? { asTask: true } : {}) }).then((ok) =>
+      setPending((p) => (p?.at !== at ? p : ok ? { ...p, state: "waiting" } : { ...p, state: "failed", why: "That did not reach the task." })));
+  };
+  // The reply has come when the task says something after the owner's message (or the follow-up became its own task).
+  const answeredAt = Math.max(0, ...(t.updates ?? []).filter((u) => u.from === "task").map((u) => u.ts));
+  useEffect(() => {
+    if (!pending || pending.state === "failed") return;
+    if (answeredAt >= pending.at - 1_000 || (pending.asTask && pending.state === "waiting")) { setPending(null); return; }
+    const left = pending.at + ANSWER_WAIT_MS - Date.now();
+    const id = window.setTimeout(() => setPending((p) => (p?.at === pending.at && p.state !== "failed" ? { ...p, state: "failed", why: "No answer yet." } : p)), Math.max(0, left));
+    return () => window.clearTimeout(id);
+  }, [pending, answeredAt]);
+  useEffect(() => { setPending(null); }, [t.id]);
   const team = t.specialists;
   // Every domain it touches besides the destination itself (the owner when the destination is a project or app), and its apps.
   const otherDomains = (t.domains ?? (t.dest && t.dest.kind !== "domain" && /^[a-z0-9-]+$/.test(t.dest.owner) ? [t.dest.owner] : [])).filter((d) => !(t.dest?.kind === "domain" && t.dest.id === d));
   const otherApps = (t.apps ?? []).filter((a) => !(t.dest?.kind === "app" && t.dest.id === a));
   return (
     <div data-testid="work-task" data-status={t.status} data-executor={t.executor} className="min-w-0 px-5 pt-4">
-      <div className="flex items-center gap-2">
-        <span data-testid="work-status" className={`inline-flex min-w-0 items-center gap-1.5 text-[13px] font-medium ${TONE_TEXT[tone]}`}>
-          <I className={`h-3.5 w-3.5 shrink-0 ${t.status === "running" ? "animate-spin" : ""}`} />
-          <span className="truncate">{t.status === "needs-you" ? "Needs you" : statusLine(t)}</span>
-        </span>
-        <span className="ml-auto flex shrink-0 items-center gap-0.5">
-          {mine && <Loader2 className="mx-1 h-3.5 w-3.5 animate-spin text-text-muted" />}
-          {more.length > 0 && <RowMenu items={more} testId="work-task-menu" />}
-          {onClose && <PanelClose onClose={onClose} />}
-        </span>
+      {/* A balanced header: the ask on the left; its status (with time) and the people on it on the right. */}
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <h2 data-testid="work-task-title" className="break-words text-[20px] font-semibold leading-tight tracking-[-0.01em] text-text-primary">{taskTitle(t)}</h2>
+          {t.name && t.name !== t.text && <p className="mt-1.5 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-secondary">{t.text}</p>}
+        </div>
+        <div data-testid="work-head-right" className="flex shrink-0 flex-col items-end gap-2">
+          <div className="flex items-center gap-0.5">
+            <span className={`mr-1 inline-flex items-center gap-1.5 text-[13px] font-medium ${TONE_TEXT[tone]}`}>
+              <I className={`h-3.5 w-3.5 shrink-0 ${t.status === "running" ? "animate-spin" : ""}`} />
+              <span data-testid="work-status">{t.status === "needs-you" ? "Needs you" : statusLine(t)}</span>
+              {cardStatus(t, 0).time && <span className="font-normal text-text-muted">· {cardStatus(t, 0).time}</span>}
+            </span>
+            {mine && <Loader2 className="mx-1 h-3.5 w-3.5 animate-spin text-text-muted" />}
+            {more.length > 0 && <RowMenu items={more} testId="work-task-menu" />}
+            {onClose && <PanelClose onClose={onClose} />}
+          </div>
+          <div data-testid="work-team" className="flex items-center gap-2" title={team.length ? `${chiefName}, with ${andList(team.map((x) => titleCase(x)))}` : `${chiefName} leads it`}>
+            <span className="flex -space-x-1.5">
+              <SpecialistAvatar id="chief" size={22} state={t.status === "running" ? "working" : "idle"} label={chiefName} />
+              {team.slice(0, 4).map((x) => <span key={x} data-testid="work-specialist" className="flex"><SpecialistAvatar id={x} size={22} state={t.status === "running" ? "working" : "idle"} label={titleCase(x)} /></span>)}
+            </span>
+            <span className="text-[13px] font-medium text-text-primary">{chiefName}{team.length > 0 && <span className="font-normal text-text-muted">{` + ${team.length}`}</span>}</span>
+          </div>
+        </div>
       </div>
-      <h2 data-testid="work-task-title" className="mt-2 break-words text-[20px] font-semibold leading-tight tracking-[-0.01em] text-text-primary">{taskTitle(t)}</h2>
-      {t.name && t.name !== t.text && <p className="mt-1.5 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-secondary">{t.text}</p>}
 
       {/* The facts that do not change as it goes, as pills in two rows at most, no headings:
           who is on it (Ben first, then the specialists), then where it went and what it runs on. */}
-      <div data-testid="work-facts" className="mt-4 space-y-1.5">
-        <OverflowRow testId="work-team" title={team.length ? `${chiefName}, with ${andList(team.map((x) => titleCase(x)))}` : `${chiefName} leads it`} items={[
-          { key: "chief", label: chiefName, node: <span className={`${factPill} pl-0.5 font-medium text-text-primary`}><SpecialistAvatar id="chief" size={20} state={t.status === "running" ? "working" : "idle"} label={chiefName} />{chiefName}</span> },
-          ...team.map((x) => ({ key: x, label: titleCase(x), node: <span data-testid="work-specialist" className={`${factPill} pl-0.5`}><SpecialistAvatar id={x} size={20} state={t.status === "running" ? "working" : "idle"} label={titleCase(x)} />{titleCase(x)}</span> })),
-        ]} />
+      <div data-testid="work-facts" className="mt-4">
         <OverflowRow items={[
           { key: "dest", label: t.dest?.label ?? "General", node: (
             <span data-testid="work-destination" className="flex">
@@ -736,7 +763,7 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
         ]} />
       </div>
 
-      <Updates t={t} chiefName={chiefName} busy={mine} reply={(text) => void run(`${t.id}:followup`, "engine_work_followup", { id: t.id, text })} />
+      <Updates t={t} chiefName={chiefName} pending={pending} onSend={(x) => send(x)} onRetry={() => pending && send(pending.text, pending.asTask)} />
 
       {/* The work itself (what it knew, each step, the Herdr tab) stays out of the way: the panel shows
           what was asked and what came of it, and the steps sit behind one closed Details link. */}
@@ -800,7 +827,7 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
 
       {/* Always within reach: the box sits at the panel's foot while the rest scrolls. */}
       <div className="sticky bottom-0 -mx-5 mt-6 bg-surface px-5 pb-4 pt-2">
-        {t.status !== "backlog" ? <FollowUp t={t} vault={vault} run={run} busy={mine} /> : <div className="h-2" />}
+        {t.status !== "backlog" ? <FollowUp t={t} onSend={send} busy={mine} /> : <div className="h-2" />}
       </div>
     </div>
   );
@@ -867,43 +894,69 @@ const CLOSE_QUESTION = "Can I close this task?";
  * newest at the bottom. Never the agent's output. A finished task asks to
  * close and waits; the yes closes it, anything else goes on with the work.
  */
-function Updates({ t, chiefName, busy, reply }: { t: WorkTask; chiefName: string; busy: boolean; reply: (text: string) => void }) {
+function Updates({ t, chiefName, pending, onSend, onRetry }: { t: WorkTask; chiefName: string; pending: SendState | null; onSend: (text: string) => void; onRetry: () => void }) {
   const ups = updatesOf(t);
-  if (!ups.length) return null;
-  const last = ups[ups.length - 1]!;
-  const asking = last.from === "task" && last.text === CLOSE_QUESTION && (t.status === "done" || t.status === "failed") && !t.cleared;
+  // The owner's message shows at once; it stays until the engine has recorded it.
+  const mine = pending && !ups.some((u) => u.from === "you" && u.text === pending.text && u.ts >= pending.at - 60_000) ? [...ups, { ts: pending.at, from: "you" as const, text: pending.text }] : ups;
+  if (!mine.length && !pending) return null;
+  const lastTask = [...mine].reverse().find((u) => u.from === "task");
+  const asking = !pending && lastTask === mine[mine.length - 1] && lastTask?.text === CLOSE_QUESTION && (t.status === "done" || t.status === "failed") && !t.cleared;
+  const avatar = (on: boolean) => <span className="mt-px shrink-0" title={chiefName}><SpecialistAvatar id="chief" size={20} state={on ? "working" : "idle"} label={chiefName} /></span>;
   return (
     <ol data-testid="work-updates" className="mt-5 space-y-2.5">
-      {ups.map((u, i) => (u.from === "you" ? (
+      {mine.map((u, i) => (u.from === "you" ? (
         <li key={i} data-testid="work-update" data-from="you" className="flex justify-end">
           <span className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-surface-warm px-3 py-1.5 text-[14px] leading-snug text-text-primary">{u.text}</span>
         </li>
       ) : (
         <li key={i} data-testid="work-update" data-from="task" className="flex items-start gap-2">
-          <span className="mt-px shrink-0" title={chiefName}><SpecialistAvatar id="chief" size={20} state={t.status === "running" && i === ups.length - 1 ? "working" : "idle"} label={chiefName} /></span>
-          <span className={`min-w-0 break-words pt-px text-[14px] leading-snug ${t.status === "needs-you" && i === ups.length - 1 ? "font-medium text-text-primary" : "text-text-primary"}`}>{u.text}</span>
+          {avatar(t.status === "running" && i === mine.length - 1)}
+          <span className="min-w-0 pt-px">
+            <span className={`block break-words text-[14px] leading-snug text-text-primary ${t.status === "needs-you" && i === mine.length - 1 ? "font-medium" : ""}`}>{u.text}</span>
+            {u.questions && u.questions.length > 0 && (
+              <ol data-testid="work-plan-questions" className="mt-1.5 list-decimal space-y-1 pl-5 text-[14px] leading-snug text-text-secondary marker:text-text-muted">
+                {u.questions.map((q) => <li key={q}>{q}</li>)}
+              </ol>
+            )}
+            {asking && u === lastTask && (
+              <span className="mt-2 flex flex-wrap gap-1.5">
+                {["Go ahead and close it", "Continue"].map((r) => (
+                  <button key={r} type="button" data-testid="work-quick-reply" onClick={() => onSend(r)}
+                    className="rounded-full border border-border-subtle px-3 py-1 text-[13px] text-text-secondary transition-colors hover:border-border hover:bg-surface-warm hover:text-text-primary">{r}</button>
+                ))}
+              </span>
+            )}
+          </span>
         </li>
       )))}
-      {asking && (
-        <li className="flex flex-wrap justify-end gap-1.5">
-          {["Continue", "Go ahead and close it"].map((r) => (
-            <button key={r} type="button" data-testid="work-quick-reply" disabled={busy} onClick={() => reply(r)}
-              className="rounded-full border border-border-subtle px-3 py-1 text-[13px] text-text-secondary transition-colors hover:border-border hover:bg-surface-warm hover:text-text-primary disabled:opacity-40">{r}</button>
-          ))}
+      {pending && pending.state !== "failed" && (
+        <li data-testid="work-thinking" className="flex items-center gap-2 text-[14px] text-text-muted">
+          {avatar(true)}<span>{chiefName} is on it</span>
+          <span aria-hidden className="flex gap-0.5">{[0, 1, 2].map((d) => <span key={d} className="h-1 w-1 animate-bounce rounded-full bg-text-muted" style={{ animationDelay: `${d * 150}ms` }} />)}</span>
+        </li>
+      )}
+      {pending?.state === "failed" && (
+        <li data-testid="work-send-failed" className="flex items-center gap-2 text-[14px] text-err">
+          <AlertCircle className="h-4 w-4 shrink-0" /><span>{pending.why}</span>
+          <button type="button" data-testid="work-retry" onClick={onRetry} className="ml-1 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-text-primary underline-offset-2 hover:underline">Retry</button>
         </li>
       )}
     </ol>
   );
 }
 
+/** A follow-up on its way: shown at once, then "Ben is on it" until the engine answers; a failure or a long silence offers Retry. */
+interface SendState { text: string; asTask: boolean; at: number; state: "sending" | "waiting" | "failed"; why?: string }
+const ANSWER_WAIT_MS = 90_000;
+
 /** "Follow up or clarify": appended to the task (to its agent, or it runs again); or added as a new task in the same work. */
-function FollowUp({ t, run, busy }: { t: WorkTask; vault: string; run: (key: string, cmd: string, args: Record<string, unknown>) => Promise<boolean>; busy: boolean }) {
+function FollowUp({ t, onSend, busy }: { t: WorkTask; onSend: (text: string, asTask?: boolean) => void; busy: boolean }) {
   const [text, setText] = useState("");
   const send = (asTask = false) => {
     const body = text.trim();
     if (!body) return;
     setText("");
-    void run(`${t.id}:followup`, "engine_work_followup", { id: t.id, text: body, ...(asTask ? { asTask: true } : {}) });
+    onSend(body, asTask);
   };
   return (
     <div data-testid="work-followup" className="rounded-xl border border-border bg-background p-1.5 transition-colors focus-within:border-accent-border">

@@ -51,7 +51,7 @@ export interface WorkTask extends RoutedTask {
   /** The light back-and-forth: the task's short plain lines and the user's replies, oldest first. */
   updates?: TaskUpdate[];
 }
-export interface TaskUpdate { ts: number; from: "task" | "you"; text: string }
+export interface TaskUpdate { ts: number; from: "task" | "you"; text: string; /** A plan's questions, answered in one reply. */ questions?: string[] }
 export interface LogEntry { ts: number; ev: string; detail?: string; more?: string }
 
 /** A task's title: its short name, else its words. */
