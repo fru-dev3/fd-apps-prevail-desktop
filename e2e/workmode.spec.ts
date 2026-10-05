@@ -1,9 +1,11 @@
 // Work mode: the Work tab, first in the header, then Chat (Council is a
-// toggle in the composer). Work is focused: no sidebar, no thread rail, one
-// ordered queue of tasks (newest at the bottom) to drag or move with the
-// keyboard; a task's detail has its route chip with Undo, re-route, agent kind
-// and machine chips, actions per status, its question and the prompt it came
-// from. Invented data only (foo names, /tmp paths, invented Macs).
+// toggle in the composer). Work is focused: no sidebar, no thread rail, just
+// the work bar (a Queue / Backlog switch inside it, one options button for
+// Herdr and the machine) and, when it has items, one ordered queue of tasks
+// (newest at the bottom) to drag or move with the keyboard, or the backlog of
+// parked ideas; a task's detail has its route chip with Undo, re-route, agent
+// kind and machine chips, actions per status, its question and the prompt it
+// came from. Invented data only (foo names, /tmp paths, invented Macs).
 // With WORK_SHOTS=<dir>, the tab is captured light and dark at 1440.
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
@@ -33,7 +35,10 @@ const T6 = { ...base, id: "t6", promptId: "p0", goal: "Send the bar report", tex
   herdr: { machine: "local", workspaceLabel: "foo-reports", tabId: "w1:t3", lastRead: "Sent.\n" }, prompt: { id: "p0", ts: NOW - 7_200_000, text: "Send the bar report", surface: "cli" } };
 // The queue, in the engine's order: first runs first, newest at the bottom.
 const QUEUE = { ok: true, view: "queue", maxRunning: 3, tasks: [T1, T2, T3, T5, T4] };
-const BACKLOG = { ok: true, view: "backlog", tasks: [T1, T2, T3, T5, T4, T6] };
+// A parked idea: routed, never started, not in the queue.
+const T7 = { ...base, id: "t7", promptId: "p7", goal: "A foo standing desk", text: "Look into a foo standing desk", dest: dest("domain", "health", "Health"), status: "backlog", executor: "engine",
+  thread: { space: "health", session: "foo-7" }, prompt: { id: "p7", ts: NOW - 30_000, text: "Look into a foo standing desk someday", surface: "desktop" } };
+const BACKLOG = { ok: true, view: "backlog", tasks: [T1, T2, T3, T5, T4, T6, T7] };
 const MACHINES = {
   machines: [
     { id: "local", hostname: "foo-laptop", label: "foo-laptop", role: "client", current: true, herdr: "local" },
@@ -48,6 +53,7 @@ const FIX = {
   engine_work_machines: MACHINES,
   engine_work_settings: { ok: true, settings: { herdr: false, workspace: "foo-work", maxRunning: 3 } },
   engine_work_add: { ok: true, prompt: { id: "p9", ts: NOW, text: "Renew the foo passport", surface: "desktop", machine: "foo-laptop", tasks: [] } },
+  engine_work_machine_add: { ok: true, output: "saved" }, engine_work_machine_approve: { ok: true, command: [] },
   engine_work_route: { ok: true }, engine_work_action: { ok: true }, engine_work_answer: { ok: true }, engine_work_reorder: { ok: true, order: [] },
   scan_vault: ["career", "health"].map((name) => ({ name, path: `/tmp/smoke-vault/data/domains/${name}`, has_state: true, state_preview: null })),
 };
@@ -120,7 +126,7 @@ test("the Council toggle in the composer switches the conversation to the counci
   expect(await page.evaluate(() => localStorage.getItem("prevail.chat.council"))).toBe("0");
 });
 
-test("Work hides the sidebar and the thread rail; Chat brings them back; one control shows the sidebar in Work", async ({ page }) => {
+test("Work keeps the main sidebar and hides only the thread rail, with no extra collapse control; Chat brings the rail back", async ({ page }) => {
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await mockTauri(page, FIX);
   await serveViews(page);
@@ -129,12 +135,12 @@ test("Work hides the sidebar and the thread rail; Chat brings them back; one con
   await expect(page.getByTestId("threads-list")).toBeVisible();
   await page.getByTestId("top-tab-queue").click();
   await expect(page.getByTestId("work-queue")).toBeVisible();
-  await expect(page.getByTestId("app-sidebar")).toHaveCount(0);
-  await expect(page.getByTestId("threads-list")).toHaveCount(0);
-  await page.getByTestId("work-sidebar-toggle").click();
   await expect(page.getByTestId("app-sidebar")).toBeVisible();
-  await page.getByTestId("work-sidebar-toggle").click();
-  await expect(page.getByTestId("app-sidebar")).toHaveCount(0);
+  await expect(page.getByTestId("threads-list")).toHaveCount(0);
+  // The only collapse controls are the main sidebar's and the list column's own: nothing stray beside the Work tab.
+  await expect(page.getByTestId("work-sidebar-toggle")).toHaveCount(0);
+  expect(await page.getByTestId("top-tab-queue").evaluate((el) => { let p = el.previousElementSibling; while (p && !(p instanceof HTMLButtonElement)) p = p.previousElementSibling; return p?.outerHTML ?? null; })).toBeNull();
+  expect(await nothingWide(page)).toEqual([]);
   await page.getByTestId("top-tab-chat").click();
   await expect(page.getByTestId("app-sidebar")).toBeVisible();
   await expect(page.getByTestId("threads-list")).toBeVisible();
@@ -245,7 +251,7 @@ test("a Herdr task shows its mirrored output without widening the tab", async ({
 test("done tasks leave the queue; the backlog keeps them, with Keep and Close for a Herdr one", async ({ page }) => {
   await openWork(page);
   await expect(row(page, "t6")).toHaveCount(0);
-  await page.getByTestId("tab-backlog").click();
+  await page.getByTestId("work-mode-backlog").click();
   await page.getByTestId("tab-done").click();
   await page.getByTestId("work-backlog-row").filter({ hasText: "Send the bar report to Sam Foo" }).click();
   await expect(detail(page).getByTestId("work-act-keep")).toBeVisible();
@@ -253,27 +259,123 @@ test("done tasks leave the queue; the backlog keeps them, with Keep and Close fo
   await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t6", action: "close" });
 });
 
-test("the Herdr toggle and the run-at-once cap go to the engine's settings", async ({ page }) => {
+test("the bar is the whole screen: a Queue / Backlog switch inside it, one options button, no pill row and no run-at-once", async ({ page }) => {
   await openWork(page);
-  await page.getByTestId("work-herdr").click();
+  const bar = page.getByTestId("work-bar");
+  await expect(bar.getByTestId("work-mode-queue")).toHaveAttribute("aria-checked", "true");
+  await expect(bar.getByTestId("work-options")).toBeVisible();
+  const input = page.getByTestId("work-input");
+  await expect(input).toHaveAttribute("placeholder", "Ready for work");
+  // Text and placeholder in Geist at a calm 15px, never the display serif.
+  const font = await input.evaluate((el) => { const c = getComputedStyle(el); return { family: c.fontFamily, size: c.fontSize }; });
+  expect(font.family).toMatch(/^"?Geist/);
+  expect(font.size).toBe("15px");
+  expect(await page.evaluate(() => document.fonts.check('15px "Geist"'))).toBe(true);
+  // Focused, the field draws no ring of its own: the bar's edge shows focus.
+  const restBorder = await page.getByTestId("work-bar").evaluate((el) => getComputedStyle(el).borderColor);
+  await input.click();
+  await page.keyboard.type("x");
+  const ring = await input.evaluate((el) => { const c = getComputedStyle(el); return { style: c.outlineStyle, width: c.outlineWidth, shadow: c.boxShadow }; });
+  expect(ring.style === "none" || ring.width === "0px").toBe(true);
+  expect(ring.shadow).toBe("none");
+  // The bar's own edge turns accent instead (its colour depends on the palette, so: not the resting border).
+  await expect.poll(() => page.getByTestId("work-bar").evaluate((el) => getComputedStyle(el).borderColor)).not.toBe(restBorder);
+  await input.fill("");
+  // Herdr and the machine live in the options popover, not under the bar.
+  await expect(page.getByTestId("work-herdr")).toHaveCount(0);
+  await expect(page.getByTestId("work-machine")).toHaveCount(0);
+  await expect(page.getByTestId("work-at-once")).toHaveCount(0);
+  await expect(page.getByTestId("work-queue")).not.toContainText(/at once/i);
+  expect(await nothingWide(page)).toEqual([]);
+});
+
+test("the switch decides what the list shows and what Send does: Backlog parks the prompt with hold", async ({ page }) => {
+  await openWork(page);
+  await page.getByTestId("work-mode-backlog").click();
+  await expect(page.getByTestId("work-input")).toHaveAttribute("placeholder", "Park an idea for later");
+  await expect(page.getByTestId("work-queue-row")).toHaveCount(0);
+  await expect(page.getByTestId("spine-meta")).toHaveText("1 idea");
+  await expect(page.getByTestId("work-backlog-row")).toHaveCount(1);
+  await expect(page.getByTestId("work-backlog-row").first()).toContainText("Look into a foo standing desk");
+  await page.getByTestId("work-input").fill("Try the bar budgeting app someday");
+  await page.getByTestId("work-send").click();
+  await expect.poll(async () => (await calls(page, "engine_work_add"))[0]?.body).toEqual({ text: "Try the bar budgeting app someday", surface: "desktop", machine: "foo-laptop", hold: true });
+  // Remembered on this device.
+  expect(await page.evaluate(() => localStorage.getItem("prevail.work.mode"))).toBe("backlog");
+  // Move to queue: from the row, and from the detail.
+  const idea = page.locator("[data-testid=work-backlog-row][data-id=t7]");
+  await idea.hover();
+  await idea.getByTestId("work-backlog-to-queue").click();
+  await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t7", action: "start" });
+  await idea.getByText("Look into a foo standing desk").click();
+  await expect(detail(page).getByTestId("work-act-start")).toHaveText("Move to queue");
+  // Back to Queue: Send starts work again, without hold.
+  await page.getByTestId("work-mode-queue").click();
+  await expect(page.getByTestId("work-queue-row")).toHaveCount(5);
+  await page.getByTestId("work-input").fill("Renew the foo passport");
+  await page.getByTestId("work-input").press("Enter");
+  await expect.poll(async () => (await calls(page, "engine_work_add"))[1]?.body).toEqual({ text: "Renew the foo passport", surface: "desktop", machine: "foo-laptop" });
+});
+
+test("the options popover holds the Herdr switch and the machine as a dropdown; the button shows what is not default", async ({ page }) => {
+  await openWork(page);
+  await expect(page.getByTestId("work-options-herdr")).toHaveCount(0);
+  await expect(page.getByTestId("work-options-machine")).toHaveCount(0);
+  await page.getByTestId("work-options").click();
+  const panel = page.getByTestId("work-options-panel");
+  await expect(panel.getByTestId("work-herdr")).toHaveAttribute("aria-checked", "false");
+  await expect(panel.locator("img[src='/herdr.png']").first()).toBeVisible();
+  await panel.getByTestId("work-herdr").click();
   await expect.poll(async () => (await calls(page, "engine_work_settings")).find((a) => "herdr" in a)).toEqual({ vault: "/tmp/smoke-vault", herdr: true });
-  await expect(page.getByTestId("work-herdr")).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByTestId("work-at-once")).toContainText("3 at once");
-  await page.getByTestId("work-at-once").click();
-  await page.getByRole("menuitem", { name: "5" }).click();
+  await expect(panel.getByTestId("work-herdr")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("work-options-herdr")).toBeVisible();
+  // The machine: a labelled field with its icon, name, state and a chevron; its menu lists every Mac.
+  const field = panel.getByTestId("work-machine");
+  await expect(field).toContainText("foo-laptop");
+  await expect(field).toContainText("This Mac");
+  await field.click();
+  const opts = panel.getByTestId("work-machine-option");
+  await expect(opts).toHaveCount(4);
+  await expect(opts.filter({ hasText: "mini-foo" })).toContainText("Connected");
+  await expect(opts.filter({ hasText: "studio-foo" })).toContainText("Not connected");
+  await expect(opts.filter({ hasText: "studio-foo" }).getByTestId("work-machine-connect")).toBeVisible();
+  await opts.filter({ hasText: "mini-foo" }).click();
+  await expect(field).toContainText("mini-foo");
+  await expect(page.getByTestId("work-options-machine")).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("prevail.work.machine"))).toBe("mini-foo");
+  expect(await nothingWide(page)).toEqual([]);
+  // Escape closes it; the indicators stay.
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId("work-options-herdr")).toBeVisible();
+});
+
+test("Settings > Work sets how many tasks run at once (1 to 10, default 3)", async ({ page }) => {
+  page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
+  await mockTauri(page, FIX);
+  await page.goto("/");
+  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "general" })));
+  await page.getByTestId("hub-row-work").click();
+  const pick = page.getByTestId("settings-work-max-running");
+  await expect(pick).toHaveValue("3");
+  await expect(pick.locator("option")).toHaveCount(10);
+  await pick.selectOption("5");
   await expect.poll(async () => (await calls(page, "engine_work_settings")).find((a) => "maxRunning" in a)).toEqual({ vault: "/tmp/smoke-vault", maxRunning: 5 });
 });
 
 test("connecting a machine is one click: a known address runs behind the scenes, an unknown one is asked for", async ({ page }) => {
   await openWork(page);
-  await page.getByTestId("work-machine").click();
-  await page.getByRole("menuitem", { name: /Connect studio-foo/ }).click();
+  await page.getByTestId("work-options").click();
+  const panel = page.getByTestId("work-options-panel");
+  await panel.getByTestId("work-machine").click();
+  await panel.getByTestId("work-machine-option").filter({ hasText: "studio-foo" }).getByTestId("work-machine-connect").click();
   // Known address: nothing to copy or type, it just connects.
   await expect.poll(async () => (await calls(page, "engine_work_machine_add"))[0]).toEqual({ vault: "/tmp/smoke-vault", label: "studio-foo", target: "studio-foo.local" });
   await expect(page.getByTestId("work-machine-add")).toHaveCount(0);
   // No address on record: one short question, then Connect.
-  await page.getByTestId("work-machine").click();
-  await page.getByRole("menuitem", { name: /Connect air-foo/ }).click();
+  await panel.getByTestId("work-machine").click();
+  await panel.getByTestId("work-machine-option").filter({ hasText: "air-foo" }).getByTestId("work-machine-connect").click();
   const add = page.getByTestId("work-machine-add");
   await expect(add).toContainText("Where is air-foo?");
   await expect(add.getByTestId("work-machine-add-confirm")).toBeDisabled();
@@ -282,14 +384,90 @@ test("connecting a machine is one click: a known address runs behind the scenes,
   await expect.poll(async () => (await calls(page, "engine_work_machine_add"))[1]).toEqual({ vault: "/tmp/smoke-vault", label: "air-foo", target: "air-foo.local" });
 });
 
-test("an empty queue is one living orb: no list header, no repeated prompt", async ({ page }) => {
+test("a Mac whose Herdr needs an update: a plain sentence, Approve in Terminal, then Check again", async ({ page }) => {
+  await openWork(page, {
+    engine_work_machine_add: { ok: false, needsApproval: true, label: "studio-foo", target: "studio-foo.local", command: ["/tmp/foo/herdr", "machine", "add", "--label", "studio-foo", "studio-foo.local"], error: "studio-foo needs a Herdr update" },
+    engine_work_machine_approve: { ok: true, command: ["/tmp/foo/herdr", "machine", "add", "--label", "studio-foo", "studio-foo.local"] },
+  });
+  await page.getByTestId("work-options").click();
+  const panel = page.getByTestId("work-options-panel");
+  await panel.getByTestId("work-machine").click();
+  await panel.getByTestId("work-machine-option").filter({ hasText: "studio-foo" }).getByTestId("work-machine-connect").click();
+  const add = page.getByTestId("work-machine-add");
+  await expect(add).toContainText("studio-foo needs a Herdr update on that Mac first. Approving restarts Herdr there.");
+  await expect(add).not.toContainText("{");
+  await add.getByTestId("work-machine-approve").click();
+  await expect.poll(async () => (await calls(page, "engine_work_machine_approve"))[0]).toEqual({ vault: "/tmp/smoke-vault", label: "studio-foo", target: "studio-foo.local" });
+  await expect(add.getByTestId("work-machine-recheck")).toBeVisible();
+  await add.getByTestId("work-machine-recheck").click();
+  await expect.poll(async () => (await calls(page, "engine_work_machine_add")).length).toBe(2);
+  expect(await nothingWide(page)).toEqual([]);
+});
+
+test("an engine error is one plain sentence, never raw JSON; the details sit behind a disclosure", async ({ page }) => {
+  await openWork(page);
+  await page.evaluate(() => {
+    const fx = (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures;
+    fx.engine_work_action = () => Promise.reject(new Error('prevail exited 1: {"ok":false,"error":"t1 is not in the queue"}'));
+  });
+  await detail(page).getByTestId("work-act-pause").click();
+  const e = page.getByTestId("work-error");
+  await expect(e).toContainText("That task is no longer in the queue.");
+  await expect(e.locator("summary")).toHaveText("Details");
+  await expect(e.locator("> span")).not.toContainText("{");
+});
+
+test("an empty queue is the bar and a small living face: no list header, no text under it", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockTauri(page, { ...FIX, engine_work_list: { ok: true, view: "queue", tasks: [], prompts: [], maxRunning: 3 } });
   await page.goto("/");
   await page.getByTestId("top-tab-queue").click({ timeout: 15_000 });
-  await expect(page.getByTestId("work-ready")).toBeVisible();
+  const face = page.getByTestId("work-ready");
+  await expect(face).toBeVisible();
+  await expect(face).toHaveText("");
+  await expect(face.locator("svg .wf-eyes")).toHaveCount(1);
   await expect(page.getByTestId("work-spine")).toHaveCount(0);
   await expect(page.getByText("Send a prompt")).toHaveCount(0);
+  await expect(page.getByTestId("work-input")).toHaveAttribute("placeholder", "Ready for work");
+  expect(await nothingWide(page)).toEqual([]);
+});
+
+test("the queue column resizes by dragging its edge or with the arrow keys, and keeps its width after a reload", async ({ page }) => {
+  await openWork(page);
+  const col = page.getByTestId("work-spine");
+  const handle = page.getByTestId("spine-resize");
+  await expect(handle).toHaveAttribute("role", "separator");
+  await expect(handle).toHaveAttribute("aria-orientation", "vertical");
+  const w0 = (await col.boundingBox())!.width;
+  const h = (await handle.boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2 + 120, h.y + 200, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(async () => Math.round((await col.boundingBox())!.width)).toBe(Math.round(w0 + 120));
+  // The keyboard: Left narrows it by 16px.
+  await handle.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(async () => Math.round((await col.boundingBox())!.width)).toBe(Math.round(w0 + 104));
+  await expect(handle).toHaveAttribute("aria-valuenow", String(Math.round(w0 + 104)));
+  await page.reload();
+  await page.getByTestId("top-tab-queue").click({ timeout: 15_000 });
+  await expect.poll(async () => Math.round((await page.getByTestId("work-spine").boundingBox())!.width)).toBe(Math.round(w0 + 104));
+  // Never wider than 60% of the window, and nothing reaches past it.
+  const h2 = (await page.getByTestId("spine-resize").boundingBox())!;
+  await page.mouse.move(h2.x + 2, h2.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(1400, h2.y + 200, { steps: 6 });
+  await page.mouse.up();
+  // At most 60% of the window, and the detail keeps room beside it.
+  const wMax = Math.round((await page.getByTestId("work-spine").boundingBox())!.width);
+  expect(wMax).toBeLessThanOrEqual(Math.round(1440 * 0.6));
+  expect(wMax).toBeGreaterThan(w0 + 104);
+  expect((await page.getByTestId("spine-detail").boundingBox())!.width).toBeGreaterThanOrEqual(350);
+  expect(await nothingWide(page)).toEqual([]);
+  // A double-click puts it back.
+  await page.getByTestId("spine-resize").dblclick();
+  await expect.poll(async () => Math.round((await page.getByTestId("work-spine").boundingBox())!.width)).toBe(Math.round(w0));
 });
 
 test("a task held by another Mac offers Continue here, asking first while that lease is live", async ({ page }) => {
@@ -326,35 +504,31 @@ test("an engine without work shows the update state, not an error", async ({ pag
 
 const SHOTS = process.env.WORK_SHOTS;
 for (const theme of ["light", "dark"]) {
-  test(`Work tab shots · ${theme}`, async ({ page }) => {
+  test(`Work tab shots, empty · ${theme}`, async ({ page }) => {
+    test.skip(!SHOTS, "set WORK_SHOTS=<dir> to capture the Work tab");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await mockTauri(page, { ...FIX, ui_settings_get: JSON.stringify({ theme }), engine_work_list: { ok: true, view: "queue", tasks: [], prompts: [], maxRunning: 3 } });
+    await page.goto("/");
+    await page.getByTestId("top-tab-queue").click({ timeout: 15_000 });
+    await expect(page.getByTestId("work-ready")).toBeVisible();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOTS}/work-empty-${theme}-1440.png` });
+  });
+  test(`Work tab shots, tasks · ${theme}`, async ({ page }) => {
     test.skip(!SHOTS, "set WORK_SHOTS=<dir> to capture the Work tab");
     await openWork(page, { ui_settings_get: JSON.stringify({ theme }) });
     await expect(page.getByTestId("work-queue-row")).toHaveCount(5);
     await page.waitForTimeout(400);
-    await page.screenshot({ path: `${SHOTS}/work-${theme}-1440.png` });
-    // A drag in progress: the grabbed row dims and a line shows where it lands.
-    await row(page, "t4").hover();
-    const g = (await row(page, "t4").getByTestId("work-drag").boundingBox())!;
-    const t2 = (await row(page, "t2").boundingBox())!;
-    await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(g.x + g.width / 2, t2.y + 4, { steps: 8 });
-    await expect(page.getByTestId("work-drop-indicator")).toHaveCount(1);
-    await page.screenshot({ path: `${SHOTS}/work-drag-${theme}-1440.png` });
-    await page.mouse.up();
-    await page.getByTestId("tab-backlog").click();
+    await page.screenshot({ path: `${SHOTS}/work-queue-${theme}-1440.png` });
+    await page.getByTestId("work-options").click();
+    await page.getByTestId("work-options-panel").getByTestId("work-machine").click();
+    await expect(page.getByTestId("work-machine-menu")).toBeVisible();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${SHOTS}/work-options-${theme}-1440.png` });
+    await page.keyboard.press("Escape");
+    await page.getByTestId("work-mode-backlog").click();
     await expect(page.getByTestId("work-backlog-row").first()).toBeVisible();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${SHOTS}/work-backlog-${theme}-1440.png` });
-    // Chat with the Council toggle off, then on.
-    await page.getByTestId("top-tab-chat").click();
-    const toggle = page.locator("[data-testid=council-toggle]:visible");
-    await expect(toggle).toHaveAttribute("aria-pressed", "false");
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: `${SHOTS}/chat-council-off-${theme}-1440.png` });
-    await toggle.click();
-    await expect(page.getByTestId("council-picker")).toBeVisible();
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: `${SHOTS}/chat-council-on-${theme}-1440.png` });
   });
 }

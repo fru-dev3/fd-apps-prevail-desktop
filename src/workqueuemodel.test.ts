@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   actionsFor, asMachines, asPrompts, asSettings, asWorkspaces, backlog, engineLacksWork, FALLBACK_AGENT_KINDS, groupByGoal, leaseElsewhere,
-  machineAddCommand, mirrorTail, moveInQueue, asQueue, queueSummary, type WorkPrompt, type WorkTask,
+  mirrorTail, needsApproval, plainError, moveInQueue, asQueue, queueSummary, type WorkPrompt, type WorkTask,
 } from "./workqueuemodel";
 
 const task = (over: Partial<WorkTask> = {}): WorkTask => ({
@@ -21,6 +21,7 @@ describe("work queue model", () => {
     expect(actionsFor(task({ status: "running" }))).toEqual(["pause"]);
     expect(actionsFor(task({ status: "paused" }))).toEqual(["continue"]);
     expect(actionsFor(task({ status: "routed" }))).toEqual(["start"]);
+    expect(actionsFor(task({ status: "backlog" }))).toEqual(["start"]);
     expect(actionsFor(task({ status: "needs-you", ask: { kind: "start", detail: "" } }))).toEqual([]);
     expect(actionsFor(task({ status: "done" }))).toEqual([]);
     expect(actionsFor(task({ status: "done", executor: "herdr" }))).toEqual(["keep", "close"]);
@@ -58,8 +59,11 @@ describe("work queue model", () => {
       prompt({ id: "old", ts: 1, tasks: [task({ id: "a", status: "running" })] }),
       prompt({ id: "new", ts: 2, tasks: [task({ id: "b", status: "running", text: "bar report" }), task({ id: "c", status: "needs-you" })] }),
       prompt({ id: "shut", ts: 3, tasks: [task({ id: "d", status: "closed" })] }),
+      prompt({ id: "idea", ts: 4, tasks: [task({ id: "e", status: "backlog" })] }),
     ];
-    expect(backlog(ps).map((t) => t.id)).toEqual(["c", "b", "a"]);
+    // Ideas: the parked tasks only.
+    expect(backlog(ps).map((t) => t.id)).toEqual(["e"]);
+    expect(backlog(ps, "all").map((t) => t.id)).toEqual(["c", "b", "a", "e", "d"]);
     expect(backlog(ps, "done").map((t) => t.id)).toEqual(["d"]);
     expect(backlog(ps, "all", "bar").map((t) => t.id)).toEqual(["b"]);
   });
@@ -90,8 +94,14 @@ describe("work queue model", () => {
   });
 
   test("machines: the add command and the lease", () => {
-    expect(machineAddCommand({ label: "mini-foo", hostname: "mini-foo.local" })).toBe("herdr machine add --label mini-foo mini-foo.local");
-    expect(machineAddCommand({ label: "mini-foo" }, "sam@10.0.0.9")).toBe("herdr machine add --label mini-foo sam@10.0.0.9");
+    expect(needsApproval({ ok: false, needsApproval: true, command: ["herdr"] })).toBe(true);
+    expect(needsApproval({ ok: true })).toBe(false);
+    expect(plainError(new Error('prevail exited 1: {"ok":false,"error":"remote herdr server needs one final update before this client can attach"}')).text).toBe("That Mac needs a Herdr update first.");
+    expect(plainError("herdr machine add failed: ssh: connect to host foo port 22: Connection refused").text).toMatch(/Could not reach/);
+    const odd = plainError({ weird: 1 });
+    expect(odd.text).toBe("Something went wrong.");
+    expect(odd.details).toBe('{"weird":1}');
+    expect(plainError("prevail exited 1: unknown command: work").text).toMatch(/Update the engine/);
     expect(leaseElsewhere(task(), "foo-laptop")).toEqual({ elsewhere: false, live: false });
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 2000 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: true });
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 500 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: false });

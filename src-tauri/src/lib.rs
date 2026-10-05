@@ -666,6 +666,7 @@ pub fn run() {
             work::engine_work_settings,
             work::engine_work_machines,
             work::engine_work_machine_add,
+            work::engine_work_machine_approve,
             work::engine_work_herdr_workspaces,
             plans::engine_today,
             plans::engine_today_tap,

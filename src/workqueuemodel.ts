@@ -23,7 +23,8 @@ export interface RoutedTask {
 }
 export interface RouterPlan { goals: { text: string; tasks: RoutedTask[] }[]; source: "model" | "code" }
 // "queued": may start, waiting for a free slot (the engine runs up to maxRunning at once, in queue order).
-export type WorkStatus = "routed" | "queued" | "needs-you" | "running" | "paused" | "done" | "failed" | "closed";
+// "backlog": parked as an idea (routed, never started, not in the queue); Move to queue (`work start`) puts it at the end.
+export type WorkStatus = "backlog" | "routed" | "queued" | "needs-you" | "running" | "paused" | "done" | "failed" | "closed";
 export type AskKind = "start" | "herdr-workspace" | "keep-close" | "machine-add";
 export interface WorkTask extends RoutedTask {
   id: string; promptId: string; status: WorkStatus; executor: "engine" | "herdr"; jobId?: string;
@@ -52,11 +53,11 @@ export function asSettings(v: unknown): WorkSettings {
 export const FALLBACK_AGENT_KINDS = ["claude", "codex", "gemini", "agy"];
 
 export const STATUS_LABEL: Record<WorkStatus, string> = {
-  routed: "Routed", queued: "Queued", "needs-you": "Needs you", running: "Running", paused: "Paused", done: "Done", failed: "Failed", closed: "Closed",
+  backlog: "Idea", routed: "Routed", queued: "Queued", "needs-you": "Needs you", running: "Running", paused: "Paused", done: "Done", failed: "Failed", closed: "Closed",
 };
 // The DotTone each status wears (ui.tsx StatusDot).
 export const STATUS_TONE: Record<WorkStatus, "ok" | "warn" | "err" | "accent" | "muted"> = {
-  routed: "accent", queued: "muted", "needs-you": "warn", running: "accent", paused: "muted", done: "ok", failed: "err", closed: "muted",
+  backlog: "muted", routed: "accent", queued: "muted", "needs-you": "warn", running: "accent", paused: "muted", done: "ok", failed: "err", closed: "muted",
 };
 export const ACTIVE: ReadonlySet<WorkStatus> = new Set(["routed", "queued", "needs-you", "running", "paused", "failed"]);
 
@@ -69,6 +70,8 @@ export const ACTION_LABEL: Record<WorkAction, string> = {
 export function actionsFor(t: Pick<WorkTask, "status" | "executor" | "ask">): WorkAction[] {
   const herdr = t.executor === "herdr";
   switch (t.status) {
+    // Start moves a parked idea to the end of the queue.
+    case "backlog": return ["start"];
     case "routed": return ["start"];
     // It starts by itself when a slot frees; Pause holds it back.
     case "queued": return ["pause"];
@@ -133,14 +136,16 @@ export function moveInQueue<T extends { id: string }>(list: T[], id: string, at:
   return { list: next, args: after ? { before: after.id } : { after: next[i - 1]!.id } };
 }
 
-export type BacklogFilter = "open" | "done" | "all";
-const URGENCY: Record<WorkStatus, number> = { "needs-you": 0, failed: 1, running: 2, queued: 3, paused: 4, routed: 5, done: 6, closed: 7 };
+// Ideas: the parked tasks. Done: finished or closed. All: every task, the queue's too.
+export type BacklogFilter = "ideas" | "done" | "all";
+const URGENCY: Record<WorkStatus, number> = { "needs-you": 0, failed: 1, running: 2, queued: 3, paused: 4, routed: 5, backlog: 6, done: 7, closed: 8 };
+const DONE: ReadonlySet<WorkStatus> = new Set(["done", "closed"]);
 
 /** Every task across prompts: filtered by state and words, most urgent first, then newest. */
-export function backlog(ps: WorkPrompt[], filter: BacklogFilter = "open", query = ""): (WorkTask & { promptTs: number })[] {
+export function backlog(ps: WorkPrompt[], filter: BacklogFilter = "ideas", query = ""): (WorkTask & { promptTs: number })[] {
   const q = query.trim().toLowerCase();
   return ps.flatMap((p) => p.tasks.map((t) => ({ ...t, promptTs: p.ts })))
-    .filter((t) => filter === "all" || (filter === "open" ? ACTIVE.has(t.status) : !ACTIVE.has(t.status)))
+    .filter((t) => filter === "all" || (filter === "ideas" ? t.status === "backlog" : DONE.has(t.status)))
     .filter((t) => !q || `${t.text} ${t.goal} ${t.dest?.label ?? ""}`.toLowerCase().includes(q))
     .sort((a, b) => URGENCY[a.status] - URGENCY[b.status] || b.promptTs - a.promptTs);
 }
@@ -186,9 +191,39 @@ export function engineLacksWork(err: unknown): boolean {
 export const HERDR_STATE_LABEL: Record<Machine["herdr"], string> = { local: "This Mac", saved: "Connected", disabled: "Turned off", missing: "Not connected" };
 export const canDispatchTo = (m: Pick<Machine, "herdr">) => m.herdr === "local" || m.herdr === "saved";
 
-/** The command the user confirms to connect a machine to Herdr. */
-export function machineAddCommand(m: Pick<Machine, "label" | "hostname">, target = ""): string {
-  return `herdr machine add --label ${m.label} ${target.trim() || m.hostname || "<ssh target>"}`;
+/** `work machine-add` answers this when the other Mac's Herdr needs an update a person approves in a terminal. */
+export function needsApproval(v: unknown): boolean {
+  return !!v && typeof v === "object" && (v as { needsApproval?: unknown }).needsApproval === true;
+}
+
+/**
+ * An engine or bridge error as one plain sentence for the Work tab, with the
+ * raw text kept for a Details disclosure. Never shows JSON to the user.
+ */
+export function plainError(e: unknown): { text: string; details: string } {
+  let raw = e instanceof Error ? e.message : typeof e === "string" ? e : (() => { try { return JSON.stringify(e); } catch { return String(e); } })();
+  // A JSON answer ({ ok:false, error }) inside the message: its error is the useful part.
+  const j = raw.match(/\{[\s\S]*\}/);
+  if (j) { try { const o = JSON.parse(j[0]) as { error?: unknown; message?: unknown }; const m = o.error ?? o.message; if (typeof m === "string" && m.trim()) raw = m; } catch { /* not JSON */ } }
+  const details = raw.trim();
+  const rules: [RegExp, string][] = [
+    [/unknown (sub)?command|unknown verb|no such command/i, "Update the engine to use Work mode."],
+    [/needs one final update|interactive terminal to approve|needs a Herdr update/i, "That Mac needs a Herdr update first."],
+    [/ssh target|invalid ssh/i, "That address does not look right. Use a host name like mini.local, or user@host."],
+    [/machine label|invalid id/i, "That name can only have letters, digits, dots and dashes."],
+    [/could not open Terminal/i, "Could not open Terminal on this Mac."],
+    [/permission denied|host key|could not resolve|no route to host|connection refused|timed out|operation timed out/i, "Could not reach that Mac. Check it is on and signed in."],
+    [/spawn .*herdr|herdr: (command )?not found|ENOENT.*herdr/i, "Herdr is not installed on this Mac."],
+    [/is not in the queue/i, "That task is no longer in the queue."],
+    [/no task /i, "That task is gone. It may have been closed on another Mac."],
+    [/cannot be paused/i, "That task is not running, so there is nothing to pause."],
+    [/no job to run/i, "This task has nothing to run yet. Route it somewhere first."],
+    [/empty prompt|say what to work on/i, "Say what needs doing first."],
+    [/too long/i, "That prompt is too long."],
+    [/spawn .* failed|engine task failed|prevail exited/i, "The engine did not answer. Try again in a moment."],
+  ];
+  for (const [re, text] of rules) if (re.test(details)) return { text, details };
+  return { text: "Something went wrong.", details };
 }
 
 /** "Continue here" shows when another Mac holds the task; a live lease asks before taking it. */

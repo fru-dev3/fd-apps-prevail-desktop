@@ -1,15 +1,20 @@
-// The Work tab: one box to fire prompts into, not a chat. The chief of staff
+// The Work tab: one bar to fire prompts into, not a chat. The chief of staff
 // splits each prompt into goals and tasks, routes each one (domain, project,
 // person, app, folder), staffs it and runs it, in the engine or in a Herdr
-// tab. The queue is one ordered list of open tasks, newest at the bottom, that
-// the user drags to reorder; the engine runs them in that order, several at
-// once. The backlog holds every task. A task's detail shows the prompt it came from.
+// tab. A two-way switch inside the bar picks Queue or Backlog: it decides
+// what the list below shows and what Send does (Queue starts work, Backlog
+// parks the prompt as ideas that never start until moved to the queue). The
+// queue is one ordered list of open tasks, newest at the bottom, that the
+// user drags to reorder; the engine runs them in that order, several at once
+// (how many is in Settings > Work). One options button holds the Herdr switch
+// and the machine. An empty list shows a small living face, nothing else.
 // Data: `prevail work ...` through bridge.ts (src-tauri/src/work.rs), polled
 // while the tab is on screen.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  AlertCircle, ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpRight, ArrowUpToLine, Bot, CalendarDays, Check, CheckCircle2, Circle, Clock, Folder,
-  FolderKanban, Gauge, GripVertical, Laptop, Server, Hand, Layers, ListTodo, Loader2, Mic, Pause, Play, Plug, RotateCcw, Search, Send, Square, User, X,
+  AlertCircle, ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpRight, ArrowUpToLine, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, Circle, Clock, Folder,
+  FolderKanban, GripVertical, Hand, Laptop, Layers, Lightbulb, ListTodo, Loader2, Mic, Pause, Play, Plug, RotateCcw, Search, Send, Server, SlidersHorizontal, Square, TerminalSquare, User, X,
   type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
@@ -28,20 +33,23 @@ import type { EngineApp } from "./types";
 import { lsGet, lsSet } from "./storage";
 import {
   ACTION_LABEL, actionsFor, asMachines, asPrompts, asQueue, asSettings, asWorkspaces, backlog, canDispatchTo, engineLacksWork, groupByGoal, HERDR_STATE_LABEL,
-  leaseElsewhere, machineLabel, mirrorTail, moveInQueue, queueSummary, STATUS_LABEL, STATUS_TONE,
+  leaseElsewhere, machineLabel, mirrorTail, moveInQueue, needsApproval, plainError, queueSummary, STATUS_LABEL, STATUS_TONE,
   type BacklogFilter, type DestKind, type Destination, type Machine, type QueueTask, type WorkAction, type WorkPrompt, type WorkSettings, type WorkStatus, type WorkTask,
 } from "./workqueuemodel";
 
 const POLL_MS = 3_000;
 // Which Mac new work goes to, remembered on this device (the engine keeps no default).
 const MACHINE_KEY = "prevail.work.machine";
+// Queue or Backlog, remembered on this device: what the list shows and what Send does.
+const MODE_KEY = "prevail.work.mode";
 const KIND_ICON: Record<DestKind, LucideIcon> = { domain: Layers, project: FolderKanban, entity: User, event: CalendarDays, app: Plug, folder: Folder };
 const chip = "inline-flex max-w-[16rem] items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
 const textBtn = "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
+const primaryBtn = "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-background transition-opacity disabled:opacity-40";
 const ACTION_ICON: Partial<Record<WorkAction, LucideIcon>> = { pause: Pause, continue: Play, start: Play, stop: Square, keep: Check, close: X, reopen: RotateCcw };
 
-type Pending = WorkPrompt & { pending: true; error?: string };
+type Pending = WorkPrompt & { pending: true; error?: unknown; hold?: boolean };
 type View = "queue" | "backlog";
 
 function ago(ts: number): string {
@@ -118,10 +126,11 @@ function useDictation(onText: (t: string, final: boolean) => void) {
 }
 
 const STATUS_ICON: Record<WorkStatus, LucideIcon> = {
-  routed: Circle, queued: Clock, "needs-you": Hand, running: Loader2, paused: Pause, done: CheckCircle2, failed: AlertCircle, closed: X,
+  backlog: Lightbulb, routed: Circle, queued: Clock, "needs-you": Hand, running: Loader2, paused: Pause, done: CheckCircle2, failed: AlertCircle, closed: X,
 };
 const TONE_TEXT = { ok: "text-ok", warn: "text-warn", err: "text-err", accent: "text-accent", muted: "text-text-muted" } as const;
-const RUN_AT_ONCE = [1, 2, 3, 4, 5, 6];
+/** A start on a parked idea moves it to the end of the queue. */
+const actionLabel = (a: WorkAction, t: Pick<WorkTask, "status">) => (a === "start" && t.status === "backlog" ? "Move to queue" : ACTION_LABEL[a]);
 
 export function WorkQueue({ vaultPath, active = true, domains = [], phone = false }: {
   vaultPath: string; active?: boolean; domains?: string[]; phone?: boolean;
@@ -132,37 +141,36 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   // Every prompt and its tasks, for the backlog.
   const [prompts, setPrompts] = useState<WorkPrompt[]>([]);
   const [pending, setPending] = useState<Pending[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  // Which list has answered at least once (so switching never flashes the empty face).
+  const [loadedFor, setLoadedFor] = useState<View | null>(null);
   const [tooOld, setTooOld] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [view, setView] = useState<View>("queue");
-  const [filter, setFilter] = useState<BacklogFilter>("open");
+  const [err, setErr] = useState<unknown>(null);
+  const [mode, setModeState] = useState<View>(() => (lsGet(MODE_KEY, "queue") === "backlog" ? "backlog" : "queue"));
+  const [filter, setFilter] = useState<BacklogFilter>("ideas");
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState<string | null>(null);
   const [settings, setSettings] = useState<WorkSettings>({ herdr: false });
   const [machinePick, setMachinePick] = useState(() => lsGet(MACHINE_KEY, ""));
   const [machines, setMachines] = useState<Machine[]>([]);
   const [agentKinds, setAgentKinds] = useState<string[]>([]);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [adding, setAdding] = useState<Machine | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // While a row is dragged, a poll must not reorder the list under the pointer.
   const dragging = useRef(false);
+  const setMode = (m: View) => { setModeState(m); lsSet(MODE_KEY, m); setSel(null); };
 
   const refresh = useCallback(async () => {
     if (!vault) return;
     try {
-      const v = await invoke("engine_work_list", view === "backlog" ? { vault, all: true } : { vault });
-      if (view === "backlog") setPrompts(asPrompts(v));
-      else if (!dragging.current) {
-        setQueue(asQueue(v));
-        const mr = (v as { maxRunning?: unknown } | null)?.maxRunning;
-        if (typeof mr === "number") setSettings((s) => ({ ...s, maxRunning: mr }));
-      }
+      const v = await invoke("engine_work_list", mode === "backlog" ? { vault, all: true } : { vault });
+      if (mode === "backlog") setPrompts(asPrompts(v));
+      else if (!dragging.current) setQueue(asQueue(v));
       setErr(null); setTooOld(false);
     } catch (e) {
-      if (engineLacksWork(e)) setTooOld(true); else setErr(String(e));
-    } finally { setLoaded(true); }
-  }, [vault, view]);
+      if (engineLacksWork(e)) setTooOld(true); else setErr(e);
+    } finally { setLoadedFor(mode); }
+  }, [vault, mode]);
 
   const loadMachines = useCallback(async () => {
     try { const m = asMachines(await invoke("engine_work_machines", { vault })); setMachines(m.machines); setAgentKinds(m.agentKinds); }
@@ -184,7 +192,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   const current = machines.find((m) => m.current);
   const pick = (machinePick && machines.some((m) => m.label === machinePick) ? machinePick : "") || current?.label || "local";
 
-  // ── composer ──
+  // ── the bar ──
   const [text, setText] = useState("");
   const base = useRef("");
   const dict = useDictation((t, final) => { setText((base.current ? base.current + " " : "") + t); if (final) base.current = ""; });
@@ -194,35 +202,38 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
     if (!body) return;
     if (dict.state === "listening") dict.stop();
     setText(""); base.current = "";
+    const hold = mode === "backlog";
     const id = `pending-${++n.current}`;
-    const card: Pending = { id, ts: Date.now(), text: body, surface: "desktop", machine: pick, tasks: [], pending: true };
-    // New work goes to the bottom of the queue.
+    const card: Pending = { id, ts: Date.now(), text: body, surface: "desktop", machine: pick, tasks: [], pending: true, hold };
+    // New work goes to the bottom of the queue; in Backlog it is parked as ideas, never started.
     setPending((p) => [...p, card]);
-    setView("queue");
-    invoke<unknown>("engine_work_add", { vault, body: { text: body, surface: "desktop", ...(machines.length ? { machine: pick } : {}) } })
+    invoke<unknown>("engine_work_add", { vault, body: { text: body, surface: "desktop", ...(machines.length ? { machine: pick } : {}), ...(hold ? { hold: true } : {}) } })
       .then((res) => {
         const added = asPrompts(res)[0];
         setPending((p) => p.filter((x) => x.id !== id));
-        if (added) {
+        if (added && !hold) {
           const rows = asQueue({ prompts: [added] });
           setQueue((q) => [...q.filter((t) => !rows.some((r) => r.id === t.id)), ...rows]);
           setSel((s) => (s === id ? rows[0]?.id ?? null : s));
+        } else if (added) {
+          setPrompts((ps) => [...ps.filter((p) => p.id !== added.id), added]);
+          setSel((s) => (s === id ? added.tasks[0]?.id ?? null : s));
         }
         void refresh();
       })
-      .catch((e) => setPending((p) => p.map((x) => (x.id === id ? { ...x, error: engineLacksWork(e) ? "Update the engine to use Work mode" : String(e) } : x))));
+      .catch((e) => setPending((p) => p.map((x) => (x.id === id ? { ...x, error: e } : x))));
   };
 
   // ── actions ──
   const run = async (key: string, cmd: string, args: Record<string, unknown>) => {
     setBusy(key); setErr(null);
     try { await invoke(cmd, { vault, ...args }); await refresh(); }
-    catch (e) { setErr(String(e)); }
+    catch (e) { setErr(e); }
     finally { setBusy(null); }
   };
   const setHerdr = (on: boolean) => { setSettings((s) => ({ ...s, herdr: on })); void run("settings", "engine_work_settings", { herdr: on }); };
-  const setMaxRunning = (k: number) => { setSettings((s) => ({ ...s, maxRunning: k })); void run("settings", "engine_work_settings", { maxRunning: k }); };
   const setMachine = (id: string) => { setMachinePick(id); lsSet(MACHINE_KEY, id); };
+  const connect = (m: Machine) => { setAdding(m); setOptionsOpen(true); };
   /** Move a task to insertion point `at`: the list moves at once, the engine keeps the order. */
   const move = (id: string, at: number) => {
     const r = moveInQueue(queue, id, at);
@@ -231,14 +242,17 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
     void run(`${id}:reorder`, "engine_work_reorder", { id, ...r.args });
   };
 
-  const rows = view === "backlog" ? backlog(prompts, filter, query) : [];
-  const pendingShown = pending.find((p) => p.id === sel) ?? null;
-  const shownId = view === "queue" ? (pendingShown ? null : sel && queue.some((t) => t.id === sel) ? sel : queue[0]?.id ?? null) : sel ?? rows[0]?.id ?? null;
-  const shown: QueueTask | null = view === "queue"
+  const rows = mode === "backlog" ? backlog(prompts, filter, query) : [];
+  const pendingHere = pending.filter((p) => !!p.hold === (mode === "backlog"));
+  const pendingShown = pendingHere.find((p) => p.id === sel) ?? null;
+  const shownId = mode === "queue" ? (pendingShown ? null : sel && queue.some((t) => t.id === sel) ? sel : queue[0]?.id ?? null) : sel ?? rows[0]?.id ?? null;
+  const shown: QueueTask | null = mode === "queue"
     ? queue.find((t) => t.id === shownId) ?? null
     : (() => { const p = prompts.find((x) => x.tasks.some((t) => t.id === shownId)); const t = p?.tasks.find((x) => x.id === shownId); return p && t ? { ...t, prompt: { id: p.id, ts: p.ts, text: p.text, surface: p.surface } } : null; })();
   // The tasks the shown one's prompt made, so the detail shows where it came from.
-  const siblings = shown ? (view === "queue" ? queue : prompts.find((p) => p.id === shown.promptId)?.tasks ?? []).filter((t) => t.promptId === shown.promptId) : [];
+  const siblings = shown ? (mode === "queue" ? queue : prompts.find((p) => p.id === shown.promptId)?.tasks ?? []).filter((t) => t.promptId === shown.promptId) : [];
+  const loaded = loadedFor === mode;
+  const empty = loaded && pendingHere.length === 0 && (mode === "queue" ? queue.length === 0 : backlog(prompts, "all").length === 0);
 
   if (tooOld) {
     return (
@@ -250,67 +264,58 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
     );
   }
 
-  const machineItems: RowMenuItem[] = [
-    { kind: "heading", label: "Send work to" },
-    ...(machines.length === 0 ? [{ kind: "heading" as const, label: "Only this Mac for now" }] : machines.map((m): RowMenuItem => canDispatchTo(m)
-      ? { label: m.label, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: tinted(machineLook(m).Icon, machineLook(m).color), checked: m.label === pick, onClick: () => setMachine(m.label) }
-      : { label: `Connect ${m.label}`, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: tinted(machineLook(m).Icon, machineLook(m).color), onClick: () => setAdding(m) })),
-  ];
-  const pickLook = machineLook(machines.find((m) => m.label === pick) ?? { label: pick });
-  const PickIcon = pickLook.Icon;
-  const atOnce = settings.maxRunning ?? 3;
-  const atOnceItems: RowMenuItem[] = [
-    { kind: "heading", label: "Tasks running at once" },
-    ...RUN_AT_ONCE.map((k): RowMenuItem => ({ label: String(k), checked: k === atOnce, onClick: () => { if (k !== atOnce) setMaxRunning(k); } })),
-  ];
-
-  const composer = (
-    <div className="shrink-0 border-b border-border px-4 pb-3 pt-3 sm:px-6">
-      <div className="flex items-end gap-2 rounded-xl border border-border bg-surface px-3 py-2 focus-within:border-accent-border">
-        <textarea data-testid="work-input" value={text} rows={Math.min(6, Math.max(1, text.split("\n").length))}
-          onChange={(e) => { setText(e.target.value); base.current = e.target.value; }}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
-          placeholder="Say or type what needs doing. Several things at once is fine."
-          aria-label="New work" className="min-h-[28px] flex-1 resize-none bg-transparent py-1 text-[15px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted" />
+  const bar = (
+    <div className="shrink-0 px-4 pb-3 pt-4 sm:px-6">
+      <div data-testid="work-bar" className="flex items-end gap-1.5 rounded-2xl border border-border bg-surface p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_16px_-8px_rgba(0,0,0,0.12)] transition-colors focus-within:border-accent-border">
+        <ModeSwitch value={mode} onChange={setMode} />
+        <div className="min-w-0 flex-1 self-center">
+          <textarea data-testid="work-input" value={text} rows={Math.min(6, Math.max(1, text.split("\n").length))}
+            onChange={(e) => { setText(e.target.value); base.current = e.target.value; }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
+            placeholder={mode === "backlog" ? "Park an idea for later" : "Ready for work"}
+            aria-label={mode === "backlog" ? "New idea for the backlog" : "New work"}
+            className="block min-h-[32px] w-full resize-none bg-transparent px-2 py-1 font-geist text-[15px] leading-6 text-text-primary outline-none placeholder:text-text-muted" />
+        </div>
+        <WorkOptions open={optionsOpen || !!adding} onOpen={() => setOptionsOpen(true)} onClose={() => { setOptionsOpen(false); setAdding(null); }}
+          herdr={settings.herdr} onHerdr={setHerdr} machines={machines} pick={pick} current={current} onPick={setMachine} onConnect={connect}
+          adding={adding} vault={vault} onAdded={(label) => { setAdding(null); if (label) setMachine(label); void loadMachines(); }} />
         {dict.supported && (
           <button type="button" data-testid="work-mic" onClick={() => (dict.state === "listening" ? dict.stop() : void dict.start())} disabled={dict.state === "transcribing"}
             title={dict.state === "listening" ? "Stop" : "Dictate"} aria-label={dict.state === "listening" ? "Stop dictating" : "Dictate"}
-            className={`${iconBtn} h-8 w-8 ${dict.state === "listening" ? "bg-accent-soft text-accent" : ""}`}>
+            className={`${iconBtn} h-8 w-8 rounded-lg ${dict.state === "listening" ? "bg-accent-soft text-accent" : ""}`}>
             {dict.state === "transcribing" ? <Loader2 className="h-4 w-4 animate-spin" /> : dict.state === "listening" ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}
           </button>
         )}
-        <button type="button" data-testid="work-send" onClick={send} disabled={!text.trim()} title="Send (Enter)" aria-label="Send"
+        <button type="button" data-testid="work-send" onClick={send} disabled={!text.trim()} title={mode === "backlog" ? "Park in the backlog (Enter)" : "Send (Enter)"} aria-label={mode === "backlog" ? "Park in the backlog" : "Send"}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-background transition-opacity disabled:opacity-30">
-          <Send className="h-4 w-4" />
+          {mode === "backlog" ? <Lightbulb className="h-4 w-4" /> : <Send className="h-4 w-4" />}
         </button>
       </div>
-      {dict.err && <p className="mt-1 text-[12px] text-warn">{dict.err}</p>}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <HerdrSwitch on={settings.herdr} onChange={setHerdr} />
-        <RowMenu items={machineItems} label="Machine" testId="work-machine"
-          trigger={<><PickIcon className="h-4 w-4" style={{ color: pickLook.color }} />{machineLabel(machines, pick)}</>} triggerClass={PILL} />
-        <RowMenu items={atOnceItems} label="Tasks running at once" testId="work-at-once"
-          trigger={<><Gauge className="h-4 w-4 text-[#d97706]" />{atOnce} at once</>} triggerClass={PILL} />
-        <span className="flex-1" />
-        <SpineTabs label="Work view" value={view} onChange={(v) => { setView(v); setSel(null); }}
-          tabs={[{ id: "queue", label: "Queue", icon: ListTodo }, { id: "backlog", label: "Backlog", icon: FolderKanban }]} />
-      </div>
-      {adding && <MachineAdd machine={adding} vault={vault} onDone={() => { setAdding(null); void loadMachines(); }} />}
+      {dict.err && <p className="mt-1 px-1 text-[12px] text-warn">{dict.err}</p>}
     </div>
   );
 
-  const list = view === "queue" ? (
-    <QueueList tasks={queue} pending={pending} sel={pendingShown ? pendingShown.id : shownId} machines={machines}
+  const pendingRows = pendingHere.map((p) => <PendingRow key={p.id} p={p} on={sel === p.id} onSelect={setSel} />);
+  const list = mode === "queue" ? (
+    <QueueList tasks={queue} pending={pendingRows} sel={pendingShown ? pendingShown.id : shownId} machines={machines}
       onSelect={setSel} onMove={move} dragging={dragging} />
   ) : (
     <div className="px-2 pb-3">
-      {rows.length === 0 && loaded && <p className="px-2 py-6 text-[13px] text-text-muted">No tasks here.</p>}
+      {pendingRows}
+      {rows.length === 0 && pendingRows.length === 0 && loaded && <p className="px-2 py-6 text-[13px] text-text-muted">{filter === "ideas" ? "No ideas parked." : "No tasks here."}</p>}
       {rows.map((t) => (
-        <button key={t.id} type="button" data-testid="work-backlog-row" onClick={() => setSel(t.id)}
-          className={`flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors ${shownId === t.id ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
-          <span className="line-clamp-2 text-[14px] font-medium leading-snug text-text-primary">{t.text}</span>
-          <span className="flex min-w-0 items-center gap-1.5"><StatusDot tone={STATUS_TONE[t.status]} label={STATUS_LABEL[t.status]} />{t.dest && <span className="truncate text-[12px] text-text-muted">· {t.dest.label}</span>}</span>
-        </button>
+        <div key={t.id} data-testid="work-backlog-row" data-id={t.id} data-status={t.status}
+          className={`group flex items-start gap-1 rounded-lg pr-1 transition-colors ${shownId === t.id ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
+          <button type="button" onClick={() => setSel(t.id)} className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-2 text-left">
+            <span className="line-clamp-2 break-words text-[14px] font-medium leading-snug text-text-primary">{t.text}</span>
+            <span className="flex min-w-0 items-center gap-1.5"><StatusDot tone={STATUS_TONE[t.status]} label={STATUS_LABEL[t.status]} />{t.dest && <span className="truncate text-[12px] text-text-muted">· {t.dest.label}</span>}</span>
+          </button>
+          {t.status === "backlog" && (
+            <button type="button" data-testid="work-backlog-to-queue" title="Move to queue" aria-label={`Move to queue: ${t.text}`} disabled={busy === `${t.id}:start`}
+              onClick={() => void run(`${t.id}:start`, "engine_work_action", { id: t.id, action: "start" })}
+              className={`${iconBtn} mt-1.5 ${REVEAL}`}><ListTodo className="h-3.5 w-3.5" /></button>
+          )}
+        </div>
       ))}
     </div>
   );
@@ -318,14 +323,14 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   const detail = pendingShown ? (
     <div data-testid="work-pending" className="min-w-0 px-4 py-4 sm:px-6">
       <p className="whitespace-pre-wrap break-words text-[17px] font-semibold leading-snug text-text-primary">{pendingShown.text}</p>
-      <p className="mt-3 flex items-center gap-2 text-[14px] text-text-muted">
-        {pendingShown.error ? <span className="text-err">{pendingShown.error}</span> : <><Loader2 className="h-4 w-4 animate-spin" />The chief of staff is routing this.</>}
-      </p>
+      <div className="mt-3 flex items-center gap-2 text-[14px] text-text-muted">
+        {pendingShown.error ? <WorkError e={pendingShown.error} testId="work-pending-error" /> : <><Loader2 className="h-4 w-4 animate-spin" />{pendingShown.hold ? "Routing it into the backlog." : "The chief of staff is routing this."}</>}
+      </div>
     </div>
   ) : shown ? (
     <div data-testid="work-detail" className="min-w-0 px-4 py-4 sm:px-6">
       <TaskRow key={shown.id} t={shown} machines={machines} agentKinds={agentKinds} domains={domains} host={current?.label ?? ""} busy={busy} vault={vault}
-        run={run} onAddMachine={setAdding} />
+        run={run} onAddMachine={connect} />
       {shown.prompt && (
         <section data-testid="work-from-prompt" className="mt-6 border-t border-border-subtle pt-4">
           <h3 className={`${SECTION_TITLE} text-text-secondary`}>From this prompt</h3>
@@ -353,26 +358,74 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   );
 
   return (
-    <div data-testid="work-queue" className="flex h-full min-h-0 flex-col">
-      {composer}
-      {err && <p data-testid="work-error" className="shrink-0 px-6 pt-2 text-[12px] text-err">{err}</p>}
-      {view === "queue" && loaded && queue.length === 0 && pending.length === 0 ? <ReadyOrb /> : <div className="flex min-h-0 flex-1">
-        <SideSpine storageKey="prevail.work.spine" wide title={view === "queue" ? "Queue" : "Backlog"} label="work" testId="work-spine"
-          meta={view === "queue" ? queueSummary(queue) : `${rows.length} ${rows.length === 1 ? "task" : "tasks"}`}
-          toolbar={view === "backlog" ? (
+    <div data-testid="work-queue" data-mode={mode} className="flex h-full min-h-0 flex-col">
+      {bar}
+      {err != null && <div className="shrink-0 px-6 pb-2"><WorkError e={err} /></div>}
+      {empty ? <ReadyFace /> : <div className="flex min-h-0 min-w-0 flex-1 border-t border-border">
+        <SideSpine storageKey="prevail.work.spine" wide resizable title={mode === "queue" ? "Queue" : "Backlog"} label="work" testId="work-spine"
+          meta={mode === "queue" ? queueSummary(queue) : `${rows.length} ${rows.length === 1 ? (filter === "ideas" ? "idea" : "task") : (filter === "ideas" ? "ideas" : "tasks")}`}
+          toolbar={mode === "backlog" ? (
             <div className="flex flex-col gap-1.5">
-              <label className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2">
+              <label className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2 transition-colors focus-within:border-accent-border">
                 <Search className="h-3.5 w-3.5 text-text-muted" />
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a task" aria-label="Find a task" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none" />
               </label>
-              <SpineTabs label="Task state" value={filter} onChange={setFilter} tabs={[{ id: "open", label: "Open" }, { id: "done", label: "Done" }, { id: "all", label: "All" }]} />
+              <SpineTabs label="Which tasks" value={filter} onChange={(f) => { setFilter(f); setSel(null); }} tabs={[{ id: "ideas", label: "Ideas", icon: Lightbulb }, { id: "done", label: "Done", icon: CheckCircle2 }, { id: "all", label: "All", icon: Layers }]} />
             </div>
           ) : undefined}
-          phone={phone} phoneDetail={!!sel} onBack={() => setSel(null)} backLabel={view === "queue" ? "Queue" : "Backlog"}
+          phone={phone} phoneDetail={!!sel} onBack={() => setSel(null)} backLabel={mode === "queue" ? "Queue" : "Backlog"}
           detail={detail}>
           {list}
         </SideSpine>
       </div>}
+    </div>
+  );
+}
+
+/** A prompt on its way to the engine: routing, or not sent (with why). */
+function PendingRow({ p, on, onSelect }: { p: Pending; on: boolean; onSelect: (id: string) => void }) {
+  return (
+    <button type="button" data-testid="work-pending-row" onClick={() => onSelect(p.id)}
+      className={`flex w-full items-start gap-2 rounded-lg py-2 pl-7 pr-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
+      {p.error ? <AlertCircle className="mt-[3px] h-3.5 w-3.5 shrink-0 text-err" /> : <Loader2 className="mt-[3px] h-3.5 w-3.5 shrink-0 animate-spin text-accent" />}
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-2 break-words text-[14px] font-medium leading-snug text-text-primary">{p.text}</span>
+        <span className="mt-0.5 block text-[12px] text-text-muted">{p.error ? "Not sent" : "Routing"}</span>
+      </span>
+    </button>
+  );
+}
+
+/** An error as one plain sentence; the raw text only behind Details. */
+function WorkError({ e, testId = "work-error" }: { e: unknown; testId?: string }) {
+  const { text, details } = plainError(e);
+  return (
+    <div data-testid={testId} className="min-w-0 text-[12px]">
+      <span className="text-err">{text}</span>
+      {details && details !== text && (
+        <details className="mt-0.5 text-text-muted">
+          <summary className="cursor-pointer select-none">Details</summary>
+          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded-md bg-surface-warm p-2 font-mono text-[11px] [overflow-wrap:anywhere]">{details}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** Queue or Backlog, inside the bar: what the list shows and what Send does. */
+function ModeSwitch({ value, onChange }: { value: View; onChange: (v: View) => void }) {
+  const opts: { id: View; label: string; title: string }[] = [
+    { id: "queue", label: "Queue", title: "Send starts the work" },
+    { id: "backlog", label: "Backlog", title: "Send parks it as an idea, not started" },
+  ];
+  return (
+    <div role="radiogroup" aria-label="Send to" data-testid="work-mode" className="flex shrink-0 rounded-[10px] bg-surface-warm p-0.5">
+      {opts.map((o) => (
+        <button key={o.id} type="button" role="radio" aria-checked={value === o.id} data-testid={`work-mode-${o.id}`} title={o.title} onClick={() => onChange(o.id)}
+          className={`h-7 rounded-lg px-2.5 text-[13px] font-medium transition-colors ${value === o.id ? "bg-surface text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-text-muted hover:text-text-primary"}`}>
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -383,7 +436,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
  * Alt+Arrow Up/Down on the focused row.
  */
 function QueueList({ tasks, pending, sel, machines, onSelect, onMove, dragging }: {
-  tasks: QueueTask[]; pending: Pending[]; sel: string | null; machines: Machine[];
+  tasks: QueueTask[]; pending: React.ReactNode[]; sel: string | null; machines: Machine[];
   onSelect: (id: string) => void; onMove: (id: string, at: number) => void; dragging: React.MutableRefObject<boolean>;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -449,16 +502,7 @@ function QueueList({ tasks, pending, sel, machines, onSelect, onMove, dragging }
         );
       })}
       {line(tasks.length)}
-      {pending.map((p) => (
-        <button key={p.id} type="button" data-testid="work-pending-row" onClick={() => onSelect(p.id)}
-          className={`flex w-full items-start gap-2 rounded-lg py-2 pl-7 pr-2 text-left transition-colors ${sel === p.id ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
-          {p.error ? <AlertCircle className="mt-[3px] h-3.5 w-3.5 shrink-0 text-err" /> : <Loader2 className="mt-[3px] h-3.5 w-3.5 shrink-0 animate-spin text-accent" />}
-          <span className="min-w-0 flex-1">
-            <span className="line-clamp-2 break-words text-[14px] font-medium leading-snug text-text-primary">{p.text}</span>
-            <span className="mt-0.5 block text-[12px] text-text-muted">{p.error ? "Not sent" : "Routing"}</span>
-          </span>
-        </button>
-      ))}
+      {pending}
     </div>
   );
 }
@@ -497,7 +541,7 @@ function TaskRow({ t, machines, agentKinds, domains, host, busy, vault, run, onA
           {mine && <Loader2 className="mx-1 h-3.5 w-3.5 animate-spin text-text-muted" />}
           {acts.map((a) => {
             const I = ACTION_ICON[a];
-            return <button key={a} type="button" data-testid={`work-act-${a}`} disabled={mine} onClick={() => void act(a)} className={textBtn}>{I && <I className="h-3.5 w-3.5" />}{ACTION_LABEL[a]}</button>;
+            return <button key={a} type="button" data-testid={`work-act-${a}`} disabled={mine} onClick={() => void act(a)} className={textBtn}>{I && <I className="h-3.5 w-3.5" />}{actionLabel(a, t)}</button>;
           })}
           {more.length > 0 && <RowMenu items={more} reveal />}
         </div>
@@ -617,68 +661,217 @@ function tinted(I: LucideIcon, color: string): LucideIcon {
   const C = ((p: React.ComponentProps<LucideIcon>) => <I {...p} style={{ ...(p.style ?? {}), color }} />) as unknown as LucideIcon;
   return C;
 }
-const PILL = "inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-text-primary";
+/** A Mac's icon on a soft disc of its own colour. */
+function MachineBadge({ m, size = 28 }: { m: Pick<Machine, "label" | "hostname" | "role"> | undefined; size?: number }) {
+  const { Icon, color } = machineLook(m);
+  return (
+    <span aria-hidden className="flex shrink-0 items-center justify-center rounded-full" style={{ width: size, height: size, background: `${color}1f` }}>
+      <Icon style={{ color, width: size * 0.55, height: size * 0.55 }} />
+    </span>
+  );
+}
+const STATE_DOT: Record<Machine["herdr"], string> = { local: "bg-accent", saved: "bg-ok", disabled: "border border-text-muted", missing: "border border-text-muted" };
+function MachineState({ m }: { m: Pick<Machine, "herdr"> }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-text-muted">
+      <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${STATE_DOT[m.herdr]}`} />{HERDR_STATE_LABEL[m.herdr]}
+    </span>
+  );
+}
+
+/**
+ * One options button beside mic and Send. Its popover holds the Herdr switch
+ * and the machine new work goes to, as a dropdown with each Mac's own icon
+ * and whether it is connected. A dot on the button shows when either is not
+ * the default, so the state is visible without opening it.
+ */
+function WorkOptions({ open, onOpen, onClose, herdr, onHerdr, machines, pick, current, onPick, onConnect, adding, vault, onAdded }: {
+  open: boolean; onOpen: () => void; onClose: () => void;
+  herdr: boolean; onHerdr: (on: boolean) => void;
+  machines: Machine[]; pick: string; current: Machine | undefined; onPick: (label: string) => void; onConnect: (m: Machine) => void;
+  adding: Machine | null; vault: string; onAdded: (label?: string) => void;
+}) {
+  const btn = useRef<HTMLButtonElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const [menu, setMenu] = useState(false);
+  useEffect(() => {
+    if (!open) { setMenu(false); return; }
+    const place = () => { const r = btn.current?.getBoundingClientRect(); if (r) setPos({ top: Math.round(r.bottom + 8), right: Math.max(8, Math.round(window.innerWidth - r.right)) }); };
+    place();
+    const onDoc = (e: MouseEvent) => { const t = e.target as Element | null; if (!t?.closest?.("[data-work-options]") && !t?.closest?.("[data-rowmenu]")) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", place);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); window.removeEventListener("resize", place); };
+  }, [open, onClose]);
+  const picked = machines.find((m) => m.label === pick);
+  const elsewhere = !!current && pick !== current.label;
+  const label = machineLabel(machines, pick);
+  return (
+    <div data-work-options className="shrink-0">
+      <button ref={btn} type="button" data-testid="work-options" onClick={() => (open ? onClose() : onOpen())} aria-haspopup="dialog" aria-expanded={open}
+        title={["Options", herdr ? "Herdr on" : "", elsewhere ? `on ${label}` : ""].filter(Boolean).join(" · ")} aria-label="Work options"
+        className={`${iconBtn} relative h-8 w-8 rounded-lg ${open ? "bg-surface-warm text-text-primary" : ""}`}>
+        <SlidersHorizontal className="h-4 w-4" />
+        {herdr && <img data-testid="work-options-herdr" src="/herdr.png" alt="" className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-[4px] ring-2 ring-surface" />}
+        {elsewhere && <span data-testid="work-options-machine" aria-hidden className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-surface" style={{ background: machineLook(picked).color }} />}
+      </button>
+      {open && pos && createPortal(
+        <div data-work-options role="dialog" aria-label="Work options" data-testid="work-options-panel" style={{ top: pos.top, right: pos.right }}
+          className="fixed z-50 w-[22rem] max-w-[calc(100vw-16px)] rounded-xl border border-border bg-surface p-1.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)]">
+          <HerdrSwitch on={herdr} onChange={onHerdr} />
+          <div className="mx-2 my-1 h-px bg-border-subtle" />
+          <div className="px-2 pb-1.5 pt-1">
+            <div id="work-machine-label" className="mb-1.5 text-[12px] font-medium text-text-muted">Machine</div>
+            <button type="button" data-testid="work-machine" aria-haspopup="listbox" aria-expanded={menu} aria-labelledby="work-machine-label" onClick={() => setMenu((x) => !x)}
+              className={`flex h-11 w-full items-center gap-2.5 rounded-lg border bg-background px-2 text-left transition-colors hover:border-accent-border ${menu ? "border-accent-border" : "border-border"}`}>
+              <MachineBadge m={picked ?? { label: pick }} />
+              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary">{label}</span>
+              {picked && <MachineState m={picked} />}
+              <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${menu ? "rotate-180" : ""}`} />
+            </button>
+            {menu && (
+              <div role="listbox" aria-labelledby="work-machine-label" data-testid="work-machine-menu" className="mt-1 max-h-72 overflow-y-auto rounded-lg border border-border bg-surface py-1">
+                {machines.length === 0 && <p className="px-3 py-2 text-[13px] text-text-muted">Only this Mac for now.</p>}
+                {machines.map((m) => {
+                  const ok = canDispatchTo(m);
+                  return (
+                    <div key={m.id} role="option" aria-selected={m.label === pick} data-testid="work-machine-option" data-label={m.label}
+                      onClick={() => { if (ok) { onPick(m.label); setMenu(false); } }}
+                      className={`flex items-center gap-2.5 px-2 py-1.5 ${ok ? "cursor-pointer hover:bg-surface-warm" : ""}`}>
+                      <MachineBadge m={m} size={26} />
+                      <span className="min-w-0 flex-1">
+                        <span className={`block truncate text-[13px] font-medium ${ok ? "text-text-primary" : "text-text-secondary"}`}>{m.label}</span>
+                        <MachineState m={m} />
+                      </span>
+                      {ok
+                        ? m.label === pick && <Check className="h-4 w-4 shrink-0 text-accent" strokeWidth={2.5} />
+                        : <button type="button" data-testid="work-machine-connect" onClick={(e) => { e.stopPropagation(); setMenu(false); onConnect(m); }}
+                            className="inline-flex h-7 shrink-0 items-center rounded-md border border-border px-2.5 text-[12px] font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-accent">Connect</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {adding && <MachineAdd key={adding.label} machine={adding} vault={vault} onDone={onAdded} />}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
 
 /** Herdr, by its own mark, with a switch that slides on and off. */
 function HerdrSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
     <button type="button" role="switch" aria-checked={on} data-testid="work-herdr" onClick={() => onChange(!on)}
-      title={on ? "Herdr is on: work runs in a Herdr tab you can watch" : "Herdr is off: Prevail runs the work itself"}
-      className={`${PILL} pr-1.5`}>
-      <img src="/herdr.png" alt="" className="h-[18px] w-[18px] rounded-[5px]" />
-      Herdr
-      <span aria-hidden className={`relative ml-0.5 inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${on ? "bg-accent" : "bg-border"}`}>
-        <span className={`absolute left-[2px] h-[14px] w-[14px] rounded-full bg-background shadow transition-transform ${on ? "translate-x-[14px]" : ""}`} />
+      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-surface-warm">
+      <img src="/herdr.png" alt="" className="h-8 w-8 shrink-0 rounded-lg" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-medium text-text-primary">Herdr</span>
+        <span className="block text-[12px] leading-snug text-text-muted">{on ? "Work runs in a Herdr tab you can watch" : "Off: Prevail runs the work itself"}</span>
+      </span>
+      <span aria-hidden className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${on ? "bg-accent" : "bg-text-muted/30"}`}>
+        <span className={`absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${on ? "translate-x-4" : ""}`} />
       </span>
     </button>
   );
 }
 
-/** The empty queue: one living orb that says Prevail is here and ready, nothing else. */
-function ReadyOrb() {
+/** Ready for work: a soft green character that bobs, blinks and glances about. Still under reduced motion. */
+function ReadyFace() {
   return (
-    <div data-testid="work-ready" className="flex h-full flex-col items-center justify-center gap-5 px-6">
-      <div className="relative h-28 w-28" aria-hidden>
-        <div className="absolute inset-0 animate-spin rounded-full opacity-70 blur-xl motion-reduce:animate-none"
-          style={{ animationDuration: "9s", background: "conic-gradient(from 0deg, #22c55e, #14b8a6, #3b82f6, #8b5cf6, #22c55e)" }} />
-        <div className="absolute inset-2 animate-spin rounded-full motion-reduce:animate-none"
-          style={{ animationDuration: "14s", animationDirection: "reverse", background: "conic-gradient(from 90deg, #16a34a, #0ea5e9, #6366f1, #a855f7, #16a34a)" }} />
-        <div className="absolute inset-2 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.85), rgba(255,255,255,0.15) 38%, transparent 62%)" }} />
-        <div className="absolute inset-0 animate-pulse rounded-full ring-1 ring-white/30 motion-reduce:animate-none" />
+    <div data-testid="work-ready" className="flex min-h-0 flex-1 items-center justify-center px-6 pb-16">
+      <div className="work-face" aria-hidden>
+        <svg width="136" height="146" viewBox="0 0 160 172">
+          <defs>
+            <radialGradient id="wf-skin" cx="36%" cy="28%" r="82%">
+              <stop offset="0" stopColor="#8ee89c" />
+              <stop offset="0.5" stopColor="#2fb653" />
+              <stop offset="1" stopColor="#0a7a1c" />
+            </radialGradient>
+            <radialGradient id="wf-shine" cx="50%" cy="50%" r="50%">
+              <stop offset="0" stopColor="#ffffff" stopOpacity="0.75" />
+              <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <ellipse className="wf-shadow" cx="80" cy="162" rx="42" ry="6" fill="#000" />
+          <g className="wf-body">
+            <path d="M80 12c38 0 66 22 66 64 0 44-28 70-66 70S14 120 14 76c0-42 28-64 66-64z" fill="url(#wf-skin)" />
+            <ellipse cx="58" cy="44" rx="30" ry="18" fill="url(#wf-shine)" />
+            <g className="wf-cheeks">
+              <ellipse cx="44" cy="100" rx="10" ry="6" fill="#ff7f9e" />
+              <ellipse cx="116" cy="100" rx="10" ry="6" fill="#ff7f9e" />
+            </g>
+            <g className="wf-look">
+              <g className="wf-eyes">
+                <rect x="50" y="62" width="16" height="26" rx="8" fill="#0c2a13" />
+                <rect x="94" y="62" width="16" height="26" rx="8" fill="#0c2a13" />
+                <circle cx="61" cy="69" r="3.6" fill="#ffffff" />
+                <circle cx="105" cy="69" r="3.6" fill="#ffffff" />
+              </g>
+              <path d="M68 101q12 11 24 0" fill="none" stroke="#0c2a13" strokeWidth="4.5" strokeLinecap="round" />
+            </g>
+          </g>
+        </svg>
       </div>
-      <p className="text-[15px] font-medium text-text-secondary">Ready for work</p>
     </div>
   );
 }
 
-/** Connect a Mac to Herdr in one click: Prevail runs it behind the scenes and only asks for an address it does not know. */
-function MachineAdd({ machine, vault, onDone }: { machine: Machine; vault: string; onDone: () => void }) {
+/**
+ * Connect a Mac to Herdr in one click: Prevail runs it behind the scenes and
+ * only asks for an address it does not know. When that Mac's Herdr needs an
+ * update first, the user approves it in Terminal, then checks again.
+ */
+function MachineAdd({ machine, vault, onDone }: { machine: Machine; vault: string; onDone: (label?: string) => void }) {
   const [target, setTarget] = useState(machine.hostname ?? "");
-  const [state, setState] = useState<"ask" | "busy" | "err">(machine.hostname ? "busy" : "ask");
-  const [err, setErr] = useState<string | null>(null);
-  const { Icon, color } = machineLook(machine);
+  const [state, setState] = useState<"ask" | "busy" | "err" | "approve" | "approved">(machine.hostname ? "busy" : "ask");
+  const [err, setErr] = useState<unknown>(null);
   const connect = useCallback(async (to: string) => {
     setState("busy"); setErr(null);
-    try { await invoke("engine_work_machine_add", { vault, label: machine.label, target: to.trim() }); onDone(); }
-    catch (e) { setErr(String(e)); setState("err"); }
+    try {
+      const res = await invoke("engine_work_machine_add", { vault, label: machine.label, target: to.trim() });
+      if (needsApproval(res)) { setTarget(to.trim()); setState("approve"); return; }
+      onDone(machine.label);
+    } catch (e) { setErr(e); setState("err"); }
   }, [vault, machine.label, onDone]);
+  const approve = async () => {
+    setState("busy"); setErr(null);
+    try { await invoke("engine_work_machine_approve", { vault, label: machine.label, target }); setState("approved"); }
+    catch (e) { setErr(e); setState("approve"); }
+  };
   // Known address: connect straight away, nothing to copy or type.
   const started = useRef(false);
   useEffect(() => { if (machine.hostname && !started.current) { started.current = true; void connect(machine.hostname); } }, [machine.hostname, connect]);
   return (
-    <div data-testid="work-machine-add" className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: `${color}1f` }}><Icon className="h-4 w-4" style={{ color }} /></span>
-      {state === "busy" && <span className="flex items-center gap-2 text-[14px] text-text-secondary"><Loader2 className="h-4 w-4 animate-spin" />Connecting {machine.label}</span>}
-      {state !== "busy" && <>
-        <span className="text-[14px] text-text-secondary">{state === "err" ? `Could not connect ${machine.label}` : `Where is ${machine.label}?`}</span>
-        <input value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && target.trim()) void connect(target); }}
-          placeholder="its address, like mini.local" aria-label="Machine address"
-          className="h-8 min-w-[12rem] flex-1 rounded-full border border-border bg-background px-3 text-[13px] outline-none focus:border-accent-border" />
-        <button type="button" data-testid="work-machine-add-confirm" disabled={!target.trim()} onClick={() => void connect(target)}
-          className="inline-flex h-8 items-center rounded-full bg-accent px-3.5 text-[13px] font-medium text-background disabled:opacity-40">{state === "err" ? "Try again" : "Connect"}</button>
-      </>}
-      <button type="button" onClick={onDone} className={textBtn}>{state === "busy" ? "Hide" : "Cancel"}</button>
-      {err && <p className="w-full text-[12px] text-err">{err}</p>}
+    <div data-testid="work-machine-add" data-state={state} className="mx-1 mb-1 mt-1 rounded-lg bg-surface-warm/70 p-2.5">
+      <div className="flex items-center gap-2.5">
+        <MachineBadge m={machine} size={26} />
+        <span className="min-w-0 flex-1 text-[13px] text-text-primary">
+          {state === "busy" ? <span className="flex items-center gap-2 text-text-secondary"><Loader2 className="h-3.5 w-3.5 animate-spin" />Connecting {machine.label}</span>
+            : state === "approve" ? <>{machine.label} needs a Herdr update on that Mac first. Approving restarts Herdr there.</>
+            : state === "approved" ? <>Approve the update in the Terminal window, then check again.</>
+            : state === "err" ? <>Could not connect {machine.label}.</>
+            : <>Where is {machine.label}?</>}
+        </span>
+      </div>
+      {(state === "ask" || state === "err") && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <input value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && target.trim()) void connect(target); }}
+            placeholder="its address, like mini.local" aria-label="Machine address"
+            className="ring-in-box h-8 min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 text-[13px] outline-none focus:border-accent" />
+          <button type="button" data-testid="work-machine-add-confirm" disabled={!target.trim()} onClick={() => void connect(target)} className={primaryBtn}>{state === "err" ? "Try again" : "Connect"}</button>
+        </div>
+      )}
+      {err != null && <div className="mt-1.5"><WorkError e={err} testId="work-machine-add-error" /></div>}
+      <div className="mt-2 flex items-center justify-end gap-1">
+        <button type="button" onClick={() => onDone()} className={textBtn}>{state === "busy" ? "Hide" : "Cancel"}</button>
+        {state === "approve" && <button type="button" data-testid="work-machine-approve" onClick={() => void approve()} className={primaryBtn}><TerminalSquare className="h-3.5 w-3.5" />Approve in Terminal</button>}
+        {state === "approved" && <button type="button" data-testid="work-machine-recheck" onClick={() => void connect(target)} className={primaryBtn}><RotateCcw className="h-3.5 w-3.5" />Check again</button>}
+      </div>
     </div>
   );
 }
