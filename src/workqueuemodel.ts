@@ -28,7 +28,7 @@ export interface WorkTask extends RoutedTask {
   id: string; promptId: string; status: WorkStatus; executor: "engine" | "herdr"; jobId?: string;
   board?: { space: string; id: string };
   thread: { space: string; session: string };
-  ask?: { kind: AskKind; detail: string };
+  ask?: { kind: AskKind; detail: string; command?: string };
   herdr?: { machine: string; workspaceLabel: string; tabId?: string; agent?: string; createdWorkspace?: boolean; lastRead?: string };
   // Which Mac is driving the task now; stale after a few minutes without renewal.
   lease?: { host: string; until: number };
@@ -39,7 +39,13 @@ export interface Machine {
   id: string; hostname?: string; label: string; role?: "hub" | "client"; current: boolean;
   herdr: "saved" | "disabled" | "missing" | "local"; vaultRoot?: string; lastSeen?: number;
 }
-export interface WorkSettings { herdr: boolean; machine?: string; agentKinds?: string[] }
+export interface WorkSettings { herdr: boolean; workspace?: string }
+/** `work settings` answers `{ ok, settings }`. */
+export function asSettings(v: unknown): WorkSettings {
+  const o = (v ?? {}) as { settings?: WorkSettings } & Partial<WorkSettings>;
+  const s = o.settings ?? o;
+  return { herdr: !!s.herdr, workspace: s.workspace };
+}
 
 // Used when the engine names no agent kinds (an older Herdr, say).
 export const FALLBACK_AGENT_KINDS = ["claude", "codex", "gemini", "agy"];
@@ -120,10 +126,27 @@ export function backlog(ps: WorkPrompt[], filter: BacklogFilter = "open", query 
     .sort((a, b) => URGENCY[a.status] - URGENCY[b.status] || b.promptTs - a.promptTs);
 }
 
-/** Engine answers come wrapped or bare; take either. */
+/**
+ * Engine answers come as `{ prompts }` (the queue), `{ tasks }` with each
+ * task's prompt (the backlog), `{ prompt }` (one added) or a bare list; all
+ * become prompts.
+ */
 export function asPrompts(v: unknown): WorkPrompt[] {
-  const a = Array.isArray(v) ? v : (v as { prompts?: unknown } | null)?.prompts;
-  return Array.isArray(a) ? (a as WorkPrompt[]).filter((p) => p && typeof p.id === "string" && Array.isArray(p.tasks)) : [];
+  const o = (v ?? {}) as { prompts?: unknown; prompt?: unknown; tasks?: unknown };
+  if (!Array.isArray(v) && Array.isArray(o.tasks)) {
+    const byId = new Map<string, WorkPrompt>();
+    for (const t of o.tasks as (WorkTask & { prompt?: Partial<WorkPrompt> })[]) {
+      if (!t || typeof t.id !== "string") continue;
+      const { prompt, ...task } = t;
+      const pid = prompt?.id ?? t.promptId;
+      let p = byId.get(pid);
+      if (!p) { p = { id: pid, ts: prompt?.ts ?? 0, text: prompt?.text ?? "", surface: prompt?.surface ?? "cli", machine: prompt?.machine ?? t.machine, tasks: [] }; byId.set(pid, p); }
+      p.tasks.push(task);
+    }
+    return [...byId.values()];
+  }
+  const a = Array.isArray(v) ? v : Array.isArray(o.prompts) ? o.prompts : o.prompt ? [o.prompt] : [];
+  return (a as WorkPrompt[]).filter((p) => p && typeof p.id === "string" && Array.isArray(p.tasks));
 }
 export function asMachines(v: unknown): { machines: Machine[]; agentKinds: string[] } {
   const o = (v ?? {}) as { machines?: unknown; agentKinds?: unknown };
@@ -145,8 +168,8 @@ export const HERDR_STATE_LABEL: Record<Machine["herdr"], string> = { local: "Thi
 export const canDispatchTo = (m: Pick<Machine, "herdr">) => m.herdr === "local" || m.herdr === "saved";
 
 /** The command the user confirms to connect a machine to Herdr. */
-export function machineAddCommand(m: Pick<Machine, "id" | "hostname">, target = ""): string {
-  return `herdr machine add --label ${m.id} ${target.trim() || m.hostname || "<ssh target>"}`;
+export function machineAddCommand(m: Pick<Machine, "label" | "hostname">, target = ""): string {
+  return `herdr machine add --label ${m.label} ${target.trim() || m.hostname || "<ssh target>"}`;
 }
 
 /** "Continue here" shows when another Mac holds the task; a live lease asks before taking it. */
@@ -155,4 +178,5 @@ export function leaseElsewhere(t: Pick<WorkTask, "lease">, host: string, now = D
   return { elsewhere: true, live: t.lease.until > now };
 }
 
-export const machineLabel = (machines: Machine[], id: string) => machines.find((m) => m.id === id)?.label ?? (id === "local" ? "This Mac" : id);
+// The engine names a machine by its label everywhere (a task's machine, a lease's host, --machine).
+export const machineLabel = (machines: Machine[], x: string) => machines.find((m) => m.label === x || m.id === x)?.label ?? (x === "local" ? "This Mac" : x);

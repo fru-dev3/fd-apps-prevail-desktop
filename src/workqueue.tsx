@@ -22,13 +22,16 @@ import { TintIcon } from "./tint";
 import { RowMenu, StatusDot, REVEAL, type RowMenuItem } from "./ui";
 import { META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import type { EngineApp } from "./types";
+import { lsGet, lsSet } from "./storage";
 import {
-  ACTION_LABEL, actionsFor, asMachines, asPrompts, asWorkspaces, backlog, canDispatchTo, engineLacksWork, groupByGoal, HERDR_STATE_LABEL,
+  ACTION_LABEL, actionsFor, asMachines, asPrompts, asSettings, asWorkspaces, backlog, canDispatchTo, engineLacksWork, groupByGoal, HERDR_STATE_LABEL,
   leaseElsewhere, machineAddCommand, machineLabel, promptStatus, promptSummary, queuePrompts, STATUS_LABEL, STATUS_TONE,
   type BacklogFilter, type DestKind, type Destination, type Machine, type WorkAction, type WorkPrompt, type WorkSettings, type WorkTask,
 } from "./workqueuemodel";
 
 const POLL_MS = 3_000;
+// Which Mac new work goes to, remembered on this device (the engine keeps no default).
+const MACHINE_KEY = "prevail.work.machine";
 const KIND_ICON: Record<DestKind, LucideIcon> = { domain: Layers, project: FolderKanban, entity: User, event: CalendarDays, app: Plug, folder: Folder };
 const chip = "inline-flex max-w-[16rem] items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
 const textBtn = "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -126,6 +129,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   const [selPrompt, setSelPrompt] = useState<string | null>(null);
   const [selTask, setSelTask] = useState<string | null>(null);
   const [settings, setSettings] = useState<WorkSettings>({ herdr: false });
+  const [machinePick, setMachinePick] = useState(() => lsGet(MACHINE_KEY, ""));
   const [machines, setMachines] = useState<Machine[]>([]);
   const [agentKinds, setAgentKinds] = useState<string[]>([]);
   const [adding, setAdding] = useState<Machine | null>(null);
@@ -154,12 +158,12 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   }, [active, vault, refresh]);
   useEffect(() => {
     if (!active || !vault) return;
-    invoke<WorkSettings>("engine_work_settings", { vault }).then((s) => { if (s && typeof s === "object") setSettings({ herdr: !!s.herdr, machine: s.machine }); }).catch(() => {});
+    invoke("engine_work_settings", { vault }).then((s) => setSettings(asSettings(s))).catch(() => {});
     void loadMachines();
   }, [active, vault, loadMachines]);
 
   const current = machines.find((m) => m.current);
-  const pick = settings.machine || current?.id || "local";
+  const pick = (machinePick && machines.some((m) => m.label === machinePick) ? machinePick : "") || current?.label || "local";
 
   // ── composer ──
   const [text, setText] = useState("");
@@ -175,9 +179,9 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
     const card: Pending = { id, ts: Date.now(), text: body, surface: "desktop", machine: pick, tasks: [], pending: true };
     setPending((p) => [card, ...p]);
     setSelPrompt(id); setSelTask(null); setView("queue");
-    invoke<unknown>("engine_work_add", { vault, body: { text: body, surface: "desktop", machine: pick, herdr: settings.herdr } })
+    invoke<unknown>("engine_work_add", { vault, body: { text: body, surface: "desktop", ...(machines.length ? { machine: pick } : {}) } })
       .then((res) => {
-        const added = asPrompts([res])[0] ?? asPrompts(res)[0];
+        const added = asPrompts(res)[0];
         setPending((p) => p.filter((x) => x.id !== id));
         if (added) { setPrompts((ps) => [added, ...ps.filter((x) => x.id !== added.id)]); setSelPrompt((s) => (s === id ? added.id : s)); }
         void refresh();
@@ -193,7 +197,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
     finally { setBusy(null); }
   };
   const setHerdr = (on: boolean) => { setSettings((s) => ({ ...s, herdr: on })); void run("settings", "engine_work_settings", { herdr: on }); };
-  const setMachine = (id: string) => { setSettings((s) => ({ ...s, machine: id })); void run("settings", "engine_work_settings", { machine: id }); };
+  const setMachine = (id: string) => { setMachinePick(id); lsSet(MACHINE_KEY, id); };
 
   const all: WorkPrompt[] = useMemo(() => [...pending, ...queuePrompts(prompts)], [pending, prompts]);
   const rows = view === "backlog" ? backlog(prompts, filter, query) : [];
@@ -213,9 +217,9 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
 
   const machineItems: RowMenuItem[] = [
     { kind: "heading", label: "Send work to" },
-    ...(machines.length ? machines : [{ id: "local", label: "This Mac", current: true, herdr: "local" } as Machine]).map((m): RowMenuItem => canDispatchTo(m)
-      ? { label: m.label, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: Monitor, checked: m.id === pick, onClick: () => setMachine(m.id) }
-      : { label: `Connect ${m.label}`, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: Plug, onClick: () => setAdding(m) }),
+    ...(machines.length === 0 ? [{ kind: "heading" as const, label: "Only this Mac for now" }] : machines.map((m): RowMenuItem => canDispatchTo(m)
+      ? { label: m.label, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: Monitor, checked: m.label === pick, onClick: () => setMachine(m.label) }
+      : { label: `Connect ${m.label}`, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: Plug, onClick: () => setAdding(m) })),
   ];
 
   const composer = (
@@ -289,7 +293,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
 
   const detail = shown ? (
     <PromptDetail prompt={shown} pending={(shown as Pending).pending ? (shown as Pending) : null} selTask={curTask} onSelTask={setSelTask}
-      machines={machines} agentKinds={agentKinds} domains={domains} host={current?.hostname || current?.id || ""} busy={busy} vault={vault}
+      machines={machines} agentKinds={agentKinds} domains={domains} host={current?.label ?? ""} busy={busy} vault={vault}
       run={run} onAddMachine={setAdding} />
   ) : (
     <div className="flex h-full items-center justify-center px-6 text-[14px] text-text-muted">{loaded ? "Send a prompt to start." : <Loader2 className="h-4 w-4 animate-spin" />}</div>
@@ -356,17 +360,17 @@ function TaskRow({ t, open, onOpen, machines, agentKinds, domains, host, busy, v
 }) {
   const act = (a: WorkAction | "continue-here" | "accept" | "decline", n?: number) => run(`${t.id}:${a}`, "engine_work_action", { id: t.id, action: a, ...(n !== undefined ? { n } : {}) });
   const route = (args: Record<string, unknown>) => run(`${t.id}:route`, "engine_work_route", { id: t.id, ...args });
-  const answer = (a: string) => run(`${t.id}:answer`, "engine_work_answer", { id: t.id, answer: a });
+  const answer = (a: string, workspace?: string) => run(`${t.id}:answer`, "engine_work_answer", { id: t.id, answer: a, ...(workspace ? { workspace } : {}) });
   const lease = leaseElsewhere(t, host);
   const [confirmTake, setConfirmTake] = useState(false);
   const mine = busy?.startsWith(`${t.id}:`) ?? false;
   const DestIcon = t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers;
   const destItems: RowMenuItem[] = [
-    ...(t.alternatives.length ? [{ kind: "heading" as const, label: "Suggested" }, ...t.alternatives.map((d): RowMenuItem => ({ icon: KIND_ICON[d.kind], label: d.label, hint: d.why, onClick: () => void route({ to: `${d.kind}:${d.id}` }) }))] : []),
-    ...(domains.length ? [{ kind: "heading" as const, label: "Domains" }, ...domains.filter((d) => !(t.dest?.kind === "domain" && t.dest.id === d)).map((d): RowMenuItem => ({ icon: Layers, label: titleCase(d), onClick: () => void route({ to: `domain:${d}` }) }))] : []),
+    ...(t.alternatives.length ? [{ kind: "heading" as const, label: "Suggested" }, ...t.alternatives.map((d): RowMenuItem => ({ icon: KIND_ICON[d.kind], label: d.label, hint: d.why, onClick: () => void route({ dest: `${d.kind}:${d.id}` }) }))] : []),
+    ...(domains.length ? [{ kind: "heading" as const, label: "Domains" }, ...domains.filter((d) => !(t.dest?.kind === "domain" && t.dest.id === d)).map((d): RowMenuItem => ({ icon: Layers, label: titleCase(d), onClick: () => void route({ dest: `domain:${d}` }) }))] : []),
   ];
-  const machineItems: RowMenuItem[] = (machines.length ? machines : [{ id: "local", label: "This Mac", current: true, herdr: "local" } as Machine]).map((m) => canDispatchTo(m)
-    ? { icon: Monitor, label: m.label, hint: HERDR_STATE_LABEL[m.herdr], checked: m.id === t.machine, onClick: () => { if (m.id !== t.machine) void route({ machine: m.id }); } }
+  const machineItems: RowMenuItem[] = machines.length === 0 ? [{ kind: "heading", label: "No other machines yet" }] : machines.map((m): RowMenuItem => canDispatchTo(m)
+    ? { icon: Monitor, label: m.label, hint: HERDR_STATE_LABEL[m.herdr], checked: m.label === t.machine, onClick: () => { if (m.label !== t.machine) void route({ machine: m.label }); } }
     : { icon: Plug, label: `Connect ${m.label}`, hint: HERDR_STATE_LABEL[m.herdr], onClick: () => onAddMachine(m) });
   const kindItems: RowMenuItem[] = agentKinds.map((k) => ({ icon: Bot, label: k, checked: k === t.agentKind, onClick: () => { if (k !== t.agentKind) void route({ agentKind: k }); } }));
   const acts = actionsFor(t);
@@ -430,8 +434,8 @@ function TaskRow({ t, open, onOpen, machines, agentKinds, domains, host, busy, v
           <span className="shrink-0 text-text-muted">New {s.kind}:</span>
           <span className="shrink-0 font-medium text-text-primary">{s.name}</span>
           <span className="min-w-0 flex-1 truncate text-text-muted" title={s.why}>{s.why}</span>
-          <button type="button" data-testid="work-suggest-accept" disabled={mine} onClick={() => void act("accept", i)} className={textBtn}><Check className="h-3.5 w-3.5" />Accept</button>
-          <button type="button" disabled={mine} onClick={() => void act("decline", i)} className={textBtn}>Decline</button>
+          <button type="button" data-testid="work-suggest-accept" disabled={mine} onClick={() => void act("accept", i + 1)} className={textBtn}><Check className="h-3.5 w-3.5" />Accept</button>
+          <button type="button" disabled={mine} onClick={() => void act("decline", i + 1)} className={textBtn}>Decline</button>
         </div>
       ))}
 
@@ -460,7 +464,7 @@ function TaskRow({ t, open, onOpen, machines, agentKinds, domains, host, busy, v
 }
 
 function Ask({ t, vault, machines, answer, onAddMachine, busy }: {
-  t: WorkTask; vault: string; machines: Machine[]; answer: (a: string) => Promise<void>; onAddMachine: (m: Machine) => void; busy: boolean;
+  t: WorkTask; vault: string; machines: Machine[]; answer: (a: string, workspace?: string) => Promise<void>; onAddMachine: (m: Machine) => void; busy: boolean;
 }) {
   const ask = t.ask!;
   const [spaces, setSpaces] = useState<string[] | null>(null);
@@ -468,19 +472,20 @@ function Ask({ t, vault, machines, answer, onAddMachine, busy }: {
     if (ask.kind !== "herdr-workspace") return;
     invoke("engine_work_herdr_workspaces", { vault, machine: t.machine }).then((v) => setSpaces(asWorkspaces(v))).catch(() => setSpaces([]));
   }, [ask.kind, vault, t.machine]);
-  const btn = (label: string, a: string, primary = false) => (
-    <button key={a} type="button" data-testid={`work-answer-${a}`} disabled={busy} onClick={() => void answer(a)}
+  const btn = (label: string, a: string, primary = false, workspace?: string) => (
+    <button key={workspace ?? a} type="button" data-testid={`work-answer-${workspace ? "workspace" : a}`} disabled={busy} onClick={() => void answer(a, workspace)}
       className={primary ? "inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[13px] font-medium text-background disabled:opacity-40" : textBtn}>{label}</button>
   );
-  const m = machines.find((x) => x.id === t.machine);
+  const m = machines.find((x) => x.label === t.machine);
   return (
     <div data-testid="work-ask" data-kind={ask.kind} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-accent-soft/60 px-3 py-2 text-[13px]">
       <span className="min-w-0 flex-1 text-text-primary">{ask.detail}</span>
       {ask.kind === "start" && <>{btn("Start", "yes", true)}{btn("Not now", "no")}</>}
       {ask.kind === "keep-close" && <>{btn("Keep", "keep", true)}{btn("Close", "close")}</>}
       {ask.kind === "herdr-workspace" && <>
-        {(spaces ?? []).map((s) => btn(s, s))}
-        {btn("Create one", "create", true)}
+        {(spaces ?? []).map((s) => btn(s, "yes", false, s))}
+        {btn(spaces?.length ? "Create one" : "Create it", "yes", true)}
+        {btn("Not now", "no")}
       </>}
       {ask.kind === "machine-add" && <>
         {m && <button type="button" className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[13px] font-medium text-background" onClick={() => onAddMachine(m)}>Connect {m.label}</button>}
@@ -497,7 +502,7 @@ function MachineAdd({ machine, vault, onDone }: { machine: Machine; vault: strin
   const [err, setErr] = useState<string | null>(null);
   const confirm = async () => {
     setBusy(true); setErr(null);
-    try { await invoke("engine_work_machine_add", { vault, label: machine.id, target: target.trim() }); onDone(); }
+    try { await invoke("engine_work_machine_add", { vault, label: machine.label, target: target.trim() }); onDone(); }
     catch (e) { setErr(String(e)); }
     finally { setBusy(false); }
   };

@@ -8,10 +8,10 @@ import { mockTauri } from "./tauri-mock";
 
 const NOW = Date.now();
 const dest = (kind: string, id: string, label: string, owner = id) => ({ kind, id, label, space: owner, owner, confidence: 0.9, why: "named in the prompt" });
-const base = { alternatives: [], specialists: [], shape: "task", flags: {}, effort: "standard", agentKind: "claude", machine: "local", suggestions: [], log: [] };
+const base = { alternatives: [], specialists: [], shape: "task", flags: {}, effort: "standard", agentKind: "claude", machine: "foo-laptop", suggestions: [], log: [] };
 const PROMPTS = [
   {
-    id: "p1", ts: NOW - 120_000, text: "Plan the foo hike this weekend, and get the bar report to Sam Foo before Friday", surface: "desktop", machine: "local",
+    id: "p1", ts: NOW - 120_000, text: "Plan the foo hike this weekend, and get the bar report to Sam Foo before Friday", surface: "desktop", machine: "foo-laptop",
     tasks: [
       { ...base, id: "t1", promptId: "p1", goal: "Plan the foo hike", text: "Book the foo hike permit for Saturday", dest: dest("domain", "health", "Health"),
         alternatives: [dest("project", "foo-hike", "Foo hike")], specialists: ["planner", "scout"], status: "running", executor: "engine",
@@ -25,7 +25,7 @@ const PROMPTS = [
     ],
   },
   {
-    id: "p2", ts: NOW - 3_600_000, text: "Fix the foo gutter before the rain", surface: "phone", machine: "local",
+    id: "p2", ts: NOW - 3_600_000, text: "Fix the foo gutter before the rain", surface: "phone", machine: "foo-laptop",
     tasks: [
       { ...base, id: "t4", promptId: "p2", goal: "Fix the foo gutter", text: "Find a foo gutter repair crew", dest: dest("domain", "career", "Career"), status: "paused", executor: "herdr",
         machine: "mini-foo", thread: { space: "career", session: "foo-4" }, herdr: { machine: "mini-foo", workspaceLabel: "foo-home" }, lease: { host: "mini-foo", until: NOW + 120_000 } },
@@ -34,17 +34,17 @@ const PROMPTS = [
 ];
 const MACHINES = {
   machines: [
-    { id: "local", hostname: "foo-laptop", label: "Foo laptop", role: "client", current: true, herdr: "local" },
-    { id: "mini-foo", hostname: "mini-foo", label: "Mini foo", role: "hub", current: false, herdr: "saved" },
-    { id: "studio-foo", hostname: "studio-foo.local", label: "Studio foo", current: false, herdr: "missing" },
+    { id: "local", hostname: "foo-laptop", label: "foo-laptop", role: "client", current: true, herdr: "local" },
+    { id: "mini-foo", hostname: "mini-foo", label: "mini-foo", role: "hub", current: false, herdr: "saved" },
+    { id: "studio-foo", hostname: "studio-foo.local", label: "studio-foo", current: false, herdr: "missing" },
   ],
   agentKinds: ["claude", "codex", "gemini"],
 };
 const FIX = {
-  engine_work_list: { prompts: PROMPTS },
+  engine_work_list: { ok: true, view: "queue", prompts: PROMPTS },
   engine_work_machines: MACHINES,
-  engine_work_settings: { herdr: false, machine: "local" },
-  engine_work_add: { id: "p9", ts: NOW, text: "Renew the foo passport", surface: "desktop", machine: "local", tasks: [] },
+  engine_work_settings: { ok: true, settings: { herdr: false, workspace: "foo-work" } },
+  engine_work_add: { ok: true, prompt: { id: "p9", ts: NOW, text: "Renew the foo passport", surface: "desktop", machine: "foo-laptop", tasks: [] } },
   engine_work_route: { ok: true }, engine_work_action: { ok: true }, engine_work_answer: { ok: true },
   scan_vault: ["career", "health"].map((name) => ({ name, path: `/tmp/smoke-vault/data/domains/${name}`, has_state: true, state_preview: null })),
 };
@@ -89,7 +89,7 @@ test("route chip with Undo, re-route by machine, Pause, and suggestions", async 
   await task(page, 0).getByTestId("work-route-undo").click();
   await expect.poll(async () => (await calls(page, "engine_work_route"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", undo: true });
   await task(page, 0).getByTestId("work-task-machine").click();
-  await page.getByRole("menuitem", { name: /Mini foo/ }).click();
+  await page.getByRole("menuitem", { name: /mini-foo/ }).click();
   await expect.poll(async () => (await calls(page, "engine_work_route"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", machine: "mini-foo" });
   await task(page, 0).getByTestId("work-agent").click();
   await page.getByRole("menuitem", { name: "gemini" }).click();
@@ -100,7 +100,7 @@ test("route chip with Undo, re-route by machine, Pause, and suggestions", async 
   await task(page, 1).getByTestId("work-answer-yes").click();
   await expect.poll(async () => (await calls(page, "engine_work_answer"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t2", answer: "yes" });
   await task(page, 2).getByTestId("work-suggest-accept").click();
-  await expect.poll(async () => (await calls(page, "engine_work_action"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: "t3", action: "accept", n: 0 });
+  await expect.poll(async () => (await calls(page, "engine_work_action"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: "t3", action: "accept", n: 1 });
 });
 
 test("a done Herdr task shows Keep and Close and its mirrored output", async ({ page }) => {
@@ -125,9 +125,9 @@ test("the Herdr toggle and the machine picker go to the engine's settings", asyn
 test("a machine that is not connected shows the Add prompt with the command to confirm", async ({ page }) => {
   await openWork(page);
   await page.getByTestId("work-machine").click();
-  await page.getByRole("menuitem", { name: /Connect Studio foo/ }).click();
+  await page.getByRole("menuitem", { name: /Connect studio-foo/ }).click();
   const add = page.getByTestId("work-machine-add");
-  await expect(add).toContainText("Studio foo is not connected to Herdr");
+  await expect(add).toContainText("studio-foo is not connected to Herdr");
   await expect(add.getByTestId("work-machine-add-command")).toHaveText("herdr machine add --label studio-foo studio-foo.local");
   await expect(add.getByTestId("work-machine-add-confirm")).toBeDisabled();
   await add.getByLabel("SSH target").fill("foo@studio-foo.local");

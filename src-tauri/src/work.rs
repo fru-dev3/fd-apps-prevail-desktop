@@ -13,21 +13,28 @@ fn ok_label(s: &str) -> Result<&str, String> {
     }
 }
 
-/// One prompt into the queue. The body (`{ text, surface, machine?, herdr? }`)
-/// goes over stdin, so a long dictated prompt never meets argv limits.
+/// One prompt into the queue (`body`: `{ text, surface, machine?, agentKind? }`).
+/// The text goes over stdin, so a long dictated prompt never meets argv limits.
 #[tauri::command]
 pub(crate) async fn engine_work_add(vault: String, body: serde_json::Value) -> Result<serde_json::Value, String> {
-    let text = body.get("text").and_then(|t| t.as_str()).unwrap_or("");
+    let s = |k: &str| body.get(k).and_then(|t| t.as_str()).unwrap_or("").to_string();
+    let text = s("text");
     if text.trim().is_empty() { return Err("empty prompt".into()); }
     if text.len() > 20_000 { return Err("prompt too long".into()); }
-    blocking_stdin(v(&["--vault", &vault, "work", "add", "--file", "-"]), body.to_string()).await
+    let surface = s("surface");
+    let mut a = v(&["--vault", &vault, "work", "add", "--file", "-", "--surface", one_of(if surface.is_empty() { "desktop" } else { &surface }, &["desktop", "phone", "cli"])?]);
+    let machine = s("machine");
+    if !machine.is_empty() { a.push("--machine".into()); a.push(ok_id(&machine)?.to_string()); }
+    let kind = s("agentKind");
+    if !kind.is_empty() { a.push("--agent".into()); a.push(ok_id(&kind)?.to_string()); }
+    blocking_stdin(a, text).await
 }
 
 /// The queue (open prompts), or with `all` every prompt for the backlog.
 #[tauri::command]
 pub(crate) async fn engine_work_list(vault: String, all: Option<bool>) -> Result<serde_json::Value, String> {
     let mut a = v(&["--vault", &vault, "work", "list"]);
-    if all == Some(true) { a.push("--all".into()); }
+    if all == Some(true) { a.push("--view".into()); a.push("backlog".into()); }
     blocking(a).await
 }
 
@@ -38,12 +45,12 @@ pub(crate) async fn engine_work_show(vault: String, id: String) -> Result<serde_
 
 /// Re-route a task: a new destination (`kind:id`), machine or agent kind, or Undo the route.
 #[tauri::command]
-pub(crate) async fn engine_work_route(vault: String, id: String, to: Option<String>, machine: Option<String>, agent_kind: Option<String>, undo: Option<bool>) -> Result<serde_json::Value, String> {
+pub(crate) async fn engine_work_route(vault: String, id: String, dest: Option<String>, machine: Option<String>, agent_kind: Option<String>, undo: Option<bool>) -> Result<serde_json::Value, String> {
     let mut a = v(&["--vault", &vault, "work", "route", ok_id(&id)?]);
     if undo == Some(true) {
         a.push("--undo".into());
     } else {
-        if let Some(t) = to.filter(|t| !t.is_empty()) { a.push("--to".into()); a.push(ok_id(&t)?.to_string()); }
+        if let Some(t) = dest.filter(|t| !t.is_empty()) { a.push("--dest".into()); a.push(ok_id(&t)?.to_string()); }
         if let Some(m) = machine.filter(|m| !m.is_empty()) { a.push("--machine".into()); a.push(ok_id(&m)?.to_string()); }
         if let Some(k) = agent_kind.filter(|k| !k.is_empty()) { a.push("--agent".into()); a.push(ok_id(&k)?.to_string()); }
         if a.len() == 5 { return Err("nothing to change".into()); }
@@ -52,32 +59,40 @@ pub(crate) async fn engine_work_route(vault: String, id: String, to: Option<Stri
 }
 
 /// Pause, continue, start, stop; keep, close or reopen a Herdr tab; take a
-/// task over on this Mac; accept or decline suggestion `n`.
+/// task over on this Mac (continue-here: the user already said yes to taking
+/// a live lease); accept or decline suggestion `n` (1-based).
 #[tauri::command]
 pub(crate) async fn engine_work_action(vault: String, id: String, action: String, n: Option<u32>) -> Result<serde_json::Value, String> {
-    let act = one_of(&action, &["pause", "continue", "start", "stop", "keep", "close", "reopen", "continue-here", "accept", "decline"])?.to_string();
-    let mut a = v(&["--vault", &vault, "work", &act, ok_id(&id)?]);
-    if act == "accept" || act == "decline" {
-        a.push(n.ok_or("which suggestion?")?.to_string());
-    }
+    let act = one_of(&action, &["pause", "continue", "start", "stop", "keep", "close", "reopen", "continue-here", "accept", "decline"])?;
+    let id = ok_id(&id)?;
+    let a = match act {
+        "keep" | "close" | "reopen" => v(&["--vault", &vault, "work", "answer", id, act]),
+        "continue-here" => v(&["--vault", &vault, "work", "continue", id, "--yes"]),
+        "accept" | "decline" => {
+            let n = n.filter(|n| *n >= 1).ok_or("which suggestion?")?.to_string();
+            v(&["--vault", &vault, "work", act, id, &n])
+        }
+        _ => v(&["--vault", &vault, "work", act, id]),
+    };
     blocking(a).await
 }
 
-/// The user's answer to a task's question: yes / no to start, a Herdr
-/// workspace (existing label or `create`), keep / close.
+/// The user's answer to a task's question: yes or no (start, a Herdr
+/// workspace, a machine), or keep / close / reopen. A yes to the workspace
+/// question may name an existing workspace.
 #[tauri::command]
-pub(crate) async fn engine_work_answer(vault: String, id: String, answer: String) -> Result<serde_json::Value, String> {
-    let ans = ok_label(&answer)?.to_string();
-    blocking(vec!["--vault".into(), vault, "work".into(), "answer".into(), ok_id(&id)?.to_string(), ans]).await
+pub(crate) async fn engine_work_answer(vault: String, id: String, answer: String, workspace: Option<String>) -> Result<serde_json::Value, String> {
+    let ans = one_of(&answer, &["yes", "no", "keep", "close", "reopen"])?.to_string();
+    let mut a = vec!["--vault".into(), vault, "work".into(), "answer".into(), ok_id(&id)?.to_string(), ans];
+    if let Some(w) = workspace.filter(|w| !w.is_empty()) { a.push("--workspace".into()); a.push(ok_label(&w)?.to_string()); }
+    blocking(a).await
 }
 
-/// Work mode settings: read them (no arguments), or turn Herdr on or off and
-/// set the default machine.
+/// Work mode settings: read them (no arguments), or turn Herdr on or off.
 #[tauri::command]
-pub(crate) async fn engine_work_settings(vault: String, herdr: Option<bool>, machine: Option<String>) -> Result<serde_json::Value, String> {
+pub(crate) async fn engine_work_settings(vault: String, herdr: Option<bool>) -> Result<serde_json::Value, String> {
     let mut a = v(&["--vault", &vault, "work", "settings"]);
     if let Some(h) = herdr { a.push("--herdr".into()); a.push(if h { "on" } else { "off" }.into()); }
-    if let Some(m) = machine.filter(|m| !m.is_empty()) { a.push("--machine".into()); a.push(ok_id(&m)?.to_string()); }
     blocking(a).await
 }
 
@@ -93,10 +108,11 @@ pub(crate) async fn engine_work_machine_add(vault: String, label: String, target
     let l = ok_id(&label)?.to_string();
     let t = ok_label(&target)?.to_string();
     if t.contains(char::is_whitespace) { return Err("invalid ssh target".into()); }
-    blocking(vec!["--vault".into(), vault, "work".into(), "machine-add".into(), "--label".into(), l, t, "--yes".into()]).await
+    blocking(vec!["--vault".into(), vault, "work".into(), "machine-add".into(), "--label".into(), l, "--target".into(), t, "--yes".into()]).await
 }
 
 /// The Herdr workspaces open on a machine, for the "which workspace?" question.
+/// The engine may not list them yet; the card then offers only Create and Not now.
 #[tauri::command]
 pub(crate) async fn engine_work_herdr_workspaces(vault: String, machine: Option<String>) -> Result<serde_json::Value, String> {
     let mut a = v(&["--vault", &vault, "work", "workspaces"]);

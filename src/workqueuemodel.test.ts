@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  actionsFor, asMachines, asPrompts, asWorkspaces, backlog, engineLacksWork, FALLBACK_AGENT_KINDS, groupByGoal, leaseElsewhere,
+  actionsFor, asMachines, asPrompts, asSettings, asWorkspaces, backlog, engineLacksWork, FALLBACK_AGENT_KINDS, groupByGoal, leaseElsewhere,
   machineAddCommand, promptStatus, promptSummary, queuePrompts, type WorkPrompt, type WorkTask,
 } from "./workqueuemodel";
 
@@ -52,6 +52,15 @@ describe("work queue model", () => {
     expect(asPrompts({ prompts: [prompt()] })).toHaveLength(1);
     expect(asPrompts([prompt(), { nope: 1 }])).toHaveLength(1);
     expect(asPrompts(null)).toEqual([]);
+    expect(asPrompts({ ok: true, prompt: prompt({ id: "p9" }) }).map((p) => p.id)).toEqual(["p9"]);
+    const bl = asPrompts({ ok: true, view: "backlog", tasks: [
+      { ...task({ id: "a", promptId: "p1" }), prompt: { id: "p1", ts: 5, text: "foo", surface: "phone" } },
+      { ...task({ id: "b", promptId: "p1" }), prompt: { id: "p1", ts: 5, text: "foo", surface: "phone" } },
+      { ...task({ id: "c", promptId: "p2" }), prompt: { id: "p2", ts: 6, text: "bar", surface: "cli" } },
+    ] });
+    expect(bl.map((p) => [p.id, p.ts, p.surface, p.tasks.map((t) => t.id)])).toEqual([["p1", 5, "phone", ["a", "b"]], ["p2", 6, "cli", ["c"]]]);
+    expect("prompt" in bl[0].tasks[0]).toBe(false);
+    expect(asSettings({ ok: true, settings: { herdr: true, workspace: "foo-ws" } })).toEqual({ herdr: true, workspace: "foo-ws" });
     const m = asMachines({ machines: [{ id: "local", label: "Foo laptop", current: true, herdr: "local" }], agentKinds: ["claude", "codex"] });
     expect(m.machines[0].label).toBe("Foo laptop");
     expect(m.agentKinds).toEqual(["claude", "codex"]);
@@ -65,8 +74,8 @@ describe("work queue model", () => {
   });
 
   test("machines: the add command and the lease", () => {
-    expect(machineAddCommand({ id: "mini-foo", hostname: "mini-foo.local" })).toBe("herdr machine add --label mini-foo mini-foo.local");
-    expect(machineAddCommand({ id: "mini-foo" }, "sam@10.0.0.9")).toBe("herdr machine add --label mini-foo sam@10.0.0.9");
+    expect(machineAddCommand({ label: "mini-foo", hostname: "mini-foo.local" })).toBe("herdr machine add --label mini-foo mini-foo.local");
+    expect(machineAddCommand({ label: "mini-foo" }, "sam@10.0.0.9")).toBe("herdr machine add --label mini-foo sam@10.0.0.9");
     expect(leaseElsewhere(task(), "foo-laptop")).toEqual({ elsewhere: false, live: false });
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 2000 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: true });
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 500 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: false });
