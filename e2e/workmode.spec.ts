@@ -39,6 +39,7 @@ const MACHINES = {
     { id: "local", hostname: "foo-laptop", label: "foo-laptop", role: "client", current: true, herdr: "local" },
     { id: "mini-foo", hostname: "mini-foo", label: "mini-foo", role: "hub", current: false, herdr: "saved" },
     { id: "studio-foo", hostname: "studio-foo.local", label: "studio-foo", current: false, herdr: "missing" },
+    { id: "air-foo", label: "air-foo", current: false, herdr: "missing" },
   ],
   agentKinds: ["claude", "codex", "gemini"],
 };
@@ -256,25 +257,39 @@ test("the Herdr toggle and the run-at-once cap go to the engine's settings", asy
   await openWork(page);
   await page.getByTestId("work-herdr").click();
   await expect.poll(async () => (await calls(page, "engine_work_settings")).find((a) => "herdr" in a)).toEqual({ vault: "/tmp/smoke-vault", herdr: true });
-  await expect(page.getByTestId("work-herdr")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("work-herdr")).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("work-at-once")).toContainText("3 at once");
   await page.getByTestId("work-at-once").click();
   await page.getByRole("menuitem", { name: "5" }).click();
   await expect.poll(async () => (await calls(page, "engine_work_settings")).find((a) => "maxRunning" in a)).toEqual({ vault: "/tmp/smoke-vault", maxRunning: 5 });
 });
 
-test("a machine that is not connected shows the Add prompt with the command to confirm", async ({ page }) => {
+test("connecting a machine is one click: a known address runs behind the scenes, an unknown one is asked for", async ({ page }) => {
   await openWork(page);
   await page.getByTestId("work-machine").click();
   await page.getByRole("menuitem", { name: /Connect studio-foo/ }).click();
+  // Known address: nothing to copy or type, it just connects.
+  await expect.poll(async () => (await calls(page, "engine_work_machine_add"))[0]).toEqual({ vault: "/tmp/smoke-vault", label: "studio-foo", target: "studio-foo.local" });
+  await expect(page.getByTestId("work-machine-add")).toHaveCount(0);
+  // No address on record: one short question, then Connect.
+  await page.getByTestId("work-machine").click();
+  await page.getByRole("menuitem", { name: /Connect air-foo/ }).click();
   const add = page.getByTestId("work-machine-add");
-  await expect(add).toContainText("studio-foo is not connected to Herdr");
-  await expect(add.getByTestId("work-machine-add-command")).toHaveText("herdr machine add --label studio-foo studio-foo.local");
+  await expect(add).toContainText("Where is air-foo?");
   await expect(add.getByTestId("work-machine-add-confirm")).toBeDisabled();
-  await add.getByLabel("SSH target").fill("foo@studio-foo.local");
-  await expect(add.getByTestId("work-machine-add-command")).toHaveText("herdr machine add --label studio-foo foo@studio-foo.local");
+  await add.getByLabel("Machine address").fill("air-foo.local");
   await add.getByTestId("work-machine-add-confirm").click();
-  await expect.poll(async () => (await calls(page, "engine_work_machine_add"))[0]).toEqual({ vault: "/tmp/smoke-vault", label: "studio-foo", target: "foo@studio-foo.local" });
+  await expect.poll(async () => (await calls(page, "engine_work_machine_add"))[1]).toEqual({ vault: "/tmp/smoke-vault", label: "air-foo", target: "air-foo.local" });
+});
+
+test("an empty queue is one living orb: no list header, no repeated prompt", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockTauri(page, { ...FIX, engine_work_list: { ok: true, view: "queue", tasks: [], prompts: [], maxRunning: 3 } });
+  await page.goto("/");
+  await page.getByTestId("top-tab-queue").click({ timeout: 15_000 });
+  await expect(page.getByTestId("work-ready")).toBeVisible();
+  await expect(page.getByTestId("work-spine")).toHaveCount(0);
+  await expect(page.getByText("Send a prompt")).toHaveCount(0);
 });
 
 test("a task held by another Mac offers Continue here, asking first while that lease is live", async ({ page }) => {

@@ -8,8 +8,8 @@
 // while the tab is on screen.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertCircle, AppWindow, ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpRight, ArrowUpToLine, Bot, CalendarDays, Check, CheckCircle2, Circle, Clock, Folder,
-  FolderKanban, Gauge, GripVertical, Hand, Layers, ListTodo, Loader2, Mic, Monitor, Pause, Play, Plug, RotateCcw, Search, Send, Square, TerminalSquare, User, X,
+  AlertCircle, ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpRight, ArrowUpToLine, Bot, CalendarDays, Check, CheckCircle2, Circle, Clock, Folder,
+  FolderKanban, Gauge, GripVertical, Laptop, Server, Hand, Layers, ListTodo, Loader2, Mic, Pause, Play, Plug, RotateCcw, Search, Send, Square, User, X,
   type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
@@ -28,7 +28,7 @@ import type { EngineApp } from "./types";
 import { lsGet, lsSet } from "./storage";
 import {
   ACTION_LABEL, actionsFor, asMachines, asPrompts, asQueue, asSettings, asWorkspaces, backlog, canDispatchTo, engineLacksWork, groupByGoal, HERDR_STATE_LABEL,
-  leaseElsewhere, machineAddCommand, machineLabel, mirrorTail, moveInQueue, queueSummary, STATUS_LABEL, STATUS_TONE,
+  leaseElsewhere, machineLabel, mirrorTail, moveInQueue, queueSummary, STATUS_LABEL, STATUS_TONE,
   type BacklogFilter, type DestKind, type Destination, type Machine, type QueueTask, type WorkAction, type WorkPrompt, type WorkSettings, type WorkStatus, type WorkTask,
 } from "./workqueuemodel";
 
@@ -253,15 +253,16 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   const machineItems: RowMenuItem[] = [
     { kind: "heading", label: "Send work to" },
     ...(machines.length === 0 ? [{ kind: "heading" as const, label: "Only this Mac for now" }] : machines.map((m): RowMenuItem => canDispatchTo(m)
-      ? { label: m.label, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: Monitor, checked: m.label === pick, onClick: () => setMachine(m.label) }
-      : { label: `Connect ${m.label}`, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: Plug, onClick: () => setAdding(m) })),
+      ? { label: m.label, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: tinted(machineLook(m).Icon, machineLook(m).color), checked: m.label === pick, onClick: () => setMachine(m.label) }
+      : { label: `Connect ${m.label}`, hint: [m.role ? titleCase(m.role) : "", HERDR_STATE_LABEL[m.herdr]].filter(Boolean).join(" · "), icon: tinted(machineLook(m).Icon, machineLook(m).color), onClick: () => setAdding(m) })),
   ];
+  const pickLook = machineLook(machines.find((m) => m.label === pick) ?? { label: pick });
+  const PickIcon = pickLook.Icon;
   const atOnce = settings.maxRunning ?? 3;
   const atOnceItems: RowMenuItem[] = [
     { kind: "heading", label: "Tasks running at once" },
     ...RUN_AT_ONCE.map((k): RowMenuItem => ({ label: String(k), checked: k === atOnce, onClick: () => { if (k !== atOnce) setMaxRunning(k); } })),
   ];
-  const chromeBtn = "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] text-text-muted transition-colors hover:bg-surface-warm hover:text-text-secondary";
 
   const composer = (
     <div className="shrink-0 border-b border-border px-4 pb-3 pt-3 sm:px-6">
@@ -285,15 +286,11 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
       </div>
       {dict.err && <p className="mt-1 text-[12px] text-warn">{dict.err}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <button type="button" data-testid="work-herdr" aria-pressed={settings.herdr} onClick={() => setHerdr(!settings.herdr)}
-          title={settings.herdr ? "Herdr is on: work runs in a Herdr tab" : "Herdr is off: the engine runs the work"}
-          className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] transition-colors ${settings.herdr ? "bg-accent-soft font-medium text-accent" : "text-text-muted hover:bg-surface-warm hover:text-text-secondary"}`}>
-          <TerminalSquare className="h-3.5 w-3.5" />Herdr{settings.herdr ? " on" : " off"}
-        </button>
+        <HerdrSwitch on={settings.herdr} onChange={setHerdr} />
         <RowMenu items={machineItems} label="Machine" testId="work-machine"
-          trigger={<><Monitor className="h-3.5 w-3.5" />{machineLabel(machines, pick)}</>} triggerClass={chromeBtn} />
+          trigger={<><PickIcon className="h-4 w-4" style={{ color: pickLook.color }} />{machineLabel(machines, pick)}</>} triggerClass={PILL} />
         <RowMenu items={atOnceItems} label="Tasks running at once" testId="work-at-once"
-          trigger={<><Gauge className="h-3.5 w-3.5" />{atOnce} at once</>} triggerClass={chromeBtn} />
+          trigger={<><Gauge className="h-4 w-4 text-[#d97706]" />{atOnce} at once</>} triggerClass={PILL} />
         <span className="flex-1" />
         <SpineTabs label="Work view" value={view} onChange={(v) => { setView(v); setSel(null); }}
           tabs={[{ id: "queue", label: "Queue", icon: ListTodo }, { id: "backlog", label: "Backlog", icon: FolderKanban }]} />
@@ -303,7 +300,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   );
 
   const list = view === "queue" ? (
-    <QueueList tasks={queue} pending={pending} sel={pendingShown ? pendingShown.id : shownId} loaded={loaded} machines={machines}
+    <QueueList tasks={queue} pending={pending} sel={pendingShown ? pendingShown.id : shownId} machines={machines}
       onSelect={setSel} onMove={move} dragging={dragging} />
   ) : (
     <div className="px-2 pb-3">
@@ -352,14 +349,14 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
       )}
     </div>
   ) : (
-    <div className="flex h-full items-center justify-center px-6 text-[14px] text-text-muted">{loaded ? "Send a prompt to start." : <Loader2 className="h-4 w-4 animate-spin" />}</div>
+    <div className="flex h-full items-center justify-center px-6 text-[14px] text-text-muted">{loaded ? null : <Loader2 className="h-4 w-4 animate-spin" />}</div>
   );
 
   return (
     <div data-testid="work-queue" className="flex h-full min-h-0 flex-col">
       {composer}
       {err && <p data-testid="work-error" className="shrink-0 px-6 pt-2 text-[12px] text-err">{err}</p>}
-      <div className="flex min-h-0 flex-1">
+      {view === "queue" && loaded && queue.length === 0 && pending.length === 0 ? <ReadyOrb /> : <div className="flex min-h-0 flex-1">
         <SideSpine storageKey="prevail.work.spine" wide title={view === "queue" ? "Queue" : "Backlog"} label="work" testId="work-spine"
           meta={view === "queue" ? queueSummary(queue) : `${rows.length} ${rows.length === 1 ? "task" : "tasks"}`}
           toolbar={view === "backlog" ? (
@@ -375,7 +372,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
           detail={detail}>
           {list}
         </SideSpine>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -385,8 +382,8 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
  * line shows where it lands), or move it from the row's menu or with
  * Alt+Arrow Up/Down on the focused row.
  */
-function QueueList({ tasks, pending, sel, loaded, machines, onSelect, onMove, dragging }: {
-  tasks: QueueTask[]; pending: Pending[]; sel: string | null; loaded: boolean; machines: Machine[];
+function QueueList({ tasks, pending, sel, machines, onSelect, onMove, dragging }: {
+  tasks: QueueTask[]; pending: Pending[]; sel: string | null; machines: Machine[];
   onSelect: (id: string) => void; onMove: (id: string, at: number) => void; dragging: React.MutableRefObject<boolean>;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -408,7 +405,6 @@ function QueueList({ tasks, pending, sel, loaded, machines, onSelect, onMove, dr
   );
   return (
     <div ref={listRef} data-testid="work-queue-list" className="px-2 pb-3">
-      {tasks.length === 0 && pending.length === 0 && loaded && <p className="px-2 py-6 text-[13px] text-text-muted">Nothing in the queue. Send a prompt above.</p>}
       {tasks.map((t, i) => {
         const I = STATUS_ICON[t.status];
         const on = sel === t.id;
@@ -484,8 +480,8 @@ function TaskRow({ t, machines, agentKinds, domains, host, busy, vault, run, onA
     ...(domains.length ? [{ kind: "heading" as const, label: "Domains" }, ...domains.filter((d) => !(t.dest?.kind === "domain" && t.dest.id === d)).map((d): RowMenuItem => ({ icon: Layers, label: titleCase(d), onClick: () => void route({ dest: `domain:${d}` }) }))] : []),
   ];
   const machineItems: RowMenuItem[] = machines.length === 0 ? [{ kind: "heading", label: "No other machines yet" }] : machines.map((m): RowMenuItem => canDispatchTo(m)
-    ? { icon: Monitor, label: m.label, hint: HERDR_STATE_LABEL[m.herdr], checked: m.label === t.machine, onClick: () => { if (m.label !== t.machine) void route({ machine: m.label }); } }
-    : { icon: Plug, label: `Connect ${m.label}`, hint: HERDR_STATE_LABEL[m.herdr], onClick: () => onAddMachine(m) });
+    ? { icon: tinted(machineLook(m).Icon, machineLook(m).color), label: m.label, hint: HERDR_STATE_LABEL[m.herdr], checked: m.label === t.machine, onClick: () => { if (m.label !== t.machine) void route({ machine: m.label }); } }
+    : { icon: tinted(machineLook(m).Icon, machineLook(m).color), label: `Connect ${m.label}`, hint: HERDR_STATE_LABEL[m.herdr], onClick: () => onAddMachine(m) });
   const kindItems: RowMenuItem[] = agentKinds.map((k) => ({ icon: Bot, label: k, checked: k === t.agentKind, onClick: () => { if (k !== t.agentKind) void route({ agentKind: k }); } }));
   const acts = actionsFor(t);
   const more: RowMenuItem[] = [
@@ -517,13 +513,13 @@ function TaskRow({ t, machines, agentKinds, domains, host, busy, vault, run, onA
           </button>
         )}
         <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5" />{t.agentKind}</>} triggerClass={chip} />
-        <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><Monitor className="h-3.5 w-3.5" />{machineLabel(machines, t.machine)}</>} triggerClass={chip} />
+        <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<>{(() => { const l = machineLook(machines.find((m) => m.label === t.machine) ?? { label: t.machine }); return <l.Icon className="h-3.5 w-3.5" style={{ color: l.color }} />; })()}{machineLabel(machines, t.machine)}</>} triggerClass={chip} />
         {t.specialists.length > 0 && (
           <span className="ml-1 flex items-center -space-x-1" title={t.specialists.map(titleCase).join(", ")}>
             {t.specialists.map((s) => <SpecialistAvatar key={s} id={s} size={20} state={t.status === "running" ? "working" : "idle"} label={titleCase(s)} />)}
           </span>
         )}
-        {t.executor === "herdr" && <span className="ml-1 inline-flex items-center gap-1 text-[12px] text-text-muted"><TerminalSquare className="h-3.5 w-3.5" />{t.herdr?.workspaceLabel || "Herdr"}</span>}
+        {t.executor === "herdr" && <span className="ml-1 inline-flex items-center gap-1 text-[12px] text-text-muted"><img src="/herdr.png" alt="" className="h-3.5 w-3.5 rounded-[3px]" />{t.herdr?.workspaceLabel || "Herdr"}</span>}
       </div>
 
       {t.ask && <Ask t={t} vault={vault} machines={machines} answer={answer} onAddMachine={onAddMachine} busy={mine} />}
@@ -605,35 +601,84 @@ function Ask({ t, vault, machines, answer, onAddMachine, busy }: {
   );
 }
 
-/** Connect a Mac to Herdr: the command is shown, the user types the SSH target and confirms. Nothing runs before that. */
-function MachineAdd({ machine, vault, onDone }: { machine: Machine; vault: string; onDone: () => void }) {
-  const [target, setTarget] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const confirm = async () => {
-    setBusy(true); setErr(null);
-    try { await invoke("engine_work_machine_add", { vault, label: machine.label, target: target.trim() }); onDone(); }
-    catch (e) { setErr(String(e)); }
-    finally { setBusy(false); }
-  };
+
+// Each Mac gets its own colour and shape, so a glance tells them apart: the
+// always-on hub (or a mini) is a server, the rest are laptops.
+const MACHINE_COLORS = ["#2563eb", "#7c3aed", "#d97706", "#0d9488", "#db2777", "#16a34a"];
+function machineLook(m: Pick<Machine, "label" | "hostname" | "role"> | undefined): { Icon: LucideIcon; color: string } {
+  const key = `${m?.label ?? ""}`;
+  let h = 0;
+  for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const server = m?.role === "hub" || /mini|studio|server|\bmm\b/i.test(`${m?.label ?? ""} ${m?.hostname ?? ""}`);
+  return { Icon: server ? Server : Laptop, color: MACHINE_COLORS[h % MACHINE_COLORS.length]! };
+}
+/** A Lucide icon drawn in a fixed colour, for menus that take an icon component. */
+function tinted(I: LucideIcon, color: string): LucideIcon {
+  const C = ((p: React.ComponentProps<LucideIcon>) => <I {...p} style={{ ...(p.style ?? {}), color }} />) as unknown as LucideIcon;
+  return C;
+}
+const PILL = "inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-text-primary";
+
+/** Herdr, by its own mark, with a switch that slides on and off. */
+function HerdrSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div data-testid="work-machine-add" className="mt-2 rounded-lg border border-border-subtle bg-surface px-3 py-2.5">
-      <div className="flex items-start gap-2">
-        <AppWindow className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-medium text-text-primary">{machine.label} is not connected to Herdr</p>
-          <p className="mt-0.5 text-[13px] text-text-muted">Connecting runs this once on this Mac:</p>
-          <code data-testid="work-machine-add-command" className="mt-1.5 block overflow-x-auto whitespace-nowrap rounded-md bg-surface-warm px-2 py-1 font-mono text-[12px] text-text-secondary">{machineAddCommand(machine, target)}</code>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder={machine.hostname ? `SSH target, like ${machine.hostname}` : "SSH target"} aria-label="SSH target"
-              className="h-8 min-w-[12rem] flex-1 rounded-md border border-border bg-background px-2 text-[13px] outline-none focus:border-accent-border" />
-            <button type="button" data-testid="work-machine-add-confirm" disabled={busy || !target.trim()} onClick={() => void confirm()}
-              className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-[13px] font-medium text-background disabled:opacity-40">Connect</button>
-            <button type="button" onClick={onDone} className={textBtn}>Cancel</button>
-          </div>
-          {err && <p className="mt-1 text-[12px] text-err">{err}</p>}
-        </div>
+    <button type="button" role="switch" aria-checked={on} data-testid="work-herdr" onClick={() => onChange(!on)}
+      title={on ? "Herdr is on: work runs in a Herdr tab you can watch" : "Herdr is off: Prevail runs the work itself"}
+      className={`${PILL} pr-1.5`}>
+      <img src="/herdr.png" alt="" className="h-[18px] w-[18px] rounded-[5px]" />
+      Herdr
+      <span aria-hidden className={`relative ml-0.5 inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${on ? "bg-accent" : "bg-border"}`}>
+        <span className={`absolute left-[2px] h-[14px] w-[14px] rounded-full bg-background shadow transition-transform ${on ? "translate-x-[14px]" : ""}`} />
+      </span>
+    </button>
+  );
+}
+
+/** The empty queue: one living orb that says Prevail is here and ready, nothing else. */
+function ReadyOrb() {
+  return (
+    <div data-testid="work-ready" className="flex h-full flex-col items-center justify-center gap-5 px-6">
+      <div className="relative h-28 w-28" aria-hidden>
+        <div className="absolute inset-0 animate-spin rounded-full opacity-70 blur-xl motion-reduce:animate-none"
+          style={{ animationDuration: "9s", background: "conic-gradient(from 0deg, #22c55e, #14b8a6, #3b82f6, #8b5cf6, #22c55e)" }} />
+        <div className="absolute inset-2 animate-spin rounded-full motion-reduce:animate-none"
+          style={{ animationDuration: "14s", animationDirection: "reverse", background: "conic-gradient(from 90deg, #16a34a, #0ea5e9, #6366f1, #a855f7, #16a34a)" }} />
+        <div className="absolute inset-2 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.85), rgba(255,255,255,0.15) 38%, transparent 62%)" }} />
+        <div className="absolute inset-0 animate-pulse rounded-full ring-1 ring-white/30 motion-reduce:animate-none" />
       </div>
+      <p className="text-[15px] font-medium text-text-secondary">Ready for work</p>
+    </div>
+  );
+}
+
+/** Connect a Mac to Herdr in one click: Prevail runs it behind the scenes and only asks for an address it does not know. */
+function MachineAdd({ machine, vault, onDone }: { machine: Machine; vault: string; onDone: () => void }) {
+  const [target, setTarget] = useState(machine.hostname ?? "");
+  const [state, setState] = useState<"ask" | "busy" | "err">(machine.hostname ? "busy" : "ask");
+  const [err, setErr] = useState<string | null>(null);
+  const { Icon, color } = machineLook(machine);
+  const connect = useCallback(async (to: string) => {
+    setState("busy"); setErr(null);
+    try { await invoke("engine_work_machine_add", { vault, label: machine.label, target: to.trim() }); onDone(); }
+    catch (e) { setErr(String(e)); setState("err"); }
+  }, [vault, machine.label, onDone]);
+  // Known address: connect straight away, nothing to copy or type.
+  const started = useRef(false);
+  useEffect(() => { if (machine.hostname && !started.current) { started.current = true; void connect(machine.hostname); } }, [machine.hostname, connect]);
+  return (
+    <div data-testid="work-machine-add" className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: `${color}1f` }}><Icon className="h-4 w-4" style={{ color }} /></span>
+      {state === "busy" && <span className="flex items-center gap-2 text-[14px] text-text-secondary"><Loader2 className="h-4 w-4 animate-spin" />Connecting {machine.label}</span>}
+      {state !== "busy" && <>
+        <span className="text-[14px] text-text-secondary">{state === "err" ? `Could not connect ${machine.label}` : `Where is ${machine.label}?`}</span>
+        <input value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && target.trim()) void connect(target); }}
+          placeholder="its address, like mini.local" aria-label="Machine address"
+          className="h-8 min-w-[12rem] flex-1 rounded-full border border-border bg-background px-3 text-[13px] outline-none focus:border-accent-border" />
+        <button type="button" data-testid="work-machine-add-confirm" disabled={!target.trim()} onClick={() => void connect(target)}
+          className="inline-flex h-8 items-center rounded-full bg-accent px-3.5 text-[13px] font-medium text-background disabled:opacity-40">{state === "err" ? "Try again" : "Connect"}</button>
+      </>}
+      <button type="button" onClick={onDone} className={textBtn}>{state === "busy" ? "Hide" : "Cancel"}</button>
+      {err && <p className="w-full text-[12px] text-err">{err}</p>}
     </div>
   );
 }
