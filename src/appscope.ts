@@ -6,6 +6,7 @@
 //   prevail apps add-source --kind K --url U --name N --json
 //   prevail apps accounts <id> --json            -> [{ id, label?, default, via }]
 import { invoke } from "./bridge";
+import { requestEntity } from "./entitystore";
 import { useInvokeQuery } from "./query";
 import type { ChatStep } from "./types";
 import type { MirrorApp, MirrorTool, RuntimeId } from "./appsmirror-model";
@@ -161,18 +162,23 @@ export function runtimeName(r: string): string {
 }
 
 // ── Opening an app from anywhere ────────────────────────────────────────────
-// The Apps page reads which tab to show (and a thread filter for Activity)
-// from here, set before the usual mirror-select handoff.
+// An app is a product with a connector: it opens on its product's page (App
+// tab), which reads which app tab to show (and a thread filter for Activity)
+// from here.
 export const APP_FOCUS_KEY = "prevail.apps.focus";
 export type AppFocus = { id: string; tab: "chat" | "activity" | "tools" | "connection"; thread?: string };
 export function openApp(focus: AppFocus) {
-  try {
-    sessionStorage.setItem("prevail.apps.mirror.select", focus.id);
-    sessionStorage.setItem(APP_FOCUS_KEY, JSON.stringify(focus));
-  } catch { /* storage off */ }
-  window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "apps" }));
-  window.dispatchEvent(new CustomEvent("prevail:mirror-select", { detail: focus.id }));
+  try { sessionStorage.setItem(APP_FOCUS_KEY, JSON.stringify(focus)); } catch { /* storage off */ }
+  requestEntity({ kind: "product", value: focus.id });
   window.dispatchEvent(new CustomEvent("prevail:app-focus", { detail: focus }));
+}
+/** The app tab a product page should open on, when an openApp is waiting for it (not taken). */
+export function peekAppFocus(id: string): AppFocus | null {
+  try {
+    const raw = sessionStorage.getItem(APP_FOCUS_KEY);
+    const f = raw ? JSON.parse(raw) as AppFocus : null;
+    return f?.id === id ? f : null;
+  } catch { return null; }
 }
 export function takeAppFocus(id: string): AppFocus | null {
   try {

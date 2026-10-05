@@ -45,14 +45,14 @@ export function useToolList(): Tool[] {
       desc: "Call your connected apps' tools (Gmail, AllTrails, QuickBooks) over MCP. Pass-through connectors you authorized in Claude Code, Codex, or Gemini ride here too.",
       governance: "Per-app connection plus the autonomy brake. Consequential writes queue for your approval.",
       state: "on",
-      manage: { label: "Manage in Apps", section: "apps" },
+      manage: { label: "Manage in Products", section: "connectors" },
     },
     {
       name: "Browser", glyph: "◍",
       desc: "Drive a real browser: open a site, log in once, learn the steps, and replay them fast later. For apps with no API or MCP.",
       governance: bunker ? "Off in Bunker Mode (no network leaves this device)." : "Per-connector setup; runs in a dedicated profile scoped to the site.",
       state: bunker ? "soon" : "on",
-      manage: { label: "Set up in Apps", section: "apps" },
+      manage: { label: "Set up in Products", section: "connectors" },
     },
     {
       name: "Memory", glyph: "◇",

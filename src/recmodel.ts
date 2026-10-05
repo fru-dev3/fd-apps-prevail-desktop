@@ -7,7 +7,7 @@ import { invoke } from "./bridge";
 import { titleCase } from "./format";
 import { lsGet, lsSet } from "./storage";
 import { requestEntity, type EntityKindName } from "./entitystore";
-import { MIRROR_SELECT_KEY } from "./appsmirror-parts";
+import { openApp as openAppPage } from "./appscope";
 import { openStructure } from "./missions";
 
 export type RecCategory = "rules" | "projects" | "structure" | "apps" | "people" | "models" | "context";
@@ -135,10 +135,9 @@ export function openProject(slug: string) {
   fire("prevail:intent-project", slug);
 }
 
+// An app opens on its product's page (App tab, Connection).
 export function openApp(id: string) {
-  try { sessionStorage.setItem(MIRROR_SELECT_KEY, id); } catch { /* storage off */ }
-  fire("prevail:open-settings", "apps");
-  fire("prevail:mirror-select", id);
+  openAppPage({ id, tab: "connection" });
 }
 
 export function openEvidence(ev: RecEvidence) {
@@ -174,7 +173,7 @@ export function doItLabel(r: Rec): string {
     case "signin_app": return "Open the app to sign in";
     case "sync_app": return "Open the app to sync";
     case "draft_recipe": return "Open the app to draft a recipe";
-    case "connect_app": return "Open Apps";
+    case "connect_app": return "Open connections";
     case "improve_context": return "Open the domain";
     case "structure_suggestion": return "Review the suggestion";
     default: return "Open";
@@ -215,8 +214,8 @@ export async function applyRec(rec: Rec, vaultPath: string): Promise<string> {
       if (a.domain) fire("prevail:open-domain", a.domain);
       return "Opened the domain.";
     case "connect_app":
-      fire("prevail:open-settings", "apps");
-      return "Opened Apps.";
+      fire("prevail:open-settings", "connectors");
+      return "Opened Connections.";
     case "signin_app": case "sync_app": case "draft_recipe":
       if (a.app) openApp(a.app);
       return "Opened the app.";

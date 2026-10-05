@@ -355,7 +355,7 @@ export function ReviewCardView({ card, vaultPath, onAsk, onChanged }: { card: Re
         </div>
       )}
       {card.apps && <p className={`${BODY} mt-3 break-words text-text-secondary`} data-testid="review-apps">{card.apps}</p>}
-      {card.stackDiff && <button type="button" onClick={() => { try { localStorage.setItem("prevail.apps.stack.sel", "said"); } catch { /* storage off */ } window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "apps" })); }} className={`${BODY} mt-2 block text-left text-accent hover:underline`} data-testid="review-stack-diff">{card.stackDiff}</button>}
+      {card.stackDiff && <button type="button" onClick={() => { try { localStorage.setItem("prevail.apps.stack.sel", "said"); } catch { /* storage off */ } window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "stack" })); }} className={`${BODY} mt-2 block text-left text-accent hover:underline`} data-testid="review-stack-diff">{card.stackDiff}</button>}
       {card.exportReminder && <p className={`${BODY} mt-2 break-words text-text-secondary`} data-testid="review-export-reminder">{card.exportReminder}</p>}
       {(card.guardrails ?? []).map((g) => <p key={g} className={`${BODY} mt-2 break-words text-warn`} data-testid="review-guardrail">Guardrail: {g}</p>)}
       {card.hypothesis && (

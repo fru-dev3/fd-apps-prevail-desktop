@@ -618,7 +618,7 @@ export function DomainContextView({
           </>
         )}
         {/* Every call this domain's conversations made to an app. */}
-        <CtxSection keyName="apps-used" title="Apps used" file="data/apps/*/_log/access.jsonl" body={
+        <CtxSection keyName="apps-used" title="Apps used" file="data/entities/products/*/_log/access.jsonl" body={
           <AppActivity vaultPath={vaultPath} filter={{ domain: domain || "general", limit: 100 }} showApp
             empty={`No app calls from ${where} yet. When a conversation here reads from or writes to an app, it shows here.`} />
         } />

@@ -109,8 +109,10 @@ function AppChat({ vaultPath, app, threads, request, onCurrent, onThreadsChanged
 
 export type AppTab = AppFocus["tab"];
 
-export function AppScopeView({ vaultPath, app, subtitle, actions, tools, connection, notice, activityNote }: {
+export function AppScopeView({ vaultPath, app, subtitle, actions, tools, connection, notice, activityNote, embedded = false }: {
   vaultPath: string;
+  // Inside a product's page: the page already shows the name and logo.
+  embedded?: boolean;
   app: { id: string; name: string; url?: string; runtime?: string };
   // "via Claude · Connected": where it comes from and its state, in words.
   subtitle: ReactNode;
@@ -191,16 +193,23 @@ export function AppScopeView({ vaultPath, app, subtitle, actions, tools, connect
   const pane = (t: AppTab) => `${tab === t ? "" : "hidden"} ${phone ? "" : "min-h-0 flex-1 overflow-y-auto"}`;
 
   return (
-    <div data-testid="app-scope" className={`flex min-h-0 flex-col px-4 pt-4 sm:px-6 ${phone ? "" : "h-full"}`}>
+    <div data-testid="app-scope" className={`flex min-h-0 flex-col ${embedded ? "pt-3" : "px-4 pt-4 sm:px-6"} ${phone ? "" : "h-full"}`}>
       <div className="shrink-0">
-        <div className="flex items-center gap-3" data-testid="app-header">
-          <AppLogo name={app.name} url={app.url} size={32} />
-          <div className="min-w-0 flex-1">
-            <DetailTitle className="truncate">{app.name}</DetailTitle>
-            <p className={`${META} truncate`}>{subtitle}</p>
+        {embedded ? (
+          <div className="flex items-center gap-3" data-testid="app-header">
+            <p className={`${META} min-w-0 flex-1 truncate`}>{subtitle}</p>
+            {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
-        </div>
+        ) : (
+          <div className="flex items-center gap-3" data-testid="app-header">
+            <AppLogo name={app.name} url={app.url} size={32} />
+            <div className="min-w-0 flex-1">
+              <DetailTitle className="truncate">{app.name}</DetailTitle>
+              <p className={`${META} truncate`}>{subtitle}</p>
+            </div>
+            {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
+          </div>
+        )}
         {notice && <div className="mt-3">{notice}</div>}
         <div className="mt-3 flex items-center gap-2 border-b border-border-subtle">
           <div role="tablist" aria-label={app.name} data-scroll-x className="-mb-px flex min-w-0 flex-1 overflow-x-auto">

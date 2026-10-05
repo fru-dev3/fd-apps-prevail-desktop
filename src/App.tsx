@@ -50,6 +50,8 @@ import { CommandPalette, type Command } from "./commandpalette";
 import { EDITOR_NAV, REMOVED_SECTIONS, WORK_NAV, noteCompassFocus, noteToolkitGroup, workSection } from "./navdefs";
 import { GROUP_LABEL as IA_GROUP_LABEL, KINDS as IA_KINDS, kindOfId, noteIaKind, openKind } from "./ia";
 import { loadEntities, requestEntity, setEntityVault, useEntityStore } from "./entitystore";
+import { toast } from "./toast";
+import { migrateProductsOnOpen } from "./productsmigrate";
 import { openMission, useMissions } from "./missions";
 
 // Single source of truth for the version chip in title bar.
@@ -334,9 +336,13 @@ export default function App() {
     if (isBrowser() || !vaultPath) return;
     if (migratedVaults.current.has(vaultPath)) return;
     migratedVaults.current.add(vaultPath);
-    void invoke("engine_vault_migrate_v4", { vault: vaultPath })
+    const v = vaultPath;
+    void invoke("engine_vault_migrate_v4", { vault: v })
       .then(() => window.dispatchEvent(new CustomEvent("prevail:vault-migrated")))
-      .catch((e) => console.error("vault migrate-v4", e));
+      .catch((e) => console.error("vault migrate-v4", e))
+      // Then fold old app and company page trees into Products (only when
+      // they exist; the engine never overwrites and the hub goes first).
+      .then(() => migrateProductsOnOpen(v, invoke, toast));
   }, [vaultPath]);
   // Is this vault encrypted (F4 Phase 1)? Checked once the vault path resolves.
   // If it is, the LockScreen unlocks the keyring (sets the DEK) before the app
@@ -1432,7 +1438,7 @@ export default function App() {
       { id: "act:new-chat", label: "New chat", hint: "⌘K", group: "Actions", icon: MessageSquarePlus, keywords: "conversation ask", run: () => { setSelectedDomain(""); setActiveThreadPath(null); setTab("chat"); } },
       { id: "act:inbox", label: "Open inbox", group: "Actions", icon: Inbox, keywords: "decisions approvals needs you", run: () => openWorkAt("inbox") },
       { id: "act:tasks", label: "Open tasks", group: "Actions", icon: ListChecks, keywords: "tasks todo work board", run: () => openWorkAt("task-list") },
-      { id: "act:apps", label: "Open apps", group: "Actions", icon: Plug, keywords: "apps connectors", run: () => openWorkAt("apps") },
+      { id: "act:apps", label: "Open products", group: "Actions", icon: Plug, keywords: "products apps connectors companies", run: () => openWorkAt("products") },
       { id: "act:toggle-rail", label: "Toggle domain rail", hint: "⌘B", group: "Actions", icon: ChevronsLeft, keywords: "sidebar hide show", run: () => setSidebarCollapsed((v) => !v) },
       { id: "act:settings", label: "Open settings", hint: "⌘,", group: "Actions", icon: SettingsIcon, keywords: "preferences config", run: () => setTab("settings") },
     );
@@ -2034,12 +2040,12 @@ export default function App() {
               {!navCollapsed && (<>
               {onApp ? (
                 // An open app shows ITS OWN controls, independent of the domain it
-                // grounds in. Details opens the Apps screen, where connectors,
-                // recipes and the browser lane live.
+                // grounds in. Details opens its product's page, where its
+                // connection, sync recipe and skills live.
                 <>
                   <button
-                    onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))}
-                    title="Open Apps: connectors, sync recipes and sites"
+                    onClick={() => requestEntity({ kind: "product", value: selectedApp.id })}
+                    title="Open its product page: connection, sync recipe and skills"
                     className="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[13px] text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
                   >
                     <Layers className="h-4 w-4" /> Details

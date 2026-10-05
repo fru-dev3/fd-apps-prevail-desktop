@@ -205,8 +205,8 @@ async function openActivitySource(e: ActivityEvent, vaultPath: string): Promise<
           ? apps.find((x) => x.id === key || x.title?.toLowerCase() === String(key).toLowerCase())
           : undefined;
         if (a) { window.dispatchEvent(new CustomEvent("prevail:open-app", { detail: a })); return; }
-      } catch { /* fall through to the Apps list */ }
-      window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }));
+      } catch { /* fall through to the connections list */ }
+      window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }));
       return;
     }
     default:

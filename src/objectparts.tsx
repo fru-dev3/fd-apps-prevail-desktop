@@ -4,7 +4,8 @@
 //            and a service history.
 //   Events   when, where, with whom, its project, and the calendar question,
 //            which only the user's own click answers.
-//   Products the app records a company carries.
+//   Products its app, when it has one: chat, activity, tools, connection
+//            and skills, all on the product's own page.
 // The engine owns every rule (`prevail entities set|link|links|service|
 // event-calendar|event-project`); this draws them and sends the user's edits.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -17,8 +18,10 @@ import { RUNTIME_LABEL, RUNTIME_MARK, type MirrorApp, type MirrorList } from "./
 import { ProviderMark } from "./marks";
 import { useInvokeQuery } from "./query";
 import { openApp } from "./appscope";
+import { MirrorDetail } from "./appsmirror-detail";
+import { AppScopeView } from "./appchat";
 import { META } from "./typescale";
-import { fmtDay, kindOfId, KINDS, todayYmd, type AppRecord, type KindId, type LinkView, type ObjectFields } from "./ia";
+import { currentHead, fmtDay, kindOfId, KINDS, todayYmd, type AppRecord, type KindId, type LinkView, type ObjectFields } from "./ia";
 
 const fire = (name: string) => window.dispatchEvent(new CustomEvent(name));
 const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
@@ -27,11 +30,12 @@ const inputCls = "h-8 min-w-0 rounded-lg border border-border bg-background px-2
 
 /** Open any object where it lives: an entity or event page, or a project. */
 export function openObject(id: string): void {
-  const [head, ...rest] = id.split("/");
+  const [raw, ...rest] = id.split("/");
+  const head = currentHead(raw ?? "");
   const slug = rest.join("/");
   if (head === "mission" || head === "project") { openMission(slug); return; }
   if (head === "app") { openApp({ id: slug, tab: "chat" }); return; }
-  if (["person", "place", "org", "thing", "event"].includes(head!)) requestEntity({ kind: head as EntityKindName, value: slug });
+  if (["person", "place", "product", "thing", "event"].includes(head!)) requestEntity({ kind: head as EntityKindName, value: slug });
 }
 
 /** A kind's icon for an id (person/..., event/..., mission/...). */
@@ -293,20 +297,34 @@ export function EventDetails({ vaultPath, id, fields, onChanged }: { vaultPath: 
   );
 }
 
-export function ProductApps({ apps }: { apps: AppRecord[] }) {
-  if (!apps.length) return null;
+const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "");
+/** The connectors (from the user's AI runtimes) that are this product's apps: by id, or by name. */
+export function connectorsFor(all: MirrorApp[], productName: string, apps: AppRecord[], slug?: string): MirrorApp[] {
+  const names = new Set([productName, ...apps.map((a) => a.title)].map(norm).filter(Boolean));
+  const ids = new Set([...apps.map((a) => a.id), ...(slug ? [slug] : [])]);
+  return all.filter((m) => ids.has(m.id) || ids.has(m.id.split(":").pop() ?? "") || names.has(norm(m.name)));
+}
+
+/** Its connectors and app records, read once for the product's page. */
+export function useProductApp(vaultPath: string, name: string, apps: AppRecord[], slug: string, enabled = true): { connector: MirrorApp | null; connectors: MirrorApp[]; app: AppRecord | null } {
+  const q = useInvokeQuery<MirrorList>("apps_mirror_list", enabled ? { vault: vaultPath } : null, { staleMs: Infinity });
+  const live = apps.filter((a) => !a.archived);
+  const connectors = connectorsFor(Array.isArray(q.data?.apps) ? q.data!.apps : [], name, live, slug);
+  return { connector: connectors[0] ?? null, connectors, app: live[0] ?? null };
+}
+
+/** The skills its folder carries (data/entities/products/<id>/skills), from the vault scan. */
+export function ProductSkills({ vaultPath, appIds }: { vaultPath: string; appIds: string[] }) {
+  const q = useInvokeQuery<{ domain: string; name: string; description?: string | null }[]>("scan_skills", appIds.length ? { vault: vaultPath } : null, { staleMs: 60_000 });
+  const skills = (Array.isArray(q.data) ? q.data : []).filter((s) => appIds.includes(s.domain));
+  if (!skills.length) return null;
   return (
-    <Section title={apps.length === 1 ? "Its app" : "Its apps"} testId="product-apps">
+    <Section title="Skills" testId="product-skills">
       <ul className="-mx-2">
-        {apps.map((a) => (
-          <li key={a.id}>
-            <button type="button" onClick={() => openApp({ id: a.id, tab: "chat" })} data-testid="product-app" title={`Open ${a.title} in Apps`}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface-warm">
-              <AppLogo name={a.title} url={a.domains[0] ? `https://${a.domains[0]}` : undefined} size={22} />
-              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary">{a.title}</span>
-              <span className={`${META} shrink-0`}>{[a.kind, a.category].filter(Boolean).join(" · ")}</span>
-              <ExternalLink aria-hidden className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-            </button>
+        {skills.map((s) => (
+          <li key={`${s.domain}/${s.name}`} data-testid="product-skill" className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+            <Wrench aria-hidden className="h-4 w-4 shrink-0 text-text-muted" />
+            <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary" title={s.description ?? undefined}>{s.name}</span>
           </li>
         ))}
       </ul>
@@ -314,27 +332,17 @@ export function ProductApps({ apps }: { apps: AppRecord[] }) {
   );
 }
 
-const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "");
-/** The connectors (from the user's AI runtimes) that are this product's apps: by id, or by name. */
-export function connectorsFor(all: MirrorApp[], productName: string, apps: AppRecord[]): MirrorApp[] {
-  const names = new Set([productName, ...apps.map((a) => a.title)].map(norm).filter(Boolean));
-  const ids = new Set(apps.map((a) => a.id));
-  return all.filter((m) => ids.has(m.id) || ids.has(m.id.split(":").pop() ?? "") || names.has(norm(m.name)));
-}
-
 /**
- * A product's connection (ux ask 6: the sidebar's APPS folded into Products):
- * each connector it has in an AI runtime, with its status, the runtime it
- * comes through, how to sign in when it needs to, and the app's full page.
+ * A product's connection on its overview: each connector it has in an AI
+ * runtime, with its status, the runtime it comes through and how to sign in
+ * when it needs to. The arrow opens the product's App tab.
  */
-export function ProductConnection({ vaultPath, name, apps }: { vaultPath: string; name: string; apps: AppRecord[] }) {
-  const q = useInvokeQuery<MirrorList>("apps_mirror_list", { vault: vaultPath }, { staleMs: Infinity });
-  const found = connectorsFor(Array.isArray(q.data?.apps) ? q.data!.apps : [], name, apps);
-  if (!found.length) return null;
+export function ProductConnection({ connectors, onOpen }: { connectors: MirrorApp[]; onOpen: (tab: "chat" | "connection") => void }) {
+  if (!connectors.length) return null;
   return (
     <Section title="Connection" testId="product-connection">
       <ul className="-mx-2">
-        {found.map((m) => (
+        {connectors.map((m) => (
           <li key={m.id} data-testid="product-connector" data-id={m.id} className="rounded-lg px-2 py-1.5">
             <div className="flex items-center gap-3">
               <span className="relative inline-flex shrink-0">
@@ -343,7 +351,7 @@ export function ProductConnection({ vaultPath, name, apps }: { vaultPath: string
               </span>
               <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-primary">{m.name}<span className={`${META} ml-2 font-normal`}>via {RUNTIME_LABEL[m.runtime] ?? m.runtime}</span></span>
               <StatusPill status={m.status} compact />
-              <button type="button" onClick={() => openApp({ id: m.id, tab: "connection" })} title={`Open ${m.name} in Apps`} aria-label={`Open ${m.name} in Apps`}
+              <button type="button" onClick={() => onOpen("connection")} title={`Open ${m.name}'s connection`} aria-label={`Open ${m.name}'s connection`} data-testid="product-open-app"
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent">
                 <ExternalLink className="h-3.5 w-3.5" />
               </button>
@@ -353,6 +361,24 @@ export function ProductConnection({ vaultPath, name, apps }: { vaultPath: string
         ))}
       </ul>
     </Section>
+  );
+}
+
+/**
+ * The product's App tab: the app's own chat, activity, tools and connection,
+ * the view that used to live in a separate Apps area. A runtime connector
+ * gets the full view (sync recipe, tools); an app kept only in the vault gets
+ * its chat and activity, with its skills under Connection.
+ */
+export function ProductAppPane({ vaultPath, connector, app, name, domains = [] }: {
+  vaultPath: string; connector: MirrorApp | null; app: AppRecord | null; name: string; domains?: string[];
+}) {
+  if (connector) return <MirrorDetail key={connector.id} app={connector} vaultPath={vaultPath} domains={domains} onChanged={() => {}} embedded />;
+  if (!app) return null;
+  return (
+    <AppScopeView embedded vaultPath={vaultPath} app={{ id: app.id, name: app.title || name, url: app.domains[0] ? `https://${app.domains[0]}` : undefined }}
+      subtitle="Kept in your vault"
+      connection={<ProductSkills vaultPath={vaultPath} appIds={[app.id]} />} />
   );
 }
 

@@ -138,6 +138,9 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("./chatpanel", () => ({ ChatPanel: (p: { scopeApp?: { id: string } }) => <div data-testid="chat-panel" data-scope-app={p.scopeApp?.id} /> }));
 
 import { AppsMirrorPanel } from "./appsmirror";
+import { MirrorDetail } from "./appsmirror-detail";
+
+const detail = (app: typeof mail) => render(<MirrorDetail app={app} vaultPath="/v" domains={["work", "money"]} onChanged={() => {}} />);
 
 beforeEach(() => { invokeMock.mockClear(); try { localStorage.clear(); } catch { /* ignore */ } });
 
@@ -159,9 +162,7 @@ describe("AppsMirrorPanel", () => {
   });
 
   it("shows blocked tools and saves the recipe payload", async () => {
-    render(<AppsMirrorPanel vaultPath="/v" />);
-    await waitFor(() => expect(screen.getByTestId("mirror-row-bar-mail")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("mirror-row-bar-mail"));
+    detail(mail);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Bar Mail" })).toBeTruthy());
     fireEvent.click(screen.getByTestId("app-tab-tools"));
     expect(screen.getAllByTestId("tool-badge").map((b) => b.textContent)).toEqual(["Read", "Blocked", "Blocked"]);
@@ -182,9 +183,7 @@ describe("AppsMirrorPanel", () => {
   });
 
   it("says a mirror-only connector cannot be synced yet", async () => {
-    render(<AppsMirrorPanel vaultPath="/v" />);
-    await waitFor(() => expect(screen.getByTestId("mirror-row-baz-helper")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("mirror-row-baz-helper"));
+    detail(helper);
     fireEvent.click(await screen.findByTestId("app-tab-connection"));
     await waitFor(() => expect(screen.getByText(/It cannot be synced yet/)).toBeTruthy());
     expect(screen.queryByRole("region", { name: "Sync recipe" })).toBeNull();
@@ -192,7 +191,8 @@ describe("AppsMirrorPanel", () => {
 
   it("keeps the fallback lanes in their own groups, never under an app", async () => {
     render(<AppsMirrorPanel vaultPath="/v" />);
-    await waitFor(() => expect(screen.getByTestId("app-scope")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("apps-row-sites")).toBeTruthy());
+    expect(screen.queryByTestId("app-scope")).toBeNull();
     expect(screen.queryByText("Sites without a connector")).toBeNull();
     expect(screen.queryByTestId("apps-lane-sites")).toBeNull();
     fireEvent.click(screen.getByTestId("apps-row-sites"));
@@ -202,18 +202,26 @@ describe("AppsMirrorPanel", () => {
     expect(screen.queryByText("Sites without a connector")).toBeNull();
   });
 
-  it("opens an app on its Chat tab, scoped to the app", async () => {
+  it("a connector opens on its product's page", async () => {
+    const seen: unknown[] = [];
+    const on = (e: Event) => seen.push((e as CustomEvent).detail);
+    window.addEventListener("prevail:open-entity", on);
     render(<AppsMirrorPanel vaultPath="/v" />);
     await waitFor(() => expect(screen.getByTestId("mirror-row-bar-mail")).toBeTruthy());
     fireEvent.click(screen.getByTestId("mirror-row-bar-mail"));
+    window.removeEventListener("prevail:open-entity", on);
+    expect(seen).toEqual([{ kind: "product", value: "bar-mail" }]);
+    expect(JSON.parse(sessionStorage.getItem("prevail.apps.focus") ?? "null")).toEqual({ id: "bar-mail", tab: "chat" });
+  });
+
+  it("opens an app on its Chat tab, scoped to the app", async () => {
+    detail(mail);
     await waitFor(() => expect(screen.getByTestId("chat-panel").getAttribute("data-scope-app")).toBe("bar-mail"));
     expect(screen.getByTestId("app-tab-chat").getAttribute("aria-selected")).toBe("true");
   });
 
   it("lists the access log on the Activity tab", async () => {
-    render(<AppsMirrorPanel vaultPath="/v" />);
-    await waitFor(() => expect(screen.getByTestId("mirror-row-bar-mail")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("mirror-row-bar-mail"));
+    detail(mail);
     fireEvent.click(await screen.findByTestId("app-tab-activity"));
     await waitFor(() => expect(screen.getAllByTestId("access-line")).toHaveLength(2));
     expect(screen.getByText("to: [an email address]")).toBeTruthy();
@@ -258,9 +266,7 @@ describe("AppsMirrorPanel", () => {
   });
 
   it("pins a connector to the sidebar and back", async () => {
-    render(<AppsMirrorPanel vaultPath="/v" />);
-    await waitFor(() => expect(screen.getByTestId("mirror-row-bar-mail")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("mirror-row-bar-mail"));
+    detail(mail);
     const pin = await screen.findByTestId("mirror-pin");
     expect(pin.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(pin);
@@ -268,13 +274,6 @@ describe("AppsMirrorPanel", () => {
     expect(JSON.parse(localStorage.getItem("prevail.apps.favorites") || "[]")).toContain("mirrorbarmail");
     fireEvent.click(screen.getByTestId("mirror-pin"));
     await waitFor(() => expect(screen.getByTestId("mirror-pin").getAttribute("aria-pressed")).toBe("false"));
-  });
-
-  it("opens the connector the sidebar handed over", async () => {
-    sessionStorage.setItem("prevail.apps.mirror.select", "bar-mail");
-    render(<AppsMirrorPanel vaultPath="/v" />);
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Bar Mail" })).toBeTruthy());
-    expect(sessionStorage.getItem("prevail.apps.mirror.select")).toBeNull();
   });
 });
 

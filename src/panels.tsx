@@ -1055,8 +1055,8 @@ export function DomainAppsStrip({ domain }: { domain: string }) {
           </button>
         );
       })}
-      {/* Straight to the Apps page, without the Settings round-trip. */}
-      <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))} title="Manage apps" aria-label="Manage apps"
+      {/* Straight to Products > Connections, without the Settings round-trip. */}
+      <button onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))} title="Manage connections" aria-label="Manage connections"
         className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-text-primary"><Settings2 className="h-3.5 w-3.5" /></button>
     </div>
   );

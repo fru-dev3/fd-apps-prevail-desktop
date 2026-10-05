@@ -31,7 +31,7 @@ const FIX: Record<string, unknown> = {
   chief_of_staff_read: "---\nname: Foo\nhandoff: auto\n---\n",
 };
 
-const HOME = ["inbox", "insights", "recommendations", "entities", "activities", "missions", "task-list", "compass", "decisions", "playbooks", "specialists", "apps"];
+const HOME = ["inbox", "insights", "recommendations", "entities", "activities", "missions", "task-list", "compass", "decisions", "playbooks", "specialists", "stack"];
 const SETTINGS = ["models", "council", "toolkit", "benchmark", "intent", "activity", "usage", "connections", "privacy-safety", "settings"];
 const WIDTHS = [390, 768, 1280, 1920];
 

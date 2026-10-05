@@ -121,7 +121,6 @@ export function SigninHelp({ app, compact = false }: { app: MirrorApp; compact?:
 // starred app used to. The key is namespaced so a connector never collides
 // with a vault app folder of the same name.
 export const mirrorPinKey = (id: string) => favKeyOf(`mirror-${id}`);
-export const MIRROR_SELECT_KEY = "prevail.apps.mirror.select";
 
 export function PinButton({ app }: { app: MirrorApp }) {
   const favs = useFavorites();

@@ -18,8 +18,8 @@ import { ProviderMark } from "./marks";
 import { SettingsHeader } from "./sectionutil";
 import { useIsPhone } from "./useisphone";
 import { RUNTIME_MARK, groupByRuntime, type ArchiveResult, type MirrorApp, type MirrorList, type RuntimeGroup } from "./appsmirror-model";
-import { AppLogo, MIRROR_SELECT_KEY, SigninHelp, StatusPill } from "./appsmirror-parts";
-import { MirrorDetail } from "./appsmirror-detail";
+import { AppLogo, SigninHelp, StatusPill } from "./appsmirror-parts";
+import { openApp } from "./appscope";
 import { AppsLane, type AppsLaneId } from "./appsfallback";
 import { TrustedSourceDetail, UntrustedSourceDetail } from "./trustedsources";
 import { openKnowledgeSources } from "./knowledgesources";
@@ -180,31 +180,12 @@ function ArchivePanel({ vaultPath, onClose }: { vaultPath: string; onClose: () =
   );
 }
 
-export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?: React.ReactNode }) {
+export function AppsMirrorPanel({ vaultPath, tabs, bare = false }: { vaultPath: string; tabs?: React.ReactNode; bare?: boolean }) {
   // Seeded from the shared cache (the sidebar reads the same list).
   const [list, setList] = useState<MirrorList | null>(() => peekInvoke<MirrorList>("apps_mirror_list", { vault: vaultPath }) ?? null);
   const [err, setErr] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  // A pinned connector clicked in the sidebar hands its id over here, either
-  // before this panel mounts (session storage) or while it is open (event).
-  const [selectedId, setSelectedId] = useState<string | null>(() => {
-    try {
-      const id = sessionStorage.getItem(MIRROR_SELECT_KEY);
-      if (id) sessionStorage.removeItem(MIRROR_SELECT_KEY);
-      return id || null;
-    } catch { return null; }
-  });
-  useEffect(() => {
-    const onSelect = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
-      if (typeof id === "string" && id) {
-        setSelectedId(id);
-        try { sessionStorage.removeItem(MIRROR_SELECT_KEY); } catch { /* ignore */ }
-      }
-    };
-    window.addEventListener("prevail:mirror-select", onSelect);
-    return () => window.removeEventListener("prevail:mirror-select", onSelect);
-  }, []);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [domains, setDomains] = useState<string[]>(() => { const c = peekInvoke<{ name: string }[]>("scan_vault", { path: vaultPath }); return (Array.isArray(c) ? c : []).map((d) => d.name).filter(isUserDomain); });
   const [archiveOpen, setArchiveOpen] = useState(false);
   const phone = useIsPhone();
@@ -238,15 +219,11 @@ export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?:
   const groups = useMemo(() => groupByRuntime(list), [list]);
   const missing = groups.filter((g) => (g.info ? !g.info.installed : g.apps.length === 0)).map((g) => g.label);
   const apps = list?.apps ?? [];
-  // Desktop keeps a selection so the detail pane is never blank; on a phone the
-  // list comes first and a tap opens the detail.
-  const effectiveId = selectedId ?? (phone ? null : apps.find((a) => a.status === "connected" && !a.trusted)?.id ?? apps[0]?.id ?? null);
+  // A runtime connector opens on its product's page; this view keeps only the
+  // trusted sources and the ways to connect, picked here.
+  const effectiveId = selectedId;
   const selected = apps.find((a) => a.id === effectiveId) ?? null;
 
-  const onChanged = (next?: MirrorApp) => {
-    if (next) setList((cur) => cur ? { ...cur, apps: cur.apps.map((a) => a.id === next.id ? next : a) } : cur);
-    else void load();
-  };
 
   // Refresh and the rest sit in the column header, never alone in the page
   // header.
@@ -265,9 +242,9 @@ export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?:
       )}
     </>
   );
-  const header = (
+  const header = bare ? null : (
     <SettingsHeader
-      title="Apps"
+      title="Connections"
       icon={Plug}
       subtitle="The connectors you already use in Claude, Codex, Gemini and Antigravity, feeding your domains."
       tabs={tabs}
@@ -291,7 +268,8 @@ export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?:
         <p className="flex items-center gap-2 p-3 text-[13px] text-text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Reading your runtimes</p>
       ) : (
         <>
-          {groups.map((g) => <RuntimeSection key={g.runtime} group={g} selectedId={effectiveId} onSelect={(a) => pick(a.id)} />)}
+          {/* A connector is a product's app: it opens on the product's page. */}
+          {groups.map((g) => <RuntimeSection key={g.runtime} group={g} selectedId={effectiveId} onSelect={(a) => openApp({ id: a.id, tab: "chat" })} />)}
           {missing.length > 0 && <p className="px-2.5 pb-3 text-[12px] text-text-muted" data-testid="runtimes-missing">Not installed on this Mac: {missing.join(", ")}.</p>}
         </>
       )}
@@ -327,11 +305,9 @@ export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?:
     <UntrustedSourceDetail key={untrustedPick.id} vaultPath={vaultPath} source={untrustedPick} onTrusted={() => { void load(true); void untrustedQ.refresh(); pick(untrustedPick.id); }} />
   ) : selected?.trusted ? (
     <TrustedSourceDetail key={selected.id} vaultPath={vaultPath} app={selected} onChanged={() => { void load(true); void untrustedQ.refresh(); }} />
-  ) : selected ? (
-    <MirrorDetail key={selected.id} app={selected} vaultPath={vaultPath} domains={domains} onChanged={onChanged} />
   ) : (
     <div className="flex h-full min-h-[240px] items-center justify-center p-8 text-center text-[13px] text-text-muted">
-      {list && apps.length === 0 ? "No connectors found in your runtimes yet. Add one in Claude, Codex, Gemini or Antigravity, then press Refresh." : "Pick a connector to chat with it and see its activity."}
+      {list && apps.length === 0 ? "No connectors found in your runtimes yet. Add one in Claude, Codex, Gemini or Antigravity, then press Refresh." : "Pick a connector to open its product page: its chat, activity and connection."}
     </div>
   );
 
@@ -339,7 +315,7 @@ export function AppsMirrorPanel({ vaultPath, tabs }: { vaultPath: string; tabs?:
   // collapsible column on the left (grouped by runtime), the picked connector
   // in one column on the right. On a phone, the list then the detail.
   return (
-    <div className="flex h-full min-h-0 flex-col" data-testid="apps-view">
+    <div className="flex h-full min-h-0 flex-col" data-testid="connections-view">
       {header}
       {(err || archiveOpen) && (
         <div className={`max-h-[40vh] shrink-0 overflow-y-auto ${phone ? "px-4 pt-3" : "px-8 pt-4"}`}>

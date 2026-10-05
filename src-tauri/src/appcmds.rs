@@ -404,6 +404,16 @@ pub(crate) fn read_skill(path: String) -> Result<String, String> {
     Err(format!("no SKILL.md/README.md/skill.md in {}", dir.display()))
 }
 
+// A product's own SKILL.md (an app is a product with a connector), from its
+// folder in the products store (or, until the migration ran, its old folder).
+#[tauri::command(async)]
+pub(crate) fn read_product_skill(vault: String, id: String) -> Result<String, String> {
+    if !crate::engine::is_safe_app_id(&id) {
+        return Err(format!("invalid app id: {id}"));
+    }
+    read_skill(crate::paths::product_dir(&vault, &id).to_string_lossy().to_string())
+}
+
 // Append one generated spark to the on-disk archive at <vault>/_sparks.jsonl.
 // JSONL + append-only, so the full history is preserved permanently WITHOUT ever
 // being loaded into the app's working context (the user browses it on demand).

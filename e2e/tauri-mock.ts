@@ -15,6 +15,8 @@ export const FIXTURES: Record<string, unknown> = {
   bootstrap_vault: "/tmp/smoke-vault",
   engine_vault_status: { encrypted: false, unlocked: true },
   engine_vault_migrate_v4: { ok: true },
+  // No old app or company page trees: the products migration has nothing to do.
+  engine_products_migrate: { ok: true, dryRun: false, ran: false, skipped: "nothing-to-do", errors: [] },
   bunker_status: { enabled: false, network_blocked: false, web_blocked: false, cloud_blocked: false, local_available: true },
   vault_lock_status: { enabled: true },
   machine_role_get: "hub",

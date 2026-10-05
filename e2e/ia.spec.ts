@@ -16,14 +16,14 @@ const E = (id: string, name: string, kind: string, n = 1, extra: Record<string, 
 const LIST = { generated_ts: 1, total: 9, entities: [
   E("person/sam-foo", "Sam Foo", "person", 6, { home_domain: "home" }), E("person/ada-bar", "Ada Bar", "person", 3),
   E("place/foo-house", "Foo House", "place", 4), E("place/bar-lake-cabin", "Bar Lake cabin", "place", 2),
-  E("org/foo-bank", "Foo Bank", "org", 5, { domain: "foobank.example" }),
+  E("product/foo-bank", "Foo Bank", "product", 5, { domain: "foobank.example" }),
   E("thing/foo-watch", "Foo Watch", "thing", 2), E("thing/bar-car", "Bar wagon", "thing", 3),
   E("event/foo-dinner", "Foo family dinner", "event", 1), E("event/christmas", "Christmas", "event", 1),
 ] };
 const PRODUCTS = { products: [
-  { id: "org/foo-bank", name: "Foo Bank", company: true, apps: [{ id: "foo-bank", title: "Foo Bank", kind: "service", category: "banking", domains: ["foobank.example"] }], saved: true, has_page: true, conversations: 5, last_ts: 5, relation: "yours", domain: "foobank.example" },
-  { id: "org/bar-notes", name: "Bar Notes", company: false, apps: [{ id: "bar-notes", title: "Bar Notes", kind: "app", domains: [] }], saved: false, has_page: false, conversations: 0, last_ts: 0, relation: "yours" },
-  { id: "org/baz-power", name: "Baz Power", company: true, apps: [], saved: true, has_page: true, conversations: 2, last_ts: 2, relation: "yours" },
+  { id: "product/foo-bank", name: "Foo Bank", company: true, apps: [{ id: "foo-bank", title: "Foo Bank", kind: "service", category: "banking", domains: ["foobank.example"] }], saved: true, has_page: true, conversations: 5, last_ts: 5, relation: "yours", domain: "foobank.example" },
+  { id: "product/bar-notes", name: "Bar Notes", company: false, apps: [{ id: "bar-notes", title: "Bar Notes", kind: "app", domains: [] }], saved: false, has_page: false, conversations: 0, last_ts: 0, relation: "yours" },
+  { id: "product/baz-power", name: "Baz Power", company: true, apps: [], saved: true, has_page: true, conversations: 2, last_ts: 2, relation: "yours" },
 ] };
 const EVENTS = { events: [
   { id: "event/foo-dinner", name: "Foo family dinner", date: ymd(1), time: "18:30", source: "prevail", has_page: true, place: { id: "place/foo-house", name: "Foo House" }, calendar: "ask" },
@@ -71,10 +71,10 @@ async function open(page: Page, width: number) {
       const [kind, slug] = id.split("/");
       const e = list.find((x) => x.id === id) ?? products.find((p) => p.id === id) ?? { name: slug === "foo-dentist" ? "Foo dentist" : slug, kind };
       const fields = kind === "event" ? (slug === "christmas" ? { date: day(40), project: "mission/plan-christmas", calendar: "synced" } : { date: day(1), time: "18:30", place: "place/foo-house", people: ["person/sam-foo"], calendar: "ask" })
-        : kind === "thing" ? { purchased: "2025-03-01", warranty: day(400), value: 420, maker: "org/foo-bank", place: "place/foo-house", service: [{ date: "2026-01-10", what: "Battery replaced", cost: 35 }] } : {};
+        : kind === "thing" ? { purchased: "2025-03-01", warranty: day(400), value: 420, maker: "product/foo-bank", place: "place/foo-house", service: [{ date: "2026-01-10", what: "Battery replaced", cost: 35 }] } : {};
       return { found: true, id, name: e.name, kind, aliases: [], kinds: [kind], mention_count: 2, conversations: 2, last_ts: Date.now() - 86_400_000,
         mentions: [], co_mentions: [], digest: kind === "person" ? "Sam lends the ladder and helps with the shed." : "", notes: "", saved: true,
-        page_path: `data/entities/x/${slug}/entity.md`, relation: "yours", fields, ...(kind === "org" ? { apps: products.find((p) => p.id === id)?.apps ?? [] } : {}) };
+        page_path: `data/entities/x/${slug}/entity.md`, relation: "yours", fields, ...(kind === "product" ? { apps: products.find((p) => p.id === id)?.apps ?? [] } : {}) };
     };
   });
 }
@@ -122,15 +122,17 @@ for (const width of [390, 768, 1280, 1920]) {
       await fire(page, "prevail:work-section", "products");
       const rows = page.getByTestId("entity-row");
       await expect(rows).toHaveCount(3, { timeout: 10_000 });
-      await expect(rows.nth(0)).toContainText("Company and its app");
+      await expect(rows.nth(0)).toContainText("Service");
       await expect(page.getByTestId("entities-list")).toContainText("Bar Notes");
       if (stacked) await rows.first().click();
-      await expect(page.getByTestId("product-apps")).toContainText("Foo Bank", { timeout: 10_000 });
-      // The old sidebar APPS row lives here now: status, runtime and sign-in.
+      // A product's app lives on its page: the App tab, and its connection on the overview.
+      await expect(page.getByTestId("entity-tab-app")).toBeVisible({ timeout: 10_000 });
       const conn = page.getByTestId("product-connection");
       await expect(conn.getByTestId("product-connector")).toHaveAttribute("data-id", "claude:foo-bank");
       await expect(conn).toContainText("via Claude");
-      if (!stacked) await expect(page.getByTestId("products-open-apps")).toBeVisible();
+      if (!stacked) await expect(page.getByTestId("tab-connections")).toBeVisible();
+      await page.getByTestId("product-open-app").click();
+      await expect(page.getByTestId("product-app-pane")).toBeVisible({ timeout: 10_000 });
       await shot(page, "ia-products", width);
       await fire(page, "prevail:work-section", "things");
       if (stacked) await page.getByTestId("entity-row").first().click();

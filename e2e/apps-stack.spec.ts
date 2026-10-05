@@ -38,8 +38,8 @@ const SOURCES = [
 ];
 const FIX = {
   engine_apps_stack: STACK, engine_apps_unknown: UNKNOWN,
-  engine_apps_card: { ok: true, draft: "data/apps/bar-notes/offboarding-2026-10-02.md" }, engine_apps_map: { ok: true, app: "foo-notes" },
-  engine_apps_offboard: { ok: true, path: "data/apps/foo-notes/offboarding-2026-10-02.md" }, engine_apps_doctor: {},
+  engine_apps_card: { ok: true, draft: "data/entities/products/bar-notes/offboarding-2026-10-02.md" }, engine_apps_map: { ok: true, app: "foo-notes" },
+  engine_apps_offboard: { ok: true, path: "data/entities/products/foo-notes/offboarding-2026-10-02.md" }, engine_apps_doctor: {},
   engine_sources: SOURCES, engine_source_consent: { ok: true }, engine_source_sync: { state: "ok", note: "read" },
   engine_apps_stack_diff: { month: "2026-10", items: [
     { kind: "missing", tool: "Qux Term", detail: "used on 9 of the last 30 days, not in your stack", proposed: "add Qux Term" },
@@ -48,9 +48,9 @@ const FIX = {
   ] },
   engine_apps_stack_diff_accept: { ok: true, applied: 3, backup: "data/domains/general/source/tool-stack.md.pre-diff-2026-10-02" },
   engine_apps_imports: { reminder: false, line: null, last: [], apps: [
-    { id: "chatgpt", name: "ChatGPT", how: "Settings, Data controls, Export data", url: "https://chatgpt.com/", inbox: "data/apps/chatgpt/inbox", waiting: 1 },
-    { id: "claude-ai", name: "claude.ai", how: "Settings, Privacy, Export data", url: "https://claude.ai/", inbox: "data/apps/claude-ai/inbox", waiting: 0 },
-    { id: "gemini", name: "Gemini", how: "Google Takeout, My Activity, Gemini Apps", url: "https://takeout.google.com/", inbox: "data/apps/gemini/inbox", waiting: 0 },
+    { id: "chatgpt", name: "ChatGPT", how: "Settings, Data controls, Export data", url: "https://chatgpt.com/", inbox: "data/entities/products/chatgpt/inbox", waiting: 1 },
+    { id: "claude-ai", name: "claude.ai", how: "Settings, Privacy, Export data", url: "https://claude.ai/", inbox: "data/entities/products/claude-ai/inbox", waiting: 0 },
+    { id: "gemini", name: "Gemini", how: "Google Takeout, My Activity, Gemini Apps", url: "https://takeout.google.com/", inbox: "data/entities/products/gemini/inbox", waiting: 0 },
   ] },
   engine_apps_imports_run: [{ app: "chatgpt", written: 12, prompts: 14 }], engine_apps_imports_reminder: { reminder: true },
 
@@ -87,8 +87,9 @@ async function openApps(page: Page, width: number) {
   await mockTauri(page, FIX);
   await page.goto("/");
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "apps" })));
-  await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
+  // The stack is a view of Products (the old Apps page id lands on it).
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "stack" })));
+  await expect(page.getByTestId("stack-view")).toBeVisible({ timeout: 10_000 });
 }
 
 for (const width of [390, 768, 1280, 1920]) {
@@ -124,8 +125,9 @@ for (const width of [390, 768, 1280, 1920]) {
       await expect.poll(() => calls(page, "engine_apps_map")).toEqual([{ vault: "/tmp/smoke-vault", kind: "domain", value: "quux-tools.example", target: "foo-notes" }]);
       await noOverflow(page);
       await shot(page, "stack-unknown");
-      await page.getByTestId("tab-connectors").click();
-      await expect(page.getByTestId("tab-connectors")).toHaveAttribute("aria-selected", "true");
+      await page.getByTestId("tab-connections").click();
+      await expect(page.getByTestId("tab-connections")).toHaveAttribute("aria-selected", "true");
+      await expect(page.getByTestId("connections-view")).toBeVisible();
       await noOverflow(page);
     });
 

@@ -17,7 +17,7 @@ const fix = (theme: string): Record<string, unknown> => ({
   chief_of_staff_read: "---\nname: Foo\nhandoff: auto\n---\n",
 });
 const fire = (page: Page, ev: string, detail: string) => page.evaluate(([e, d]) => window.dispatchEvent(new CustomEvent(e, { detail: d })), [ev, detail]);
-const HOME = ["inbox", "insights", "recommendations", "entities", "activities", "compass", "decisions", "playbooks", "specialists", "apps"];
+const HOME = ["inbox", "insights", "recommendations", "entities", "activities", "compass", "decisions", "playbooks", "specialists", "stack"];
 const SETTINGS = ["models", "toolkit", "activity", "usage", "connections", "privacy-safety", "settings"];
 
 for (const theme of ["light", "dark"]) {

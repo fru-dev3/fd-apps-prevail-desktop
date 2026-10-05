@@ -15,7 +15,7 @@ export const GROUP_LABEL: Record<Group, string> = { entities: "Entities", activi
 export const KINDS: KindDef[] = [
   { id: "people", group: "entities", label: "People", singular: "Person", icon: Users, prefix: "person" },
   { id: "places", group: "entities", label: "Places", singular: "Place", icon: MapPin, prefix: "place" },
-  { id: "products", group: "entities", label: "Products", singular: "Product", icon: Package, prefix: "org" },
+  { id: "products", group: "entities", label: "Products", singular: "Product", icon: Package, prefix: "product" },
   { id: "things", group: "entities", label: "Things", singular: "Thing", icon: Watch, prefix: "thing" },
   { id: "events", group: "activities", label: "Events", singular: "Event", icon: CalendarDays, prefix: "event" },
   { id: "projects", group: "activities", label: "Projects", singular: "Project", icon: FolderKanban, prefix: "mission" },
@@ -23,15 +23,21 @@ export const KINDS: KindDef[] = [
 export const kindsOf = (g: Group) => KINDS.filter((k) => k.group === g);
 export const kindDef = (id: KindId) => KINDS.find((k) => k.id === id)!;
 
-/** The kind an id or an entity kind belongs to: person/, org/, app/, event/, mission/, project/ ... */
+// Legacy: ids written before the products store used the old company prefix.
+const LEGACY_COMPANY_PREFIX = "org";
+/** The id head as it is now: the legacy company prefix reads as product. */
+export const currentHead = (head: string): string => (head === LEGACY_COMPANY_PREFIX ? "product" : head);
+
+/** The kind an id or an entity kind belongs to: person/, product/, app/, event/, mission/, project/ ... */
 export function kindOfId(idOrKind: string): KindDef | null {
   const head = idOrKind.split("/")[0]!.toLowerCase();
-  const p = head === "app" ? "org" : head === "project" ? "mission" : head;
+  // app/<id> is a product's app; the old company prefix is read as legacy.
+  const p = head === "app" || head === LEGACY_COMPANY_PREFIX ? "product" : head === "project" ? "mission" : head;
   return KINDS.find((k) => k.prefix === p || k.id === p) ?? null;
 }
 
 /** The entity kind name an Entities tab lists (the engine's kind). */
-export const ENTITY_KIND_OF: Partial<Record<KindId, "person" | "place" | "org" | "thing" | "event">> = { people: "person", places: "place", products: "org", things: "thing", events: "event" };
+export const ENTITY_KIND_OF: Partial<Record<KindId, "person" | "place" | "product" | "thing" | "event">> = { people: "person", places: "place", products: "product", things: "thing", events: "event" };
 
 // Which kind a page shows, remembered across the mount (the sidebar and a
 // chip set it before the page exists) and announced when the page is up.
@@ -40,13 +46,33 @@ export const IA_KIND_EVENT = "prevail:ia-kind";
 /** Section ids that open a kind: each kind's id, plus the old ones. */
 const SECTION_KIND: Record<string, KindId> = {
   people: "people", places: "places", products: "products", things: "things", events: "events", projects: "projects",
-  missions: "projects", companies: "products", orgs: "products",
+  missions: "projects", companies: "products", apps: "products", connectors: "products", stack: "products",
 };
+// Products has three views: the list of products (each page holds its app),
+// the stack (what each costs and how much it is used) and the connections
+// (every connector in the AI runtimes, sources, sign-in). The old Apps page
+// ids land on the matching view.
+export type ProductsView = "list" | "stack" | "connections";
+const PRODUCTS_VIEW_KEY = "prevail.products.view";
+export const PRODUCTS_VIEW_EVENT = "prevail:products-view";
+const SECTION_VIEW: Record<string, ProductsView> = { products: "list", apps: "list", stack: "stack", connectors: "connections" };
 export function noteIaKind(section: string): void {
   const k = SECTION_KIND[section];
   if (!k) return;
   try { localStorage.setItem(KIND_KEY, k); } catch { /* storage off */ }
+  const v = SECTION_VIEW[section];
+  if (v) {
+    try { sessionStorage.setItem(PRODUCTS_VIEW_KEY, v); } catch { /* storage off */ }
+    window.dispatchEvent(new CustomEvent(PRODUCTS_VIEW_EVENT, { detail: v }));
+  }
   window.dispatchEvent(new CustomEvent(IA_KIND_EVENT, { detail: k }));
+}
+/** The Products view asked for last (kept for the session). */
+export function productsView(): ProductsView {
+  try { const v = sessionStorage.getItem(PRODUCTS_VIEW_KEY); return v === "stack" || v === "connections" ? v : "list"; } catch { return "list"; }
+}
+export function setProductsView(v: ProductsView): void {
+  try { sessionStorage.setItem(PRODUCTS_VIEW_KEY, v); } catch { /* storage off */ }
 }
 export function takeIaKind(group: Group): KindId | null {
   try {
@@ -83,7 +109,8 @@ export function takeNew(k: KindId): boolean {
 }
 
 // Engine shapes (ia.ts in the engine).
-export interface AppRecord { id: string; title: string; kind?: string; category?: string; domains: string[] }
+/** A product's app: its folder's manifest (integration names the connector kind; archived apps are not live). */
+export interface AppRecord { id: string; title: string; kind?: string; category?: string; domains: string[]; integration?: string; archived?: boolean }
 export interface ProductRow {
   id: string; name: string; company: boolean; apps: AppRecord[];
   website?: string; domain?: string; picture?: string;

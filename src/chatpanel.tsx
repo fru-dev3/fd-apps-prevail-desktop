@@ -740,7 +740,7 @@ export function ChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domain, vaultPath, prefsTick]);
   // App SKILL auto-attach: when an APP is open, pull its own SKILL.md
-  // (<vault>/data/apps/<id>/SKILL.md) and prime it as context so the model knows
+  // (its product folder, data/entities/products/<id>/SKILL.md) and prime it as context so the model knows
   // how to use that app - its tools, the gateway it's fronted by, what data it
   // holds. Per-app preference (prevail.app.<id>.autoSkill, default on); the pill
   // is removable for a single turn and the toggle below controls the default.
@@ -756,7 +756,7 @@ export function ChatPanel({
       return;
     }
     let mounted = true;
-    invoke<string>("read_skill", { path: `${vaultPath}/data/apps/${appId}` })
+    invoke<string>("read_product_skill", { vault: vaultPath, id: appId })
       .then((body) => {
         if (!mounted) return;
         const has = !!body.trim();
@@ -777,7 +777,7 @@ export function ChatPanel({
     if (!appId) return;
     setAppAutoSkill((cur) => { const next = !cur; lsSet(`prevail.app.${appId}.autoSkill`, next ? "1" : "0"); return next; });
   }, [appId]);
-  // The app's SECONDARY skills (files under data/apps/<id>/skills/) - the
+  // The app's SECONDARY skills (files under its product folder's skills/) - the
   // primary SKILL.md is auto-attached above; these are the per-action how-tos
   // the user can attach as extra context. Fetched once per app, then offered as
   // suggestion chips in the composer's attach row.

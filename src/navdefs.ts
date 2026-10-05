@@ -33,20 +33,21 @@ export const WORK_NAV: NavGroup[] = [
   ]},
 ];
 
-// Every WorkPanel section: the nav rows plus Inbox and Apps, which the sidebar
-// draws itself.
-// Specialists and Missions have their own sidebar sections, like Apps.
+// Every WorkPanel section: the nav rows plus Inbox, which the sidebar draws
+// itself. Apps are Products now (on the Entities page): an app is a product
+// with a connector, shown on the product's page.
+// Specialists and Missions have their own sidebar sections.
 // Entities and Activities (ia-plan.md) are the two group pages; Missions are
 // Activities > Projects.
-export const WORK_SECTION_IDS: string[] = ["inbox", "apps", "specialists", "missions", "entities", "activities", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
+export const WORK_SECTION_IDS: string[] = ["inbox", "specialists", "missions", "entities", "activities", ...WORK_NAV.flatMap((g) => g.items.map((i) => i.id))];
 // Old ids that still arrive from deep links and saved state. The Work board
-// ("tasks") is the Tasks list now; the Settings Apps page ("connectors") is
-// the Home Apps page.
+// ("tasks") is the Tasks list now; the old Apps page ("apps", "connectors",
+// "stack") opens the Products tab of Entities on that view (ia.ts noteIaKind).
 // Goals and Ideals are views of the Compass page now.
 // Work > Projects became the MISSIONS section.
 // A kind's id opens its group page on that kind's tab (ia.ts noteIaKind).
 const WORK_ALIASES: Record<string, string> = {
-  projects: "missions", tasks: "task-list", connectors: "apps", goals: "compass", "ideal-state": "compass", ideals: "compass", omega: "compass",
+  projects: "missions", tasks: "task-list", apps: "entities", connectors: "entities", stack: "entities", goals: "compass", "ideal-state": "compass", ideals: "compass", omega: "compass",
   people: "entities", places: "entities", products: "entities", things: "entities", companies: "entities", events: "activities",
 };
 // Which Compass view an old id asks for (read by the page on open).

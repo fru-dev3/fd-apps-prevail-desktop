@@ -505,8 +505,8 @@ export function DomainAppsTab({ domain, vaultPath }: { domain: string; vaultPath
                 {/* Two separate steps: add to this domain now (no setup), then
                     set up the connection later from the app's config page. */}
                 <button
-                  onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "apps" }))}
-                  title={`Set up the ${s.name} connection on Apps`}
+                  onClick={() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "connectors" }))}
+                  title={`Set up the ${s.name} connection in Products`}
                   className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-2 py-0.5 text-[12px] text-text-secondary hover:border-accent-border hover:text-accent"
                 >
                   <SettingsIcon className="h-3 w-3" /> set up

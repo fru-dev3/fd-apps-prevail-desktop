@@ -6,7 +6,7 @@ import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from
 import { Bookmark, BookOpen, CalendarDays, Check, Copy, FileText, FolderKanban, FolderOpen, GitMerge, Globe, Image as ImageIcon, Loader2, PenLine, MapPin, MessageSquare, MessagesSquare, Package, Plus, RefreshCw, Terminal, User, Watch } from "lucide-react";
 import { invoke } from "./bridge";
 import { invokeCached, peekInvoke } from "./query";
-import { CARD_KINDS, EntityChip, OrgMark, entityIdOf, openMap, type EntityKind } from "./entities";
+import { CARD_KINDS, EntityChip, ProductMark, entityIdOf, openMap, type EntityKind } from "./entities";
 import { entitySnapshot } from "./entitystore";
 import { Markdown } from "./Markdown";
 import { pickSkillColor } from "./sectionutil";
@@ -21,7 +21,8 @@ import { EntityFiles } from "./entityfiles";
 import { AppActivity } from "./appactivity";
 import type { EntityChatRequest } from "./entitychat";
 import { AcrossYourLife, DomainChip, isYours, setRelation, type Relation } from "./linking";
-import { EventDetails, LinksPane, ProductApps, ProductConnection, ThingDetails } from "./objectparts";
+import { EventDetails, LinksPane, ProductAppPane, ProductConnection, ProductSkills, ThingDetails, useProductApp } from "./objectparts";
+import { peekAppFocus } from "./appscope";
 import type { AppRecord, ObjectFields } from "./ia";
 import { maskSecrets } from "./secretmask";
 
@@ -30,7 +31,7 @@ import { maskSecrets } from "./secretmask";
 const loadChat = () => import("./entitychat");
 const EntityChat = lazy(() => loadChat().then((m) => ({ default: m.EntityChat })));
 
-type Tab = "overview" | "chat" | "links" | "notes" | "conversations" | "files" | "brief";
+type Tab = "overview" | "chat" | "app" | "links" | "notes" | "conversations" | "files" | "brief";
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" }, { id: "chat", label: "Chat" }, { id: "links", label: "Links" }, { id: "notes", label: "Notes" },
   { id: "conversations", label: "Conversations" }, { id: "files", label: "Files" },
@@ -87,8 +88,8 @@ export interface EntityDetail {
   merged_from?: { id: string; name: string; ts: string; auto: boolean }[];
 }
 
-export const KIND_LABEL: Record<string, string> = { person: "Person", place: "Place", org: "Product", thing: "Thing", event: "Event", project: "Project" };
-const KIND_ICON = { person: User, place: MapPin, org: Package, thing: Watch, event: CalendarDays, project: FolderKanban } as const;
+export const KIND_LABEL: Record<string, string> = { person: "Person", place: "Place", product: "Product", thing: "Thing", event: "Event", project: "Project" };
+const KIND_ICON = { person: User, place: MapPin, product: Package, thing: Watch, event: CalendarDays, project: FolderKanban } as const;
 
 // Aliases worth showing: those that differ from the name (and each other)
 // beyond case, punctuation and spacing.
@@ -111,7 +112,7 @@ export function KindBadge({ kind, name, domain, size = 44, entity }: { kind: Ent
     const ini = words.length ? (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : "")).toUpperCase() : "?";
     return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-full font-bold" style={{ ...box, backgroundColor: bg, color: fg, fontSize: size * 0.36 }}>{ini}</span>;
   }
-  if (kind === "org") return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-xl border border-border bg-surface-warm text-text-secondary" style={box}><OrgMark name={name} host={domain} size={Math.round(size * 0.6)} /></span>;
+  if (kind === "product") return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-xl border border-border bg-surface-warm text-text-secondary" style={box}><ProductMark name={name} host={domain} size={Math.round(size * 0.6)} /></span>;
   const Icon = kind === "place" ? MapPin : kind === "event" ? CalendarDays : Watch;
   return <span aria-hidden className="flex shrink-0 items-center justify-center rounded-xl border border-accent-border bg-accent-soft text-accent" style={box}><Icon style={{ width: size * 0.5, height: size * 0.5 }} /></span>;
 }
@@ -198,13 +199,14 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState<"save" | "notes" | null>(null);
   const [savedNote, setSavedNote] = useState(false);
-  const [tab, setTab] = useState<Tab>("overview");
+  // openApp (a "Used Gmail" chip, a connector) lands on the product's App tab.
+  const [tab, setTab] = useState<Tab>(() => (target.kind === "product" && peekAppFocus(target.value) ? "app" : "overview"));
   const [dropping, setDropping] = useState(false);
   const [filesSeen, setFilesSeen] = useState(false);
   const [briefSeen, setBriefSeen] = useState(false);
   const [linksSeen, setLinksSeen] = useState(false);
   useEffect(() => { if (tab === "files") setFilesSeen(true); if (tab === "brief") setBriefSeen(true); if (tab === "links") setLinksSeen(true); }, [tab]);
-  // The website field (orgs), open while not null.
+  // The website field (products), open while not null.
   const [site, setSite] = useState<string | null>(null);
   // The rename field, open while not null.
   const [rename, setRename] = useState<string | null>(null);
@@ -272,7 +274,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
   const save = async () => {
     setBusy("save");
     try {
-      const r = await invoke<EntityDetail>("entities_save", { vault: vaultPath, id: writeId, name: displayName });
+      const r = await invoke<EntityDetail>("entities_save", { vault: vaultPath, id: writeId, name: titleName });
       setD({ ...r, found: true });
       fire("prevail:entities-changed");
     } catch (e) { setErr(String(e)); } finally { setBusy(null); }
@@ -280,7 +282,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
   const saveNotes = async () => {
     setBusy("notes");
     try {
-      const r = await invoke<EntityDetail>("entities_note", { vault: vaultPath, id: writeId, text: notes, name: displayName });
+      const r = await invoke<EntityDetail>("entities_note", { vault: vaultPath, id: writeId, text: notes, name: titleName });
       setD({ ...r, found: true });
       setSavedNote(true);
       window.setTimeout(() => setSavedNote(false), 1800);
@@ -312,7 +314,14 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
   const notesDirty = notes !== (d?.found ? d.notes : "");
   const KindIcon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? Watch;
   const isProject = kind === "project";
-  const tabs = isProject ? [...TABS.filter((t) => PROJECT_TABS.includes(t.id)), ...(brief ? [{ id: "brief" as Tab, label: "Brief" }] : [])] : TABS;
+  // A product with an app (a runtime connector or an app kept in the vault)
+  // shows the app here: its chat, activity, tools and connection.
+  const productApp = useProductApp(vaultPath, displayName, d?.found ? d.apps ?? [] : [], target.value, kind === "product");
+  // A connector with no page yet shows under its own name, not its id.
+  const titleName = d?.found ? displayName : productApp.connector?.name ?? displayName;
+  const hasApp = kind === "product" && !!(productApp.connector || productApp.app);
+  const tabs = isProject ? [...TABS.filter((t) => PROJECT_TABS.includes(t.id)), ...(brief ? [{ id: "brief" as Tab, label: "Brief" }] : [])]
+    : hasApp ? [TABS[0]!, TABS[1]!, { id: "app" as Tab, label: "App" }, ...TABS.slice(2)] : TABS;
   const aliases = d?.found ? distinctAliases(d.name, d.aliases) : [];
   const root = vaultPath.replace(/\/+$/, "");
   const absPath = hasPage ? `${root}/${d!.page_path}` : null;
@@ -330,7 +339,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
     ...(phone ? [{ icon: MessageSquare, label: "Chat", onClick: () => openChat() }] : []),
     ...(isProject ? [] : [{ icon: PenLine, label: "Rename", hint: "The old name stays as another name", onClick: () => setRename(displayName) }]),
     { icon: ImageIcon, label: "Set picture", hint: encrypted ? "Off for encrypted vaults" : undefined, disabled: encrypted !== false, onClick: () => { void pickPicture(); } },
-    ...(kind === "org" ? [{ icon: Globe, label: d?.found && d.website ? "Change website" : "Set website", hint: d?.found ? d.website || undefined : undefined, onClick: () => setSite(d?.found ? d.website ?? "" : "") }] : []),
+    ...(kind === "product" ? [{ icon: Globe, label: d?.found && d.website ? "Change website" : "Set website", hint: d?.found ? d.website || undefined : undefined, onClick: () => setSite(d?.found ? d.website ?? "" : "") }] : []),
     ...(absFolder ? [{ icon: FolderOpen, label: "Reveal folder", hint: "Its folder in your vault", onClick: () => { void invoke("open_in_finder", { path: absFolder }).catch(() => {}); } }] : []),
     ...(absPath ? [
       { icon: Copy, label: "Copy path", onClick: () => { void navigator.clipboard?.writeText(absPath).catch(() => {}); } },
@@ -361,7 +370,7 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <DetailTitle className="truncate">{displayName}</DetailTitle>
+            <DetailTitle className="truncate">{titleName}</DetailTitle>
             <p className={`${META} truncate`}>
               {meta ?? <>{KIND_LABEL[kind] ?? kind}
               {d?.found && d.conversations > 0 && ` · ${d.conversations} ${d.conversations === 1 ? "conversation" : "conversations"}`}
@@ -467,8 +476,8 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             {kind === "place" && <div className="mt-5"><PlaceMap name={displayName} /></div>}
             {kind === "event" && <EventDetails vaultPath={vaultPath} id={writeId} fields={d.found ? d.fields ?? {} : {}} onChanged={load} />}
             {kind === "thing" && <ThingDetails vaultPath={vaultPath} id={writeId} fields={d.found ? d.fields ?? {} : {}} onChanged={load} />}
-            {kind === "org" && d.found && <ProductApps apps={d.apps ?? []} />}
-            {kind === "org" && <ProductConnection vaultPath={vaultPath} name={displayName} apps={d.apps ?? []} />}
+            {kind === "product" && <ProductConnection connectors={productApp.connectors} onOpen={() => setTab("app")} />}
+            {kind === "product" && d.found && <ProductSkills vaultPath={vaultPath} appIds={(d.apps ?? []).map((a) => a.id)} />}
             {/* Empty sections render nothing (owner, 2026-10-02). */}
             {d.found && d.digest && (
               <Section title="In your vault">
@@ -503,6 +512,12 @@ export function EntityDetailView({ vaultPath, target, overview, brief, meta }: {
             <EntityChat vaultPath={vaultPath} entity={{ id: writeId, name: displayName }} threads={threads}
               request={chatReq} onCurrent={setChatSlug} onThreadsChanged={() => { void pullThreads(); }} />
           </Suspense>
+        </div>
+      )}
+
+      {hasApp && (
+        <div className={`${tab === "app" ? "flex" : "hidden"} min-h-0 flex-col ${phone ? "" : "flex-1"}`} data-testid="product-app-pane">
+          {tab === "app" && <ProductAppPane vaultPath={vaultPath} connector={productApp.connector} app={productApp.app} name={displayName} />}
         </div>
       )}
 

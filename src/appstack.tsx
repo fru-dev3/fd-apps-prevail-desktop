@@ -1,16 +1,13 @@
-// Apps > Stack (apps plan A2 to A4): every app and service the user uses, in
+// Products > Stack (apps plan A2 to A4): every app and service the user uses, in
 // one place. The column picks a list: what needs you (the stack's cards),
 // all apps, each category, and the signals that matched no app. The detail is
 // one full-width column of rows; a row opens inline (no drawers) with the
 // signals that matched it, renewal, trial, price history, its health checks
 // and a drafted offboarding checklist. Everything comes from
 // `prevail apps stack`; answers go back through the engine.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Archive, Check, ChevronDown, ChevronRight, Clock, Download, FileDiff, FileText, HelpCircle, Inbox, Layers, Loader2, Plug, RefreshCw, Stethoscope, Wrench, type LucideIcon } from "lucide-react";
 import { ImportsView, StackDiffView } from "./appsimports";
-import { AppsMirrorPanel } from "./appsmirror";
-import { MIRROR_SELECT_KEY } from "./appsmirror-parts";
-import { SpineTabs } from "./sidespine";
 import { invoke, isBrowser } from "./bridge";
 import { invalidateQueries, useInvokeQuery } from "./query";
 import { toast } from "./toast";
@@ -163,7 +160,7 @@ function UnknownRow({ sig, apps, vaultPath, onDone }: { sig: UnknownSignal; apps
 }
 
 /** The stack view, with the page header (tabs come from the Apps page). */
-export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: ReactNode }) {
+export function AppStackView({ vaultPath, tabs, bare = false }: { vaultPath: string; tabs?: ReactNode; bare?: boolean }) {
   const phone = useIsPhone();
   const desktop = !isBrowser();
   // A review line can open a section here ("Said vs used"); read once.
@@ -242,40 +239,26 @@ export function AppStackView({ vaultPath, tabs }: { vaultPath: string; tabs: Rea
     );
   }
 
+  const actions = desktop ? <span className="flex items-center gap-0.5">
+    <button type="button" onClick={() => void runDoctor()} disabled={checking} title="Check every connection now" aria-label="Check every connection now" data-testid="stack-doctor" className={iconBtn}>
+      {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stethoscope className="h-4 w-4" />}
+    </button>
+    <button type="button" onClick={refresh} title="Refresh" aria-label="Refresh the stack" className={iconBtn}><RefreshCw className="h-4 w-4" /></button>
+  </span> : undefined;
   return (
-    <div className="flex h-full min-h-0 flex-col" data-testid="apps-view">
-      <SettingsHeader title="Apps" icon={Plug} subtitle={stackSubtitle(s)} tabs={tabs}
-        right={desktop ? <span className="flex items-center gap-0.5">
-          <button type="button" onClick={() => void runDoctor()} disabled={checking} title="Check every connection now" aria-label="Check every connection now" data-testid="stack-doctor" className={iconBtn}>
-            {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stethoscope className="h-4 w-4" />}
-          </button>
-          <button type="button" onClick={refresh} title="Refresh" aria-label="Refresh the stack" className={iconBtn}><RefreshCw className="h-4 w-4" /></button>
-        </span> : undefined} />
+    <div className="flex h-full min-h-0 flex-col" data-testid="stack-view">
+      {!bare && <SettingsHeader title="Stack" icon={Plug} subtitle={stackSubtitle(s)} tabs={tabs} right={actions} />}
       {fda.length > 0 && (
         <p data-testid="stack-fda" className={`shrink-0 ${phone ? "px-4 pt-3" : "px-8 pt-3"} flex items-start gap-2 text-[13px] text-warn`}>
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="min-w-0 break-words">Screen Time needs Full Disk Access for Prevail: System Settings, Privacy and Security, Full Disk Access.</span>
         </p>
       )}
-      <SideSpine storageKey="prevail.stack.spine" title="Stack" label="the stack" testId="stack-list" meta={s ? `${s.apps.length} apps` : undefined}
+      <SideSpine storageKey="prevail.stack.spine" title="Stack" label="the stack" testId="stack-list" meta={s ? (bare ? stackSubtitle(s) : `${s.apps.length} apps`) : undefined} actions={bare ? actions : undefined}
         phone={phone} phoneDetail={phone && picked} onBack={() => setPicked(false)} backLabel="Stack"
         detail={<div className={phone ? "px-4 py-4" : "w-full px-8 py-6"}>{body}</div>}>
         {column}
       </SideSpine>
     </div>
   );
-}
-
-type AppsView = "stack" | "connectors";
-
-/** The Apps page: the stack (default) and the connectors mirror, picked by the header tabs. A connector picked in the sidebar opens Connectors. */
-export function AppsPage({ vaultPath }: { vaultPath: string }) {
-  const [view, setView] = useState<AppsView>(() => { try { return sessionStorage.getItem(MIRROR_SELECT_KEY) ? "connectors" : "stack"; } catch { return "stack"; } });
-  useEffect(() => {
-    const on = () => setView("connectors");
-    window.addEventListener("prevail:mirror-select", on);
-    return () => window.removeEventListener("prevail:mirror-select", on);
-  }, []);
-  const tabs = <SpineTabs label="Apps view" value={view} onChange={setView} tabs={[{ id: "stack", label: "Stack" }, { id: "connectors", label: "Connectors" }]} />;
-  return view === "stack" ? <AppStackView vaultPath={vaultPath} tabs={tabs} /> : <AppsMirrorPanel vaultPath={vaultPath} tabs={tabs} />;
 }

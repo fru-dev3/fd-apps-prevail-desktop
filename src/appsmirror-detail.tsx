@@ -24,8 +24,10 @@ const SCHEDULES: { id: Schedule; label: string }[] = [
   { id: "manual", label: "Only when I press Sync now" },
 ];
 
-export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
+export function MirrorDetail({ app, vaultPath, domains, onChanged, embedded = false }: {
   app: MirrorApp;
+  /** Inside its product's page (no own header). */
+  embedded?: boolean;
   vaultPath: string;
   domains: string[];
   onChanged: (next?: MirrorApp) => void;
@@ -107,6 +109,7 @@ export function MirrorDetail({ app, vaultPath, domains, onChanged }: {
   const status = statusMeta(app.status);
   return (
     <AppScopeView
+      embedded={embedded}
       vaultPath={vaultPath}
       app={{ id: app.id, name: app.name, url: app.url, runtime: app.runtime }}
       subtitle={<>via {runtimeLabel} · <span className={TONE_TEXT[status.tone]}>{status.label}</span>{app.status_detail && app.status !== "connected" ? ` · ${app.status_detail}` : ""}</>}

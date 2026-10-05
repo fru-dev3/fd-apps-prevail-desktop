@@ -15,6 +15,7 @@ import { TintIcon } from "./tint";
 import { BODY, META, ROW_TITLE, SECTION_TITLE } from "./typescale";
 import { REVEAL, RowMenu, Toggle } from "./ui";
 import { relTime } from "./format";
+import { requestEntity } from "./entitystore";
 import { label } from "./plansmodel";
 import {
   KIND_HINT, KIND_LABEL, KIND_PLACEHOLDER, guessSource, secretName, shortLocation, sourcesInUse, splitSecret, useLine,
@@ -171,6 +172,12 @@ function AddSource({ vaultPath, domains, existing, onAdded }: { vaultPath: strin
             </p>
           </div>
           {done.probe.ok ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-label="Ready" /> : <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-err" aria-label="Not readable yet" />}
+          {/* A source is a product with a connector: its page holds its chat and connection. */}
+          <button type="button" data-testid="knowledge-open-product" onClick={() => requestEntity({ kind: "product", value: done.source.id })}
+            title={`Open ${done.source.name} in Products`} aria-label={`Open ${done.source.name} in Products`}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-surface-warm hover:text-accent">
+            <ArrowRight className="h-4 w-4" />
+          </button>
         </div>
       )}
 

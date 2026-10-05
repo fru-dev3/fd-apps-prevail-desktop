@@ -560,6 +560,7 @@ pub fn run() {
             chat::verify_cli_model,
             chat::model_oneshot,
             appcmds::read_skill,
+            appcmds::read_product_skill,
             benchmark::benchmark_start,
             benchmark::benchmark_score,
             benchmark::benchmark_suggest,

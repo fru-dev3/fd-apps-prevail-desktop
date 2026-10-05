@@ -229,10 +229,11 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
 test("Work lists every desktop Work section; Tasks opens full-width with a back button", async ({ page }) => {
   await goTab(page, "Work");
   await expect(page.locator("h1", { hasText: "Work" })).toBeVisible();
-  for (const label of ["Inbox", "Apps", "Entities", "Activities", "Insights", "For You", "Tasks", "Compass"]) {
+  for (const label of ["Inbox", "Entities", "Activities", "Insights", "For You", "Tasks", "Compass"]) {
     await expect(page.getByRole("button", { name: new RegExp(`^${label}(\\s|$)`) })).toBeVisible();
   }
-  for (const gone of ["Needs you", "Work board", "Spark", "Automations", "Calendar", "Notes"]) {
+  // Apps are Products now (under Entities): no Apps row of their own.
+  for (const gone of ["Apps", "Needs you", "Work board", "Spark", "Automations", "Calendar", "Notes"]) {
     await expect(page.getByRole("button", { name: gone, exact: true })).toHaveCount(0);
   }
   await page.screenshot({ path: `${SHOTS}/phone-work.png`, fullPage: false });

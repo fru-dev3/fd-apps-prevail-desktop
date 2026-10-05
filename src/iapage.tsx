@@ -5,14 +5,18 @@
 // template: one entity kind per tab, Events with their calendar strip, and
 // Projects (the missions page without its own header).
 import { useEffect, useState } from "react";
-import { CalendarRange, ChevronRight, Plug, Shapes } from "lucide-react";
+import { CalendarRange, ChevronRight, Shapes } from "lucide-react";
 import { SettingsHeader } from "./sectionutil";
 import { SpineTabs } from "./sidespine";
 import { useIsPhone } from "./useisphone";
 import { EntitiesView } from "./entitiesview";
 import { EventsView } from "./eventsview";
 import { MissionsPage } from "./missionspage";
-import { ENTITY_KIND_OF, GROUP_LABEL, IA_KIND_EVENT, kindDef, kindsOf, takeIaKind, type Group, type KindId } from "./ia";
+import { AppStackView } from "./appstack";
+import { AppsMirrorPanel } from "./appsmirror";
+import { ENTITY_KIND_OF, GROUP_LABEL, IA_KIND_EVENT, PRODUCTS_VIEW_EVENT, kindDef, kindsOf, productsView, setProductsView, takeIaKind, type Group, type KindId, type ProductsView } from "./ia";
+
+const PRODUCTS_VIEWS: { id: ProductsView; label: string }[] = [{ id: "list", label: "All" }, { id: "stack", label: "Stack" }, { id: "connections", label: "Connections" }];
 
 export function GroupPage({ vaultPath, group, initial }: { vaultPath: string; group: Group; initial?: KindId }) {
   const kinds = kindsOf(group);
@@ -21,6 +25,14 @@ export function GroupPage({ vaultPath, group, initial }: { vaultPath: string; gr
   const phone = useIsPhone();
   const [kind, setKind] = useState<KindId>(() => takeIaKind(group) ?? initial ?? kinds[0]!.id);
   const [selName, setSelName] = useState<string | null>(null);
+  // Products: the list (each page holds its app), the stack, the connections.
+  const [pview, setPview] = useState<ProductsView>(productsView);
+  useEffect(() => {
+    const on = (e: Event) => setPview((e as CustomEvent<ProductsView>).detail);
+    window.addEventListener(PRODUCTS_VIEW_EVENT, on);
+    return () => window.removeEventListener(PRODUCTS_VIEW_EVENT, on);
+  }, []);
+  const pickView = (v: ProductsView) => { setProductsView(v); setPview(v); setSelName(null); };
   // The breadcrumbs' "back to the list": each view clears its pick on a new n.
   const [clearN, setClearN] = useState(0);
   useEffect(() => {
@@ -59,21 +71,19 @@ export function GroupPage({ vaultPath, group, initial }: { vaultPath: string; gr
       tabs={kinds.map((k) => ({ id: k.id, label: k.label, icon: k.icon }))} />
   );
   const ek = ENTITY_KIND_OF[kind];
-  // Products carry the connectors (the old sidebar APPS): the Apps page, with
-  // the stack, every connector and its sign-in, is one tap from here.
-  const appsLink = kind === "products" && !(phone && selName) ? (
-    <button type="button" data-testid="products-open-apps" title="Apps and connections: the stack, every connector, sign-in and runtimes"
-      onClick={() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "apps" }))}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-accent">
-      <Plug aria-hidden className="h-4 w-4" />{!phone && <span>Apps and connections</span>}
-    </button>
+  // Products carry their apps: the stack and every connector (sign-in,
+  // runtimes, sources) are two more views of the same list.
+  const viewPick = kind === "products" && !(phone && selName) ? (
+    <SpineTabs label="Products view" value={pview} onChange={pickView} tabs={PRODUCTS_VIEWS} />
   ) : undefined;
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid={`ia-page-${group}`}>
-      <SettingsHeader title={GROUP_LABEL[group]} icon={group === "entities" ? Shapes : CalendarRange} subtitle={phone ? undefined : crumbs} right={appsLink} tabs={phone && selName ? undefined : tabs} />
+      <SettingsHeader title={GROUP_LABEL[group]} icon={group === "entities" ? Shapes : CalendarRange} subtitle={phone ? undefined : crumbs} right={viewPick} tabs={phone && selName ? undefined : tabs} />
       <div className="flex min-h-0 flex-1 flex-col" data-testid={`ia-kind-${kind}`} key={kind}>
         {kind === "projects" ? <MissionsPage vaultPath={vaultPath} bare onSelected={setSelName} clearN={clearN} />
           : kind === "events" ? <EventsView vaultPath={vaultPath} onSelected={setSelName} clearN={clearN} />
+          : kind === "products" && pview === "stack" ? <AppStackView vaultPath={vaultPath} bare />
+          : kind === "products" && pview === "connections" ? <AppsMirrorPanel vaultPath={vaultPath} bare />
           : ek ? <EntitiesView vaultPath={vaultPath} kind={ek} embedded onSelected={setSelName} clearN={clearN} />
           : null}
       </div>

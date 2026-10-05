@@ -19,6 +19,8 @@ const FOO_DRIVE = { id: "foo-drive", name: "Foo Drive", runtime: "claude", serve
 const now = Date.now();
 const FIX = {
   read_ideal_state: "", read_omega: "", read_user_md: "", read_memory_md: "",
+  // A connector opens on its product's page; this one has no page yet.
+  entities_show: { found: false, id: "product/gmail", name: "gmail", kind: "product", aliases: [], mentions: [], co_mentions: [], notes: "", digest: "" },
   apps_mirror_list: {
     generated_at: 1,
     runtimes: [{ runtime: "claude", installed: true, syncable: true, signin_hint: "", count: 2 }],
@@ -59,16 +61,18 @@ async function home(page: Page) {
 }
 async function openApps(page: Page) {
   await home(page);
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "apps" })));
-  await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
-  // The page opens on the stack; the connectors mirror is the second tab.
-  await page.getByTestId("tab-connectors").click();
+  // Connections is a view of Products (the old Apps page id lands on it).
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "connectors" })));
+  await expect(page.getByTestId("connections-view")).toBeVisible({ timeout: 10_000 });
 }
 async function openGmail(page: Page) {
   await openApps(page);
   const row = page.getByTestId("mirror-row-gmail");
-  if (await row.isVisible()) await row.click();
-  await expect(page.getByTestId("app-header")).toContainText("Gmail", { timeout: 10_000 });
+  await row.click();
+  // A connector opens on its product's page, on the App tab.
+  await expect(page.getByTestId("product-app-pane")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("entity-tab-app")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("app-header")).toContainText("via Claude");
 }
 // Play one engine turn into the chat that just sent.
 async function play(page: Page, events: Record<string, unknown>[]) {
@@ -104,9 +108,10 @@ for (const width of [1440, 390]) {
     test("the Activity tab lists the access log", async ({ page }) => {
       await openGmail(page);
       await page.getByTestId("app-tab-activity").click();
-      await expect(page.getByTestId("access-line")).toHaveCount(3);
-      await expect(page.getByTestId("app-activity")).toContainText("to: [an email address], subject: Foo invoice");
-      await expect(page.getByTestId("app-activity")).toContainText("Waiting for you");
+      const pane = page.getByTestId("product-app-pane");
+      await expect(pane.getByTestId("access-line")).toHaveCount(3);
+      await expect(pane.getByTestId("app-activity")).toContainText("to: [an email address], subject: Foo invoice");
+      await expect(pane.getByTestId("app-activity")).toContainText("Waiting for you");
       await shot(page, "app-activity");
     });
 
@@ -188,12 +193,14 @@ for (const width of [1440, 390]) {
     test("the Activity tab shows each line's account and filters by it", async ({ page }) => {
       await openGmail(page);
       await page.getByTestId("app-tab-activity").click();
-      await expect(page.getByTestId("access-account")).toHaveText(["bar@example.com", "foo@example.com"]);
-      await page.getByTestId("activity-account-filter").selectOption("foo@example.com");
-      await expect(page.getByTestId("access-line")).toHaveCount(1);
-      await expect(page.getByTestId("app-activity")).toContainText("from:foo");
-      await page.getByTestId("activity-account-filter").selectOption("");
-      await expect(page.getByTestId("access-line")).toHaveCount(3);
+      // The product page's overview has its own Apps used list; read the App tab's.
+      const pane = page.getByTestId("product-app-pane");
+      await expect(pane.getByTestId("access-account")).toHaveText(["bar@example.com", "foo@example.com"]);
+      await pane.getByTestId("activity-account-filter").selectOption("foo@example.com");
+      await expect(pane.getByTestId("access-line")).toHaveCount(1);
+      await expect(pane.getByTestId("app-activity")).toContainText("from:foo");
+      await pane.getByTestId("activity-account-filter").selectOption("");
+      await expect(pane.getByTestId("access-line")).toHaveCount(3);
     });
 
     test("an app that needs sign-in renders an in-flow card", async ({ page }) => {

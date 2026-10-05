@@ -10,7 +10,7 @@
 // Inbox first; Settings opens every Editor section. Nothing in this shell is allowed to reflow the conversation
 // when it opens: the tab bar expands as an overlay, sheets float.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Briefcase, ChevronLeft, ChevronRight, ChevronUp, History, Inbox, Layers, LayoutGrid, MessageSquare, Plug, Plus, Scale, Settings as SettingsIcon, UserCog, X, type LucideIcon, Shapes, CalendarRange } from "lucide-react";
+import { Briefcase, ChevronLeft, ChevronRight, ChevronUp, History, Inbox, Layers, LayoutGrid, MessageSquare, Plus, Scale, Settings as SettingsIcon, UserCog, X, type LucideIcon, Shapes, CalendarRange } from "lucide-react";
 import { invoke } from "./bridge";
 import { scoreColor, titleCase } from "./format";
 import { domainBlurb, isUserDomain } from "./helpers";
@@ -31,10 +31,9 @@ const PHONE_TABS: { id: PhoneScreen; label: string; icon: LucideIcon }[] = [
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
-// Inbox and Apps sit above the Work groups, as they do in the desktop sidebar.
+// Inbox and the group pages sit above the Work groups, as in the desktop sidebar.
 const PHONE_TOP: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "inbox", label: "Inbox", icon: Inbox },
-  { id: "apps", label: "Apps", icon: Plug },
   { id: "entities", label: "Entities", icon: Shapes },
   { id: "activities", label: "Activities", icon: CalendarRange },
   { id: "specialists", label: "Specialists", icon: UserCog },

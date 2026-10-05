@@ -10,7 +10,6 @@
 import { useEffect, useState } from "react";
 import { BoardPanel } from "./boardpanel";
 import { InboxPage } from "./inboxpage";
-import { AppsPage } from "./appstack";
 import { RecommendationsPanel } from "./recommendationspanel";
 import { ScrollPage } from "./sectionutil";
 import { MirrorPanel } from "./mirror";
@@ -22,7 +21,7 @@ import { PlaybooksPage } from "./playbookspage";
 import { workSection } from "./navdefs";
 import type { CliInfo } from "./types";
 
-export type WorkSection = "task-list" | "inbox" | "apps" | "recommendations" | "insights" | "missions" | "entities" | "activities" | "compass" | "decisions" | "specialists" | "playbooks";
+export type WorkSection = "task-list" | "inbox" | "recommendations" | "insights" | "missions" | "entities" | "activities" | "compass" | "decisions" | "specialists" | "playbooks";
 // Insights is a view of the Intent screen. Its remembered view is set before
 // it mounts, so the row you clicked is the view you land on.
 const INTENT_VIEW: Partial<Record<WorkSection, string>> = { insights: "noticed" };
@@ -30,7 +29,7 @@ export function normalizeWorkSection(s: string): WorkSection | null {
   return workSection(s) as WorkSection | null;
 }
 // Sections that lay out their own columns (a SideSpine page).
-const FLUSH: WorkSection[] = ["recommendations", "inbox", "apps", "insights", "missions", "entities", "activities", "compass", "task-list", "decisions", "specialists", "playbooks"];
+const FLUSH: WorkSection[] = ["recommendations", "inbox", "insights", "missions", "entities", "activities", "compass", "task-list", "decisions", "specialists", "playbooks"];
 
 export function WorkPanel({
   vaultPath,
@@ -64,7 +63,6 @@ export function WorkPanel({
     <ScrollPage key={section} testId="work-page" flush={FLUSH.includes(section)}>
         {section === "task-list" && <BoardPanel vaultPath={vaultPath} clis={clis} />}
         {section === "inbox" && <InboxPage vaultPath={vaultPath} />}
-        {section === "apps" && <AppsPage vaultPath={vaultPath} />}
         {section === "recommendations" && <RecommendationsPanel vaultPath={vaultPath} />}
         {intentView && <MirrorPanel key={`${section}:${jumpTo?.n ?? 0}`} vaultPath={vaultPath} />}
         {section === "compass" && <CompassPage vaultPath={vaultPath} />}

@@ -28,22 +28,22 @@ import { isYours } from "./linking";
 const GROUPS: { kind: EntityKindName; label: string }[] = [
   { kind: "person", label: "People" },
   { kind: "place", label: "Places" },
-  { kind: "org", label: "Products" },
+  { kind: "product", label: "Products" },
   { kind: "thing", label: "Things" },
 ];
 const FILTERS: { id: "all" | EntityKindName; label: string; icon: LucideIcon }[] = [
   { id: "all", label: "All", icon: LayoutGrid }, { id: "person", label: "People", icon: Users }, { id: "place", label: "Places", icon: MapPin },
-  { id: "org", label: "Products", icon: Package }, { id: "thing", label: "Things", icon: Watch },
+  { id: "product", label: "Products", icon: Package }, { id: "thing", label: "Things", icon: Watch },
 ];
-// A product row: an org from the index, an app record, or both (the adapter).
+// A product row: one folder in the products store (its page and its app).
 type Row = EntitySummary & { apps?: ProductRow["apps"]; company?: boolean };
 const productRow = (p: ProductRow): Row => ({
-  id: p.id, name: p.name, kind: "org", aliases: [], mention_count: p.conversations, conversations: p.conversations, last_ts: p.last_ts,
+  id: p.id, name: p.name, kind: "product", aliases: [], mention_count: p.conversations, conversations: p.conversations, last_ts: p.last_ts,
   saved: p.saved, has_page: p.has_page, domain: p.domain, website: p.website, picture: p.picture, relation: p.relation, home_domain: p.home_domain,
   apps: p.apps, company: p.company,
 });
 const PER_GROUP = 60;
-const KINDS = new Set<string>(["person", "place", "org", "thing"]);
+const KINDS = new Set<string>(["person", "place", "product", "thing"]);
 
 const targetOf = (e: EntitySummary): EntityTarget => ({ kind: e.kind, value: e.id.slice(e.id.indexOf("/") + 1) });
 // The list row a target stands for: the same id, or the entity one of its
@@ -52,7 +52,8 @@ const rowIdOf = (t: EntityTarget): string => lookupEntity(t.kind, t.value)?.id ?
 
 function EntityRow({ e, on, onPick }: { e: Row; on: boolean; onPick: (e: EntitySummary) => void }) {
   const aka = e.aliases.filter((a) => a.toLowerCase() !== e.name.toLowerCase());
-  const app = e.apps?.length ? (e.company ? (e.apps.length === 1 ? "Company and its app" : `Company and ${e.apps.length} apps`) : e.apps[0]!.kind === "service" ? "Service" : "App") : "";
+  const live = (e.apps ?? []).filter((a) => !a.archived);
+  const app = live.length ? (live[0]!.kind === "service" ? "Service" : live.length === 1 ? "Has an app" : `${live.length} apps`) : "";
   return (
     <li>
       <button type="button" onClick={() => onPick(e)} data-testid="entity-row" aria-current={on ? "true" : undefined}
@@ -115,8 +116,8 @@ export function EntitiesView({ vaultPath, embedded = false, kind, onSelected, cl
     window.addEventListener("prevail:ia-new", onNew);
     return () => window.removeEventListener("prevail:ia-new", onNew);
   }, [kindId]);
-  // Products: org pages and app records as one list (`entities products`).
-  const products = useInvokeQuery<{ products: ProductRow[] } | null>("ia_products", kind === "org" ? { vault: vaultPath } : null, { invalidateOn: ["prevail:entities-changed"] });
+  // Products: one list over the products store (`entities products`).
+  const products = useInvokeQuery<{ products: ProductRow[] } | null>("ia_products", kind === "product" ? { vault: vaultPath } : null, { invalidateOn: ["prevail:entities-changed"] });
   // Pairs that may be one entity, and whether the review is on screen.
   const [dups, setDups] = useState<DupPair[]>(() => cachedDuplicates(vaultPath));
   const [showDups, setShowDups] = useState(false);
@@ -148,8 +149,8 @@ export function EntitiesView({ vaultPath, embedded = false, kind, onSelected, cl
   }, []);
 
   const storeList = store.vault === vaultPath ? store.list : null;
-  const productList = kind === "org" ? products.data : undefined;
-  const list: { entities: Row[] } | null = kind === "org"
+  const productList = kind === "product" ? products.data : undefined;
+  const list: { entities: Row[] } | null = kind === "product"
     ? (Array.isArray(productList?.products) ? { entities: productList!.products.map(productRow) } : products.error ? { entities: [] } : null)
     : storeList ? { entities: kind ? storeList.entities.filter((e) => e.kind === kind) : storeList.entities.filter((e) => KINDS.has(e.kind)) } : null;
   const groups = useMemo(() => {

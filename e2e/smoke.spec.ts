@@ -494,12 +494,15 @@ test("18 · the Inbox approves a queued Google write with the token spine", asyn
   expect(args).toMatchObject({ id: "gws_smoke1", approval: "smoke-approval-token" });
 });
 
-test("19 · apps live in Products: no APPS section; Products opens the Apps page in Home", async ({ page }) => {
+test("19 · apps live in Products: no Apps area; Products carries the stack and the connections", async ({ page }) => {
   await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await expect(page.getByTestId("sidebar-apps")).toHaveCount(0);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "products" })));
-  await page.getByTestId("products-open-apps").click();
-  await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("tab-list")).toHaveAttribute("aria-selected", "true", { timeout: 10_000 });
+  await page.getByTestId("tab-connections").click();
+  await expect(page.getByTestId("connections-view")).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("tab-stack").click();
+  await expect(page.getByTestId("stack-view")).toBeVisible({ timeout: 10_000 });
   // Still Home: the sidebar did not flip into Settings.
   await expect(page.getByTestId("nav-home")).toBeVisible();
   await expect(page.getByRole("button", { name: /Back to Home/ })).toHaveCount(0);
@@ -521,11 +524,11 @@ test("20 · links to removed screens land on Home; old ids reach their new pages
     await page.evaluate((s) => window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: s })), gone);
     await expect(page.getByText("What should we work on?")).toBeVisible();
   }
-  // The Work board id opens Tasks; the old Settings Apps id opens the Home Apps page.
+  // The Work board id opens Tasks; the old Settings Apps id opens Products > Connections.
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "tasks" })));
   await expect(page.getByTestId("tasks-list")).toBeVisible({ timeout: 10_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:settings-section", { detail: "connectors" })));
-  await expect(page.getByTestId("apps-view")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("connections-view")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("nav-home")).toBeVisible();
 });
 

@@ -18,8 +18,8 @@ const LIST = { generated_ts: 1, total: 3, entities: [
   { id: "thing/foo-watch", name: "Foo Watch", kind: "thing", aliases: [], mention_count: 1, conversations: 1, last_ts: 1, saved: true, has_page: true, relation: "yours" },
 ] };
 const PRODUCTS = { products: [
-  { id: "org/foo-bank", name: "Foo Bank", company: true, apps: [{ id: "foo-bank", title: "Foo Bank", kind: "service", domains: ["foobank.example"] }], saved: true, has_page: true, conversations: 3, last_ts: 3, relation: "yours", domain: "foobank.example" },
-  { id: "org/bar-notes", name: "Bar Notes", company: false, apps: [{ id: "bar-notes", title: "Bar Notes", kind: "app", domains: [] }], saved: false, has_page: false, conversations: 0, last_ts: 0, relation: "yours" },
+  { id: "product/foo-bank", name: "Foo Bank", company: true, apps: [{ id: "foo-bank", title: "Foo Bank", kind: "service", domains: ["foobank.example"] }], saved: true, has_page: true, conversations: 3, last_ts: 3, relation: "yours", domain: "foobank.example" },
+  { id: "product/bar-notes", name: "Bar Notes", company: false, apps: [{ id: "bar-notes", title: "Bar Notes", kind: "app", domains: [] }], saved: false, has_page: false, conversations: 0, last_ts: 0, relation: "yours" },
 ] };
 const EVENTS = () => ({ events: [
   { id: "event/foo-dinner", name: "Foo dinner", date: today, time: "18:00", source: "prevail", has_page: true, place: { id: "place/foo-house", name: "Foo House" } },
@@ -27,12 +27,12 @@ const EVENTS = () => ({ events: [
 ] });
 const show = (id: string) => {
   const [kind, slug] = id.split("/");
-  const name = kind === "org" ? (slug === "foo-bank" ? "Foo Bank" : "Bar Notes") : kind === "event" ? (slug === "foo-dentist" ? "Foo dentist" : "Foo dinner") : kind === "thing" ? "Foo Watch" : "Sam Foo";
+  const name = kind === "product" ? (slug === "foo-bank" ? "Foo Bank" : "Bar Notes") : kind === "event" ? (slug === "foo-dentist" ? "Foo dentist" : "Foo dinner") : kind === "thing" ? "Foo Watch" : "Sam Foo";
   return {
     found: true, id: `${kind}/${slug}`, name, kind, aliases: [], kinds: [kind], mention_count: 0, conversations: 0, last_ts: 0, mentions: [], co_mentions: [],
     digest: "", notes: "", saved: true, page_path: `data/entities/x/${slug}/entity.md`,
-    fields: kind === "event" ? eventFields : kind === "thing" ? { purchased: "2025-03-01", warranty: "2099-01-01", value: 420, maker: "org/foo-bank" } : {},
-    ...(kind === "org" ? { apps: PRODUCTS.products.find((p) => p.id === `org/${slug}`)?.apps ?? [] } : {}),
+    fields: kind === "event" ? eventFields : kind === "thing" ? { purchased: "2025-03-01", warranty: "2099-01-01", value: 420, maker: "product/foo-bank" } : {},
+    ...(kind === "product" ? { apps: PRODUCTS.products.find((p) => p.id === `product/${slug}`)?.apps ?? [] } : {}),
   };
 };
 
@@ -83,15 +83,15 @@ describe("the Entities page", () => {
     await waitFor(() => expect(screen.getByTestId("ia-breadcrumbs").textContent).toBe("EntitiesPeopleSam Foo"));
     fireEvent.click(screen.getByRole("tab", { name: "Products" }));
     const rows = await screen.findAllByTestId("entity-row");
-    // Companies and apps, one list: the company carries its app; an app with no company is its own row.
+    // One list of products: each says what it carries.
     expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("Foo Bank"), expect.stringContaining("Bar Notes")]);
-    expect(within(rows[0]!).getByTestId("entity-row-app").textContent).toBe("Company and its app");
-    expect(within(rows[1]!).getByTestId("entity-row-app").textContent).toBe("App");
+    expect(within(rows[0]!).getByTestId("entity-row-app").textContent).toBe("Service");
+    expect(within(rows[1]!).getByTestId("entity-row-app").textContent).toBe("Has an app");
     fireEvent.click(rows[0]!);
     await waitFor(() => expect(screen.getByTestId("ia-crumb-object").textContent).toBe("Foo Bank"));
     expect(screen.getByTestId("ia-breadcrumbs").textContent).toBe("EntitiesProductsFoo Bank");
-    // A product shows its app records.
-    expect(await screen.findByTestId("product-apps")).toBeTruthy();
+    // A product with an app shows it on its own page: the App tab.
+    expect(await screen.findByTestId("entity-tab-app")).toBeTruthy();
     fireEvent.click(screen.getAllByTestId("entity-row")[1]!);
     await waitFor(() => expect(screen.getByTestId("ia-crumb-object").textContent).toBe("Bar Notes"));
     // The kind crumb goes back to the list (on a wide screen, its first).
@@ -160,5 +160,21 @@ describe("new by talking", () => {
     fireEvent.click(screen.getByTestId("new-object-save"));
     await waitFor(() => expect(made).toEqual(["event/foo-party"]));
     expect(sent("ia_create")).toEqual([{ vault: "/v", kind: "event", draft: { name: "Foo party", date: today } }]);
+  });
+});
+
+describe("the old Apps page", () => {
+  it("opens Products on the matching view, and legacy ids read as products", async () => {
+    const { noteIaKind, productsView, kindOfId } = await import("./ia");
+    const { workSection } = await import("./navdefs");
+    for (const id of ["apps", "connectors", "stack"]) expect(workSection(id)).toBe("entities");
+    noteIaKind("connectors");
+    expect(productsView()).toBe("connections");
+    noteIaKind("stack");
+    expect(productsView()).toBe("stack");
+    noteIaKind("products");
+    expect(productsView()).toBe("list");
+    expect(kindOfId("product/foo-bank")?.id).toBe("products");
+    expect(kindOfId("app/foo-bank")?.id).toBe("products");
   });
 });
