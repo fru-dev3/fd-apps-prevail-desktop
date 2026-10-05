@@ -95,6 +95,8 @@ export function groupByGoal<T extends Pick<WorkTask, "goal">>(tasks: T[]): { goa
 /** A queue row: the task and a summary of the prompt it came from. */
 export type QueueTask = WorkTask & { prompt?: { id: string; ts: number; text: string; surface?: WorkPrompt["surface"] } };
 const OPEN_IN_QUEUE: ReadonlySet<WorkStatus> = new Set(["routed", "queued", "needs-you", "running", "paused"]);
+// A finished task that still asks something (keep or close its Herdr tab) stays in the queue until answered.
+const inQueue = (t: WorkTask): boolean => OPEN_IN_QUEUE.has(t.status) || !!t.ask;
 
 /**
  * The queue, flat and in the engine's order (first runs first, newest at the
@@ -103,9 +105,9 @@ const OPEN_IN_QUEUE: ReadonlySet<WorkStatus> = new Set(["routed", "queued", "nee
  */
 export function asQueue(v: unknown): QueueTask[] {
   const o = (v ?? {}) as { tasks?: unknown; prompts?: unknown };
-  if (Array.isArray(o.tasks)) return (o.tasks as QueueTask[]).filter((t) => t && typeof t.id === "string" && OPEN_IN_QUEUE.has(t.status));
+  if (Array.isArray(o.tasks)) return (o.tasks as QueueTask[]).filter((t) => t && typeof t.id === "string" && inQueue(t));
   return asPrompts(v).sort((a, b) => a.ts - b.ts)
-    .flatMap((p) => p.tasks.filter((t) => OPEN_IN_QUEUE.has(t.status)).map((t): QueueTask => ({ ...t, prompt: { id: p.id, ts: p.ts, text: p.text, surface: p.surface } })));
+    .flatMap((p) => p.tasks.filter(inQueue).map((t): QueueTask => ({ ...t, prompt: { id: p.id, ts: p.ts, text: p.text, surface: p.surface } })));
 }
 
 /** "2 running · 1 queued · 1 needs you": the queue's one meta line. */

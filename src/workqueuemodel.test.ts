@@ -36,6 +36,9 @@ describe("work queue model", () => {
     expect(old.map((t) => [t.id, t.prompt?.id])).toEqual([["a", "old"], ["c", "new"]]);
     expect(queueSummary(q)).toBe("2 tasks · 1 running · 1 queued");
     expect(actionsFor(task({ status: "queued" }))).toEqual(["pause"]);
+    // A finished task that still asks keep or close stays until answered.
+    const asking = asQueue({ tasks: [task({ id: "k", status: "done", executor: "herdr", ask: { kind: "keep-close", detail: "" } }), task({ id: "x", status: "done" })] });
+    expect(asking.map((t) => t.id)).toEqual(["k"]);
   });
 
   test("moving a task names its new neighbour for the engine", () => {
