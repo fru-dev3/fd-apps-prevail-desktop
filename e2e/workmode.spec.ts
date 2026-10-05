@@ -254,6 +254,9 @@ test("the item panel: status, where it went with its icon, who is on it, what it
   await expect(d.getByTestId("work-destination")).toContainText("Domain");
   await expect(d.getByTestId("work-team")).toContainText("Chief of staff");
   await expect(d.getByTestId("work-specialist")).toHaveText([/Planner/, /Scout/]);
+  // The steps stay hidden until Details is opened: the panel shows the ask and its result.
+  await expect(d.getByTestId("work-activity")).toBeHidden();
+  await d.getByTestId("work-details").locator("summary").first().click();
   await expect(d.getByTestId("work-context")).toContainText("Your home city, from your profile");
   await expect(d.getByTestId("work-activity-line")).toHaveText([/Sent to Health/, /Your rules apply: nothing is paid or bought\./, /Started/, /Searching the web/]);
   // Never engine words or ids.
@@ -323,6 +326,8 @@ test("a Herdr task never shows the agent's output: its workspace and own tab, pl
   await expect(panel(page)).not.toContainText("Nothing from the Herdr tab yet");
   await expect(page.getByTestId("work-herdr-output")).toHaveCount(0);
   await expect(panel(page).locator("pre")).toHaveCount(0);
+  await expect(detail(page).getByTestId("work-open-herdr")).toBeHidden();
+  await detail(page).getByTestId("work-details").locator("summary").first().click();
   await expect(detail(page).getByTestId("work-activity-line")).toHaveText([/Sent to Bar app/, /Opened its own Herdr tab in Bar app/, /Reading notes\.md/, /Drafting an email/, /You followed up/]);
   await detail(page).getByTestId("work-open-herdr").click();
   await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t3", action: "focus" });

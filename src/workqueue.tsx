@@ -701,44 +701,56 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
         </div>
       </Section>
 
+      {/* The work itself (what it knew, each step, the Herdr tab) stays out of the way: the panel shows
+          what was asked and what came of it, and the steps sit behind one closed Details link. */}
+      {((t.context?.length ?? 0) > 0 || lines.length > 0 || t.herdr?.tabId) && (
+        <details data-testid="work-details" className="group/det mt-5">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-1 py-0.5 text-[13px] text-text-muted hover:text-text-secondary">
+            Details<ChevronDown className="h-3 w-3 transition-transform group-open/det:rotate-180" />
+          </summary>
       {t.context && t.context.length > 0 && (
-        <Section title="What it already knows" testId="work-context">
-          <ul className="space-y-1.5">
-            {t.context.map((c) => (
-              <li key={c.label} className="flex items-center gap-2 text-[14px] text-text-secondary"><BookOpen className="h-3.5 w-3.5 shrink-0 text-accent" /><span className="min-w-0 truncate" title={c.text}>{c.label}</span></li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {lines.length > 0 && (
-        <Section title="Activity" testId="work-activity">
-          <ol className="space-y-0.5">
-            {lines.map((l, i) => {
-              const AI = ACT_ICON[l.icon];
-              const row = <><AI className="h-3.5 w-3.5 shrink-0 text-text-muted" /><span className="min-w-0 flex-1 truncate">{l.text}</span><span className="shrink-0 tabular-nums text-[12px] text-text-muted">{clock(l.ts)}</span></>;
-              return (
-                <li key={i} data-testid="work-activity-line">
-                  {l.more ? (
-                    <details className="group/act">
-                      <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-md px-1.5 py-1 text-[14px] text-text-secondary hover:bg-surface-warm">{row}<ChevronDown className="h-3 w-3 shrink-0 text-text-muted transition-transform group-open/act:rotate-180" /></summary>
-                      <p className="mb-1 ml-8 mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-text-muted [overflow-wrap:anywhere]">{l.more}</p>
-                    </details>
-                  ) : <div className="flex items-center gap-2.5 px-1.5 py-1 text-[14px] text-text-secondary">{row}</div>}
-                </li>
-              );
-            })}
-          </ol>
-        </Section>
-      )}
-
-      {(t.herdr?.tabId || lease.elsewhere) && (
-        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <Section title="What it already knows" testId="work-context">
+            <ul className="space-y-1.5">
+              {t.context.map((c) => (
+                <li key={c.label} className="flex items-center gap-2 text-[14px] text-text-secondary"><BookOpen className="h-3.5 w-3.5 shrink-0 text-accent" /><span className="min-w-0 truncate" title={c.text}>{c.label}</span></li>
+              ))}
+            </ul>
+          </Section>
+        )}
+  
+        {lines.length > 0 && (
+          <Section title="Activity" testId="work-activity">
+            <ol className="space-y-0.5">
+              {lines.map((l, i) => {
+                const AI = ACT_ICON[l.icon];
+                const row = <><AI className="h-3.5 w-3.5 shrink-0 text-text-muted" /><span className="min-w-0 flex-1 truncate">{l.text}</span><span className="shrink-0 tabular-nums text-[12px] text-text-muted">{clock(l.ts)}</span></>;
+                return (
+                  <li key={i} data-testid="work-activity-line">
+                    {l.more ? (
+                      <details className="group/act">
+                        <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-md px-1.5 py-1 text-[14px] text-text-secondary hover:bg-surface-warm">{row}<ChevronDown className="h-3 w-3 shrink-0 text-text-muted transition-transform group-open/act:rotate-180" /></summary>
+                        <p className="mb-1 ml-8 mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-text-muted [overflow-wrap:anywhere]">{l.more}</p>
+                      </details>
+                    ) : <div className="flex items-center gap-2.5 px-1.5 py-1 text-[14px] text-text-secondary">{row}</div>}
+                  </li>
+                );
+              })}
+            </ol>
+          </Section>
+        )}
+  
           {t.herdr?.tabId && (
-            <button type="button" data-testid="work-open-herdr" disabled={mine} onClick={() => void act("focus")} className={outlineBtn}>
-              <img src="/herdr.png" alt="" className="h-4 w-4 rounded-[4px]" />Open in Herdr
-            </button>
+            <div className="mt-4">
+              <button type="button" data-testid="work-open-herdr" disabled={mine} onClick={() => void act("focus")} className={outlineBtn}>
+                <img src="/herdr.png" alt="" className="h-4 w-4 rounded-[4px]" />Open in Herdr
+              </button>
+            </div>
           )}
+        </details>
+      )}
+
+      {lease.elsewhere && (
+        <div className="mt-5 flex flex-wrap items-center gap-2">
           {lease.elsewhere && (confirmTake ? (
             <><span className="text-[13px] text-text-secondary">On {machineLabel(machines, t.lease!.host)} now. Take it over here?</span>
               <button type="button" className={textBtn} onClick={() => { setConfirmTake(false); void act("continue-here"); }}>Yes</button>
