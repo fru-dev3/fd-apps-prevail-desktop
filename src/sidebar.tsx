@@ -44,12 +44,18 @@ const TASKS_CHANGED = ["prevail:tasks-changed"];
 // Active row: a light accent tint, accent text, and a short accent bar on the
 // left edge. Every selectable row in the sidebar uses it.
 const ACTIVE_ROW = "bg-accent-soft font-semibold text-accent before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-accent";
+// One hover per level, the same everywhere at that level (owner, 2026-10-04):
+// top rows (Home, Inbox) the fullest tint; a section's rows a lighter one;
+// the leaves under a row the lightest, with the name taking the accent.
 const IDLE_ROW = "text-text-secondary hover:bg-surface-warm hover:text-text-primary";
+const CHILD_ROW = "text-text-secondary hover:bg-surface-warm/60 hover:text-text-primary";
+const LEAF_ROW = "text-text-secondary hover:bg-surface-warm/40 hover:text-accent";
 const SECTION_LABEL = "text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted";
-// Sections sit one step in from the top rows (owner, 2026-10-03: Work,
-// Entities... "not on the same line as Inbox, Insights"): a section's header
-// and its rows share a left edge 12px right of Home, Inbox and Insights.
-const SECTION_PAD = "pl-6 pr-3";
+// Three levels, each one step in (owner, 2026-10-03 and 10-04): the section
+// header sits 12px right of Home, Inbox and Insights ("not on the same line"),
+// and its rows sit a further 16px in, under the header, never level with it.
+// Leaves (a project, a person, a domain under All) step in again.
+const SECTION_PAD = "pl-10 pr-3";
 // Readable names for the side rows old Settings ids open (navdefs EDITOR_SUBS),
 // so "Search settings" finds them too.
 const SUB_LABELS: Record<string, string> = {
@@ -87,8 +93,10 @@ function CountPill({ n, active, loud = false }: { n: number; active: boolean; lo
 // One nav row. Collapsed, it is an icon button with the label as its tooltip.
 // `loud`: the count is something to act on (the Inbox), so it is always in
 // the accent colour rather than muted.
-function NavRow({ icon: Icon, lead, tint, label, title, active, count = 0, loud = false, collapsed, onClick, onPrefetch, onMouseDown, chatTarget, testId }: {
+function NavRow({ icon: Icon, lead, tint, label, title, active, count = 0, loud = false, collapsed, onClick, onPrefetch, onMouseDown, chatTarget, testId, child = false }: {
   icon: typeof House; lead?: ReactNode; tint?: string; label: string; title?: string; active: boolean; count?: number; loud?: boolean; collapsed: boolean; onClick: () => void; onPrefetch?: () => void;
+  /** A row inside a section: the second-level hover. */
+  child?: boolean;
   onMouseDown?: (e: ReactMouseEvent) => void; chatTarget?: boolean; testId?: string;
 }) {
   return (
@@ -103,7 +111,7 @@ function NavRow({ icon: Icon, lead, tint, label, title, active, count = 0, loud 
       data-testid={testId}
       className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${
         collapsed ? "h-10 justify-center" : "h-9 gap-3 px-3"
-      } ${active ? ACTIVE_ROW : IDLE_ROW}`}
+      } ${active ? ACTIVE_ROW : child && !collapsed ? CHILD_ROW : IDLE_ROW}`}
     >
       {lead ?? <TintIcon icon={Icon} tint={tint} />}
       {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
@@ -118,7 +126,7 @@ function NavRow({ icon: Icon, lead, tint, label, title, active, count = 0, loud 
 function MissionRow({ name, left, active, collapsed, onClick, testId }: { name: string; left: string; active: boolean; collapsed: boolean; onClick: () => void; testId?: string }) {
   return (
     <button onClick={onClick} data-chat-target="" title={collapsed ? `${name}${left ? `, ${left} left` : ""}` : undefined} aria-current={active ? "page" : undefined} data-testid={testId}
-      className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${collapsed ? "h-10 justify-center" : "h-8 gap-2.5 pl-9 pr-3"} ${active ? ACTIVE_ROW : IDLE_ROW}`}>
+      className={`relative flex w-full items-center rounded-lg text-left text-[14px] transition-colors ${collapsed ? "h-10 justify-center" : "h-8 gap-2.5 pl-[58px] pr-3"} ${active ? ACTIVE_ROW : collapsed ? IDLE_ROW : LEAF_ROW}`}>
       {collapsed && <TintIcon icon={FolderKanban} tint="projects" />}
       {!collapsed && <span className="min-w-0 flex-1 truncate">{name}</span>}
       {!collapsed && left && <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{left}</span>}
@@ -144,7 +152,7 @@ function KindRow({ def, count, active, open, collapsed, onOpen, onToggle, onAdd,
     <div>
       <div className="group/h relative flex items-center">
         <button onClick={onOpen} aria-current={active ? "page" : undefined} data-testid={`sidebar-kind-${def.id}`} data-chat-target={def.id === "projects" ? "" : undefined}
-          className={`relative flex h-9 min-w-0 flex-1 items-center gap-3 rounded-lg pl-3 pr-16 text-left text-[14px] transition-colors ${active ? ACTIVE_ROW : IDLE_ROW}`}>
+          className={`relative flex h-9 min-w-0 flex-1 items-center gap-3 rounded-lg pl-3 pr-16 text-left text-[14px] transition-colors ${active ? ACTIVE_ROW : CHILD_ROW}`}>
           <TintIcon icon={Icon} tint={def.id} />
           <span className="min-w-0 flex-1 truncate">{def.label}</span>
           {typeof count === "number" && count > 0 && <span className="shrink-0 text-[12px] tabular-nums text-text-muted group-hover/h:opacity-0">{cap99(count)}</span>}
@@ -169,7 +177,7 @@ function KindRow({ def, count, active, open, collapsed, onOpen, onToggle, onAdd,
 function ObjectRow({ name, note, onClick, testId }: { name: string; note?: string; onClick: () => void; testId?: string }) {
   return (
     <button onClick={onClick} data-testid={testId} title={note ? `${name}, ${note}` : name}
-      className={`relative flex h-8 w-full items-center gap-2.5 rounded-lg pl-9 pr-3 text-left text-[14px] transition-colors ${IDLE_ROW}`}>
+      className={`relative flex h-8 w-full items-center gap-2.5 rounded-lg pl-[58px] pr-3 text-left text-[14px] transition-colors ${LEAF_ROW}`}>
       <span className="min-w-0 flex-1 truncate">{name}</span>
       {note && <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{note}</span>}
     </button>
@@ -200,7 +208,7 @@ function SectionHeader({ label, icon, tint, count, open, onToggle, onAdd, addTit
     // the icon in the same 22px column, the + and chevron where a row's are.
     <div data-tour={tour} data-sticky-head data-testid={`sidebar-head-${label.toLowerCase()}`} className={`group/h mx-3 flex h-8 items-center gap-0.5 pb-0.5 pl-6 pr-1 pt-0.5 ${SIDEBAR_STICKY}`}>
       <button onClick={onToggle} aria-expanded={open} title={open ? `Hide ${label}` : `Show ${label}`}
-        className={`flex h-7 min-w-0 flex-1 items-center gap-3 rounded-md pl-0 text-left transition-colors hover:text-text-secondary focus-visible:text-text-secondary ${SECTION_LABEL}`}>
+        className={`-ml-2 flex h-7 min-w-0 flex-1 items-center gap-3 rounded-md pl-2 text-left transition-colors hover:bg-surface-warm/70 hover:text-text-secondary focus-visible:text-text-secondary ${SECTION_LABEL}`}>
         <span className="flex w-[22px] shrink-0 justify-center" data-testid="sidebar-head-icon"><TintIcon icon={icon} tint={tint} square={false} size={14} /></span>
         <span className="truncate">{label}</span>
         {typeof count === "number" && <span className="font-medium tabular-nums text-text-muted/70" data-testid="sidebar-head-count">{count}</span>}
@@ -611,7 +619,7 @@ export function Sidebar({
       <button
         onClick={onToggle}
         aria-expanded={open}
-        className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left text-[13px] text-text-muted transition-colors hover:bg-surface-warm hover:text-text-secondary"
+        className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left text-[13px] text-text-muted transition-colors hover:bg-surface-warm/60 hover:text-text-secondary"
       >
         <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2.2} />
         {icon}
@@ -654,7 +662,7 @@ export function Sidebar({
           data-testid={`sidebar-domain-${d.name}`}
           title="Click to enter · drag to chat as context (plain: state · ⇧ full · ⌥ entire folder)"
           aria-current={active ? "page" : undefined}
-          className={`relative flex h-9 min-w-0 flex-1 cursor-grab items-center gap-3 rounded-lg pl-8 pr-9 text-left text-[14px] transition-colors active:cursor-grabbing ${active ? ACTIVE_ROW : IDLE_ROW}`}
+          className={`relative flex h-9 min-w-0 flex-1 cursor-grab items-center gap-3 rounded-lg pl-8 pr-9 text-left text-[14px] transition-colors active:cursor-grabbing ${active ? ACTIVE_ROW : LEAF_ROW}`}
         >
           {Icon ? <TintIcon icon={Icon} color={domainColor(d.name)} /> : <span className="h-[22px] w-[22px] shrink-0 rounded-md bg-surface-warm ring-1 ring-border" />}
           <span className="min-w-0 flex-1 truncate">{titleCase(d.name)}</span>
@@ -842,7 +850,7 @@ export function Sidebar({
             {(collapsed || workOpen) && (
               <nav aria-label="Work" className={`space-y-0.5 ${collapsed ? "px-2" : SECTION_PAD}`}>
                 {WORK_NAV.slice(1).flatMap((g) => g.items).map((it) => (
-                  <NavRow key={it.id} icon={it.icon} tint={it.id} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
+                  <NavRow key={it.id} child icon={it.icon} tint={it.id} label={it.label} count={workCounts[it.id] ?? 0} active={tab === "work" && workActive === it.id} collapsed={collapsed} onClick={() => selectWork(it.id)} onPrefetch={() => prefetchSection("work", it.id, vaultPath)} />
                 ))}
               </nav>
             )}
@@ -879,7 +887,7 @@ export function Sidebar({
                 {(collapsed || specsOpen) && (
                   <nav aria-label="Specialists" data-testid="sidebar-specialists" className={`space-y-0.5 ${collapsed ? "px-2" : SECTION_PAD}`}>
                     {!collapsed && specialists.map((x) => (
-                      <NavRow key={x.id} icon={UserCog} lead={<SpecialistAvatar id={x.id} size={22} state={working.has(x.id) ? "working" : "idle"} />} label={x.name} title={`${x.name}: click to open, drag into a chat to hand it a message`} active={false} collapsed={collapsed}
+                      <NavRow key={x.id} child icon={UserCog} lead={<SpecialistAvatar id={x.id} size={22} state={working.has(x.id) ? "working" : "idle"} />} label={x.name} title={`${x.name}: click to open, drag into a chat to hand it a message`} active={false} collapsed={collapsed}
                         onClick={() => openSpecialist(`spec:${x.id}`)} onMouseDown={(e) => startSpecialistDrag(e, x.name)} testId={`sidebar-specialist-${x.id}`} />
                     ))}
                   </nav>
