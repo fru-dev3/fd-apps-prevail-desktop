@@ -11,7 +11,7 @@
 // in Herdr and "Follow up or clarify". Never the agent's output.
 // Data: `prevail work ...` through bridge.ts (src-tauri/src/work.rs), polled
 // while the tab is on screen.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle, ArrowDown, ArrowDownToLine, ArrowLeft, ArrowUp, ArrowUpRight, ArrowUpToLine, BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronsLeft, ChevronsRight,
@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { invoke } from "./bridge";
 import { useChiefOfStaff } from "./chiefofstaff";
-import { titleCase } from "./format";
+import { relTime, titleCase } from "./format";
 import { openMission } from "./missions";
 import { requestEntity, type EntityKindName } from "./entitystore";
 import { transcribe } from "./phonevoice";
@@ -51,7 +51,7 @@ const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md te
 const primaryBtn = "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-background transition-opacity disabled:opacity-40";
 const ACTION_ICON: Partial<Record<WorkAction, LucideIcon>> = { pause: Pause, continue: Play, start: Play, stop: Square, reopen: RotateCcw };
 // A fact pill in the panel's top rows: it shrinks (its label truncates) before a row would wrap.
-const factPill = "inline-flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full border border-border-subtle bg-background px-2.5 text-[12.5px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
+const factPill = "inline-flex h-7 shrink-0 items-center whitespace-nowrap gap-1.5 rounded-full border border-border-subtle bg-background px-2.5 text-[12.5px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
 const andList = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 const outlineBtn = "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-accent disabled:opacity-40";
 
@@ -147,6 +147,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   vaultPath: string; active?: boolean; domains?: string[]; phone?: boolean;
 }) {
   const vault = vaultPath;
+  const chiefName = useChiefOfStaff(vault || null) ?? "Chief of staff";
   // The queue: open tasks in the engine's order, first runs first, newest at the bottom; finished ones stay checked until cleared.
   const [queue, setQueue] = useState<QueueTask[]>([]);
   // Every prompt and its tasks, for the backlog.
@@ -326,7 +327,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
 
   const pendingRows = pendingHere.map((p) => <PendingRow key={p.id} p={p} on={showPanel && sel === p.id} onSelect={openItem} />);
   const list = mode === "queue" ? (
-    <QueueList tasks={queue} pending={pendingRows} sel={showPanel ? (pendingShown ? pendingShown.id : shownId) : null} machines={machines} ticked={ticked}
+    <QueueList chiefName={chiefName} tasks={queue} pending={pendingRows} sel={showPanel ? (pendingShown ? pendingShown.id : shownId) : null} machines={machines} ticked={ticked}
       onSelect={openItem} onMove={move} onTick={tick} dragging={dragging} />
   ) : (
     <div className="px-2 pb-3 sm:px-4">
@@ -471,25 +472,72 @@ function ModeSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
   );
 }
 
-/** The one quiet meta line: where it went (its own icon), the agent, the machine. */
-// The card's people and places as pills: where it went (in its own colour), who is on it, the agent and the machine.
-const PILL_SM = "inline-flex min-w-0 items-center gap-1 rounded-full border border-border-subtle bg-background px-2 py-0.5 text-[12px] text-text-secondary";
+/** The one quiet meta line (the backlog): where it went (its own icon), the agent, the machine. No pills. */
 function TaskMeta({ t, machines }: { t: WorkTask; machines: Machine[] }) {
   const DestIcon = t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers;
   const look = machineLook(machines.find((m) => m.label === t.machine) ?? { label: t.machine });
-  const team = (t.specialists ?? []).slice(0, 4);
   return (
-    <span data-testid="work-row-meta" className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
-      <span className={PILL_SM}><TintIcon icon={DestIcon} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={13} /><span className="truncate">{t.dest?.label ?? "General"}</span></span>
-      {team.length > 0 && (
-        <span className={`${PILL_SM} pl-1`} title={team.map((x) => titleCase(x)).join(", ")}>
-          <span className="flex -space-x-1.5">{team.map((x) => <SpecialistAvatar key={x} id={x} size={16} label={titleCase(x)} />)}</span>
-          <span className="truncate">{team.length === 1 ? titleCase(team[0]!) : `${team.length} specialists`}</span>
-        </span>
-      )}
-      <span className={PILL_SM}><Bot className="h-3.5 w-3.5 shrink-0" />{t.agentKind}</span>
-      <span className={PILL_SM}><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} /><span className="truncate">{machineLabel(machines, t.machine)}</span></span>
+    <span data-testid="work-row-meta" className="mt-1 flex min-w-0 items-center gap-3 text-[12px] text-text-muted">
+      <span className="inline-flex min-w-0 items-center gap-1"><TintIcon icon={DestIcon} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={13} /><span className="truncate">{t.dest?.label ?? "General"}</span></span>
+      <span className="inline-flex shrink-0 items-center gap-1"><Bot className="h-3.5 w-3.5" />{t.agentKind}</span>
+      <span className="inline-flex min-w-0 items-center gap-1"><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} /><span className="truncate">{machineLabel(machines, t.machine)}</span></span>
     </span>
+  );
+}
+
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+const span = (ms: number) => { const m = Math.max(0, Math.floor(ms / 60_000)); return m < 1 ? "just now" : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`; };
+const lastAt = (t: WorkTask, evs: string[]) => [...t.log].reverse().find((l) => evs.includes(l.ev))?.ts;
+
+/** The card's status phrase with its time: "Working · 2m", "Needs you", "Queued · 3rd", "Done · 5m ago". */
+function cardStatus(t: WorkTask, queuedAt: number): { text: string; time: string } {
+  const now = Date.now();
+  switch (t.status) {
+    case "running": { const at = lastAt(t, ["started", "starting", "again"]); return { text: "Working", time: at ? span(now - at) : "" }; }
+    case "needs-you": return { text: "Needs you", time: "" };
+    case "queued": return { text: "Queued", time: queuedAt ? ordinal(queuedAt) : "" };
+    case "done": { const at = t.updates?.at(-1)?.ts ?? t.log.at(-1)?.ts; return { text: "Done", time: at ? relTime(at) : "" }; }
+    case "failed": return { text: "Did not finish", time: "" };
+    case "paused": return { text: "Paused", time: "" };
+    default: return { text: "Starting", time: "" };
+  }
+}
+const STATUS_TEXT: Partial<Record<WorkStatus, string>> = { running: "text-accent", "needs-you": "text-warn", done: "text-ok", failed: "text-err" };
+
+/**
+ * One line per card: the name first (it keeps at least about 14 characters),
+ * then quiet metadata (the domain's tinted icon and name, the team as an
+ * overlapping avatar stack with Ben first), and on the right the status with
+ * its time and tiny agent and machine marks. As the column narrows the card
+ * drops the machine, then the agent, the time and the avatars, never the name.
+ */
+function CardLine({ t, machines, chiefName, queuedAt, checked }: { t: WorkTask; machines: Machine[]; chiefName: string; queuedAt: number; checked: boolean }) {
+  const DestIcon = t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers;
+  const look = machineLook(machines.find((m) => m.label === t.machine) ?? { label: t.machine });
+  const st = cardStatus(t, queuedAt);
+  const team = ["chief", ...t.specialists.slice(0, 3)];
+  const working = t.status === "running";
+  return (
+    <>
+      <span className={`min-w-[8.5rem] shrink truncate text-[15px] font-semibold leading-snug ${checked ? "text-text-muted line-through decoration-text-muted/40" : "text-text-primary"}`}>{taskTitle(t)}</span>
+      <span data-testid="work-row-meta" className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-[12.5px] text-text-muted">
+        <span className="inline-flex min-w-0 shrink items-center gap-1.5 @max-[22rem]:hidden" title={t.dest ? `${t.dest.label} (${destKindLabel(t.dest)})` : "General"}>
+          <TintIcon icon={DestIcon} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={13} /><span className="truncate">{t.dest?.label ?? "General"}</span>
+        </span>
+        <span data-testid="work-row-team" className="flex shrink-0 -space-x-1.5 @max-[30rem]:hidden" title={t.specialists.length ? `${chiefName}, with ${andList(t.specialists.map((x) => titleCase(x)))}` : chiefName}>
+          {team.map((x) => <SpecialistAvatar key={x} id={x} size={18} state={working ? "working" : "idle"} label={x === "chief" ? chiefName : titleCase(x)} />)}
+        </span>
+      </span>
+      <span className={`inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-medium ${STATUS_TEXT[t.status] ?? "text-text-muted"}`}>
+        {working ? <Loader2 data-testid="work-spinner" className="h-3.5 w-3.5 animate-spin" aria-label="Working on it" /> : t.status === "needs-you" ? <Hand className="h-3.5 w-3.5" /> : t.status === "queued" ? <Clock className="h-3.5 w-3.5" /> : t.status === "failed" ? <AlertCircle className="h-3.5 w-3.5" /> : null}
+        <span data-testid="work-row-status" className="@max-[22rem]:sr-only">{st.text}</span>
+        {st.time && <span className="font-normal text-text-muted @max-[34rem]:hidden">· {st.time}</span>}
+      </span>
+      <span className="flex shrink-0 items-center gap-1 text-text-muted">
+        <span data-testid="work-row-agent" title={`Agent: ${t.agentKind}`} className="@max-[38rem]:hidden"><Bot className="h-3.5 w-3.5" /><span className="sr-only">{t.agentKind}</span></span>
+        <span data-testid="work-row-machine" title={`Machine: ${machineLabel(machines, t.machine)}`} className="@max-[42rem]:hidden"><look.Icon className="h-3.5 w-3.5" style={{ color: look.color }} /><span className="sr-only">{machineLabel(machines, t.machine)}</span></span>
+      </span>
+    </>
   );
 }
 
@@ -509,14 +557,6 @@ function CheckBox({ t, ticked, onTick }: { t: WorkTask; ticked: boolean; onTick:
 }
 
 /** What the row shows at its end: a spinner while it is worked, else a quiet mark for a state that needs a glance. */
-function RowState({ t }: { t: WorkTask }) {
-  if (t.status === "running") return <Loader2 data-testid="work-spinner" className="h-4 w-4 shrink-0 animate-spin text-accent" aria-label="Working on it" />;
-  if (t.status === "needs-you") return <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn/10 px-2 py-0.5 text-[12px] font-medium text-warn"><Hand className="h-3 w-3" />Needs you</span>;
-  if (t.status === "queued") return <Clock className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-label="Waiting for a free slot" />;
-  if (t.status === "paused") return <Pause className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-label="Paused" />;
-  if (t.status === "failed") return <AlertCircle className="h-4 w-4 shrink-0 text-err" aria-label="Did not finish" />;
-  return null;
-}
 
 /**
  * The queue: one row per task, first runs first, full width. Each row: a
@@ -524,8 +564,8 @@ function RowState({ t }: { t: WorkTask }) {
  * while it is worked. Drag a row by its grip (a line shows where it lands),
  * or move it from the row's menu or with Alt+Arrow Up/Down on the focused row.
  */
-function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, onTick, dragging }: {
-  tasks: QueueTask[]; pending: React.ReactNode[]; sel: string | null; machines: Machine[]; ticked: Set<string>;
+function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, onTick, dragging, chiefName }: {
+  chiefName: string; tasks: QueueTask[]; pending: React.ReactNode[]; sel: string | null; machines: Machine[]; ticked: Set<string>;
   onSelect: (id: string) => void; onMove: (id: string, at: number) => void; onTick: (id: string) => void; dragging: React.MutableRefObject<boolean>;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -561,14 +601,7 @@ function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, on
           <div key={t.id}>
             {line(i)}
             <div data-queue-row data-testid="work-queue-row" data-id={t.id} data-status={t.status} data-checked={checked ? "true" : "false"}
-              className={`group relative mb-2.5 flex items-center gap-2 overflow-hidden rounded-2xl border bg-surface py-3 pl-2 pr-2.5 shadow-sm transition-[box-shadow,border-color,transform,opacity] before:absolute before:inset-y-0 before:left-0 before:w-1 ${STATE_STRIPE[t.status] ?? "before:bg-border"} ${on ? "border-accent-border shadow-md" : "border-border-subtle hover:-translate-y-px hover:border-border hover:shadow-md"} ${drag?.id === t.id ? "opacity-50" : ""} ${ticked.has(t.id) ? "opacity-60" : ""}`}>
-              <button type="button" data-rail-skip data-testid="work-drag" aria-label={`Drag to reorder: ${taskTitle(t)}`} title="Drag to reorder"
-                onPointerDown={(e) => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dragging.current = true; setDrag({ id: t.id, at: i }); }}
-                onPointerMove={(e) => { if (drag?.id === t.id) setDrag({ id: t.id, at: atFor(e.clientY) }); }}
-                onPointerUp={() => end(true)} onPointerCancel={() => end(false)}
-                className={`flex h-7 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-text-muted active:cursor-grabbing ${REVEAL}`}>
-                <GripVertical className="h-3.5 w-3.5" />
-              </button>
+              className={`group @container relative mb-2 flex h-14 items-center gap-2.5 overflow-hidden rounded-xl border bg-surface pl-3.5 pr-1.5 shadow-sm transition-[box-shadow,border-color,transform,opacity] before:absolute before:inset-y-0 before:left-0 before:w-[3px] ${STATE_STRIPE[t.status] ?? "before:bg-border"} ${on ? "border-accent-border shadow-md" : "border-border-subtle hover:-translate-y-px hover:border-border hover:shadow-md"} ${drag?.id === t.id ? "opacity-50" : ""} ${ticked.has(t.id) ? "opacity-60" : ""}`}>
               <CheckBox t={t} ticked={ticked.has(t.id)} onTick={onTick} />
               <button type="button" onClick={() => onSelect(t.id)}
                 onKeyDown={(e) => {
@@ -577,12 +610,8 @@ function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, on
                   onMove(t.id, e.key === "ArrowUp" ? i - 1 : i + 2);
                 }}
                 title={t.text}
-                className="flex min-w-0 flex-1 items-center gap-3 pl-1 text-left">
-                <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-[15px] font-medium leading-snug ${checked ? "text-text-muted line-through decoration-text-muted/40" : "text-text-primary"}`}>{taskTitle(t)}</span>
-                  <TaskMeta t={t} machines={machines} />
-                </span>
-                <RowState t={t} />
+                className="flex h-full min-w-0 flex-1 items-center gap-3 text-left">
+                <CardLine t={t} machines={machines} chiefName={chiefName} queuedAt={t.status === "queued" ? tasks.filter((x) => x.status === "queued").findIndex((x) => x.id === t.id) + 1 : 0} checked={checked} />
               </button>
               {checked && (
                 <button type="button" data-rail-skip data-testid="work-dismiss" onClick={() => onTick(t.id)} title="Dismiss" aria-label={`Dismiss: ${taskTitle(t)}`}
@@ -590,6 +619,13 @@ function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, on
                   <X className="h-4 w-4" />
                 </button>
               )}
+              <button type="button" data-rail-skip data-testid="work-drag" aria-label={`Drag to reorder: ${taskTitle(t)}`} title="Drag to reorder"
+                onPointerDown={(e) => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dragging.current = true; setDrag({ id: t.id, at: i }); }}
+                onPointerMove={(e) => { if (drag?.id === t.id) setDrag({ id: t.id, at: atFor(e.clientY) }); }}
+                onPointerUp={() => end(true)} onPointerCancel={() => end(false)}
+                className={`flex h-7 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded text-text-muted active:cursor-grabbing ${REVEAL}`}>
+                <GripVertical className="h-3.5 w-3.5" />
+              </button>
               <span data-rail-skip className="shrink-0"><RowMenu items={items} reveal testId="work-row-menu" /></span>
             </div>
           </div>
@@ -678,35 +714,26 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
       {/* The facts that do not change as it goes, as pills in two rows at most, no headings:
           who is on it (Ben first, then the specialists), then where it went and what it runs on. */}
       <div data-testid="work-facts" className="mt-4 space-y-1.5">
-        <div data-testid="work-team" className="flex min-w-0 items-center gap-1.5"
-          title={team.length ? `${chiefName}, with ${andList(team.map((x) => titleCase(x)))}` : `${chiefName} leads it`}>
-          <span className={`${factPill} pl-0.5 font-medium text-text-primary`}><SpecialistAvatar id="chief" size={20} state={t.status === "running" ? "working" : "idle"} label={chiefName} /><span className="truncate">{chiefName}</span></span>
-          {team.slice(0, 3).map((x) => (
-            <span key={x} data-testid="work-specialist" className={`${factPill} pl-0.5`}><SpecialistAvatar id={x} size={20} state={t.status === "running" ? "working" : "idle"} label={titleCase(x)} /><span className="truncate">{titleCase(x)}</span></span>
-          ))}
-          {team.length > 3 && <span className={factPill} title={team.slice(3).map((x) => titleCase(x)).join(", ")}>+{team.length - 3}</span>}
-        </div>
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span data-testid="work-destination" className="flex min-w-0 shrink">
-            <RowMenu items={destItems.length ? destItems : [{ kind: "heading", label: "No other places yet" }]} label={`${t.dest?.label ?? "General"} (${t.dest ? destKindLabel(t.dest) : "Domain"}): open or route it elsewhere`} testId="work-route"
-              trigger={<>{t.dest?.kind === "app" ? <AppRowLogo app={{ id: t.dest.id, title: t.dest.label }} size={14} fallback="letter" /> : <TintIcon icon={t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={14} />}<span className="truncate">{t.dest?.label ?? "General"}</span><ChevronDown className="h-3 w-3 shrink-0 text-text-muted" /></>}
-              triggerClass={`${factPill} text-text-primary`} />
-          </span>
-          {otherDomains.slice(0, 2).map((d) => (
-            <span key={d} data-testid="work-domain" className={factPill} title={`${titleCase(d)} domain`}><TintIcon icon={Layers} tint={d} square={false} size={14} /><span className="truncate">{titleCase(d)}</span></span>
-          ))}
-          {otherApps.slice(0, 2).map((a) => (
-            <span key={a} data-testid="work-app" className={factPill} title={`${titleCase(a)} app`}><AppRowLogo app={{ id: a, title: titleCase(a) }} size={14} fallback="letter" /><span className="truncate">{titleCase(a)}</span></span>
-          ))}
-          {otherDomains.length + otherApps.length > 4 && <span className={factPill}>+{otherDomains.length + otherApps.length - 4}</span>}
-          <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5 shrink-0 text-text-muted" /><span className="truncate">{t.agentKind}</span></>} triggerClass={factPill} />
-          <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} /><span className="truncate">{machineLabel(machines, t.machine)}</span></>} triggerClass={factPill} />
-          {t.executor === "herdr" && t.herdr?.workspaceLabel && (
+        <OverflowRow testId="work-team" title={team.length ? `${chiefName}, with ${andList(team.map((x) => titleCase(x)))}` : `${chiefName} leads it`} items={[
+          { key: "chief", label: chiefName, node: <span className={`${factPill} pl-0.5 font-medium text-text-primary`}><SpecialistAvatar id="chief" size={20} state={t.status === "running" ? "working" : "idle"} label={chiefName} />{chiefName}</span> },
+          ...team.map((x) => ({ key: x, label: titleCase(x), node: <span data-testid="work-specialist" className={`${factPill} pl-0.5`}><SpecialistAvatar id={x} size={20} state={t.status === "running" ? "working" : "idle"} label={titleCase(x)} />{titleCase(x)}</span> })),
+        ]} />
+        <OverflowRow items={[
+          { key: "dest", label: t.dest?.label ?? "General", node: (
+            <span data-testid="work-destination" className="flex">
+              <RowMenu items={destItems.length ? destItems : [{ kind: "heading", label: "No other places yet" }]} label={`${t.dest?.label ?? "General"} (${t.dest ? destKindLabel(t.dest) : "Domain"}): open or route it elsewhere`} testId="work-route"
+                trigger={<>{t.dest?.kind === "app" ? <AppRowLogo app={{ id: t.dest.id, title: t.dest.label }} size={14} fallback="letter" /> : <TintIcon icon={t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={14} />}{t.dest?.label ?? "General"}<ChevronDown className="h-3 w-3 shrink-0 text-text-muted" /></>}
+                triggerClass={`${factPill} text-text-primary`} />
+            </span>) },
+          ...otherDomains.map((d) => ({ key: `d:${d}`, label: titleCase(d), node: <span data-testid="work-domain" className={factPill} title={`${titleCase(d)} domain`}><TintIcon icon={Layers} tint={d} square={false} size={14} />{titleCase(d)}</span> })),
+          ...otherApps.map((a) => ({ key: `a:${a}`, label: titleCase(a), node: <span data-testid="work-app" className={factPill} title={`${titleCase(a)} app`}><AppRowLogo app={{ id: a, title: titleCase(a) }} size={14} fallback="letter" />{titleCase(a)}</span> })),
+          { key: "agent", label: `Agent: ${t.agentKind}`, node: <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5 shrink-0 text-text-muted" />{t.agentKind}</>} triggerClass={factPill} /> },
+          { key: "machine", label: `Machine: ${machineLabel(machines, t.machine)}`, node: <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} />{machineLabel(machines, t.machine)}</>} triggerClass={factPill} /> },
+          ...(t.executor === "herdr" && t.herdr?.workspaceLabel ? [{ key: "herdr", label: `Herdr: ${t.herdr.workspaceLabel}`, node: (
             <span data-testid="work-herdr-link" title={`Its own tab in the Herdr workspace ${t.herdr.workspaceLabel}`} className={factPill}>
-              <img src="/herdr.png" alt="" className="h-3.5 w-3.5 shrink-0 rounded-[3px]" /><span className="truncate">{t.herdr.workspaceLabel}</span>
-            </span>
-          )}
-        </div>
+              <img src="/herdr.png" alt="" className="h-3.5 w-3.5 shrink-0 rounded-[3px]" />{t.herdr.workspaceLabel}
+            </span>) }] : []),
+        ]} />
       </div>
 
       <Updates t={t} chiefName={chiefName} busy={mine} reply={(text) => void run(`${t.id}:followup`, "engine_work_followup", { id: t.id, text })} />
@@ -775,6 +802,45 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
       <div className="sticky bottom-0 -mx-5 mt-6 bg-surface px-5 pb-4 pt-2">
         {t.status !== "backlog" ? <FollowUp t={t} vault={vault} run={run} busy={mine} /> : <div className="h-2" />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * One row of pills that never wraps: the pills that fit show in order, the
+ * rest fold into a "+N" pill whose tooltip names them. Measured after layout
+ * and again whenever the row resizes.
+ */
+function OverflowRow({ items, testId, title }: { items: { key: string; label: string; node: React.ReactNode }[]; testId?: string; title?: string }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [shown, setShown] = useState(items.length);
+  const sig = items.map((x) => x.key).join("|");
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      const kids = [...el.querySelectorAll<HTMLElement>(":scope > [data-pill]")];
+      kids.forEach((k) => { k.style.display = ""; });
+      const max = el.clientWidth;
+      const PLUS = 44;
+      let n = kids.length;
+      for (let i = 0; i < kids.length; i++) {
+        const right = kids[i]!.offsetLeft - el.offsetLeft + kids[i]!.offsetWidth;
+        if (right > max - (i < kids.length - 1 ? PLUS : 0)) { n = i; break; }
+      }
+      kids.forEach((k, i) => { k.style.display = i < n ? "" : "none"; });
+      setShown(n);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [sig]);
+  const hidden = items.slice(shown);
+  return (
+    <div ref={ref} data-testid={testId} title={title} className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+      {items.map((x) => <span key={x.key} data-pill className="flex shrink-0">{x.node}</span>)}
+      {hidden.length > 0 && <span data-testid="work-facts-more" className={`${factPill} shrink-0`} title={hidden.map((x) => x.label).join(", ")}>+{hidden.length}</span>}
     </div>
   );
 }

@@ -167,8 +167,18 @@ test("the queue fills the screen: check box, short name, one meta line with icon
   await openWork(page);
   await expect.poll(() => rowIds(page)).toEqual(["t1", "t2", "t3", "t5", "t4", "t6"]);
   await expect(row(page, "t1")).toContainText("Hike Permit");
-  await expect(row(page, "t1").getByTestId("work-row-meta")).toHaveText(/Health.*claude.*foo-laptop/);
-  await expect(row(page, "t4").getByTestId("work-row-meta")).toHaveText(/Career\s*claude\s*mini-foo/);
+  // One line per card: the name, the domain, the team (Ben first), the status with its time, tiny agent and machine marks.
+  await expect(row(page, "t1").getByTestId("work-row-meta")).toHaveText("Health");
+  await expect(row(page, "t1").getByTestId("work-row-team")).toHaveAttribute("title", "Ben, with Planner and Scout");
+  await expect(row(page, "t1").getByTestId("work-row-agent")).toHaveAttribute("title", "Agent: claude");
+  await expect(row(page, "t1").getByTestId("work-row-machine")).toHaveAttribute("title", "Machine: foo-laptop");
+  await expect(row(page, "t4").getByTestId("work-row-machine")).toHaveAttribute("title", "Machine: mini-foo");
+  await expect(row(page, "t1")).toContainText(/Working\s*· (just now|\d+m)/);
+  await expect(row(page, "t5")).toContainText(/Queued\s*· 1st/);
+  await expect(row(page, "t6")).toContainText(/Done\s*· \d+h ago/);
+  await expect(row(page, "t6").getByTestId("work-dismiss")).toHaveCount(1);
+  await expect(row(page, "t1").getByTestId("work-dismiss")).toHaveCount(0);
+  for (const id of ["t1", "t2", "t3", "t5", "t4", "t6"]) expect(await row(page, id).evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(64);
   await expect(row(page, "t1").getByTestId("work-spinner")).toBeVisible();
   await expect(row(page, "t3").getByTestId("work-spinner")).toBeVisible();
   await expect(row(page, "t5").getByTestId("work-spinner")).toHaveCount(0);
@@ -621,7 +631,8 @@ for (const theme of ["light", "dark"]) {
   test(`Work tab shots, tasks · ${theme}`, async ({ page }) => {
     test.skip(!SHOTS, "set WORK_SHOTS=<dir> to capture the Work tab");
     await openWork(page, { ui_settings_get: JSON.stringify({ theme }) });
-    await expect(page.getByTestId("work-queue-row")).toHaveCount(6);
+    await page.evaluate((t8) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t8] }; }, T8);
+    await expect(page.getByTestId("work-queue-row")).toHaveCount(7);
     await page.waitForTimeout(400);
     // The queue full width: running spinners, a waiting one, a checked one.
     await page.screenshot({ path: `${SHOTS}/work-queue-${theme}-1440.png` });
@@ -640,6 +651,16 @@ for (const theme of ["light", "dark"]) {
     await openRow(page, "t2");
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${SHOTS}/work-panel-waiting-${theme}-1440.png` });
+    // The pills and the back-and-forth that asks to close.
+    await openRow(page, "t8");
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${SHOTS}/work-panel-close-${theme}-1440.png` });
+    await page.getByTestId("work-panel-close").click();
+    await page.getByTestId("work-queue-list").evaluate((el) => { (el as HTMLElement).style.width = "300px"; });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${SHOTS}/work-queue-narrow-${theme}-1440.png` });
+    await page.getByTestId("work-queue-list").evaluate((el) => { (el as HTMLElement).style.width = ""; });
+    await openRow(page, "t2");
     await page.getByTestId("work-panel-close").click();
     await page.getByTestId("work-mode-backlog").click();
     await expect(page.getByTestId("work-backlog-row").first()).toBeVisible();
@@ -664,16 +685,34 @@ test("the panel: pills in two rows at most, then a light back-and-forth that ask
   await page.evaluate((t8) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t8] }; }, T8);
   await openRow(page, "t8");
   const d = detail(page);
-  await expect(d.getByTestId("work-domain")).toHaveText([/Money/, /Health/]);
-  await expect(d.getByTestId("work-team")).toContainText("+2");
+  await expect(d.getByTestId("work-domain")).toHaveText([/Money/, /Health/, /Career/]);
+  await expect(d.getByTestId("work-team")).toHaveAttribute("title", "Ben, with Planner, Scout, Writer, Analyst and Researcher");
+  // What does not fit folds into a "+N" pill that names the rest; pills never squash or wrap.
+  await expect(d.getByTestId("work-facts-more").first()).toBeVisible();
+  expect(await d.locator("[data-pill]:visible").evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().width < 40).length)).toBe(0);
   // Context takes two rows at most, even with many domains and specialists.
   const h = await d.getByTestId("work-facts").evaluate((el) => el.getBoundingClientRect().height);
   expect(h).toBeLessThanOrEqual(64);
-  expect(await d.getByTestId("work-facts").evaluate((el) => [...el.querySelectorAll("*")].filter((c) => c.getBoundingClientRect().right > el.getBoundingClientRect().right + 1).length)).toBe(0);
+  expect(await d.getByTestId("work-facts").evaluate((el) => [...el.querySelectorAll("*")].filter((c) => { const b = c.getBoundingClientRect(); return b.width > 0 && b.right > el.getBoundingClientRect().right + 1; }).length)).toBe(0);
   await expect(d.getByTestId("work-update")).toHaveText(["Working on it, nothing needed from you.", "Which notes, the spring or the autumn foo trip?", "The autumn one", "Done: Three pages of autumn foo trip notes, summarized in five lines.", "Can I close this task?"]);
   await expect(d.locator("[data-testid=work-update][data-from=you]")).toHaveText(["The autumn one"]);
   await expect(d.getByTestId("work-followup-input")).toHaveAttribute("placeholder", "Reply, or say close it");
   await d.getByTestId("work-quick-reply").filter({ hasText: "Go ahead and close it" }).click();
   await expect.poll(async () => (await calls(page, "engine_work_followup"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t8", text: "Go ahead and close it" });
   expect(await nothingWide(page)).toEqual([]);
+});
+
+test("a narrow column keeps each card on one line: the name stays readable, metadata drops first, nothing overflows", async ({ page }) => {
+  await openWork(page);
+  await expect.poll(() => rowIds(page)).toEqual(["t1", "t2", "t3", "t5", "t4", "t6"]);
+  await page.getByTestId("work-queue-list").evaluate((el) => { (el as HTMLElement).style.width = "300px"; });
+  await expect(row(page, "t1").getByTestId("work-row-machine")).toBeHidden();
+  await expect(row(page, "t1").getByTestId("work-row-agent")).toBeHidden();
+  for (const id of ["t1", "t2", "t3", "t5", "t4", "t6"]) {
+    const r = row(page, id);
+    expect(await r.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(64);
+    // The name keeps at least about ten characters before it truncates.
+    expect(await r.evaluate((el) => { const n = el.querySelector("button[title] > span") as HTMLElement; return n.getBoundingClientRect().width; })).toBeGreaterThan(100);
+    expect(await r.evaluate((el) => [...el.querySelectorAll("*")].filter((c) => { const b = c.getBoundingClientRect(); return b.width > 0 && b.right > el.getBoundingClientRect().right + 1; }).map((c) => `${c.tagName}.${c.getAttribute("data-testid") ?? ""}.${(c.className as unknown as string).toString().slice(0, 40)}`))).toEqual([]);
+  }
 });
