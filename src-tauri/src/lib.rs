@@ -657,6 +657,7 @@ pub fn run() {
             missions::engine_missions_link_path,
             missions::engine_missions_from_path,
             work::engine_work_add,
+            work::engine_work_followup,
             work::engine_work_list,
             work::engine_work_show,
             work::engine_work_route,

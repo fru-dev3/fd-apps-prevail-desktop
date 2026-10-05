@@ -21,8 +21,9 @@ fn machine_args(label: &str, target: &str) -> Result<(String, String), String> {
     Ok((l, t))
 }
 
-/// One prompt into the queue (`body`: `{ text, surface, machine?, agentKind?, hold? }`);
-/// with `hold` its tasks are parked in the backlog (routed, never started).
+/// One prompt into the queue (`body`: `{ text, surface, machine?, agentKind?, hold?, into? }`);
+/// with `hold` its tasks are parked in the backlog (routed, never started); with
+/// `into` (a work id) they join that earlier work.
 /// The text goes over stdin, so a long dictated prompt never meets argv limits.
 #[tauri::command]
 pub(crate) async fn engine_work_add(vault: String, body: serde_json::Value) -> Result<serde_json::Value, String> {
@@ -37,6 +38,20 @@ pub(crate) async fn engine_work_add(vault: String, body: serde_json::Value) -> R
     let kind = s("agentKind");
     if !kind.is_empty() { a.push("--agent".into()); a.push(ok_id(&kind)?.to_string()); }
     if body.get("hold").and_then(|h| h.as_bool()) == Some(true) { a.push("--hold".into()); }
+    let into = s("into");
+    if !into.is_empty() { a.push("--into".into()); a.push(ok_id(&into)?.to_string()); }
+    blocking_stdin(a, text).await
+}
+
+/// A follow-up or clarification on a task (`work followup`): into its record and
+/// thread, to its agent, or it runs again with it. With `as_task` it becomes a
+/// new task in the same work. The words go over stdin.
+#[tauri::command]
+pub(crate) async fn engine_work_followup(vault: String, id: String, text: String, as_task: Option<bool>) -> Result<serde_json::Value, String> {
+    if text.trim().is_empty() { return Err("empty follow-up".into()); }
+    if text.len() > 8_000 { return Err("follow-up too long".into()); }
+    let mut a = v(&["--vault", &vault, "work", "followup", ok_id(&id)?, "--file", "-"]);
+    if as_task == Some(true) { a.push("--as-task".into()); }
     blocking_stdin(a, text).await
 }
 
@@ -68,12 +83,13 @@ pub(crate) async fn engine_work_route(vault: String, id: String, dest: Option<St
     blocking(a).await
 }
 
-/// Pause, continue, start, stop; keep, close or reopen a Herdr tab; take a
+/// Pause, continue, start, stop; check it off (done: out of the queue, its
+/// Herdr tab closed); focus its Herdr tab; keep, close or reopen a Herdr tab; take a
 /// task over on this Mac (continue-here: the user already said yes to taking
 /// a live lease); accept or decline suggestion `n` (1-based).
 #[tauri::command]
 pub(crate) async fn engine_work_action(vault: String, id: String, action: String, n: Option<u32>) -> Result<serde_json::Value, String> {
-    let act = one_of(&action, &["pause", "continue", "start", "stop", "keep", "close", "reopen", "continue-here", "accept", "decline"])?;
+    let act = one_of(&action, &["pause", "continue", "start", "stop", "done", "focus", "keep", "close", "reopen", "continue-here", "accept", "decline"])?;
     let id = ok_id(&id)?;
     let a = match act {
         "keep" | "close" | "reopen" => v(&["--vault", &vault, "work", "answer", id, act]),
