@@ -3,7 +3,7 @@
 // links on a prevail:// address (see ENTITY_LINK_DIRECTIVE), and the Markdown
 // renderer hands every link to EntityLink, which draws the object instead of a
 // bare underline: a domain as its coloured pill, a person with an avatar, a
-// file or task as a link that opens it in the app. People, places, orgs and
+// file or task as a link that opens it in the app. People, places, products and
 // things open the Entities view with that entity selected (entitiesview.tsx);
 // a chip whose entity is saved to the vault carries a small green dot.
 import React, { useEffect, useState } from "react";
@@ -16,7 +16,7 @@ import { domainColor, isUserDomain } from "./helpers";
 import { domainIcon } from "./icons";
 import { pickSkillColor } from "./sectionutil";
 
-export type EntityKind = "domain" | "person" | "place" | "org" | "thing" | "event" | "project" | "task" | "file" | "date";
+export type EntityKind = "domain" | "person" | "place" | "product" | "thing" | "event" | "project" | "task" | "file" | "date";
 
 export interface EntityRef {
   kind: EntityKind;
@@ -26,10 +26,10 @@ export interface EntityRef {
   domain?: string;
 }
 
-const KINDS = new Set<EntityKind>(["domain", "person", "place", "org", "thing", "event", "task", "file", "date"]);
+const KINDS = new Set<EntityKind>(["domain", "person", "place", "product", "thing", "event", "task", "file", "date"]);
 
 // The kinds that are entities with a card (and maybe a vault page).
-export const CARD_KINDS = new Set<EntityKind>(["person", "place", "org", "thing", "event"]);
+export const CARD_KINDS = new Set<EntityKind>(["person", "place", "product", "thing", "event"]);
 
 // The engine id for a chip: <kind>/<slug>.
 export function entityIdOf(ref: EntityRef): string {
@@ -40,12 +40,17 @@ export function mapUrl(place: string): string {
   return `https://maps.apple.com/?q=${encodeURIComponent(place)}`;
 }
 
+const LEGACY_COMPANY_KIND = "org";
+
 // prevail://<kind>/<value...>. A task is prevail://task/<domain>/<id>.
 export function parseEntityHref(href: string | undefined | null): EntityRef | null {
   if (!href) return null;
   const m = href.match(/^prevail:\/\/([a-z]+)\/(.+)$/i);
   if (!m) return null;
-  const kind = m[1].toLowerCase() as EntityKind;
+  // Legacy: links written before the products store used the old company kind;
+  // they open the product of the same slug.
+  const raw = m[1].toLowerCase();
+  const kind = (raw === LEGACY_COMPANY_KIND ? "product" : raw) as EntityKind;
   if (!KINDS.has(kind)) return null;
   let rest: string;
   try { rest = decodeURIComponent(m[2]); } catch { rest = m[2]; }
@@ -102,7 +107,7 @@ export function openEntity(ref: EntityRef) {
       return;
     case "person":
     case "place":
-    case "org":
+    case "product":
     case "thing":
     case "event":
       requestEntity({ kind: ref.kind, value: ref.value });
@@ -132,14 +137,14 @@ export function useFavicon(host: string | undefined): string {
 }
 
 // A company named like a domain ("acme.com") is its own logo host.
-export function orgHost(name: string, known?: string): string | undefined {
+export function productHost(name: string, known?: string): string | undefined {
   if (known) return known;
   const m = name.trim().toLowerCase().match(/^(?:https?:\/\/)?(?:www\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})\/?$/);
   return m ? m[1] : undefined;
 }
 
-export function OrgMark({ name, host, size = 16 }: { name: string; host?: string; size?: number }) {
-  const src = useFavicon(orgHost(name, host));
+export function ProductMark({ name, host, size = 16 }: { name: string; host?: string; size?: number }) {
+  const src = useFavicon(productHost(name, host));
   if (src) {
     return (
       <span aria-hidden className="inline-flex shrink-0 items-center justify-center self-center overflow-hidden rounded bg-white ring-1 ring-border-subtle" style={{ width: size, height: size }}>
@@ -150,7 +155,7 @@ export function OrgMark({ name, host, size = 16 }: { name: string; host?: string
   return <Package size={size - 3} aria-hidden className="shrink-0 self-center" />;
 }
 
-// A chip's small picture: the entity's own, or an org's logo (entityavatar).
+// A chip's small picture: the entity's own, or a product's logo (entityavatar).
 function ChipPicture({ e, size, fallback = null }: { e: EntitySummary; size: number; fallback?: React.ReactNode }) {
   const src = useEntityPicture(e);
   return src ? <AvatarImg src={src} size={size} round={e.kind === "person"} /> : <>{fallback}</>;
@@ -230,10 +235,10 @@ export function EntityChip({ entity, children }: { entity: EntityRef; children: 
           {known?.saved && <VaultDot />}
         </a>
       );
-    case "org":
+    case "product":
       return (
-        <a href="#" onClick={onClick} data-entity="org" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-1 ${linkish}`}>
-          {known && (known.picture || known.website) ? <span className="self-center"><ChipPicture e={known} size={15} fallback={<OrgMark name={entity.value} host={known.domain} size={15} />} /></span> : <OrgMark name={entity.value} host={known?.domain} size={15} />}
+        <a href="#" onClick={onClick} data-entity="product" title={`About ${entity.value}`} className={`inline-flex items-baseline gap-1 ${linkish}`}>
+          {known && (known.picture || known.website) ? <span className="self-center"><ChipPicture e={known} size={15} fallback={<ProductMark name={entity.value} host={known.domain} size={15} />} /></span> : <ProductMark name={entity.value} host={known?.domain} size={15} />}
           {label}
           {known?.saved && <VaultDot />}
         </a>
@@ -318,14 +323,14 @@ function decodeURIComponentSafe(s: string): string {
 export function entityLinkDirective(domains: string[], saved: { name: string; id: string }[] = []): string {
   const slugs = domains.filter(isUserDomain).slice(0, 60);
   const example = slugs.includes("career") ? "career" : (slugs[0] ?? "career");
-  const own = saved.filter((e) => e.name && /^(person|place|org|thing|event)\/[a-z0-9-]+$/.test(e.id)).slice(0, 40);
+  const own = saved.filter((e) => e.name && /^(person|place|product|thing|event)\/[a-z0-9-]+$/.test(e.id)).slice(0, 40);
   return [
     "# OUTPUT FORMAT (required): LINK THE THINGS OF THE USER'S OWN LIFE",
     "This app turns special links into clickable chips. Write the people, places, products (companies, apps, services), things and events that belong to the user's own life (their property, car, lender, tenant, lawyer, doctor, family, employer), and each life domain, task, vault file and specific date, as a markdown link with a prevail:// address.",
     "Link at most 8 people, places, companies and things per reply. Never link inside long generated text such as an essay, a story, a summary of a book, or a list of historical or public figures: those names stay plain.",
     "- person: [Foo Bar](prevail://person/Foo%20Bar)",
     "- place: [Foo Way](prevail://place/Foo%20Way)",
-    "- company or product: [Foo Bank](prevail://org/Foo%20Bank)",
+    "- company or product: [Foo Bank](prevail://product/Foo%20Bank)",
     "- named thing the user owns (a phone, a watch, a car, a property): [the Foo watch](prevail://thing/Foo%20Watch)",
     "- event (a dated happening: a birthday, a holiday, a dinner): [Christmas](prevail://event/Christmas)",
     `- life domain: [${example}](prevail://domain/${example})` + (slugs.length ? `. Only these slugs exist: ${slugs.join(", ")}` : ""),

@@ -12,7 +12,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
 const LATENCY = 150;
-const HOME = ["inbox", "insights", "recommendations", "missions", "task-list", "compass", "apps"];
+const HOME = ["inbox", "insights", "recommendations", "missions", "task-list", "compass", "stack"];
 const SETTINGS = ["models", "council", "toolkit", "benchmark", "intent", "entities", "activity", "connections", "privacy-safety", "settings"];
 const PAGES: Array<[string, string]> = [
   ...HOME.map((id) => ["prevail:work-section", id] as [string, string]),
@@ -24,7 +24,7 @@ const PAGES: Array<[string, string]> = [
 const T = Date.parse("2026-09-20T12:00:00Z");
 const BIG = {
   scan_skills: Array.from({ length: 1200 }, (_, i) => ({ domain: `foo-domain-${i % 30}`, name: `foo-skill-${i}`, path: `/tmp/smoke-vault/data/domains/foo-domain-${i % 30}/memory/skills/foo-skill-${i}`, description: `Foo skill number ${i}`, enabled: true })),
-  entities_list: { generated_ts: 1, total: 350, entities: Array.from({ length: 350 }, (_, i) => ({ id: `person/foo-${i}`, name: `Foo ${i}`, kind: i % 3 ? "person" : "org", aliases: [], mention_count: i, conversations: 1, last_ts: T - i * 1000, saved: i % 2 === 0, has_page: i % 2 === 0 })) },
+  entities_list: { generated_ts: 1, total: 350, entities: Array.from({ length: 350 }, (_, i) => ({ id: `person/foo-${i}`, name: `Foo ${i}`, kind: i % 3 ? "person" : "product", aliases: [], mention_count: i, conversations: 1, last_ts: T - i * 1000, saved: i % 2 === 0, has_page: i % 2 === 0 })) },
   tasks_read_all: Array.from({ length: 500 }, (_, i) => ({ id: `t${i}`, domain: `foo-domain-${i % 30}`, text: `Foo task ${i}`, status: ["todo", "doing", "blocked", "done"][i % 4], owner: i % 2 ? "me" : "ai", due: null, priority: null })),
   activity_read: Array.from({ length: 400 }, (_, i) => ({ ts: T - i * 60_000, type: i % 2 ? "sync" : "briefing", domain: `foo-domain-${i % 30}`, title: `Foo event ${i}` })),
   list_threads: Array.from({ length: 300 }, (_, i) => ({ path: `/tmp/smoke-vault/foo-${i}.md`, slug: `foo-${i}`, title: `Foo thread ${i}`, domain: null, created: 1783000000 - i, updated: 1783000000 - i, turn_count: 2, preview: "", cli: "foo-tool", model: null })),

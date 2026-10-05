@@ -20,7 +20,9 @@ describe("parseEntityHref", () => {
     expect(parseEntityHref("prevail://task/wealth/abc1234")).toEqual({ kind: "task", domain: "wealth", value: "abc1234" });
     expect(parseEntityHref("prevail://file/data/domains/tax/memory/state.md")).toEqual({ kind: "file", value: "data/domains/tax/memory/state.md" });
     expect(parseEntityHref("prevail://date/2026-09-30")).toEqual({ kind: "date", value: "2026-09-30" });
-    expect(parseEntityHref("prevail://org/acme")).toEqual({ kind: "org", value: "acme" });
+    expect(parseEntityHref("prevail://product/acme")).toEqual({ kind: "product", value: "acme" });
+    // Legacy links written before the products store still open the product.
+    expect(parseEntityHref("prevail://org/acme")).toEqual({ kind: "product", value: "acme" });
     expect(parseEntityHref("prevail://thing/Blue%20kayak")).toEqual({ kind: "thing", value: "Blue kayak" });
   });
 
@@ -109,15 +111,15 @@ describe("Markdown renders vault objects", () => {
     expect(openUrl).not.toHaveBeenCalledWith(expect.stringContaining("maps.apple.com"));
   });
 
-  it("draws org and thing chips, with a green dot when saved to the vault", () => {
+  it("draws product and thing chips, with a green dot when saved to the vault", () => {
     act(() => __setEntityListForTest("/v", { generated_ts: 1, total: 1, entities: [
-      { id: "org/acme", name: "acme", kind: "org", aliases: [], mention_count: 3, conversations: 3, last_ts: 1, saved: true, has_page: true },
+      { id: "product/acme", name: "acme", kind: "product", aliases: [], mention_count: 3, conversations: 3, last_ts: 1, saved: true, has_page: true },
     ] }));
-    const { container } = render(<Markdown source="[acme](prevail://org/acme) sold the [Blue kayak](prevail://thing/Blue%20kayak)." />);
-    const org = container.querySelector('[data-entity="org"]')!;
+    const { container } = render(<Markdown source="[acme](prevail://product/acme) sold the [Blue kayak](prevail://thing/Blue%20kayak)." />);
+    const prod = container.querySelector('[data-entity="product"]')!;
     const thing = container.querySelector('[data-entity="thing"]')!;
-    expect(org.textContent).toContain("acme");
-    expect(org.querySelector("[data-vault-dot]")).not.toBeNull();
+    expect(prod.textContent).toContain("acme");
+    expect(prod.querySelector("[data-vault-dot]")).not.toBeNull();
     expect(thing.querySelector("[data-vault-dot]")).toBeNull();
     act(() => __setEntityListForTest(null, null));
   });
@@ -133,7 +135,7 @@ describe("entityLinkDirective", () => {
   it("names the real domain slugs and every kind", () => {
     const d = entityLinkDirective(["tax", "real-estate", "_meta"]);
     expect(d).toContain("Only these slugs exist: tax, real-estate\n");
-    for (const k of ["domain", "person", "place", "org", "thing", "task", "file", "date"]) expect(d).toContain(`prevail://${k}/`);
+    for (const k of ["domain", "person", "place", "product", "thing", "task", "file", "date"]) expect(d).toContain(`prevail://${k}/`);
     expect(d).not.toMatch(/—/);
     expect(d).not.toContain("keeps pages");
   });

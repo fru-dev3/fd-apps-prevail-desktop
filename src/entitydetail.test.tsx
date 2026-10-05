@@ -21,7 +21,7 @@ const LIST = {
   generated_ts: 1, total: 3, entities: [
     { id: "person/sam-rivera", name: "Sam Rivera", kind: "person", aliases: ["Sam"], mention_count: 2, conversations: 2, last_ts: 2, saved: false, has_page: true },
     { id: "place/maple-st", name: "Maple St", kind: "place", aliases: [], mention_count: 2, conversations: 2, last_ts: 2, saved: false, has_page: false },
-    { id: "org/acme", name: "acme", kind: "org", aliases: [], mention_count: 1, conversations: 1, last_ts: 1, saved: true, has_page: true },
+    { id: "product/acme", name: "acme", kind: "product", aliases: [], mention_count: 1, conversations: 1, last_ts: 1, saved: true, has_page: true },
   ],
 };
 
@@ -186,7 +186,7 @@ describe("Entities view", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Products" }));
     expect(screen.getAllByTestId("entity-row").map((r) => r.textContent)).toEqual([expect.stringContaining("acme")]);
     fireEvent.click(screen.getAllByTestId("entity-row")[0]);
-    await waitFor(() => expect(calls.filter((c) => c.cmd === "entities_show").pop()?.args).toEqual({ vault: "/v2", id: "org/acme" }));
+    await waitFor(() => expect(calls.filter((c) => c.cmd === "entities_show").pop()?.args).toEqual({ vault: "/v2", id: "product/acme" }));
   });
 
   it("keeps the page header in view and the content in one column", async () => {

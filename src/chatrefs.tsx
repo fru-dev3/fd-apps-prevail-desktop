@@ -71,14 +71,14 @@ export function useRefCandidates(vaultPath: string | null, token: string | null,
     // Activities first (events, then projects), then the entities with apps among the products.
     const ev = e.filter((x) => x.entityKind === "event");
     const rest = e.filter((x) => x.entityKind !== "event");
-    const products = rest.findIndex((x) => order(x.entityKind ?? "") > order("org"));
+    const products = rest.findIndex((x) => order(x.entityKind ?? "") > order("product"));
     const withApps = products < 0 ? [...rest, ...a] : [...rest.slice(0, products), ...a, ...rest.slice(products)];
     return [...s, ...ev, ...m, ...withApps, ...d];
   }, [token, only, apps, ents.list, doms.data, specs.data, missions.data]);
 }
 
-const ENTITY_KIND: Record<string, string> = { person: "Person", place: "Place", org: "Product", thing: "Thing", event: "Event" };
-const ENTITY_ORDER = ["person", "place", "org", "thing", "event"];
+const ENTITY_KIND: Record<string, string> = { person: "Person", place: "Place", product: "Product", thing: "Thing", event: "Event" };
+const ENTITY_ORDER = ["person", "place", "product", "thing", "event"];
 
 function RefIcon({ r, size = 16 }: { r: RefCandidate | ChatRef; size?: number }) {
   if (r.kind === "app") return <AppLogo name={r.label} url={(r as RefCandidate).url} size={size} />;

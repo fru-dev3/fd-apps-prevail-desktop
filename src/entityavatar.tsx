@@ -1,7 +1,7 @@
 // The picture an entity shows wherever it appears (list rows, the detail
 // header, chips, the duplicates review):
 //   1. its own picture (picture.<ext> in its vault folder), when it has one;
-//   2. else, for an org with a website, that site's logo, fetched ONCE through
+//   2. else, for a product with a website, that site's logo, fetched ONCE through
 //      the app's favicon command and then saved into the entity's folder
 //      (set-picture), so it is local from then on. Never while Bunker Mode is
 //      on, and never for people or places;
@@ -73,8 +73,8 @@ export function useEntityPicture(e: AvatarEntity | null | undefined): string {
     void p.then((x) => { if (live) setSrc(x); });
     return () => { live = false; };
   }, [vault, picture]);
-  // Only an org, only with a website, only with the network allowed.
-  const host = !picture && !bunker && e?.kind === "org" ? websiteHost(e.website) : undefined;
+  // Only a product, only with a website, only with the network allowed.
+  const host = !picture && !bunker && e?.kind === "product" ? websiteHost(e.website) : undefined;
   const logo = useFavicon(host);
   useEffect(() => {
     if (!logo || !e?.id || !vault || saving.has(e.id)) return;

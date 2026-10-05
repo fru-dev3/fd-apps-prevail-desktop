@@ -1,5 +1,5 @@
 // Possible duplicate entities: pairs the engine thinks are one person, place,
-// org or thing but was not sure enough to merge (`entities duplicates`).
+// product or thing but was not sure enough to merge (`entities duplicates`).
 // The owner merges a pair (keeping the fuller name unless they flip it) or
 // marks it "Not the same", which the engine remembers so it is never asked
 // again. Merging never loses anything: the engine keeps the other name as an

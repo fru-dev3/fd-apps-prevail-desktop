@@ -8,7 +8,7 @@ import { mockTauri } from "./tauri-mock";
 
 const now = Date.now();
 const WAY = { id: "place/foo-way", name: "Foo Way", kind: "place", aliases: [], mention_count: 6, conversations: 4, last_ts: 1, saved: true, has_page: true, relation: "yours", relation_confidence: 0.9, home_domain: "real-estate" };
-const BANK = { id: "org/foo-bank", name: "Foo Bank", kind: "org", aliases: [], mention_count: 3, conversations: 2, last_ts: 1, saved: false, has_page: false, relation: "yours", relation_confidence: 0.8, home_domain: "insurance" };
+const BANK = { id: "product/foo-bank", name: "Foo Bank", kind: "product", aliases: [], mention_count: 3, conversations: 2, last_ts: 1, saved: false, has_page: false, relation: "yours", relation_confidence: 0.8, home_domain: "insurance" };
 const LAWYER = { id: "person/foo-bar", name: "Foo Bar", kind: "person", aliases: [], mention_count: 2, conversations: 2, last_ts: 1, saved: false, has_page: false, relation: "yours", relation_confidence: 0.7, home_domain: "insurance" };
 const REF = { id: "person/foo-the-elder", name: "Foo the Elder", kind: "person", aliases: [], mention_count: 9, conversations: 1, last_ts: 1, saved: false, has_page: false, relation: "reference", relation_confidence: 0.2 };
 const SHOW = (e: typeof WAY | typeof REF) => ({ found: true, ...e, kinds: [e.kind], mentions: [], co_mentions: [], digest: "", notes: "" });

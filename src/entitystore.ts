@@ -7,7 +7,7 @@ import { invoke } from "./bridge";
 import { openMission } from "./missions";
 import { noteIaKind } from "./ia";
 
-export type EntityKindName = "person" | "place" | "org" | "thing" | "project" | "event";
+export type EntityKindName = "person" | "place" | "product" | "thing" | "project" | "event";
 
 export interface EntitySummary {
   id: string;
@@ -20,7 +20,7 @@ export interface EntitySummary {
   saved: boolean;
   has_page: boolean;
   domain?: string;
-  // Entity folders: an absolute path to picture.<ext>, and an org's website.
+  // Entity folders: an absolute path to picture.<ext>, and a product's website.
   picture?: string;
   website?: string;
   // Linking: whether it is part of the owner's life ("yours") or only came up
@@ -137,7 +137,7 @@ export function requestEntity(t: EntityTarget) {
   window.dispatchEvent(new CustomEvent("prevail:open-entity", { detail: t }));
   window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: kind === "events" ? "activities" : "entities" }));
 }
-const KIND_SECTION: Partial<Record<EntityKindName, string>> = { person: "people", place: "places", org: "products", thing: "things", event: "events" };
+const KIND_SECTION: Partial<Record<EntityKindName, string>> = { person: "people", place: "places", product: "products", thing: "things", event: "events" };
 
 /** The request waiting for a view, without taking it (a view of another kind leaves it). */
 export function peekRequestedEntity(): EntityTarget | null {

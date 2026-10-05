@@ -13,7 +13,7 @@ import { ChiefAvatar } from "./specialistavatar";
 import { useChiefOfStaff } from "./chiefofstaff";
 import { fmtDay, kindDef, type KindId } from "./ia";
 
-type DraftKind = "person" | "place" | "org" | "thing" | "event";
+type DraftKind = "person" | "place" | "product" | "thing" | "event";
 export interface ObjectDraft {
   name?: string; notes?: string; website?: string;
   date?: string; end?: string; time?: string; place?: string; people?: string[];
@@ -22,22 +22,22 @@ export interface ObjectDraft {
 interface DraftReply { draft: ObjectDraft; filled: string[]; reply: string; ready: boolean; missing: string[]; go: boolean }
 type Turn = { role: "user" | "assistant"; text: string };
 
-const KIND_OF: Partial<Record<KindId, DraftKind>> = { people: "person", places: "place", products: "org", things: "thing", events: "event" };
+const KIND_OF: Partial<Record<KindId, DraftKind>> = { people: "person", places: "place", products: "product", things: "thing", events: "event" };
 const OPENER: Record<DraftKind, string> = {
   person: "Who is it? A name and how you know them is plenty.",
   place: "Which place? A name, and what it is to you.",
-  org: "Which company, app or service?",
+  product: "Which company, app or service?",
   thing: "What is it? Say what you own, and anything you know: when you bought it, who made it, where it lives.",
   event: "What is happening, and when? Christmas, a birthday, a dinner: say it your way.",
 };
 const FIELDS: Record<DraftKind, { key: keyof ObjectDraft; label: string; type?: "date" | "time" | "number" }[]> = {
   person: [{ key: "name", label: "Name" }, { key: "notes", label: "Notes" }],
   place: [{ key: "name", label: "Name" }, { key: "notes", label: "Notes" }],
-  org: [{ key: "name", label: "Name" }, { key: "website", label: "Website" }, { key: "notes", label: "Notes" }],
+  product: [{ key: "name", label: "Name" }, { key: "website", label: "Website" }, { key: "notes", label: "Notes" }],
   thing: [{ key: "name", label: "Name" }, { key: "purchased", label: "Bought", type: "date" }, { key: "warranty", label: "Warranty until", type: "date" }, { key: "value", label: "Value ($)", type: "number" }, { key: "maker", label: "Made by" }, { key: "place", label: "Kept at" }, { key: "notes", label: "Notes" }],
   event: [{ key: "name", label: "Name" }, { key: "date", label: "Date", type: "date" }, { key: "time", label: "Time", type: "time" }, { key: "end", label: "Ends", type: "date" }, { key: "place", label: "Where" }, { key: "notes", label: "Notes" }],
 };
-const REQUIRED: Record<DraftKind, (keyof ObjectDraft)[]> = { person: ["name"], place: ["name"], org: ["name"], thing: ["name"], event: ["name", "date"] };
+const REQUIRED: Record<DraftKind, (keyof ObjectDraft)[]> = { person: ["name"], place: ["name"], product: ["name"], thing: ["name"], event: ["name", "date"] };
 
 const inputCls = "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-[14px] text-text-primary focus:border-accent-border focus:outline-none";
 const saveBtn = "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-50";

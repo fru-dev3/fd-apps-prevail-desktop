@@ -135,7 +135,7 @@ test("entities · on a phone the tabs fit and the page never scrolls sideways", 
 // ── Pictures, websites and files ────────────────────────────────────────────
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const FOO_PIC = "/tmp/smoke-vault/data/entities/people/foo/picture.png";
-const FOO_ORG = { id: "org/foo-labs", name: "Foo Labs", kind: "org", aliases: [], mention_count: 2, conversations: 2, last_ts: 1, saved: true, has_page: true, website: "foolabs.dev" };
+const FOO_PRODUCT = { id: "product/foo-labs", name: "Foo Labs", kind: "product", aliases: [], mention_count: 2, conversations: 2, last_ts: 1, saved: true, has_page: true, website: "foolabs.dev" };
 
 async function openWith(page: Page, fx: Record<string, unknown>) {
   await mockTauri(page, { ...FIX, ...fx });
@@ -162,13 +162,13 @@ test("entities · Set picture sends the picked file to the engine", async ({ pag
 });
 
 for (const bunker of [false, true]) {
-  test(`entities · an org with a website ${bunker ? "shows no logo in Bunker Mode" : "shows its logo and keeps it"}`, async ({ page }) => {
+  test(`entities · a product with a website ${bunker ? "shows no logo in Bunker Mode" : "shows its logo and keeps it"}`, async ({ page }) => {
     await mockTauri(page, { ...FIX,
       bunker_status: { enabled: bunker, network_blocked: bunker, web_blocked: bunker, cloud_blocked: bunker, local_available: true },
-      entities_list: { generated_ts: 1, total: 1, entities: [FOO_ORG] },
-      // Products are one list over orgs and app records (the engine's adapter).
-      ia_products: { products: [{ id: FOO_ORG.id, name: FOO_ORG.name, company: true, apps: [], website: FOO_ORG.website, saved: true, has_page: true, conversations: 2, last_ts: 1, relation: "yours" }] },
-      entities_show: { found: true, ...FOO_ORG, kinds: ["org"], mentions: [], co_mentions: [], page_path: "data/entities/orgs/foo-labs/entity.md", digest: "", notes: "" },
+      entities_list: { generated_ts: 1, total: 1, entities: [FOO_PRODUCT] },
+      // Products are one store: each product folder holds its page and its app.
+      ia_products: { products: [{ id: FOO_PRODUCT.id, name: FOO_PRODUCT.name, company: true, apps: [], website: FOO_PRODUCT.website, saved: true, has_page: true, conversations: 2, last_ts: 1, relation: "yours" }] },
+      entities_show: { found: true, ...FOO_PRODUCT, kinds: ["product"], mentions: [], co_mentions: [], page_path: "data/entities/products/foo-labs/entity.md", digest: "", notes: "" },
       app_favicon: PNG,
       engine_entities_set_picture: { ok: true },
     });
@@ -182,7 +182,7 @@ for (const bunker of [false, true]) {
       expect(await args(page, "app_favicon")).toContainEqual({ host: "foolabs.dev" });
       // Fetched once, then saved into the entity's folder.
       await expect.poll(async () => (await args(page, "engine_entities_set_picture"))[0] ?? null)
-        .toEqual({ vault: "/tmp/smoke-vault", id: "org/foo-labs", dataUri: PNG });
+        .toEqual({ vault: "/tmp/smoke-vault", id: "product/foo-labs", dataUri: PNG });
     } else {
       await page.waitForTimeout(300);
       await expect(row.locator("img")).toHaveCount(0);

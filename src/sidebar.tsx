@@ -432,7 +432,7 @@ export function Sidebar({
     }
     if (k === "products") {
       const rows = (Array.isArray(productsQ.data?.products) ? productsQ.data!.products : []).filter((p) => p.relation !== "reference").slice(0, 6);
-      return rows.length ? rows.map((p) => <ObjectRow key={p.id} name={p.name} testId="sidebar-object" onClick={() => openEntity("org", p.id)} />)
+      return rows.length ? rows.map((p) => <ObjectRow key={p.id} name={p.name} testId="sidebar-object" onClick={() => openEntity("product", p.id)} />)
         : <ObjectRow name={productsQ.data ? "None yet" : "Reading products"} onClick={() => openKind("products")} />;
     }
     const ek = ENTITY_KIND_OF[k] as EntityKindName;
