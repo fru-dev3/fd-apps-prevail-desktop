@@ -177,7 +177,10 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   const setMode = (m: View) => { setModeState(m); lsSet(MODE_KEY, m); setSel(null); };
   const setPanelOpen = (on: boolean) => { setPanelOpenState(on); lsSet(PANEL_KEY, on ? "1" : "0"); };
   /** Clicking an item opens the panel for it. */
-  const openItem = (id: string) => { setSel(id); setPanelOpen(true); };
+  const openItem = (id: string) => {
+    setSel(id); setPanelOpen(true);
+    requestAnimationFrame(() => document.querySelector(`[data-queue-row][data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+  };
 
   const refresh = useCallback(async () => {
     if (!vault) return;
@@ -363,7 +366,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
     </div>
   ) : shown ? (
     <TaskPanel key={shown.id} t={shown} machines={machines} agentKinds={agentKinds} domains={domains} host={current?.label ?? ""} busy={busy} vault={vault}
-      run={run} onAddMachine={connect} onTick={tick} onClose={phone ? undefined : () => setPanelOpen(false)} />
+      run={run} onAddMachine={connect} onTick={tick} onClose={phone ? undefined : () => setPanelOpen(false)} related={[...queue, ...prompts.flatMap((p) => p.tasks)]} onOpen={openItem} />
   ) : null;
 
   const meta = mode === "queue" ? queueSummary(queue) : `${rows.length} ${rows.length === 1 ? (filter === "ideas" ? "idea" : "task") : (filter === "ideas" ? "ideas" : "tasks")}`;
@@ -659,7 +662,8 @@ function PanelClose({ onClose }: { onClose: () => void }) {
   return <button type="button" data-testid="work-panel-close" onClick={onClose} title="Close the panel" aria-label="Close the panel" className={iconBtn}><ChevronsRight className="h-4 w-4" /></button>;
 }
 
-function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, onAddMachine, onTick, onClose }: {
+function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, onAddMachine, onTick, onClose, related = [], onOpen }: {
+  related?: WorkTask[]; onOpen?: (id: string) => void;
   t: QueueTask; machines: Machine[]; agentKinds: string[]; domains: string[]; host: string; busy: string | null; vault: string;
   run: (key: string, cmd: string, args: Record<string, unknown>) => Promise<boolean>; onAddMachine: (m: Machine) => void; onTick: (id: string) => void; onClose?: () => void;
 }) {
@@ -720,6 +724,10 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
         <div className="min-w-0 flex-1">
           <h2 data-testid="work-task-title" className="break-words text-[20px] font-semibold leading-tight tracking-[-0.01em] text-text-primary">{taskTitle(t)}</h2>
           {t.name && t.name !== t.text && <p className="mt-1.5 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-secondary">{t.text}</p>}
+          {t.parentId && (() => { const parent = related.find((x) => x.id === t.parentId); return (
+            <button type="button" data-testid="work-parent-link" onClick={() => onOpen?.(t.parentId!)} className="mt-1.5 inline-flex items-center gap-1 rounded-md text-[13px] text-text-muted hover:text-text-primary">
+              <CornerDownRight className="h-3.5 w-3.5" />From {parent ? taskTitle(parent) : "the task it came from"}
+            </button>); })()}
         </div>
         <div data-testid="work-head-right" className="flex shrink-0 flex-col items-end gap-2">
           <div className="flex items-center gap-0.5">
@@ -756,6 +764,10 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
           ...otherApps.map((a) => ({ key: `a:${a}`, label: titleCase(a), node: <span data-testid="work-app" className={factPill} title={`${titleCase(a)} app`}><AppRowLogo app={{ id: a, title: titleCase(a) }} size={14} fallback="letter" />{titleCase(a)}</span> })),
           { key: "agent", label: `Agent: ${t.agentKind}`, node: <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5 shrink-0 text-text-muted" />{t.agentKind}</>} triggerClass={factPill} /> },
           { key: "machine", label: `Machine: ${machineLabel(machines, t.machine)}`, node: <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} />{machineLabel(machines, t.machine)}</>} triggerClass={factPill} /> },
+          ...(t.children?.length ? [{ key: "subtasks", label: `Subtasks: ${t.children.length}`, node: (
+            <RowMenu testId="work-subtasks" label="Subtasks" triggerClass={factPill}
+              trigger={<><Split className="h-3.5 w-3.5 shrink-0 text-accent" />{t.children.length === 1 ? "1 subtask" : `${t.children.length} subtasks`}</>}
+              items={t.children.map((c): RowMenuItem => { const x = related.find((r) => r.id === c); return { icon: x?.status === "running" ? Loader2 : x ? STATUS_ICON[x.status] : Circle, label: x ? taskTitle(x) : "A subtask", onClick: () => onOpen?.(c) }; })} />) }] : []),
           ...(t.executor === "herdr" && t.herdr?.workspaceLabel ? [{ key: "herdr", label: `Herdr: ${t.herdr.workspaceLabel}`, node: (
             <span data-testid="work-herdr-link" title={`Its own tab in the Herdr workspace ${t.herdr.workspaceLabel}`} className={factPill}>
               <img src="/herdr.png" alt="" className="h-3.5 w-3.5 shrink-0 rounded-[3px]" />{t.herdr.workspaceLabel}
@@ -763,7 +775,7 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
         ]} />
       </div>
 
-      <Updates t={t} chiefName={chiefName} pending={pending} onSend={(x) => send(x)} onRetry={() => pending && send(pending.text, pending.asTask)} />
+      <Updates related={related} onOpen={onOpen} t={t} chiefName={chiefName} pending={pending} onSend={(x) => send(x)} onRetry={() => pending && send(pending.text, pending.asTask)} />
 
       {/* The work itself (what it knew, each step, the Herdr tab) stays out of the way: the panel shows
           what was asked and what came of it, and the steps sit behind one closed Details link. */}
@@ -894,7 +906,7 @@ const CLOSE_QUESTION = "Can I close this task?";
  * newest at the bottom. Never the agent's output. A finished task asks to
  * close and waits; the yes closes it, anything else goes on with the work.
  */
-function Updates({ t, chiefName, pending, onSend, onRetry }: { t: WorkTask; chiefName: string; pending: SendState | null; onSend: (text: string) => void; onRetry: () => void }) {
+function Updates({ t, chiefName, pending, onSend, onRetry, related = [], onOpen }: { related?: WorkTask[]; onOpen?: (id: string) => void; t: WorkTask; chiefName: string; pending: SendState | null; onSend: (text: string) => void; onRetry: () => void }) {
   const ups = updatesOf(t);
   // The owner's message shows at once; it stays until the engine has recorded it.
   const mine = pending && !ups.some((u) => u.from === "you" && u.text === pending.text && u.ts >= pending.at - 60_000) ? [...ups, { ts: pending.at, from: "you" as const, text: pending.text }] : ups;
@@ -913,6 +925,16 @@ function Updates({ t, chiefName, pending, onSend, onRetry }: { t: WorkTask; chie
           {avatar(t.status === "running" && i === mine.length - 1)}
           <span className="min-w-0 pt-px">
             <span className={`block break-words text-[14px] leading-snug text-text-primary ${t.status === "needs-you" && i === mine.length - 1 ? "font-medium" : ""}`}>{u.text}</span>
+            {u.link && (() => { const c = related.find((x) => x.id === u.link); return (
+              <button type="button" data-testid="work-subtask-chip" data-id={u.link} onClick={() => onOpen?.(u.link!)}
+                className="mt-2 flex w-full max-w-sm items-center gap-2.5 rounded-xl border border-border-subtle bg-background px-3 py-2 text-left shadow-sm transition-[box-shadow,border-color] hover:border-border hover:shadow-md">
+                {c?.status === "running" ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" /> : (() => { const I = c ? STATUS_ICON[c.status] : Circle; return <I className={`h-3.5 w-3.5 shrink-0 ${c ? TONE_TEXT[STATUS_TONE[c.status]] : "text-text-muted"}`} />; })()}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-medium text-text-primary">{c ? taskTitle(c) : "Subtask"}</span>
+                  <span className="flex items-center gap-1 text-[12px] text-text-muted">{c?.dest && <TintIcon icon={KIND_ICON[c.dest.kind] ?? Layers} tint={c.dest.kind === "domain" ? c.dest.id : c.dest.kind} square={false} size={12} />}{c ? `${c.dest?.label ?? "General"} · ${c.status === "needs-you" ? "Needs you" : statusLine(c)}` : "Opening soon"}</span>
+                </span>
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-text-muted" />
+              </button>); })()}
             {u.questions && u.questions.length > 0 && (
               <ol data-testid="work-plan-questions" className="mt-1.5 list-decimal space-y-1 pl-5 text-[14px] leading-snug text-text-secondary marker:text-text-muted">
                 {u.questions.map((q) => <li key={q}>{q}</li>)}

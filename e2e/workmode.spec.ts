@@ -769,3 +769,25 @@ test("a planned task shows what it understood and its questions as a short list"
   await expect(d.getByTestId("work-domain")).toHaveText([/Travel/, /Money/, /Health/]);
   await expect(d.getByTestId("work-followup-input")).toHaveAttribute("placeholder", "Answer it");
 });
+
+test("a follow-up split into a subtask: the parent stays open, the reply links the subtask, and the subtask links back", async ({ page }) => {
+  await openWork(page);
+  await page.evaluate(() => {
+    const fx = (window as unknown as { __fixtures: { __queue: { tasks: Record<string, unknown>[] } } }).__fixtures;
+    const now = Date.now();
+    fx.__queue = { ...fx.__queue, tasks: fx.__queue.tasks.map((t) => (t.id === "t1" ? { ...t, children: ["t5"], updates: [{ ts: now - 9_000, from: "task", text: "Working on it, nothing needed from you." }, { ts: now - 5_000, from: "you", text: "And order the foo gutter brackets" }, { ts: now - 4_000, from: "task", text: "That is its own task now: Gutter Brackets.", link: "t5" }] }
+      : t.id === "t5" ? { ...t, parentId: "t1" } : t)) };
+  });
+  await openRow(page, "t1");
+  const chip = detail(page).getByTestId("work-subtask-chip");
+  await expect(chip).toContainText("Gutter Brackets");
+  await expect(chip).toContainText("Career");
+  await expect(detail(page).getByTestId("work-subtasks")).toContainText("1 subtask");
+  await chip.click();
+  await expect(detail(page).getByTestId("work-task-title")).toHaveText("Gutter Brackets");
+  await expect(row(page, "t5")).toHaveClass(/border-accent-border/);
+  // The parent is still in the queue, its status unchanged.
+  await expect(row(page, "t1")).toHaveAttribute("data-status", "running");
+  await detail(page).getByTestId("work-parent-link").click();
+  await expect(detail(page).getByTestId("work-task-title")).toHaveText("Hike Permit");
+});
