@@ -611,3 +611,8 @@
 :root[data-theme="dark"] .tint-ic { color: color-mix(in oklab, var(--tint) 70%, white); }
 /* A row's own controls (a drag grip, a menu) stay out of the icon rail. */
 [data-rail] [data-rail-skip] { display: none; }
+
+/* Work mode: the item panel slides in from the right. */
+.work-panel-in { animation: work-panel-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes work-panel-in { from { opacity: 0; clip-path: inset(0 0 0 18%); } to { opacity: 1; clip-path: inset(0); } }
+@media (prefers-reduced-motion: reduce) { .work-panel-in { animation: none; } }

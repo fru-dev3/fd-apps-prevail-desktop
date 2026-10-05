@@ -17,6 +17,8 @@ export interface Suggestion {
 export type Shape = string;
 export type Effort = "quick" | "standard" | "deep";
 export interface RoutedTask {
+  /** A short name, 2 to 4 words ("Landlord Reply"); older records have none, so show `taskTitle`. */
+  name?: string;
   text: string; goal: string; dest: Destination | null; alternatives: Destination[]; specialists: string[];
   shape: Shape; flags: { open_ended?: boolean; decision?: boolean; money?: boolean; numbers?: boolean };
   effort: Effort; agentKind: string; machine: string; suggestions: Suggestion[];
@@ -31,11 +33,23 @@ export interface WorkTask extends RoutedTask {
   board?: { space: string; id: string };
   thread: { space: string; session: string };
   ask?: { kind: AskKind; detail: string; command?: string };
-  herdr?: { machine: string; workspaceLabel: string; tabId?: string; agent?: string; createdWorkspace?: boolean; lastRead?: string };
+  herdr?: { machine: string; workspaceLabel: string; workspaceId?: string; tabId?: string; paneId?: string; agent?: string; createdWorkspace?: boolean; lastRead?: string; glyph?: boolean; briefPending?: boolean };
   // Which Mac is driving the task now; stale after a few minutes without renewal.
   lease?: { host: string; until: number };
-  log: { ts: number; ev: string; detail?: string }[];
+  log: LogEntry[];
+  /** What came of it, one or two plain sentences (done, failed or held). */
+  outcome?: string;
+  /** False while a finished task waits, checked, in the queue; true once cleared. */
+  cleared?: boolean;
+  /** What the vault already knew that the work needed: `label` is the line the panel shows. */
+  context?: { label: string; text: string }[];
+  /** The question the agent waits on (status needs-you), one plain sentence. */
+  waiting?: string;
 }
+export interface LogEntry { ts: number; ev: string; detail?: string; more?: string }
+
+/** A task's title: its short name, else its words. */
+export const taskTitle = (t: Pick<WorkTask, "name" | "text">) => t.name?.trim() || t.text;
 export interface WorkPrompt { id: string; ts: number; text: string; surface: "desktop" | "phone" | "cli"; machine: string; tasks: WorkTask[] }
 export interface Machine {
   id: string; hostname?: string; label: string; role?: "hub" | "client"; current: boolean;
@@ -61,28 +75,90 @@ export const STATUS_TONE: Record<WorkStatus, "ok" | "warn" | "err" | "accent" | 
 };
 export const ACTIVE: ReadonlySet<WorkStatus> = new Set(["routed", "queued", "needs-you", "running", "paused", "failed"]);
 
-export type WorkAction = "pause" | "continue" | "start" | "stop" | "keep" | "close" | "reopen";
+export type WorkAction = "pause" | "continue" | "start" | "stop" | "reopen";
 export const ACTION_LABEL: Record<WorkAction, string> = {
-  pause: "Pause", continue: "Continue", start: "Start", stop: "Stop", keep: "Keep", close: "Close", reopen: "Reopen",
+  pause: "Pause", continue: "Continue", start: "Start", stop: "Stop", reopen: "Reopen",
 };
 
-/** The actions a task's status allows. Keep and Close are Herdr-only, and an open keep-close ask already carries them. */
-export function actionsFor(t: Pick<WorkTask, "status" | "executor" | "ask">): WorkAction[] {
-  const herdr = t.executor === "herdr";
+/** What a task's menu offers for its status. Work mode never asks, so there is nothing to answer. */
+export function actionsFor(t: Pick<WorkTask, "status" | "executor">): WorkAction[] {
   switch (t.status) {
     // Start moves a parked idea to the end of the queue.
     case "backlog": return ["start"];
     case "routed": return ["start"];
     // It starts by itself when a slot frees; Pause holds it back.
     case "queued": return ["pause"];
-    // Its question (Start / Not now, Keep / Close...) carries the choice.
-    case "needs-you": return [];
+    case "needs-you": return ["pause"];
     case "running": return ["pause"];
     case "paused": return ["continue"];
     case "failed": return ["continue"];
-    case "done": return herdr && t.ask?.kind !== "keep-close" ? ["keep", "close"] : [];
-    case "closed": return herdr ? ["reopen"] : [];
+    case "done": return [];
+    case "closed": return t.executor === "herdr" ? ["reopen"] : ["continue"];
   }
+}
+
+/** The status as one short sentence for the panel. */
+export function statusLine(t: Pick<WorkTask, "status" | "waiting" | "outcome">): string {
+  switch (t.status) {
+    case "running": return "Working on it";
+    case "queued": return "Waiting for a free slot";
+    case "needs-you": return t.waiting || "Waiting for you";
+    case "paused": return t.outcome?.startsWith("Held") ? t.outcome : "Paused";
+    case "done": return "Done";
+    case "failed": return "Did not finish";
+    case "routed": return "About to start";
+    case "backlog": return "An idea, not started";
+    case "closed": return "Closed";
+  }
+}
+
+export type ActivityIcon = "route" | "shield" | "terminal" | "mail" | "globe" | "file" | "pencil" | "search" | "helper" | "steps" | "spark" | "you" | "ask" | "check" | "clock" | "pause" | "play" | "split" | "warn" | "team";
+export interface ActivityLine { ts: number; icon: ActivityIcon; text: string; more?: string }
+
+const iconFor = (line: string): ActivityIcon =>
+  /gmail|email/i.test(line) ? "mail" : /web/i.test(line) ? "globe" : /^Reading/.test(line) ? "file" : /^Editing/.test(line) ? "pencil"
+    : /^Running a command/.test(line) ? "terminal" : /^Searching/.test(line) ? "search" : /helper/.test(line) ? "helper" : /steps/.test(line) ? "steps" : "spark";
+const after = (detail = "") => detail.replace(/^\S+\s+/, "");
+
+/**
+ * The task's log as plain activity lines (never engine wording, ids or agent
+ * output): what happened, with an icon, and for some lines the detail behind
+ * them (the follow-up's words, the call behind an activity).
+ */
+export function activityLines(t: Pick<WorkTask, "log" | "dest" | "herdr">): ActivityLine[] {
+  const out: ActivityLine[] = [];
+  const add = (l: LogEntry, icon: ActivityIcon, text: string, more?: string) => { if (out[out.length - 1]?.text !== text) out.push({ ts: l.ts, icon, text, ...(more ? { more } : {}) }); };
+  for (const l of t.log) {
+    switch (l.ev) {
+      case "routed": add(l, "route", `Sent to ${t.dest?.label ?? "General"}`); break;
+      case "guard": case "held": if (l.detail) add(l, l.ev === "guard" ? "shield" : "pause", l.detail); break;
+      case "started": add(l, "play", "Started"); break;
+      case "in Herdr": add(l, "terminal", t.herdr?.workspaceLabel ? `Opened its own Herdr tab in ${t.herdr.workspaceLabel}` : "Opened its own Herdr tab"); break;
+      case "back in Herdr": case "reopened": add(l, "terminal", "Back in its Herdr tab"); break;
+      case "briefed": add(l, "play", "Got its brief and started"); break;
+      case "activity": if (l.detail) add(l, iconFor(l.detail), l.detail, l.more); break;
+      case "waiting": add(l, "ask", l.detail ? `Asked: ${l.detail}` : "Waiting for you"); break;
+      case "follow-up": add(l, "you", "You followed up", l.more); break;
+      case "noted": add(l, "clock", "Your follow-up goes in when this run ends"); break;
+      case "again": add(l, "play", "Back at work with your follow-up"); break;
+      case "renamed": case "moved": if (l.detail) add(l, l.ev === "renamed" ? "pencil" : "route", l.detail); break;
+      case "split": add(l, "split", l.detail ?? "Became its own task", l.more); break;
+      case "queued": add(l, "clock", "Waiting for a free slot"); break;
+      case "re-routed": case "route undone": add(l, "route", `Moved to ${after(l.detail) || "General"}`); break;
+      case "specialist made": if (l.detail) add(l, "team", `Brought in a new ${l.detail.replace(/-/g, " ")} specialist`); break;
+      case "paused": add(l, "pause", "Paused"); break;
+      case "continued": add(l, "play", "Continued"); break;
+      case "stopped": add(l, "pause", "Stopped"); break;
+      case "closed": add(l, "terminal", "Closed its Herdr tab"); break;
+      case "done": case "job done": add(l, "check", "Done"); break;
+      case "checked off": add(l, "check", "Checked off"); break;
+      case "could not start": add(l, "warn", "Could not start"); break;
+      case "job failed": add(l, "warn", "Did not finish"); break;
+      case "job needs-approval": add(l, "shield", "Stopped before an action that needs your approval"); break;
+      default: break;
+    }
+  }
+  return out;
 }
 
 /** A task's tasks grouped by goal, in the order the goals first appear. */
@@ -98,8 +174,10 @@ export function groupByGoal<T extends Pick<WorkTask, "goal">>(tasks: T[]): { goa
 /** A queue row: the task and a summary of the prompt it came from. */
 export type QueueTask = WorkTask & { prompt?: { id: string; ts: number; text: string; surface?: WorkPrompt["surface"] } };
 const OPEN_IN_QUEUE: ReadonlySet<WorkStatus> = new Set(["routed", "queued", "needs-you", "running", "paused"]);
-// A finished task that still asks something (keep or close its Herdr tab) stays in the queue until answered.
-const inQueue = (t: WorkTask): boolean => OPEN_IN_QUEUE.has(t.status) || !!t.ask;
+// A finished task stays in the queue, checked, until it is cleared (an older record that still asks stays too).
+export const inQueue = (t: WorkTask): boolean => OPEN_IN_QUEUE.has(t.status) || !!t.ask || ((t.status === "done" || t.status === "failed") && t.cleared === false);
+/** Checked: finished, waiting in the queue to be cleared. */
+export const isChecked = (t: Pick<WorkTask, "status">) => t.status === "done";
 
 /**
  * The queue, flat and in the engine's order (first runs first, newest at the
@@ -117,7 +195,7 @@ export function asQueue(v: unknown): QueueTask[] {
 export function queueSummary(ts: Pick<WorkTask, "status">[]): string {
   const n = (s: WorkStatus) => ts.filter((t) => t.status === s).length;
   const parts = [`${ts.length} ${ts.length === 1 ? "task" : "tasks"}`];
-  for (const s of ["running", "queued", "needs-you", "paused"] as WorkStatus[]) if (n(s)) parts.push(`${n(s)} ${STATUS_LABEL[s].toLowerCase()}`);
+  for (const s of ["running", "queued", "needs-you", "paused", "done"] as WorkStatus[]) if (n(s)) parts.push(`${n(s)} ${STATUS_LABEL[s].toLowerCase()}`);
   return parts.join(" · ");
 }
 
@@ -234,16 +312,3 @@ export function leaseElsewhere(t: Pick<WorkTask, "lease">, host: string, now = D
 
 // The engine names a machine by its label everywhere (a task's machine, a lease's host, --machine).
 export const machineLabel = (machines: Machine[], x: string) => machines.find((m) => m.label === x || m.id === x)?.label ?? (x === "local" ? "This Mac" : x);
-
-/**
- * What the Herdr tab last showed, for the task detail: the engine keeps a raw
- * tail (cut mid-line, with the terminal's rules, input line and footer), so
- * start at a whole line and drop that chrome, as the engine does for the thread.
- */
-export function mirrorTail(raw: string): string {
-  // The engine keeps the last 2,000 characters: at that length the first line is a cut one.
-  const whole = raw.length < 2000 || !raw.includes("\n") ? raw : raw.slice(raw.indexOf("\n") + 1);
-  return whole.split("\n")
-    .filter((l) => !/^\s*[\u2500\u2501\u2550]{3,}/.test(l) && !/^\s*\u276f\s*$/.test(l) && !/^\s*\u23f5\u23f5/.test(l) && !/^\s*\u273b /.test(l))
-    .join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}

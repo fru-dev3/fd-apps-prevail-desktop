@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
-  actionsFor, asMachines, asPrompts, asSettings, asWorkspaces, backlog, engineLacksWork, FALLBACK_AGENT_KINDS, groupByGoal, leaseElsewhere,
-  mirrorTail, needsApproval, plainError, moveInQueue, asQueue, queueSummary, type WorkPrompt, type WorkTask,
+  actionsFor, activityLines, asMachines, asPrompts, asSettings, asWorkspaces, backlog, engineLacksWork, FALLBACK_AGENT_KINDS, groupByGoal, leaseElsewhere,
+  needsApproval, plainError, moveInQueue, asQueue, queueSummary, statusLine, taskTitle, type WorkPrompt, type WorkTask,
 } from "./workqueuemodel";
 
 const task = (over: Partial<WorkTask> = {}): WorkTask => ({
@@ -17,17 +17,43 @@ describe("work queue model", () => {
     expect(g.map((x) => [x.goal, x.tasks.map((t) => t.id)])).toEqual([["A", ["a", "c"]], ["B", ["b"]]]);
   });
 
-  test("each status allows its actions; Keep and Close are Herdr only", () => {
+  test("each status offers its menu actions; nothing asks keep or close", () => {
     expect(actionsFor(task({ status: "running" }))).toEqual(["pause"]);
     expect(actionsFor(task({ status: "paused" }))).toEqual(["continue"]);
     expect(actionsFor(task({ status: "routed" }))).toEqual(["start"]);
     expect(actionsFor(task({ status: "backlog" }))).toEqual(["start"]);
-    expect(actionsFor(task({ status: "needs-you", ask: { kind: "start", detail: "" } }))).toEqual([]);
-    expect(actionsFor(task({ status: "done" }))).toEqual([]);
-    expect(actionsFor(task({ status: "done", executor: "herdr" }))).toEqual(["keep", "close"]);
-    expect(actionsFor(task({ status: "done", executor: "herdr", ask: { kind: "keep-close", detail: "" } }))).toEqual([]);
+    expect(actionsFor(task({ status: "needs-you" }))).toEqual(["pause"]);
+    expect(actionsFor(task({ status: "done", executor: "herdr" }))).toEqual([]);
     expect(actionsFor(task({ status: "closed", executor: "herdr" }))).toEqual(["reopen"]);
-    expect(actionsFor(task({ status: "closed" }))).toEqual([]);
+    expect(statusLine(task({ status: "needs-you", waiting: "Where are you right now?" }))).toBe("Where are you right now?");
+    expect(statusLine(task({ status: "paused", outcome: "Held: autonomy is paused." }))).toBe("Held: autonomy is paused.");
+    expect(taskTitle(task({ name: "Foo Permit" }))).toBe("Foo Permit");
+    expect(taskTitle(task())).toBe("Book the foo hike permit");
+  });
+
+  test("the log reads as plain activity: no engine words, ids or agent output", () => {
+    const lines = activityLines(task({
+      dest: { kind: "domain", id: "health", label: "Health", space: "health", owner: "health", confidence: 1, why: "the router named nothing that exists" },
+      herdr: { machine: "local", workspaceLabel: "Health" },
+      log: [
+        { ts: 1, ev: "routed", detail: "domain General: the router named nothing that exists" },
+        { ts: 2, ev: "guard", detail: "Your rules apply: drafts only, nothing is sent." },
+        { ts: 3, ev: "starting", detail: "in Herdr" },
+        { ts: 4, ev: "in Herdr", detail: "Health on foo-laptop" },
+        { ts: 5, ev: "activity", detail: "Reading your Gmail", more: "\u23fa gmail - search_threads (MCP)(query: foo)" },
+        { ts: 6, ev: "activity", detail: "Drafting an email" },
+        { ts: 7, ev: "follow-up", more: "Only the foo ones" },
+        { ts: 8, ev: "no act gate", detail: "the hook file lives on this Mac" },
+        { ts: 9, ev: "could not start", detail: "herdr exited 1: {\"error\":\"x\"}" },
+        { ts: 10, ev: "done" },
+      ],
+    }));
+    expect(lines.map((l) => [l.icon, l.text])).toEqual([
+      ["route", "Sent to Health"], ["shield", "Your rules apply: drafts only, nothing is sent."], ["terminal", "Opened its own Herdr tab in Health"],
+      ["mail", "Reading your Gmail"], ["mail", "Drafting an email"], ["you", "You followed up"], ["warn", "Could not start"], ["check", "Done"],
+    ]);
+    expect(lines[5]!.more).toBe("Only the foo ones");
+    expect(JSON.stringify(lines)).not.toMatch(/router|exited|hook|error/);
   });
 
   test("the queue is flat and in the engine's order; an older engine's prompts become oldest first, open tasks only", () => {
@@ -37,9 +63,9 @@ describe("work queue model", () => {
     expect(old.map((t) => [t.id, t.prompt?.id])).toEqual([["a", "old"], ["c", "new"]]);
     expect(queueSummary(q)).toBe("2 tasks · 1 running · 1 queued");
     expect(actionsFor(task({ status: "queued" }))).toEqual(["pause"]);
-    // A finished task that still asks keep or close stays until answered.
-    const asking = asQueue({ tasks: [task({ id: "k", status: "done", executor: "herdr", ask: { kind: "keep-close", detail: "" } }), task({ id: "x", status: "done" })] });
-    expect(asking.map((t) => t.id)).toEqual(["k"]);
+    // A finished task stays, checked, until it is cleared.
+    const finished = asQueue({ tasks: [task({ id: "k", status: "done", cleared: false }), task({ id: "x", status: "done" }), task({ id: "y", status: "done", cleared: true })] });
+    expect(finished.map((t) => t.id)).toEqual(["k"]);
   });
 
   test("moving a task names its new neighbour for the engine", () => {
@@ -106,10 +132,5 @@ describe("work queue model", () => {
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 2000 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: true });
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 500 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: false });
     expect(leaseElsewhere(task({ lease: { host: "foo-laptop", until: 2000 } }), "foo-laptop", 1000).elsewhere).toBe(false);
-  });
-  test("the Herdr tail starts at a whole line and drops the terminal chrome", () => {
-    const raw = ["x".repeat(2000) + "oo cut mid-word", "Foo summary:", "- the foo plan is on track", "", "\u273b Baked for 9s", "\u2500".repeat(30) + " foo-tab \u2500", "\u276f ", "  \u23f5\u23f5 foo mode on"].join("\n");
-    expect(mirrorTail(raw)).toBe("Foo summary:\n- the foo plan is on track");
-    expect(mirrorTail("one line")).toBe("one line");
   });
 });

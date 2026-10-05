@@ -1,44 +1,51 @@
 // Work mode: the Work tab, first in the header, then Chat (Council is a
-// toggle in the composer). Work is focused: no sidebar, no thread rail, just
-// the work bar (a Queue / Backlog switch inside it, one options button for
-// Herdr and the machine) and, when it has items, one ordered queue of tasks
-// (newest at the bottom) to drag or move with the keyboard, or the backlog of
-// parked ideas; a task's detail has its route chip with Undo, re-route, agent
-// kind and machine chips, actions per status, its question and the prompt it
-// came from. Invented data only (foo names, /tmp paths, invented Macs).
+// toggle in the composer). Work keeps the main sidebar and hides only the
+// thread rail. The queue fills the screen (check box, short name, one meta
+// line with icons, a spinner while it is worked); the item panel is collapsed
+// to the right by default and opens on a row click: status, where it went,
+// who is on it, what it already knows, outcome, plain activity, Open in Herdr
+// and "Follow up or clarify". Never agent output, never a Start / Keep /
+// Create question. Invented data only (foo names, /tmp paths, invented Macs).
 // With WORK_SHOTS=<dir>, the tab is captured light and dark at 1440.
 import { test, expect, type Page } from "@playwright/test";
 import { mockTauri } from "./tauri-mock";
 
 const NOW = Date.now();
-const dest = (kind: string, id: string, label: string, owner = id) => ({ kind, id, label, space: owner, owner, confidence: 0.9, why: "named in the prompt" });
+const dest = (kind: string, id: string, label: string, owner = id) => ({ kind, id, label, space: owner, owner, confidence: 0.9, why: "the router named nothing that exists" });
 const base = { alternatives: [], specialists: [], shape: "task", flags: {}, effort: "standard", agentKind: "claude", machine: "foo-laptop", suggestions: [], log: [] };
 const P1 = { id: "p1", ts: NOW - 120_000, text: "Plan the foo hike this weekend, and get the bar report to Sam Foo before Friday", surface: "desktop" };
 const P2 = { id: "p2", ts: NOW - 60_000, text: "Fix the foo gutter before the rain", surface: "phone" };
-const T1 = { ...base, id: "t1", promptId: "p1", goal: "Plan the foo hike", text: "Book the foo hike permit for Saturday", dest: dest("domain", "health", "Health"),
+const T1 = { ...base, id: "t1", promptId: "p1", goal: "Plan the foo hike", name: "Hike Permit", text: "Book the foo hike permit for Saturday", dest: dest("domain", "health", "Health"),
   alternatives: [dest("project", "foo-hike", "Foo hike")], specialists: ["planner", "scout"], status: "running", executor: "engine",
-  thread: { space: "health", session: "foo-1" }, log: [{ ts: NOW - 110_000, ev: "routed", detail: "Health" }, { ts: NOW - 100_000, ev: "started" }], prompt: P1 };
-const T2 = { ...base, id: "t2", promptId: "p1", goal: "Plan the foo hike", text: "Check the trail weather and pack list", dest: dest("domain", "health", "Health"), status: "needs-you", executor: "engine",
-  thread: { space: "health", session: "foo-2" }, ask: { kind: "start", detail: "Over your limit of $1 and 10 minutes. Start it?" }, prompt: P1 };
-const T3 = { ...base, id: "t3", promptId: "p1", goal: "Send the bar report", text: "Draft the bar report for Sam Foo", dest: dest("project", "bar-app", "Bar app", "career"),
+  context: [{ label: "Your home city, from your profile", text: "The user's home city: Fooville." }],
+  thread: { space: "health", session: "foo-1" }, prompt: P1,
+  log: [{ ts: NOW - 110_000, ev: "routed", detail: "domain Health: the router named nothing that exists" }, { ts: NOW - 105_000, ev: "guard", detail: "Your rules apply: nothing is paid or bought." },
+    { ts: NOW - 100_000, ev: "started", detail: "the engine runs it" }, { ts: NOW - 90_000, ev: "activity", detail: "Searching the web", more: "WebSearch(foo hike permits Saturday)" }] };
+const T2 = { ...base, id: "t2", promptId: "p1", goal: "Plan the foo hike", name: "Trail Weather", text: "Check the trail weather and pack list", dest: dest("domain", "health", "Health"), status: "needs-you", executor: "herdr",
+  thread: { space: "health", session: "foo-2" }, waiting: "Which trailhead, north or south?", herdr: { machine: "foo-laptop", workspaceLabel: "Health", tabId: "w1:t1", paneId: "w1:p1", agent: "w1:p1" },
+  log: [{ ts: NOW - 80_000, ev: "in Herdr", detail: "Health on foo-laptop" }, { ts: NOW - 70_000, ev: "waiting", detail: "Which trailhead, north or south?" }], prompt: P1 };
+const T3 = { ...base, id: "t3", promptId: "p1", goal: "Send the bar report", name: "Bar Report", text: "Draft the bar report for Sam Foo", dest: dest("project", "bar-app", "Bar app", "career"),
   specialists: ["writer"], agentKind: "codex", status: "running", executor: "herdr", thread: { space: "_mission-bar-app", session: "foo-3" },
-  herdr: { machine: "local", workspaceLabel: "foo-reports", tabId: "w1:t2", lastRead: "Drafted the bar report.\nSaved to the Bar app project notes.\n" + "\u2500".repeat(400) + "\n/tmp/foo/" + "bar".repeat(120) },
-  log: [{ ts: NOW - 90_000, ev: "asks", detail: "the agent in its Herdr tab is waiting for an answer there (it may be asking whether to trust the folder); answer it in Herdr, then Start" }],
-  suggestions: [{ kind: "entity", name: "Sam Foo", why: "Named in the prompt, not in your people yet", state: "open" },
-    { kind: "domain", name: "foo notes folder path", why: "User said 'this folder' but no path was provided for the foo notes", state: "open" }], prompt: P1 };
-const T5 = { ...base, id: "t5", promptId: "p2", goal: "Fix the foo gutter", text: "Order the foo gutter brackets", dest: dest("domain", "career", "Career"), status: "queued", executor: "engine",
+  herdr: { machine: "foo-laptop", workspaceLabel: "Bar app", workspaceId: "w1", tabId: "w1:t2", paneId: "w1:p2", agent: "w1:p2", glyph: true, lastRead: "Drafted the bar report.\nSaved to the Bar app project notes.\n" + "\u2500".repeat(400) + "\n/tmp/foo/" + "bar".repeat(120) },
+  log: [{ ts: NOW - 95_000, ev: "routed", detail: "project Bar app" }, { ts: NOW - 94_000, ev: "in Herdr", detail: "Bar app on foo-laptop" },
+    { ts: NOW - 60_000, ev: "activity", detail: "Reading notes.md", more: "\u23fa Read(projects/bar-app/notes.md)" }, { ts: NOW - 50_000, ev: "activity", detail: "Drafting an email", more: "\u23fa gmail - create_draft (MCP)(to: sam@example.com)" },
+    { ts: NOW - 40_000, ev: "follow-up", more: "Keep it to one page" }],
+  suggestions: [{ kind: "entity", name: "Sam Foo", why: "Named in the prompt, not in your people yet", state: "open" }], prompt: P1 };
+const T5 = { ...base, id: "t5", promptId: "p2", goal: "Fix the foo gutter", name: "Gutter Brackets", text: "Order the foo gutter brackets", dest: dest("domain", "career", "Career"), status: "queued", executor: "engine",
   thread: { space: "career", session: "foo-5" }, prompt: P2 };
-const T4 = { ...base, id: "t4", promptId: "p2", goal: "Fix the foo gutter", text: "Find a foo gutter repair crew", dest: dest("domain", "career", "Career"), status: "paused", executor: "herdr",
-  machine: "mini-foo", thread: { space: "career", session: "foo-4" }, herdr: { machine: "mini-foo", workspaceLabel: "foo-home" }, lease: { host: "mini-foo", until: NOW + 120_000 }, prompt: P2 };
-const T6 = { ...base, id: "t6", promptId: "p0", goal: "Send the bar report", text: "Send the bar report to Sam Foo", dest: dest("project", "bar-app", "Bar app", "career"),
-  agentKind: "codex", status: "done", executor: "herdr", thread: { space: "_mission-bar-app", session: "foo-6" },
-  herdr: { machine: "local", workspaceLabel: "foo-reports", tabId: "w1:t3", lastRead: "Sent.\n" }, prompt: { id: "p0", ts: NOW - 7_200_000, text: "Send the bar report", surface: "cli" } };
-// The queue, in the engine's order: first runs first, newest at the bottom.
-const QUEUE = { ok: true, view: "queue", maxRunning: 3, tasks: [T1, T2, T3, T5, T4] };
+const T4 = { ...base, id: "t4", promptId: "p2", goal: "Fix the foo gutter", name: "Gutter Crew", text: "Find a foo gutter repair crew", dest: dest("domain", "career", "Career"), status: "paused", executor: "herdr",
+  machine: "mini-foo", thread: { space: "career", session: "foo-4" }, herdr: { machine: "mini-foo", workspaceLabel: "Career" }, lease: { host: "mini-foo", until: NOW + 120_000 }, prompt: P2 };
+const T6 = { ...base, id: "t6", promptId: "p0", goal: "Send the bar report", name: "Bar Draft", text: "Draft the bar report email to Sam Foo", dest: dest("project", "bar-app", "Bar app", "career"),
+  agentKind: "codex", status: "done", cleared: false, outcome: "Drafted the bar report email to Sam Foo; it is in your drafts, nothing was sent.", executor: "herdr", thread: { space: "_mission-bar-app", session: "foo-6" },
+  specialists: ["writer"], herdr: { machine: "foo-laptop", workspaceLabel: "Bar app", tabId: "w1:t3", agent: "w1:p3", lastRead: "Sent.\n" },
+  log: [{ ts: NOW - 7_100_000, ev: "in Herdr" }, { ts: NOW - 7_000_000, ev: "activity", detail: "Drafting an email" }, { ts: NOW - 6_900_000, ev: "done" }],
+  prompt: { id: "p0", ts: NOW - 7_200_000, text: "Send the bar report", surface: "cli" } };
+// The queue, in the engine's order: first runs first, newest at the bottom; a finished task stays checked until cleared.
+const QUEUE = { ok: true, view: "queue", maxRunning: 3, tasks: [T1, T2, T3, T5, T4, T6] };
 // A parked idea: routed, never started, not in the queue.
-const T7 = { ...base, id: "t7", promptId: "p7", goal: "A foo standing desk", text: "Look into a foo standing desk", dest: dest("domain", "health", "Health"), status: "backlog", executor: "engine",
+const T7 = { ...base, id: "t7", promptId: "p7", goal: "A foo standing desk", name: "Standing Desk", text: "Look into a foo standing desk", dest: dest("domain", "health", "Health"), status: "backlog", executor: "engine",
   thread: { space: "health", session: "foo-7" }, prompt: { id: "p7", ts: NOW - 30_000, text: "Look into a foo standing desk someday", surface: "desktop" } };
-const BACKLOG = { ok: true, view: "backlog", tasks: [T1, T2, T3, T5, T4, T6, T7] };
+const BACKLOG = { ok: true, view: "backlog", tasks: [T1, T2, T3, T5, T4, { ...T6, cleared: true }, T7] };
 const MACHINES = {
   machines: [
     { id: "local", hostname: "foo-laptop", label: "foo-laptop", role: "client", current: true, herdr: "local" },
@@ -54,7 +61,7 @@ const FIX = {
   engine_work_settings: { ok: true, settings: { herdr: false, workspace: "foo-work", maxRunning: 3 } },
   engine_work_add: { ok: true, prompt: { id: "p9", ts: NOW, text: "Renew the foo passport", surface: "desktop", machine: "foo-laptop", tasks: [] } },
   engine_work_machine_add: { ok: true, output: "saved" }, engine_work_machine_approve: { ok: true, command: [] },
-  engine_work_route: { ok: true }, engine_work_action: { ok: true }, engine_work_answer: { ok: true }, engine_work_reorder: { ok: true, order: [] },
+  engine_work_route: { ok: true }, engine_work_action: { ok: true }, engine_work_answer: { ok: true }, engine_work_reorder: { ok: true, order: [] }, engine_work_followup: { ok: true },
   scan_vault: ["career", "health"].map((name) => ({ name, path: `/tmp/smoke-vault/data/domains/${name}`, has_state: true, state_preview: null })),
 };
 
@@ -80,6 +87,10 @@ async function openWork(page: Page, extra: Record<string, unknown> = {}, width =
   await page.getByTestId("top-tab-queue").click({ timeout: 15_000 });
 }
 const detail = (page: Page) => page.getByTestId("work-task");
+const panel = (page: Page) => page.getByTestId("work-panel");
+/** Open a task's panel by clicking its row. */
+const openRow = (page: Page, id: string) => row(page, id).getByTestId("work-row-meta").click();
+const menuItem = (page: Page, name: string | RegExp) => page.getByRole("menuitem", { name });
 const row = (page: Page, id: string) => page.locator(`[data-testid=work-queue-row][data-id=${id}]`);
 const rowIds = (page: Page) => page.getByTestId("work-queue-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-id")));
 
@@ -146,21 +157,36 @@ test("Work keeps the main sidebar and hides only the thread rail, with no extra 
   await expect(page.getByTestId("threads-list")).toBeVisible();
 });
 
-test("the queue is one ordered list of tasks with status, destination, agent and machine", async ({ page }) => {
+test("the queue fills the screen: check box, short name, one meta line with icons, a spinner while worked; the panel is collapsed", async ({ page }) => {
   await openWork(page);
-  await expect.poll(() => rowIds(page)).toEqual(["t1", "t2", "t3", "t5", "t4"]);
-  await expect(row(page, "t1")).toContainText("Running · Health · claude · foo-laptop");
-  await expect(row(page, "t5")).toContainText("Queued · Career");
+  await expect.poll(() => rowIds(page)).toEqual(["t1", "t2", "t3", "t5", "t4", "t6"]);
+  await expect(row(page, "t1")).toContainText("Hike Permit");
+  await expect(row(page, "t1").getByTestId("work-row-meta")).toHaveText(/Health\s*claude\s*foo-laptop/);
+  await expect(row(page, "t4").getByTestId("work-row-meta")).toHaveText(/Career\s*claude\s*mini-foo/);
+  await expect(row(page, "t1").getByTestId("work-spinner")).toBeVisible();
+  await expect(row(page, "t3").getByTestId("work-spinner")).toBeVisible();
+  await expect(row(page, "t5").getByTestId("work-spinner")).toHaveCount(0);
   await expect(row(page, "t2")).toContainText("Needs you");
-  await expect(row(page, "t4")).toContainText("Paused · Career · claude · mini-foo");
-  await expect(page.getByTestId("spine-meta")).toHaveText("5 tasks · 2 running · 1 queued · 1 needs you · 1 paused");
-  // The first task shows in the detail, with the prompt it came from.
-  await expect(detail(page)).toContainText("Book the foo hike permit for Saturday");
-  await expect(page.getByTestId("work-from-prompt")).toContainText("Plan the foo hike this weekend");
-  await expect(page.getByTestId("work-sibling")).toHaveCount(3);
-  await row(page, "t5").getByText("Order the foo gutter brackets").click();
+  await expect(row(page, "t1").getByTestId("work-check")).toHaveAttribute("aria-checked", "false");
+  await expect(row(page, "t6").getByTestId("work-check")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("work-meta")).toHaveText("6 tasks · 2 running · 1 queued · 1 needs you · 1 paused · 1 done");
+  // Collapsed by default: the queue has the whole width.
+  await expect(panel(page)).toHaveCount(0);
+  const w = (await page.getByTestId("work-list").boundingBox())!.width;
+  expect(w).toBeGreaterThan(1000);
+  // A click slides the panel open for that item; closing gives the width back; the choice is remembered.
+  await openRow(page, "t5");
+  await expect(panel(page)).toBeVisible();
   await expect(detail(page)).toHaveAttribute("data-status", "queued");
-  await expect(detail(page).getByTestId("work-act-pause")).toBeVisible();
+  await expect(page.getByTestId("work-task-title")).toHaveText("Gutter Brackets");
+  expect(await page.evaluate(() => localStorage.getItem("prevail.work.panel"))).toBe("1");
+  await page.getByTestId("work-panel-close").click();
+  await expect(panel(page)).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("prevail.work.panel"))).toBe("0");
+  await openRow(page, "t1");
+  await page.reload();
+  await page.getByTestId("top-tab-queue").click({ timeout: 15_000 });
+  await expect(panel(page)).toBeVisible();
   expect(await nothingWide(page)).toEqual([]);
 });
 
@@ -184,7 +210,7 @@ test("dragging a row by its grip reorders the queue through the engine", async (
 
 test("the keyboard moves a row too: Alt+Arrow and the row menu", async ({ page }) => {
   await openWork(page);
-  await row(page, "t1").getByRole("button", { name: /^Book the foo hike permit/ }).focus();
+  await row(page, "t1").getByRole("button", { name: /^Hike Permit/ }).focus();
   await page.keyboard.press("Alt+ArrowDown");
   await expect.poll(async () => (await calls(page, "engine_work_reorder"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", before: "t3" });
   await page.evaluate(() => { (window as unknown as { __invokeLog: unknown[] }).__invokeLog.length = 0; });
@@ -196,12 +222,12 @@ test("the keyboard moves a row too: Alt+Arrow and the row menu", async ({ page }
 
 test("a new task appears at the bottom of the queue", async ({ page }) => {
   await openWork(page);
-  const T9 = { ...T5, id: "t9", promptId: "p9", text: "Renew the foo passport", status: "running", prompt: { id: "p9", ts: NOW, text: "Renew the foo passport", surface: "desktop" } };
+  const T9 = { ...T5, id: "t9", promptId: "p9", name: "Foo Passport", text: "Renew the foo passport", status: "running", prompt: { id: "p9", ts: NOW, text: "Renew the foo passport", surface: "desktop" } };
   await page.evaluate((t9) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t9] }; }, T9);
   await page.getByTestId("work-input").fill("Renew the foo passport");
   await page.getByTestId("work-send").click();
   await expect.poll(async () => (await rowIds(page)).at(-1)).toBe("t9");
-  await expect(row(page, "t9")).toContainText("Renew the foo passport");
+  await expect(row(page, "t9")).toContainText("Foo Passport");
 });
 
 test("Send fires the prompt and clears the box at once; Enter sends too", async ({ page }) => {
@@ -217,46 +243,109 @@ test("Send fires the prompt and clears the box at once; Enter sends too", async 
   await expect.poll(async () => ((await calls(page, "engine_work_add"))[1]?.body as { text?: string })?.text).toBe("Call the bar plumber");
 });
 
-test("route chip with Undo, re-route by machine, Pause, and suggestions", async ({ page }) => {
+test("the item panel: status, where it went with its icon, who is on it, what it knows, plain activity; re-route, chips and the menu", async ({ page }) => {
   await openWork(page);
-  await expect(detail(page).getByTestId("work-route")).toContainText("Health");
-  await detail(page).getByTestId("work-route-undo").click();
+  await openRow(page, "t1");
+  const d = detail(page);
+  await expect(d.getByTestId("work-status")).toHaveText("Working on it");
+  await expect(d.getByTestId("work-task-title")).toHaveText("Hike Permit");
+  await expect(d).toContainText("Book the foo hike permit for Saturday");
+  await expect(d.getByTestId("work-destination")).toContainText("Health");
+  await expect(d.getByTestId("work-destination")).toContainText("Domain");
+  await expect(d.getByTestId("work-team")).toContainText("Chief of staff");
+  await expect(d.getByTestId("work-specialist")).toHaveText([/Planner\s*Joined the work/, /Scout\s*Joined the work/]);
+  await expect(d.getByTestId("work-context")).toContainText("Your home city, from your profile");
+  await expect(d.getByTestId("work-activity-line")).toHaveText([/Sent to Health/, /Your rules apply: nothing is paid or bought\./, /Started/, /Searching the web/]);
+  // Never engine words or ids.
+  await expect(panel(page)).not.toContainText(/router|named nothing|routed ·|I am not sure|t1|foo-1/);
+  // The activity line opens to what is behind it.
+  await d.getByTestId("work-activity-line").filter({ hasText: "Searching the web" }).locator("summary").click();
+  await expect(d.getByTestId("work-activity")).toContainText("WebSearch(foo hike permits Saturday)");
+  await d.getByTestId("work-route").click();
+  await menuItem(page, "Undo the route").click();
   await expect.poll(async () => (await calls(page, "engine_work_route"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", undo: true });
-  await detail(page).getByTestId("work-task-machine").click();
-  await page.getByRole("menuitem", { name: /mini-foo/ }).click();
+  await d.getByTestId("work-task-machine").click();
+  await menuItem(page, /mini-foo/).click();
   await expect.poll(async () => (await calls(page, "engine_work_route"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", machine: "mini-foo" });
-  await detail(page).getByTestId("work-agent").click();
-  await page.getByRole("menuitem", { name: "gemini" }).click();
+  await d.getByTestId("work-agent").click();
+  await menuItem(page, "gemini").click();
   await expect.poll(async () => (await calls(page, "engine_work_route"))[2]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", agentKind: "gemini" });
-  await detail(page).getByTestId("work-act-pause").click();
+  await d.getByTestId("work-task-menu").click();
+  await menuItem(page, "Pause").click();
   await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", action: "pause" });
-  await row(page, "t2").getByText("Check the trail weather").click();
-  await expect(detail(page).getByTestId("work-ask")).toContainText("Over your limit");
-  await detail(page).getByTestId("work-answer-yes").click();
-  await expect.poll(async () => (await calls(page, "engine_work_answer"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t2", answer: "yes" });
-  await row(page, "t3").getByText("Draft the bar report").click();
-  await detail(page).getByTestId("work-suggest-accept").first().click();
+  // A home the work lacks is one item in the destination's menu, never a question.
+  await openRow(page, "t3");
+  await detail(page).getByTestId("work-route").click();
+  await menuItem(page, "New entity: Sam Foo").click();
   await expect.poll(async () => (await calls(page, "engine_work_action"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: "t3", action: "accept", n: 1 });
-});
-
-test("a Herdr task shows its mirrored output without widening the tab", async ({ page }) => {
-  await openWork(page);
-  await row(page, "t3").getByText("Draft the bar report").click();
-  await expect(detail(page)).toHaveAttribute("data-executor", "herdr");
-  await expect(detail(page).getByTestId("work-herdr-output")).toContainText("Drafted the bar report.");
-  // A long unbroken line (terminal rule, long path) must wrap inside the box, never widen the page.
   expect(await nothingWide(page)).toEqual([]);
 });
 
-test("done tasks leave the queue; the backlog keeps them, with Keep and Close for a Herdr one", async ({ page }) => {
+test("nothing asks: no Start, Not now, Keep, Close or Create questions; a waiting task shows its question and the answer goes as a follow-up", async ({ page }) => {
   await openWork(page);
-  await expect(row(page, "t6")).toHaveCount(0);
+  for (const id of ["t1", "t2", "t3", "t5", "t4", "t6"]) {
+    await openRow(page, id);
+    await expect(detail(page)).toHaveAttribute("data-status", /./);
+    await expect(page.getByTestId("work-ask")).toHaveCount(0);
+    await expect(panel(page).getByRole("button", { name: /^(Start|Not now|Keep|Close|Create it|Create one)$/ })).toHaveCount(0);
+  }
+  await openRow(page, "t2");
+  await expect(detail(page).getByTestId("work-waiting")).toContainText("Which trailhead, north or south?");
+  const box = detail(page).getByTestId("work-followup-input");
+  await expect(box).toHaveAttribute("placeholder", "Answer it");
+  await box.fill("North, the foo trailhead");
+  await box.press("Enter");
+  await expect.poll(async () => (await calls(page, "engine_work_followup"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t2", text: "North, the foo trailhead" });
+  await expect(box).toHaveValue("");
+});
+
+test("Follow up or clarify appends to the task, or adds a new task to the same work", async ({ page }) => {
+  await openWork(page);
+  await openRow(page, "t1");
+  const box = detail(page).getByTestId("work-followup-input");
+  await expect(box).toHaveAttribute("placeholder", "Follow up or clarify");
+  await box.fill("Only the north loop");
+  await detail(page).getByTestId("work-followup-send").click();
+  await expect.poll(async () => (await calls(page, "engine_work_followup"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", text: "Only the north loop" });
+  await box.fill("Also book the foo campsite");
+  await detail(page).getByTestId("work-followup-new").click();
+  await expect.poll(async () => (await calls(page, "engine_work_followup"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", text: "Also book the foo campsite", asTask: true });
+  // It is not a chat: no conversation, no replies on screen.
+  await expect(panel(page).locator("[data-role=assistant], [data-testid=message], [data-testid=chat-thread]")).toHaveCount(0);
+});
+
+test("a Herdr task never shows the agent's output: its workspace and own tab, plain activity, and Open in Herdr", async ({ page }) => {
+  await openWork(page);
+  await openRow(page, "t3");
+  await expect(detail(page)).toHaveAttribute("data-executor", "herdr");
+  await expect(detail(page).getByTestId("work-herdr-link")).toContainText("Bar app, own tab");
+  await expect(panel(page)).not.toContainText("Drafted the bar report.");
+  await expect(panel(page)).not.toContainText("Nothing from the Herdr tab yet");
+  await expect(page.getByTestId("work-herdr-output")).toHaveCount(0);
+  await expect(panel(page).locator("pre")).toHaveCount(0);
+  await expect(detail(page).getByTestId("work-activity-line")).toHaveText([/Sent to Bar app/, /Opened its own Herdr tab in Bar app/, /Reading notes\.md/, /Drafting an email/, /You followed up/]);
+  await detail(page).getByTestId("work-open-herdr").click();
+  await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t3", action: "focus" });
+  expect(await nothingWide(page)).toEqual([]);
+});
+
+test("the check box marks a task done in the engine and the row leaves; a finished task shows its outcome until cleared", async ({ page }) => {
+  await openWork(page);
+  await openRow(page, "t6");
+  await expect(detail(page).getByTestId("work-outcome")).toHaveText("Drafted the bar report email to Sam Foo; it is in your drafts, nothing was sent.");
+  await expect(detail(page).getByTestId("work-status")).toHaveText("Done");
+  await row(page, "t1").getByTestId("work-check").click();
+  await expect(row(page, "t1").getByTestId("work-check")).toHaveAttribute("aria-checked", "true");
+  await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t1", action: "done" });
+  await page.evaluate(() => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: { id: string }[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: fx.__queue.tasks.filter((t) => t.id !== "t1") }; });
+  await expect(row(page, "t1")).toHaveCount(0);
+  // Ticking a finished one clears it.
+  await row(page, "t6").getByTestId("work-check").click();
+  await expect.poll(async () => (await calls(page, "engine_work_action"))[1]).toEqual({ vault: "/tmp/smoke-vault", id: "t6", action: "done" });
+  // The backlog keeps finished work.
   await page.getByTestId("work-mode-backlog").click();
   await page.getByTestId("tab-done").click();
-  await page.getByTestId("work-backlog-row").filter({ hasText: "Send the bar report to Sam Foo" }).click();
-  await expect(detail(page).getByTestId("work-act-keep")).toBeVisible();
-  await detail(page).getByTestId("work-act-close").click();
-  await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t6", action: "close" });
+  await expect(page.getByTestId("work-backlog-row").filter({ hasText: "Bar Draft" })).toHaveCount(1);
 });
 
 test("the bar is the whole screen: a Queue / Backlog switch inside it, one options button, no pill row and no run-at-once", async ({ page }) => {
@@ -294,9 +383,9 @@ test("the switch decides what the list shows and what Send does: Backlog parks t
   await page.getByTestId("work-mode-backlog").click();
   await expect(page.getByTestId("work-input")).toHaveAttribute("placeholder", "Park an idea for later");
   await expect(page.getByTestId("work-queue-row")).toHaveCount(0);
-  await expect(page.getByTestId("spine-meta")).toHaveText("1 idea");
+  await expect(page.getByTestId("work-meta")).toHaveText("1 idea");
   await expect(page.getByTestId("work-backlog-row")).toHaveCount(1);
-  await expect(page.getByTestId("work-backlog-row").first()).toContainText("Look into a foo standing desk");
+  await expect(page.getByTestId("work-backlog-row").first()).toContainText("Standing Desk");
   await page.getByTestId("work-input").fill("Try the bar budgeting app someday");
   await page.getByTestId("work-send").click();
   await expect.poll(async () => (await calls(page, "engine_work_add"))[0]?.body).toEqual({ text: "Try the bar budgeting app someday", surface: "desktop", machine: "foo-laptop", hold: true });
@@ -307,11 +396,13 @@ test("the switch decides what the list shows and what Send does: Backlog parks t
   await idea.hover();
   await idea.getByTestId("work-backlog-to-queue").click();
   await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t7", action: "start" });
-  await idea.getByText("Look into a foo standing desk").click();
-  await expect(detail(page).getByTestId("work-act-start")).toHaveText("Move to queue");
+  await idea.getByText("Standing Desk").click();
+  await detail(page).getByTestId("work-task-menu").click();
+  await expect(menuItem(page, "Move to queue")).toBeVisible();
+  await page.keyboard.press("Escape");
   // Back to Queue: Send starts work again, without hold.
   await page.getByTestId("work-mode-queue").click();
-  await expect(page.getByTestId("work-queue-row")).toHaveCount(5);
+  await expect(page.getByTestId("work-queue-row")).toHaveCount(6);
   await page.getByTestId("work-input").fill("Renew the foo passport");
   await page.getByTestId("work-input").press("Enter");
   await expect.poll(async () => (await calls(page, "engine_work_add"))[1]?.body).toEqual({ text: "Renew the foo passport", surface: "desktop", machine: "foo-laptop" });
@@ -410,7 +501,9 @@ test("an engine error is one plain sentence, never raw JSON; the details sit beh
     const fx = (window as unknown as { __fixtures: Record<string, unknown> }).__fixtures;
     fx.engine_work_action = () => Promise.reject(new Error('prevail exited 1: {"ok":false,"error":"t1 is not in the queue"}'));
   });
-  await detail(page).getByTestId("work-act-pause").click();
+  await openRow(page, "t1");
+  await detail(page).getByTestId("work-task-menu").click();
+  await menuItem(page, "Pause").click();
   const e = page.getByTestId("work-error");
   await expect(e).toContainText("That task is no longer in the queue.");
   await expect(e.locator("summary")).toHaveText("Details");
@@ -426,53 +519,48 @@ test("an empty queue is the bar and a small living face: no list header, no text
   await expect(face).toBeVisible();
   await expect(face).toHaveText("");
   await expect(face.locator("svg .wf-eyes")).toHaveCount(1);
-  await expect(page.getByTestId("work-spine")).toHaveCount(0);
+  await expect(page.getByTestId("work-list")).toHaveCount(0);
   await expect(page.getByText("Send a prompt")).toHaveCount(0);
   await expect(page.getByTestId("work-input")).toHaveAttribute("placeholder", "Ready for work");
   expect(await nothingWide(page)).toEqual([]);
 });
 
-test("the queue column resizes by dragging its edge or with the arrow keys, and keeps its width after a reload", async ({ page }) => {
+test("the open panel resizes by dragging its edge or with the arrow keys, and keeps its width after a reload", async ({ page }) => {
   await openWork(page);
-  const col = page.getByTestId("work-spine");
-  const handle = page.getByTestId("spine-resize");
+  await openRow(page, "t1");
+  const p = panel(page);
+  const handle = page.getByTestId("work-panel-resize");
   await expect(handle).toHaveAttribute("role", "separator");
-  await expect(handle).toHaveAttribute("aria-orientation", "vertical");
-  const w0 = (await col.boundingBox())!.width;
+  const w0 = (await p.boundingBox())!.width;
   const h = (await handle.boundingBox())!;
+  // The panel is on the right: dragging its edge left widens it.
   await page.mouse.move(h.x + h.width / 2, h.y + 200);
   await page.mouse.down();
-  await page.mouse.move(h.x + h.width / 2 + 120, h.y + 200, { steps: 6 });
+  await page.mouse.move(h.x + h.width / 2 - 120, h.y + 200, { steps: 6 });
   await page.mouse.up();
-  await expect.poll(async () => Math.round((await col.boundingBox())!.width)).toBe(Math.round(w0 + 120));
-  // The keyboard: Left narrows it by 16px.
+  await expect.poll(async () => Math.round((await p.boundingBox())!.width)).toBe(Math.round(w0 + 120));
   await handle.focus();
-  await page.keyboard.press("ArrowLeft");
-  await expect.poll(async () => Math.round((await col.boundingBox())!.width)).toBe(Math.round(w0 + 104));
-  await expect(handle).toHaveAttribute("aria-valuenow", String(Math.round(w0 + 104)));
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(async () => Math.round((await p.boundingBox())!.width)).toBe(Math.round(w0 + 104));
   await page.reload();
   await page.getByTestId("top-tab-queue").click({ timeout: 15_000 });
-  await expect.poll(async () => Math.round((await page.getByTestId("work-spine").boundingBox())!.width)).toBe(Math.round(w0 + 104));
-  // Never wider than 60% of the window, and nothing reaches past it.
-  const h2 = (await page.getByTestId("spine-resize").boundingBox())!;
+  await expect.poll(async () => Math.round((await panel(page).boundingBox())!.width)).toBe(Math.round(w0 + 104));
+  // Never wider than 60% of the window; the queue keeps its room.
+  const h2 = (await page.getByTestId("work-panel-resize").boundingBox())!;
   await page.mouse.move(h2.x + 2, h2.y + 200);
   await page.mouse.down();
-  await page.mouse.move(1400, h2.y + 200, { steps: 6 });
+  await page.mouse.move(40, h2.y + 200, { steps: 6 });
   await page.mouse.up();
-  // At most 60% of the window, and the detail keeps room beside it.
-  const wMax = Math.round((await page.getByTestId("work-spine").boundingBox())!.width);
-  expect(wMax).toBeLessThanOrEqual(Math.round(1440 * 0.6));
-  expect(wMax).toBeGreaterThan(w0 + 104);
-  expect((await page.getByTestId("spine-detail").boundingBox())!.width).toBeGreaterThanOrEqual(350);
+  expect(Math.round((await panel(page).boundingBox())!.width)).toBeLessThanOrEqual(Math.round(1440 * 0.6));
+  expect((await page.getByTestId("work-list").boundingBox())!.width).toBeGreaterThanOrEqual(300);
   expect(await nothingWide(page)).toEqual([]);
-  // A double-click puts it back.
-  await page.getByTestId("spine-resize").dblclick();
-  await expect.poll(async () => Math.round((await page.getByTestId("work-spine").boundingBox())!.width)).toBe(Math.round(w0));
+  await page.getByTestId("work-panel-resize").dblclick();
+  await expect.poll(async () => Math.round((await panel(page).boundingBox())!.width)).toBe(Math.round(w0));
 });
 
 test("a task held by another Mac offers Continue here, asking first while that lease is live", async ({ page }) => {
   await openWork(page);
-  await row(page, "t4").getByText("Find a foo gutter repair crew").click();
+  await openRow(page, "t4");
   await page.getByTestId("work-continue-here").click();
   await page.getByRole("button", { name: "Yes" }).click();
   await expect.poll(async () => (await calls(page, "engine_work_action"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t4", action: "continue-here" });
@@ -517,15 +605,26 @@ for (const theme of ["light", "dark"]) {
   test(`Work tab shots, tasks · ${theme}`, async ({ page }) => {
     test.skip(!SHOTS, "set WORK_SHOTS=<dir> to capture the Work tab");
     await openWork(page, { ui_settings_get: JSON.stringify({ theme }) });
-    await expect(page.getByTestId("work-queue-row")).toHaveCount(5);
+    await expect(page.getByTestId("work-queue-row")).toHaveCount(6);
     await page.waitForTimeout(400);
+    // The queue full width: running spinners, a waiting one, a checked one.
     await page.screenshot({ path: `${SHOTS}/work-queue-${theme}-1440.png` });
-    await page.getByTestId("work-options").click();
-    await page.getByTestId("work-options-panel").getByTestId("work-machine").click();
-    await expect(page.getByTestId("work-machine-menu")).toBeVisible();
+    // The panel for a running Herdr task: where it went, who is on it, activity.
+    await openRow(page, "t3");
+    await expect(panel(page)).toBeVisible();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/work-panel-running-${theme}-1440.png` });
+    await openRow(page, "t1");
     await page.waitForTimeout(300);
-    await page.screenshot({ path: `${SHOTS}/work-options-${theme}-1440.png` });
-    await page.keyboard.press("Escape");
+    await page.screenshot({ path: `${SHOTS}/work-panel-engine-${theme}-1440.png` });
+    // A done task with its outcome.
+    await openRow(page, "t6");
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${SHOTS}/work-panel-done-${theme}-1440.png` });
+    await openRow(page, "t2");
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${SHOTS}/work-panel-waiting-${theme}-1440.png` });
+    await page.getByTestId("work-panel-close").click();
     await page.getByTestId("work-mode-backlog").click();
     await expect(page.getByTestId("work-backlog-row").first()).toBeVisible();
     await page.waitForTimeout(300);

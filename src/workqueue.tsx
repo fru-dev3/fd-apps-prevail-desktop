@@ -1,40 +1,41 @@
 // The Work tab: one bar to fire prompts into, not a chat. The chief of staff
-// splits each prompt into goals and tasks, routes each one (domain, project,
-// person, app, folder), staffs it and runs it, in the engine or in a Herdr
-// tab. A two-way switch inside the bar picks Queue or Backlog: it decides
-// what the list below shows and what Send does (Queue starts work, Backlog
-// parks the prompt as ideas that never start until moved to the queue). The
-// queue is one ordered list of open tasks, newest at the bottom, that the
-// user drags to reorder; the engine runs them in that order, several at once
-// (how many is in Settings > Work). One options button holds the Herdr switch
-// and the machine. An empty list shows a small living face, nothing else.
+// splits each prompt into tasks, names each one, routes it (domain, project,
+// person, app, folder), assembles the team and what the vault already knows,
+// and runs it on its own (in the engine or in its own Herdr tab); nothing in
+// a task asks the user. A switch inside the bar picks Queue or Backlog: what
+// the list shows and what Send does. The queue fills the screen: one row per
+// task (check box, short name, one meta line, a spinner while it is worked),
+// newest at the bottom, dragged to reorder. Clicking a row slides open the
+// item panel on the right (collapsed by default, remembered, resizable): its
+// status, where it went, who is on it, a short outcome, plain activity, Open
+// in Herdr and "Follow up or clarify". Never the agent's output.
 // Data: `prevail work ...` through bridge.ts (src-tauri/src/work.rs), polled
 // while the tab is on screen.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertCircle, ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpRight, ArrowUpToLine, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, Circle, Clock, Folder,
-  FolderKanban, GripVertical, Hand, Laptop, Layers, Lightbulb, ListTodo, Loader2, Mic, Pause, Play, Plug, RotateCcw, Search, Send, Server, SlidersHorizontal, Square, TerminalSquare, User, X,
+  AlertCircle, ArrowDown, ArrowDownToLine, ArrowLeft, ArrowUp, ArrowUpRight, ArrowUpToLine, BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronsLeft, ChevronsRight,
+  Circle, Clock, CornerDownRight, FileText, Folder, FolderKanban, Globe, GripVertical, Hand, Laptop, Layers, Lightbulb, ListChecks, ListPlus, ListTodo, Loader2, Mail,
+  MessageSquareText, Mic, Pause, PenLine, Play, Plug, Plus, RotateCcw, Search, Send, Server, ShieldCheck, SlidersHorizontal, Sparkles, Split, Square, TerminalSquare, User, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
 import { titleCase } from "./format";
-import { JobCard } from "./jobcard";
 import { openMission } from "./missions";
 import { requestEntity, type EntityKindName } from "./entitystore";
 import { transcribe } from "./phonevoice";
 import { getSpeechRecognition, type SpeechRecognitionLike } from "./quickcapture";
-import { SideSpine, SpineTabs } from "./sidespine";
+import { SpineTabs } from "./sidespine";
 import { SpecialistAvatar } from "./specialistavatar";
 import { TintIcon } from "./tint";
-import { RowMenu, StatusDot, REVEAL, type RowMenuItem } from "./ui";
-import { META, SECTION_TITLE } from "./typescale";
+import { RowMenu, REVEAL, type RowMenuItem } from "./ui";
+import { ResizeHandle } from "./widgets";
 import type { EngineApp } from "./types";
 import { lsGet, lsSet } from "./storage";
 import {
-  ACTION_LABEL, actionsFor, asMachines, asPrompts, asQueue, asSettings, asWorkspaces, backlog, canDispatchTo, engineLacksWork, groupByGoal, HERDR_STATE_LABEL,
-  leaseElsewhere, machineLabel, mirrorTail, moveInQueue, needsApproval, plainError, queueSummary, STATUS_LABEL, STATUS_TONE,
-  type BacklogFilter, type DestKind, type Destination, type Machine, type QueueTask, type WorkAction, type WorkPrompt, type WorkSettings, type WorkStatus, type WorkTask,
+  ACTION_LABEL, actionsFor, activityLines, asMachines, asPrompts, asQueue, asSettings, backlog, canDispatchTo, engineLacksWork, HERDR_STATE_LABEL,
+  leaseElsewhere, machineLabel, moveInQueue, needsApproval, plainError, queueSummary, STATUS_LABEL, STATUS_TONE, statusLine, taskTitle,
+  type ActivityIcon, type BacklogFilter, type DestKind, type Destination, type Machine, type QueueTask, type WorkAction, type WorkPrompt, type WorkSettings, type WorkStatus, type WorkTask,
 } from "./workqueuemodel";
 
 const POLL_MS = 3_000;
@@ -47,18 +48,12 @@ const chip = "inline-flex max-w-[16rem] items-center gap-1 rounded-md px-1.5 py-
 const textBtn = "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const primaryBtn = "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-background transition-opacity disabled:opacity-40";
-const ACTION_ICON: Partial<Record<WorkAction, LucideIcon>> = { pause: Pause, continue: Play, start: Play, stop: Square, keep: Check, close: X, reopen: RotateCcw };
+const ACTION_ICON: Partial<Record<WorkAction, LucideIcon>> = { pause: Pause, continue: Play, start: Play, stop: Square, reopen: RotateCcw };
+const pill = "inline-flex max-w-[16rem] items-center gap-1.5 rounded-full border border-border-subtle bg-background px-2.5 py-1 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
+const outlineBtn = "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-accent disabled:opacity-40";
 
 type Pending = WorkPrompt & { pending: true; error?: unknown; hold?: boolean };
 type View = "queue" | "backlog";
-
-function ago(ts: number): string {
-  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86_400) return `${Math.round(s / 3600)} h ago`;
-  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 /** Open the place a task was routed to. */
 function openDestination(d: Destination) {
@@ -131,12 +126,25 @@ const STATUS_ICON: Record<WorkStatus, LucideIcon> = {
 const TONE_TEXT = { ok: "text-ok", warn: "text-warn", err: "text-err", accent: "text-accent", muted: "text-text-muted" } as const;
 /** A start on a parked idea moves it to the end of the queue. */
 const actionLabel = (a: WorkAction, t: Pick<WorkTask, "status">) => (a === "start" && t.status === "backlog" ? "Move to queue" : ACTION_LABEL[a]);
+const KIND_LABEL: Record<DestKind, string> = { domain: "Domain", project: "Project", entity: "Person", event: "Event", app: "App", folder: "Project folder" };
+const destKindLabel = (d: Destination) => (d.kind === "entity" ? titleCase((d.entity ?? "person").split("/")[0]!.replace(/s$/, "")) : KIND_LABEL[d.kind]);
+const ACT_ICON: Record<ActivityIcon, LucideIcon> = {
+  route: CornerDownRight, shield: ShieldCheck, terminal: TerminalSquare, mail: Mail, globe: Globe, file: FileText, pencil: PenLine, search: Search, helper: Users,
+  steps: ListChecks, spark: Sparkles, you: MessageSquareText, ask: Hand, check: CheckCircle2, clock: Clock, pause: Pause, play: Play, split: Split, warn: AlertCircle, team: Users,
+};
+
+// The item panel: collapsed by default, remembered per device; its width too.
+const PANEL_KEY = "prevail.work.panel";
+const PANEL_W_KEY = "prevail.work.panel.width";
+const PANEL_DEFAULT = 460;
+const PANEL_MIN = 360;
+const panelMax = () => Math.max(PANEL_MIN, Math.round(Math.min(760, (typeof window === "undefined" ? 1440 : window.innerWidth) * 0.6)));
 
 export function WorkQueue({ vaultPath, active = true, domains = [], phone = false }: {
   vaultPath: string; active?: boolean; domains?: string[]; phone?: boolean;
 }) {
   const vault = vaultPath;
-  // The queue: open tasks in the engine's order, first runs first, newest at the bottom.
+  // The queue: open tasks in the engine's order, first runs first, newest at the bottom; finished ones stay checked until cleared.
   const [queue, setQueue] = useState<QueueTask[]>([]);
   // Every prompt and its tasks, for the backlog.
   const [prompts, setPrompts] = useState<WorkPrompt[]>([]);
@@ -149,6 +157,10 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   const [filter, setFilter] = useState<BacklogFilter>("ideas");
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState<string | null>(null);
+  const [panelOpen, setPanelOpenState] = useState(() => lsGet(PANEL_KEY, "0") === "1");
+  const [panelW, setPanelW] = useState(() => { const n = Number(lsGet(PANEL_W_KEY, "")); return n > 0 ? n : PANEL_DEFAULT; });
+  // Ticked off here: the row shows checked at once and leaves with the next list.
+  const [ticked, setTicked] = useState<Set<string>>(() => new Set());
   const [settings, setSettings] = useState<WorkSettings>({ herdr: false });
   const [machinePick, setMachinePick] = useState(() => lsGet(MACHINE_KEY, ""));
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -159,13 +171,21 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   // While a row is dragged, a poll must not reorder the list under the pointer.
   const dragging = useRef(false);
   const setMode = (m: View) => { setModeState(m); lsSet(MODE_KEY, m); setSel(null); };
+  const setPanelOpen = (on: boolean) => { setPanelOpenState(on); lsSet(PANEL_KEY, on ? "1" : "0"); };
+  /** Clicking an item opens the panel for it. */
+  const openItem = (id: string) => { setSel(id); setPanelOpen(true); };
 
   const refresh = useCallback(async () => {
     if (!vault) return;
     try {
       const v = await invoke("engine_work_list", mode === "backlog" ? { vault, all: true } : { vault });
       if (mode === "backlog") setPrompts(asPrompts(v));
-      else if (!dragging.current) setQueue(asQueue(v));
+      else if (!dragging.current) {
+        const q = asQueue(v);
+        setQueue(q);
+        // A ticked task the engine has cleared is gone; forget it.
+        setTicked((s) => (s.size && [...s].some((id) => !q.some((t) => t.id === id)) ? new Set([...s].filter((id) => q.some((t) => t.id === id))) : s));
+      }
       setErr(null); setTooOld(false);
     } catch (e) {
       if (engineLacksWork(e)) setTooOld(true); else setErr(e);
@@ -225,10 +245,10 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   };
 
   // ── actions ──
-  const run = async (key: string, cmd: string, args: Record<string, unknown>) => {
+  const run = async (key: string, cmd: string, args: Record<string, unknown>): Promise<boolean> => {
     setBusy(key); setErr(null);
-    try { await invoke(cmd, { vault, ...args }); await refresh(); }
-    catch (e) { setErr(e); }
+    try { await invoke(cmd, { vault, ...args }); await refresh(); return true; }
+    catch (e) { setErr(e); return false; }
     finally { setBusy(null); }
   };
   const setHerdr = (on: boolean) => { setSettings((s) => ({ ...s, herdr: on })); void run("settings", "engine_work_settings", { herdr: on }); };
@@ -241,6 +261,13 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
     setQueue(r.list);
     void run(`${id}:reorder`, "engine_work_reorder", { id, ...r.args });
   };
+  /** The check box: done in the engine (its Herdr tab closes); it shows checked at once and leaves with the next list. */
+  const tick = (id: string) => {
+    setTicked((s) => new Set(s).add(id));
+    void run(`${id}:done`, "engine_work_action", { id, action: "done" }).then((ok) => {
+      if (!ok) setTicked((s) => { const x = new Set(s); x.delete(id); return x; });
+    });
+  };
 
   const rows = mode === "backlog" ? backlog(prompts, filter, query) : [];
   const pendingHere = pending.filter((p) => !!p.hold === (mode === "backlog"));
@@ -249,10 +276,9 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
   const shown: QueueTask | null = mode === "queue"
     ? queue.find((t) => t.id === shownId) ?? null
     : (() => { const p = prompts.find((x) => x.tasks.some((t) => t.id === shownId)); const t = p?.tasks.find((x) => x.id === shownId); return p && t ? { ...t, prompt: { id: p.id, ts: p.ts, text: p.text, surface: p.surface } } : null; })();
-  // The tasks the shown one's prompt made, so the detail shows where it came from.
-  const siblings = shown ? (mode === "queue" ? queue : prompts.find((p) => p.id === shown.promptId)?.tasks ?? []).filter((t) => t.promptId === shown.promptId) : [];
   const loaded = loadedFor === mode;
   const empty = loaded && pendingHere.length === 0 && (mode === "queue" ? queue.length === 0 : backlog(prompts, "all").length === 0);
+  const showPanel = panelOpen && (!!pendingShown || !!shown);
 
   if (tooOld) {
     return (
@@ -295,89 +321,101 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
     </div>
   );
 
-  const pendingRows = pendingHere.map((p) => <PendingRow key={p.id} p={p} on={sel === p.id} onSelect={setSel} />);
+  const pendingRows = pendingHere.map((p) => <PendingRow key={p.id} p={p} on={showPanel && sel === p.id} onSelect={openItem} />);
   const list = mode === "queue" ? (
-    <QueueList tasks={queue} pending={pendingRows} sel={pendingShown ? pendingShown.id : shownId} machines={machines}
-      onSelect={setSel} onMove={move} dragging={dragging} />
+    <QueueList tasks={queue} pending={pendingRows} sel={showPanel ? (pendingShown ? pendingShown.id : shownId) : null} machines={machines} ticked={ticked}
+      onSelect={openItem} onMove={move} onTick={tick} dragging={dragging} />
   ) : (
-    <div className="px-2 pb-3">
+    <div className="px-2 pb-3 sm:px-4">
       {pendingRows}
-      {rows.length === 0 && pendingRows.length === 0 && loaded && <p className="px-2 py-6 text-[13px] text-text-muted">{filter === "ideas" ? "No ideas parked." : "No tasks here."}</p>}
+      {rows.length === 0 && pendingRows.length === 0 && loaded && <p className="px-3 py-6 text-[14px] text-text-muted">{filter === "ideas" ? "No ideas parked." : "No tasks here."}</p>}
       {rows.map((t) => (
         <div key={t.id} data-testid="work-backlog-row" data-id={t.id} data-status={t.status}
-          className={`group flex items-start gap-1 rounded-lg pr-1 transition-colors ${shownId === t.id ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
-          <button type="button" onClick={() => setSel(t.id)} className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-2 text-left">
-            <span className="line-clamp-2 break-words text-[14px] font-medium leading-snug text-text-primary">{t.text}</span>
-            <span className="flex min-w-0 items-center gap-1.5"><StatusDot tone={STATUS_TONE[t.status]} label={STATUS_LABEL[t.status]} />{t.dest && <span className="truncate text-[12px] text-text-muted">· {t.dest.label}</span>}</span>
+          className={`group flex items-center gap-1 rounded-xl pr-1.5 transition-colors ${showPanel && shownId === t.id ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
+          <button type="button" onClick={() => openItem(t.id)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left">
+            {(() => { const I = STATUS_ICON[t.status]; return <I className={`h-4 w-4 shrink-0 ${TONE_TEXT[STATUS_TONE[t.status]]}`} aria-label={STATUS_LABEL[t.status]} />; })()}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-medium leading-snug text-text-primary" title={t.text}>{taskTitle(t)}</span>
+              <TaskMeta t={t} machines={machines} />
+            </span>
           </button>
           {t.status === "backlog" && (
-            <button type="button" data-testid="work-backlog-to-queue" title="Move to queue" aria-label={`Move to queue: ${t.text}`} disabled={busy === `${t.id}:start`}
+            <button type="button" data-testid="work-backlog-to-queue" title="Move to queue" aria-label={`Move to queue: ${taskTitle(t)}`} disabled={busy === `${t.id}:start`}
               onClick={() => void run(`${t.id}:start`, "engine_work_action", { id: t.id, action: "start" })}
-              className={`${iconBtn} mt-1.5 ${REVEAL}`}><ListTodo className="h-3.5 w-3.5" /></button>
+              className={`${iconBtn} ${REVEAL}`}><ListTodo className="h-3.5 w-3.5" /></button>
           )}
         </div>
       ))}
     </div>
   );
 
-  const detail = pendingShown ? (
-    <div data-testid="work-pending" className="min-w-0 px-4 py-4 sm:px-6">
-      <p className="whitespace-pre-wrap break-words text-[17px] font-semibold leading-snug text-text-primary">{pendingShown.text}</p>
+  const panelBody = pendingShown ? (
+    <div data-testid="work-pending" className="min-w-0 px-5 py-5">
+      {!phone && <div className="flex justify-end"><PanelClose onClose={() => setPanelOpen(false)} /></div>}
+      <p className="whitespace-pre-wrap break-words text-[18px] font-semibold leading-snug text-text-primary">{pendingShown.text}</p>
       <div className="mt-3 flex items-center gap-2 text-[14px] text-text-muted">
         {pendingShown.error ? <WorkError e={pendingShown.error} testId="work-pending-error" /> : <><Loader2 className="h-4 w-4 animate-spin" />{pendingShown.hold ? "Routing it into the backlog." : "The chief of staff is routing this."}</>}
       </div>
     </div>
   ) : shown ? (
-    <div data-testid="work-detail" className="min-w-0 px-4 py-4 sm:px-6">
-      <TaskRow key={shown.id} t={shown} machines={machines} agentKinds={agentKinds} domains={domains} host={current?.label ?? ""} busy={busy} vault={vault}
-        run={run} onAddMachine={connect} />
-      {shown.prompt && (
-        <section data-testid="work-from-prompt" className="mt-6 border-t border-border-subtle pt-4">
-          <h3 className={`${SECTION_TITLE} text-text-secondary`}>From this prompt</h3>
-          <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-[14px] text-text-secondary" title={shown.prompt.text}>{shown.prompt.text}</p>
-          <p className={`mt-0.5 ${META}`}>{[shown.prompt.surface ? titleCase(shown.prompt.surface) : "", ago(shown.prompt.ts)].filter(Boolean).join(" · ")}</p>
-          {siblings.length > 1 && groupByGoal(siblings).map((g) => (
-            <div key={g.goal} className="mt-2">
-              {!(g.tasks.length === 1 && g.tasks[0]!.text === g.goal) && <p className="text-[13px] font-medium text-text-secondary">{g.goal}</p>}
-              <div className="mt-0.5 border-l border-border-subtle pl-3">
-                {g.tasks.map((t) => (
-                  <button key={t.id} type="button" data-testid="work-sibling" onClick={() => setSel(t.id)} disabled={t.id === shown.id}
-                    className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] transition-colors hover:bg-surface-warm disabled:hover:bg-transparent">
-                    <StatusDot tone={STATUS_TONE[t.status]} label={STATUS_LABEL[t.status]} />
-                    <span className={`min-w-0 flex-1 truncate ${t.id === shown.id ? "font-medium text-text-primary" : "text-text-secondary"}`}>{t.text}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
+    <TaskPanel key={shown.id} t={shown} machines={machines} agentKinds={agentKinds} domains={domains} host={current?.label ?? ""} busy={busy} vault={vault}
+      run={run} onAddMachine={connect} onTick={tick} onClose={phone ? undefined : () => setPanelOpen(false)} />
+  ) : null;
+
+  const meta = mode === "queue" ? queueSummary(queue) : `${rows.length} ${rows.length === 1 ? (filter === "ideas" ? "idea" : "task") : (filter === "ideas" ? "ideas" : "tasks")}`;
+  const listCol = (
+    <div data-testid="work-list" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+      <div className="w-full">
+        <div className="flex items-center gap-3 px-5 pb-2 pt-4 sm:px-7">
+          <h2 className="text-[15px] font-semibold text-text-primary">{mode === "queue" ? "Queue" : "Backlog"}</h2>
+          <span data-testid="work-meta" className="min-w-0 truncate text-[13px] tabular-nums text-text-muted">{meta}</span>
+          {!showPanel && (shown || pendingShown) && !phone && (
+            <button type="button" data-testid="work-panel-open" onClick={() => setPanelOpen(true)} title="Show the item panel" aria-label="Show the item panel" className={`${iconBtn} ml-auto`}>
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {mode === "backlog" && (
+          <div className="flex flex-wrap items-center gap-2 px-5 pb-2 sm:px-7">
+            <label className="flex h-8 min-w-[12rem] flex-1 items-center gap-1.5 rounded-lg border border-border bg-background px-2 transition-colors focus-within:border-accent-border">
+              <Search className="h-3.5 w-3.5 text-text-muted" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a task" aria-label="Find a task" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none" />
+            </label>
+            <SpineTabs label="Which tasks" value={filter} onChange={(f) => { setFilter(f); setSel(null); }} tabs={[{ id: "ideas", label: "Ideas", icon: Lightbulb }, { id: "done", label: "Done", icon: CheckCircle2 }, { id: "all", label: "All", icon: Layers }]} />
+          </div>
+        )}
+        {list}
+      </div>
     </div>
-  ) : (
-    <div className="flex h-full items-center justify-center px-6 text-[14px] text-text-muted">{loaded ? null : <Loader2 className="h-4 w-4 animate-spin" />}</div>
   );
 
   return (
     <div data-testid="work-queue" data-mode={mode} className="flex h-full min-h-0 flex-col">
       {bar}
       {err != null && <div className="shrink-0 px-6 pb-2"><WorkError e={err} /></div>}
-      {empty ? <ReadyFace /> : <div className="flex min-h-0 min-w-0 flex-1 border-t border-border">
-        <SideSpine storageKey="prevail.work.spine" wide resizable title={mode === "queue" ? "Queue" : "Backlog"} label="work" testId="work-spine"
-          meta={mode === "queue" ? queueSummary(queue) : `${rows.length} ${rows.length === 1 ? (filter === "ideas" ? "idea" : "task") : (filter === "ideas" ? "ideas" : "tasks")}`}
-          toolbar={mode === "backlog" ? (
-            <div className="flex flex-col gap-1.5">
-              <label className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2 transition-colors focus-within:border-accent-border">
-                <Search className="h-3.5 w-3.5 text-text-muted" />
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a task" aria-label="Find a task" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none" />
-              </label>
-              <SpineTabs label="Which tasks" value={filter} onChange={(f) => { setFilter(f); setSel(null); }} tabs={[{ id: "ideas", label: "Ideas", icon: Lightbulb }, { id: "done", label: "Done", icon: CheckCircle2 }, { id: "all", label: "All", icon: Layers }]} />
-            </div>
-          ) : undefined}
-          phone={phone} phoneDetail={!!sel} onBack={() => setSel(null)} backLabel={mode === "queue" ? "Queue" : "Backlog"}
-          detail={detail}>
-          {list}
-        </SideSpine>
-      </div>}
+      {empty ? <ReadyFace /> : phone && showPanel ? (
+        <div data-testid="work-panel" className="min-h-0 flex-1 overflow-y-auto border-t border-border">
+          <button type="button" onClick={() => setPanelOpen(false)} className="mx-4 mt-3 inline-flex h-10 items-center gap-1.5 rounded-md text-[15px] font-medium text-accent">
+            <ArrowLeft className="h-4 w-4" />{mode === "queue" ? "Queue" : "Backlog"}
+          </button>
+          {panelBody}
+        </div>
+      ) : (
+        <div className="flex min-h-0 min-w-0 flex-1 border-t border-border">
+          {listCol}
+          {showPanel && (
+            <>
+              <ResizeHandle ariaLabel="Resize the item panel" testId="work-panel-resize" value={Math.min(panelW, panelMax())} min={PANEL_MIN} max={panelMax()}
+                onChange={(dx) => setPanelW((w) => { const next = Math.round(Math.max(PANEL_MIN, Math.min(panelMax(), Math.min(w, panelMax()) - dx))); lsSet(PANEL_W_KEY, String(next)); return next; })}
+                onReset={() => { setPanelW(PANEL_DEFAULT); lsSet(PANEL_W_KEY, String(PANEL_DEFAULT)); }} />
+              <aside data-testid="work-panel" aria-label="Work item" style={{ width: Math.min(panelW, panelMax()) }}
+                className="work-panel-in relative flex min-h-0 shrink-0 flex-col border-l border-border bg-surface">
+                <div className="min-h-0 flex-1 overflow-y-auto">{panelBody}</div>
+              </aside>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -386,10 +424,10 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
 function PendingRow({ p, on, onSelect }: { p: Pending; on: boolean; onSelect: (id: string) => void }) {
   return (
     <button type="button" data-testid="work-pending-row" onClick={() => onSelect(p.id)}
-      className={`flex w-full items-start gap-2 rounded-lg py-2 pl-7 pr-2 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
-      {p.error ? <AlertCircle className="mt-[3px] h-3.5 w-3.5 shrink-0 text-err" /> : <Loader2 className="mt-[3px] h-3.5 w-3.5 shrink-0 animate-spin text-accent" />}
+      className={`flex w-full items-center gap-3 rounded-xl py-2.5 pl-9 pr-3 text-left transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
+      {p.error ? <AlertCircle className="h-4 w-4 shrink-0 text-err" /> : <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent" />}
       <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 break-words text-[14px] font-medium leading-snug text-text-primary">{p.text}</span>
+        <span className="block truncate text-[15px] font-medium leading-snug text-text-primary">{p.text}</span>
         <span className="mt-0.5 block text-[12px] text-text-muted">{p.error ? "Not sent" : "Routing"}</span>
       </span>
     </button>
@@ -430,14 +468,50 @@ function ModeSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
   );
 }
 
+/** The one quiet meta line: where it went (its own icon), the agent, the machine. */
+function TaskMeta({ t, machines }: { t: WorkTask; machines: Machine[] }) {
+  const DestIcon = t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers;
+  const look = machineLook(machines.find((m) => m.label === t.machine) ?? { label: t.machine });
+  return (
+    <span data-testid="work-row-meta" className="mt-1 flex min-w-0 items-center gap-3 text-[12px] text-text-muted">
+      <span className="inline-flex min-w-0 items-center gap-1"><TintIcon icon={DestIcon} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={13} /><span className="truncate">{t.dest?.label ?? "General"}</span></span>
+      <span className="inline-flex shrink-0 items-center gap-1"><Bot className="h-3.5 w-3.5" />{t.agentKind}</span>
+      <span className="inline-flex min-w-0 items-center gap-1"><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} /><span className="truncate">{machineLabel(machines, t.machine)}</span></span>
+    </span>
+  );
+}
+
+/** The round check box: ticking it marks the task done (a finished task is already ticked; ticking it again clears it). */
+function CheckBox({ t, ticked, onTick }: { t: WorkTask; ticked: boolean; onTick: (id: string) => void }) {
+  const on = ticked || t.status === "done";
+  return (
+    <button type="button" role="checkbox" aria-checked={on} data-testid="work-check" data-rail-skip onClick={(e) => { e.stopPropagation(); onTick(t.id); }}
+      title={t.status === "done" ? "Clear it from the queue" : "Mark it done"} aria-label={`${t.status === "done" ? "Clear" : "Mark done"}: ${taskTitle(t)}`}
+      className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors ${on ? "border-accent bg-accent text-background" : "border-text-muted/50 hover:border-accent hover:bg-accent-soft"}`}>
+      {on && <Check className="h-3 w-3" strokeWidth={3} />}
+    </button>
+  );
+}
+
+/** What the row shows at its end: a spinner while it is worked, else a quiet mark for a state that needs a glance. */
+function RowState({ t }: { t: WorkTask }) {
+  if (t.status === "running") return <Loader2 data-testid="work-spinner" className="h-4 w-4 shrink-0 animate-spin text-accent" aria-label="Working on it" />;
+  if (t.status === "needs-you") return <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn/10 px-2 py-0.5 text-[12px] font-medium text-warn"><Hand className="h-3 w-3" />Needs you</span>;
+  if (t.status === "queued") return <Clock className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-label="Waiting for a free slot" />;
+  if (t.status === "paused") return <Pause className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-label="Paused" />;
+  if (t.status === "failed") return <AlertCircle className="h-4 w-4 shrink-0 text-err" aria-label="Did not finish" />;
+  return null;
+}
+
 /**
- * The queue: one row per task, first runs first. Drag a row by its grip (a
- * line shows where it lands), or move it from the row's menu or with
- * Alt+Arrow Up/Down on the focused row.
+ * The queue: one row per task, first runs first, full width. Each row: a
+ * check box, the task's short name and one quiet meta line, and a spinner
+ * while it is worked. Drag a row by its grip (a line shows where it lands),
+ * or move it from the row's menu or with Alt+Arrow Up/Down on the focused row.
  */
-function QueueList({ tasks, pending, sel, machines, onSelect, onMove, dragging }: {
-  tasks: QueueTask[]; pending: React.ReactNode[]; sel: string | null; machines: Machine[];
-  onSelect: (id: string) => void; onMove: (id: string, at: number) => void; dragging: React.MutableRefObject<boolean>;
+function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, onTick, dragging }: {
+  tasks: QueueTask[]; pending: React.ReactNode[]; sel: string | null; machines: Machine[]; ticked: Set<string>;
+  onSelect: (id: string) => void; onMove: (id: string, at: number) => void; onTick: (id: string) => void; dragging: React.MutableRefObject<boolean>;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [drag, setDrag] = useState<{ id: string; at: number } | null>(null);
@@ -454,13 +528,13 @@ function QueueList({ tasks, pending, sel, machines, onSelect, onMove, dragging }
   const from = drag ? tasks.findIndex((t) => t.id === drag.id) : -1;
   const showLine = (i: number) => !!drag && drag.at === i && i !== from && i !== from + 1;
   const line = (i: number) => showLine(i) && (
-    <div data-testid="work-drop-indicator" aria-hidden className="relative h-0"><div className="absolute inset-x-2 -top-px h-0.5 rounded-full bg-accent" /></div>
+    <div data-testid="work-drop-indicator" aria-hidden className="relative h-0"><div className="absolute inset-x-3 -top-px h-0.5 rounded-full bg-accent" /></div>
   );
   return (
-    <div ref={listRef} data-testid="work-queue-list" className="px-2 pb-3">
+    <div ref={listRef} data-testid="work-queue-list" className="px-2 pb-6 sm:px-4">
       {tasks.map((t, i) => {
-        const I = STATUS_ICON[t.status];
         const on = sel === t.id;
+        const checked = ticked.has(t.id) || t.status === "done";
         const items: RowMenuItem[] = [
           { icon: ArrowUpToLine, label: "Move to top", disabled: i === 0, onClick: () => onMove(t.id, 0) },
           { icon: ArrowUp, label: "Move up", disabled: i === 0, onClick: () => onMove(t.id, i - 1) },
@@ -471,30 +545,29 @@ function QueueList({ tasks, pending, sel, machines, onSelect, onMove, dragging }
         return (
           <div key={t.id}>
             {line(i)}
-            <div data-queue-row data-testid="work-queue-row" data-id={t.id} data-status={t.status}
-              className={`group relative flex items-start gap-1 rounded-lg py-2 pl-1 pr-1 transition-colors ${on ? "bg-surface-warm" : "hover:bg-surface-warm/60"} ${drag?.id === t.id ? "opacity-50" : ""}`}>
-              <button type="button" data-rail-skip data-testid="work-drag" aria-label={`Drag to reorder: ${t.text}`} title="Drag to reorder"
+            <div data-queue-row data-testid="work-queue-row" data-id={t.id} data-status={t.status} data-checked={checked ? "true" : "false"}
+              className={`group relative flex items-center gap-2 rounded-xl py-2.5 pl-1 pr-2 transition-[background-color,opacity] ${on ? "bg-surface-warm" : "hover:bg-surface-warm/60"} ${drag?.id === t.id ? "opacity-50" : ""} ${ticked.has(t.id) ? "opacity-60" : ""}`}>
+              <button type="button" data-rail-skip data-testid="work-drag" aria-label={`Drag to reorder: ${taskTitle(t)}`} title="Drag to reorder"
                 onPointerDown={(e) => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dragging.current = true; setDrag({ id: t.id, at: i }); }}
                 onPointerMove={(e) => { if (drag?.id === t.id) setDrag({ id: t.id, at: atFor(e.clientY) }); }}
                 onPointerUp={() => end(true)} onPointerCancel={() => end(false)}
-                className={`mt-0.5 flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-text-muted active:cursor-grabbing ${REVEAL}`}>
+                className={`flex h-7 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-text-muted active:cursor-grabbing ${REVEAL}`}>
                 <GripVertical className="h-3.5 w-3.5" />
               </button>
+              <CheckBox t={t} ticked={ticked.has(t.id)} onTick={onTick} />
               <button type="button" onClick={() => onSelect(t.id)}
                 onKeyDown={(e) => {
                   if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
                   e.preventDefault();
                   onMove(t.id, e.key === "ArrowUp" ? i - 1 : i + 2);
                 }}
-                title="Alt+Arrow Up or Down moves it"
-                className="flex min-w-0 flex-1 items-start gap-2 text-left">
-                <I className={`mt-[3px] h-3.5 w-3.5 shrink-0 ${TONE_TEXT[STATUS_TONE[t.status]]} ${t.status === "running" ? "animate-spin" : ""}`} />
+                title={t.text}
+                className="flex min-w-0 flex-1 items-center gap-3 pl-1 text-left">
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-2 break-words text-[14px] font-medium leading-snug text-text-primary">{t.text}</span>
-                  <span className="mt-0.5 block truncate text-[12px] text-text-muted">
-                    {[STATUS_LABEL[t.status], t.dest?.label ?? "Not routed", t.agentKind, machineLabel(machines, t.machine)].join(" · ")}
-                  </span>
+                  <span className={`block truncate text-[15px] font-medium leading-snug ${checked ? "text-text-muted line-through decoration-text-muted/40" : "text-text-primary"}`}>{taskTitle(t)}</span>
+                  <TaskMeta t={t} machines={machines} />
                 </span>
+                <RowState t={t} />
               </button>
               <span data-rail-skip className="shrink-0"><RowMenu items={items} reveal testId="work-row-menu" /></span>
             </div>
@@ -507,143 +580,210 @@ function QueueList({ tasks, pending, sel, machines, onSelect, onMove, dragging }
   );
 }
 
-/** One task in the detail pane: its title, actions, chips, question, suggestions, and its run (job card or Herdr output) and log. */
-function TaskRow({ t, machines, agentKinds, domains, host, busy, vault, run, onAddMachine }: {
-  t: WorkTask; machines: Machine[]; agentKinds: string[]; domains: string[]; host: string; busy: string | null; vault: string;
-  run: (key: string, cmd: string, args: Record<string, unknown>) => Promise<void>; onAddMachine: (m: Machine) => void;
+/** A small section of the panel: a quiet heading, then its lines. */
+function Section({ title, children, testId }: { title: string; children: React.ReactNode; testId?: string }) {
+  return (
+    <section data-testid={testId} className="mt-6">
+      <h3 className="mb-2.5 text-[13px] font-semibold text-text-secondary">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * The item panel: not a chat, and never the agent's output. The task, its
+ * status, where it went (its own icon), who is on it (the chief of staff, the
+ * specialists who joined with their avatars, the agent and the machine), what
+ * the vault already knew, a short outcome when done, plain activity, Open in
+ * Herdr, and one "Follow up or clarify" box.
+ */
+/** The one control that folds the item panel back to the right. */
+function PanelClose({ onClose }: { onClose: () => void }) {
+  return <button type="button" data-testid="work-panel-close" onClick={onClose} title="Close the panel" aria-label="Close the panel" className={iconBtn}><ChevronsRight className="h-4 w-4" /></button>;
+}
+
+function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, onAddMachine, onTick, onClose }: {
+  t: QueueTask; machines: Machine[]; agentKinds: string[]; domains: string[]; host: string; busy: string | null; vault: string;
+  run: (key: string, cmd: string, args: Record<string, unknown>) => Promise<boolean>; onAddMachine: (m: Machine) => void; onTick: (id: string) => void; onClose?: () => void;
 }) {
-  const act = (a: WorkAction | "continue-here" | "accept" | "decline", n?: number) => run(`${t.id}:${a}`, "engine_work_action", { id: t.id, action: a, ...(n !== undefined ? { n } : {}) });
+  const act = (a: WorkAction | "continue-here" | "accept" | "focus" | "close", n?: number) => run(`${t.id}:${a}`, "engine_work_action", { id: t.id, action: a, ...(n !== undefined ? { n } : {}) });
   const route = (args: Record<string, unknown>) => run(`${t.id}:route`, "engine_work_route", { id: t.id, ...args });
-  const answer = (a: string, workspace?: string) => run(`${t.id}:answer`, "engine_work_answer", { id: t.id, answer: a, ...(workspace ? { workspace } : {}) });
   const lease = leaseElsewhere(t, host);
   const [confirmTake, setConfirmTake] = useState(false);
   const mine = busy?.startsWith(`${t.id}:`) ?? false;
-  const DestIcon = t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers;
+  const I = STATUS_ICON[t.status];
+  const tone = STATUS_TONE[t.status];
+  const machine = machines.find((m) => m.label === t.machine);
+  const look = machineLook(machine ?? { label: t.machine });
+  const openSuggestions = t.suggestions.map((s, i) => ({ s, i })).filter(({ s }) => s.state === "open" && s.kind !== "specialist" && s.kind !== "machine");
   const destItems: RowMenuItem[] = [
-    ...(t.alternatives.length ? [{ kind: "heading" as const, label: "Suggested" }, ...t.alternatives.map((d): RowMenuItem => ({ icon: KIND_ICON[d.kind], label: d.label, hint: d.why, onClick: () => void route({ dest: `${d.kind}:${d.id}` }) }))] : []),
+    ...(t.dest ? [{ icon: ArrowUpRight, label: `Open ${t.dest.label}`, onClick: () => openDestination(t.dest!) }, { icon: RotateCcw, label: "Undo the route", onClick: () => void route({ undo: true }) }] : []),
+    ...(openSuggestions.length ? [{ kind: "heading" as const, label: "Give it a home" }, ...openSuggestions.map(({ s, i }): RowMenuItem => ({ icon: Plus, label: `New ${s.kind}: ${s.name}`, onClick: () => void act("accept", i + 1) }))] : []),
+    ...(t.alternatives.length ? [{ kind: "heading" as const, label: "Suggested" }, ...t.alternatives.map((d): RowMenuItem => ({ icon: KIND_ICON[d.kind], label: d.label, onClick: () => void route({ dest: `${d.kind}:${d.id}` }) }))] : []),
     ...(domains.length ? [{ kind: "heading" as const, label: "Domains" }, ...domains.filter((d) => !(t.dest?.kind === "domain" && t.dest.id === d)).map((d): RowMenuItem => ({ icon: Layers, label: titleCase(d), onClick: () => void route({ dest: `domain:${d}` }) }))] : []),
   ];
   const machineItems: RowMenuItem[] = machines.length === 0 ? [{ kind: "heading", label: "No other machines yet" }] : machines.map((m): RowMenuItem => canDispatchTo(m)
     ? { icon: tinted(machineLook(m).Icon, machineLook(m).color), label: m.label, hint: HERDR_STATE_LABEL[m.herdr], checked: m.label === t.machine, onClick: () => { if (m.label !== t.machine) void route({ machine: m.label }); } }
     : { icon: tinted(machineLook(m).Icon, machineLook(m).color), label: `Connect ${m.label}`, hint: HERDR_STATE_LABEL[m.herdr], onClick: () => onAddMachine(m) });
   const kindItems: RowMenuItem[] = agentKinds.map((k) => ({ icon: Bot, label: k, checked: k === t.agentKind, onClick: () => { if (k !== t.agentKind) void route({ agentKind: k }); } }));
-  const acts = actionsFor(t);
   const more: RowMenuItem[] = [
-    ...(t.dest ? [{ icon: ArrowUpRight, label: `Open ${t.dest.label}`, onClick: () => openDestination(t.dest!) }] : []),
-    ...(t.status === "running" || t.status === "paused" ? [{ icon: Square, label: "Stop", danger: true, onClick: () => void act("stop") }] : []),
+    ...actionsFor(t).map((a): RowMenuItem => ({ icon: ACTION_ICON[a] ?? Play, label: actionLabel(a, t), onClick: () => void act(a) })),
+    ...(t.status !== "done" && t.status !== "backlog" ? [{ icon: CheckCircle2, label: "Mark done", onClick: () => onTick(t.id) }] : t.status === "done" ? [{ icon: CheckCircle2, label: "Clear from the queue", onClick: () => onTick(t.id) }] : []),
+    ...(t.herdr?.tabId ? [{ icon: X, label: "Close its Herdr tab", onClick: () => void act("close") }] : []),
+    ...(t.status === "running" || t.status === "paused" || t.status === "needs-you" ? [{ kind: "separator" as const }, { icon: Square, label: "Stop", danger: true, onClick: () => void act("stop") }] : []),
   ];
-  const openSuggestions = t.suggestions.map((s, i) => ({ s, i })).filter(({ s }) => s.state === "open");
+  const lines = activityLines(t);
+  const team = t.specialists;
   return (
-    <div data-testid="work-task" data-status={t.status} data-executor={t.executor} className="group">
-      <div className="flex items-start gap-2">
-        <h2 className="min-w-0 flex-1 whitespace-pre-wrap break-words text-[17px] font-semibold leading-snug text-text-primary">{t.text}</h2>
-        <div className="flex shrink-0 items-center gap-0.5">
+    <div data-testid="work-task" data-status={t.status} data-executor={t.executor} className="min-w-0 px-5 pt-4">
+      <div className="flex items-center gap-2">
+        <span data-testid="work-status" className={`inline-flex min-w-0 items-center gap-1.5 text-[13px] font-medium ${TONE_TEXT[tone]}`}>
+          <I className={`h-3.5 w-3.5 shrink-0 ${t.status === "running" ? "animate-spin" : ""}`} />
+          <span className="truncate">{t.status === "needs-you" ? "Needs you" : statusLine(t)}</span>
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-0.5">
           {mine && <Loader2 className="mx-1 h-3.5 w-3.5 animate-spin text-text-muted" />}
-          {acts.map((a) => {
-            const I = ACTION_ICON[a];
-            return <button key={a} type="button" data-testid={`work-act-${a}`} disabled={mine} onClick={() => void act(a)} className={textBtn}>{I && <I className="h-3.5 w-3.5" />}{actionLabel(a, t)}</button>;
-          })}
-          {more.length > 0 && <RowMenu items={more} reveal />}
+          {more.length > 0 && <RowMenu items={more} testId="work-task-menu" />}
+          {onClose && <PanelClose onClose={onClose} />}
+        </span>
+      </div>
+      <h2 data-testid="work-task-title" className="mt-2 break-words text-[20px] font-semibold leading-tight tracking-[-0.01em] text-text-primary">{taskTitle(t)}</h2>
+      {t.name && t.name !== t.text && <p className="mt-1.5 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-secondary">{t.text}</p>}
+
+      {t.status === "needs-you" && (
+        <div data-testid="work-waiting" className="mt-4 flex gap-2.5 rounded-xl bg-warn/10 px-3.5 py-3 text-[14px] leading-snug text-text-primary">
+          <Hand className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+          <span className="min-w-0"><span className="block">{t.waiting || "It is waiting for you."}</span><span className="mt-0.5 block text-[13px] text-text-muted">Answer below and it goes on.</span></span>
         </div>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5">
-        <StatusDot tone={STATUS_TONE[t.status]} label={STATUS_LABEL[t.status]} className="mr-1" />
-        <RowMenu items={destItems.length ? destItems : [{ kind: "heading", label: "No other places yet" }]} label="Route to" testId="work-route"
-          trigger={<>{t.dest ? <TintIcon icon={DestIcon} tint={t.dest.kind === "domain" ? t.dest.id : t.dest.kind} square={false} size={13} /> : <Layers className="h-3.5 w-3.5" />}<span className="truncate">{t.dest?.label ?? "Not routed"}</span></>}
-          triggerClass={`${chip} font-medium`} />
-        {t.dest && (
-          <button type="button" data-testid="work-route-undo" onClick={() => void route({ undo: true })} title="Undo the route" aria-label="Undo the route" className={`${iconBtn} h-6 w-6 ${REVEAL}`}>
-            <RotateCcw className="h-3 w-3" />
-          </button>
-        )}
-        <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5" />{t.agentKind}</>} triggerClass={chip} />
-        <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<>{(() => { const l = machineLook(machines.find((m) => m.label === t.machine) ?? { label: t.machine }); return <l.Icon className="h-3.5 w-3.5" style={{ color: l.color }} />; })()}{machineLabel(machines, t.machine)}</>} triggerClass={chip} />
-        {t.specialists.length > 0 && (
-          <span className="ml-1 flex items-center -space-x-1" title={t.specialists.map(titleCase).join(", ")}>
-            {t.specialists.map((s) => <SpecialistAvatar key={s} id={s} size={20} state={t.status === "running" ? "working" : "idle"} label={titleCase(s)} />)}
-          </span>
-        )}
-        {t.executor === "herdr" && <span className="ml-1 inline-flex items-center gap-1 text-[12px] text-text-muted"><img src="/herdr.png" alt="" className="h-3.5 w-3.5 rounded-[3px]" />{t.herdr?.workspaceLabel || "Herdr"}</span>}
-      </div>
-
-      {t.ask && <Ask t={t} vault={vault} machines={machines} answer={answer} onAddMachine={onAddMachine} busy={mine} />}
-
-      {lease.elsewhere && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-text-muted">
-          <span>On {machineLabel(machines, t.lease!.host)} now</span>
-          {confirmTake ? (
-            <><span className="text-text-secondary">Take it over here?</span>
-              <button type="button" className={textBtn} onClick={() => { setConfirmTake(false); void act("continue-here"); }}>Yes</button>
-              <button type="button" className={textBtn} onClick={() => setConfirmTake(false)}>Cancel</button></>
-          ) : (
-            <button type="button" data-testid="work-continue-here" className={textBtn} onClick={() => (lease.live ? setConfirmTake(true) : void act("continue-here"))}><Play className="h-3.5 w-3.5" />Continue here</button>
-          )}
+      )}
+      {t.outcome && (t.status === "done" || t.status === "failed" || t.status === "paused") && (
+        <div data-testid="work-outcome" className={`mt-4 flex gap-2.5 rounded-xl px-3.5 py-3 text-[14px] leading-snug ${t.status === "done" ? "bg-ok/10" : t.status === "failed" ? "bg-err/10" : "bg-surface-warm"}`}>
+          {t.status === "done" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : t.status === "failed" ? <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-err" /> : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />}
+          <span className="min-w-0 text-text-primary">{t.outcome}</span>
         </div>
       )}
 
-      {openSuggestions.map(({ s, i }) => (
-        <div key={i} data-testid="work-suggestion" className="mt-2 flex items-center gap-x-2 text-[13px]">
-          <span className="shrink-0 text-text-muted">New {s.kind}:</span>
-          <span className="shrink-0 font-medium text-text-primary">{s.name}</span>
-          <span className="min-w-0 flex-1 truncate text-text-muted" title={s.why}>{s.why}</span>
-          <button type="button" data-testid="work-suggest-accept" disabled={mine} onClick={() => void act("accept", i + 1)} className={textBtn}><Check className="h-3.5 w-3.5" />Accept</button>
-          <button type="button" disabled={mine} onClick={() => void act("decline", i + 1)} className={textBtn}>Decline</button>
+      <Section title="Where it went" testId="work-destination">
+        <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-background px-3 py-2.5">
+          <TintIcon icon={t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} lg />
+          <button type="button" onClick={() => t.dest && openDestination(t.dest)} className="min-w-0 flex-1 text-left">
+            <span className="block truncate text-[15px] font-medium text-text-primary">{t.dest?.label ?? "General"}</span>
+            <span className="block text-[12px] text-text-muted">{t.dest ? destKindLabel(t.dest) : "Domain"}</span>
+          </button>
+          <RowMenu items={destItems.length ? destItems : [{ kind: "heading", label: "No other places yet" }]} label="Route it elsewhere" testId="work-route"
+            trigger={<><span className="hidden sm:inline">Change</span><ChevronDown className="h-3.5 w-3.5" /></>} triggerClass={chip} />
         </div>
-      ))}
+      </Section>
 
-      <div data-testid="work-task-detail" className="mt-3">
-        {t.executor === "engine" && t.jobId && <JobCard id={t.jobId} vaultPath={vault} embedded controls={false} />}
-        {t.executor === "herdr" && (
-          t.herdr?.lastRead
-            ? <pre data-testid="work-herdr-output" className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-lg bg-surface-warm p-3 font-mono text-[12px] leading-relaxed text-text-secondary">{mirrorTail(t.herdr.lastRead)}</pre>
-            : <p className={META}>Nothing from the Herdr tab yet.</p>
-        )}
-        {t.log.length > 0 && (
-          <ol className="mt-3 space-y-1">
-            {t.log.slice(-12).map((l, i) => (
-              <li key={i} className="flex gap-2 text-[13px]">
-                <span className="w-16 shrink-0 tabular-nums text-text-muted">{new Date(l.ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
-                <span className="text-text-secondary">{l.ev}{l.detail ? <span className="text-text-muted"> · {l.detail}</span> : null}</span>
+      <Section title="Who is on it" testId="work-team">
+        <div className="flex items-center gap-2.5">
+          <SpecialistAvatar id="chief" size={26} state={t.status === "running" ? "working" : "idle"} label="Chief of staff" />
+          <span className="min-w-0"><span className="block text-[14px] font-medium text-text-primary">Chief of staff</span><span className="block text-[12px] text-text-muted">Routed it and brought the team in</span></span>
+        </div>
+        {team.length > 0 && (
+          <ul className="ml-[12px] mt-2 space-y-2 border-l border-border-subtle pl-5">
+            {team.map((s) => (
+              <li key={s} data-testid="work-specialist" className="flex items-center gap-2.5">
+                <SpecialistAvatar id={s} size={24} state={t.status === "running" ? "working" : "idle"} label={titleCase(s)} />
+                <span className="min-w-0"><span className="block text-[14px] text-text-primary">{titleCase(s)}</span><span className="block text-[12px] text-text-muted">Joined the work</span></span>
               </li>
             ))}
-          </ol>
+          </ul>
         )}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5" />{t.agentKind}</>} triggerClass={pill} />
+          <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><look.Icon className="h-3.5 w-3.5" style={{ color: look.color }} />{machineLabel(machines, t.machine)}</>} triggerClass={pill} />
+          {t.executor === "herdr" && (
+            <span data-testid="work-herdr-link" className={`${pill} cursor-default hover:bg-surface-warm`} title={t.herdr?.workspaceLabel ? `Herdr workspace ${t.herdr.workspaceLabel}` : "Herdr"}>
+              <img src="/herdr.png" alt="" className="h-3.5 w-3.5 rounded-[3px]" />{t.herdr?.workspaceLabel ? `${t.herdr.workspaceLabel}, own tab` : "Herdr"}
+            </span>
+          )}
+        </div>
+      </Section>
+
+      {t.context && t.context.length > 0 && (
+        <Section title="What it already knows" testId="work-context">
+          <ul className="space-y-1.5">
+            {t.context.map((c) => (
+              <li key={c.label} className="flex items-center gap-2 text-[14px] text-text-secondary"><BookOpen className="h-3.5 w-3.5 shrink-0 text-accent" /><span className="min-w-0 truncate" title={c.text}>{c.label}</span></li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {lines.length > 0 && (
+        <Section title="Activity" testId="work-activity">
+          <ol className="space-y-0.5">
+            {lines.map((l, i) => {
+              const AI = ACT_ICON[l.icon];
+              const row = <><AI className="h-3.5 w-3.5 shrink-0 text-text-muted" /><span className="min-w-0 flex-1 truncate">{l.text}</span><span className="shrink-0 tabular-nums text-[12px] text-text-muted">{clock(l.ts)}</span></>;
+              return (
+                <li key={i} data-testid="work-activity-line">
+                  {l.more ? (
+                    <details className="group/act">
+                      <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-md px-1.5 py-1 text-[14px] text-text-secondary hover:bg-surface-warm">{row}<ChevronDown className="h-3 w-3 shrink-0 text-text-muted transition-transform group-open/act:rotate-180" /></summary>
+                      <p className="mb-1 ml-8 mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-text-muted [overflow-wrap:anywhere]">{l.more}</p>
+                    </details>
+                  ) : <div className="flex items-center gap-2.5 px-1.5 py-1 text-[14px] text-text-secondary">{row}</div>}
+                </li>
+              );
+            })}
+          </ol>
+        </Section>
+      )}
+
+      {(t.herdr?.tabId || lease.elsewhere) && (
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {t.herdr?.tabId && (
+            <button type="button" data-testid="work-open-herdr" disabled={mine} onClick={() => void act("focus")} className={outlineBtn}>
+              <img src="/herdr.png" alt="" className="h-4 w-4 rounded-[4px]" />Open in Herdr
+            </button>
+          )}
+          {lease.elsewhere && (confirmTake ? (
+            <><span className="text-[13px] text-text-secondary">On {machineLabel(machines, t.lease!.host)} now. Take it over here?</span>
+              <button type="button" className={textBtn} onClick={() => { setConfirmTake(false); void act("continue-here"); }}>Yes</button>
+              <button type="button" className={textBtn} onClick={() => setConfirmTake(false)}>Cancel</button></>
+          ) : (
+            <button type="button" data-testid="work-continue-here" className={outlineBtn} onClick={() => (lease.live ? setConfirmTake(true) : void act("continue-here"))}><Play className="h-3.5 w-3.5" />Continue here</button>
+          ))}
+        </div>
+      )}
+
+      {/* Always within reach: the box sits at the panel's foot while the rest scrolls. */}
+      <div className="sticky bottom-0 -mx-5 mt-6 bg-surface px-5 pb-4 pt-2">
+        {t.status !== "backlog" ? <FollowUp t={t} vault={vault} run={run} busy={mine} /> : <div className="h-2" />}
       </div>
     </div>
   );
 }
 
-function Ask({ t, vault, machines, answer, onAddMachine, busy }: {
-  t: WorkTask; vault: string; machines: Machine[]; answer: (a: string, workspace?: string) => Promise<void>; onAddMachine: (m: Machine) => void; busy: boolean;
-}) {
-  const ask = t.ask!;
-  const [spaces, setSpaces] = useState<string[] | null>(null);
-  useEffect(() => {
-    if (ask.kind !== "herdr-workspace") return;
-    invoke("engine_work_herdr_workspaces", { vault, machine: t.machine }).then((v) => setSpaces(asWorkspaces(v))).catch(() => setSpaces([]));
-  }, [ask.kind, vault, t.machine]);
-  const btn = (label: string, a: string, primary = false, workspace?: string) => (
-    <button key={workspace ?? a} type="button" data-testid={`work-answer-${workspace ? "workspace" : a}`} disabled={busy} onClick={() => void answer(a, workspace)}
-      className={primary ? "inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[13px] font-medium text-background disabled:opacity-40" : textBtn}>{label}</button>
-  );
-  const m = machines.find((x) => x.label === t.machine);
+/** "Follow up or clarify": appended to the task (to its agent, or it runs again); or added as a new task in the same work. */
+function FollowUp({ t, run, busy }: { t: WorkTask; vault: string; run: (key: string, cmd: string, args: Record<string, unknown>) => Promise<boolean>; busy: boolean }) {
+  const [text, setText] = useState("");
+  const send = (asTask = false) => {
+    const body = text.trim();
+    if (!body) return;
+    setText("");
+    void run(`${t.id}:followup`, "engine_work_followup", { id: t.id, text: body, ...(asTask ? { asTask: true } : {}) });
+  };
   return (
-    <div data-testid="work-ask" data-kind={ask.kind} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-accent-soft/60 px-3 py-2 text-[13px]">
-      <span className="min-w-0 flex-1 text-text-primary">{ask.detail}</span>
-      {ask.kind === "start" && <>{btn("Start", "yes", true)}{btn("Not now", "no")}</>}
-      {ask.kind === "keep-close" && <>{btn("Keep", "keep", true)}{btn("Close", "close")}</>}
-      {ask.kind === "herdr-workspace" && <>
-        {(spaces ?? []).map((s) => btn(s, "yes", false, s))}
-        {btn(spaces?.length ? "Create one" : "Create it", "yes", true)}
-        {btn("Not now", "no")}
-      </>}
-      {ask.kind === "machine-add" && <>
-        {m && <button type="button" className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[13px] font-medium text-background" onClick={() => onAddMachine(m)}>Connect {m.label}</button>}
-        {btn("Not now", "no")}
-      </>}
+    <div data-testid="work-followup" className="rounded-xl border border-border bg-background p-1.5 transition-colors focus-within:border-accent-border">
+      <textarea data-testid="work-followup-input" value={text} rows={Math.min(5, Math.max(2, text.split("\n").length))} onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
+        placeholder={t.status === "needs-you" ? "Answer it" : "Follow up or clarify"} aria-label="Follow up or clarify"
+        className="block w-full resize-none bg-transparent px-2 py-1.5 text-[14px] leading-6 text-text-primary outline-none placeholder:text-text-muted" />
+      <div className="flex items-center justify-end gap-1">
+        <button type="button" data-testid="work-followup-new" disabled={!text.trim() || busy} onClick={() => send(true)} title="Add it as a new task in the same work" className={textBtn}>
+          <ListPlus className="h-3.5 w-3.5" />New task
+        </button>
+        <button type="button" data-testid="work-followup-send" disabled={!text.trim() || busy} onClick={() => send()} title="Send (Enter)" aria-label="Send the follow-up"
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-background transition-opacity disabled:opacity-30"><Send className="h-3.5 w-3.5" /></button>
+      </div>
     </div>
   );
 }
+
+const clock = (ts: number) => new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
 
 // Each Mac gets its own colour and shape, so a glance tells them apart: the
