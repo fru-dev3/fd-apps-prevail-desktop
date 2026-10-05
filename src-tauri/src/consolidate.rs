@@ -47,11 +47,12 @@ pub fn vault_consolidate_plan(vault: String) -> Result<Vec<ConsolidateOp>, Strin
     let root = PathBuf::from(&vault);
     let data = root.join("data");
     let mut ops: Vec<ConsolidateOp> = Vec::new();
-    // ONLY domains, apps and entities belong in data/. Merge any root-level
-    // copies in (missing files only); General loose files at the root are
-    // intentionally left alone.
+    // ONLY domains and entities belong in data/. Merge any root-level copies in
+    // (missing files only); General loose files at the root are intentionally
+    // left alone. A legacy root apps/ container lands in the products store
+    // (an app is a product with a connector).
     plan_copy(&root.join("domains"), &data.join("domains"), "domains", &mut ops);
-    plan_copy(&root.join("apps"), &data.join("apps"), "apps", &mut ops);
+    plan_copy(&root.join("apps"), &data.join("entities").join("products"), "products", &mut ops);
     plan_copy(&root.join("entities"), &data.join("entities"), "entities", &mut ops);
     Ok(ops)
 }
@@ -90,7 +91,7 @@ mod tests {
         let vault = std::env::temp_dir().join(format!("prevail-consolidate-{}", std::process::id()));
         let _ = fs::remove_dir_all(&vault);
         // Root-level duplicates: a domain + an app, plus a loose General file that
-        // must be LEFT ALONE (data/ holds only apps + domains).
+        // must be LEFT ALONE (data/ holds only domains + entities).
         fs::create_dir_all(vault.join("domains").join("wealth")).unwrap();
         fs::write(vault.join("domains").join("wealth").join("_state.md"), "wealth state").unwrap();
         fs::create_dir_all(vault.join("apps").join("paypal")).unwrap();
@@ -104,14 +105,14 @@ mod tests {
 
         let v = vault.to_string_lossy().to_string();
         let plan = vault_consolidate_plan(v.clone()).unwrap();
-        assert!(plan.iter().any(|o| o.label == "apps/paypal/manifest.json"));
+        assert!(plan.iter().any(|o| o.label == "products/paypal/manifest.json"));
         assert!(plan.iter().any(|o| o.label == "entities/people/sam.md"));
         assert!(!plan.iter().any(|o| o.label == "domains/wealth/_state.md"), "must not overwrite existing");
         assert!(!plan.iter().any(|o| o.label.contains("journal")), "General loose files stay at root");
 
         let done = vault_consolidate_apply(v).unwrap();
-        assert!(done.iter().any(|o| o.label == "apps/paypal/manifest.json"));
-        assert_eq!(fs::read_to_string(vault.join("data").join("apps").join("paypal").join("manifest.json")).unwrap(), "{}");
+        assert!(done.iter().any(|o| o.label == "products/paypal/manifest.json"));
+        assert_eq!(fs::read_to_string(vault.join("data").join("entities").join("products").join("paypal").join("manifest.json")).unwrap(), "{}");
         assert!(vault.join("apps").join("paypal").join("manifest.json").exists(), "original kept");
         assert!(!vault.join("data").join("_journal.md").exists(), "General files not moved into data/");
         assert_eq!(fs::read_to_string(vault.join("data").join("domains").join("wealth").join("_state.md")).unwrap(), "KEEP");

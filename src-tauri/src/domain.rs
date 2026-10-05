@@ -226,7 +226,7 @@ pub(crate) fn domain_context(vault: String, domain: String) -> Result<DomainCont
 
 /// Build a DomainContext from a content root: the state/decisions/journal/recent
 /// logs/skills bundle the UI loads. Shared by `domain_context` (domains) and
-/// `app_context` (apps under data/apps/<id>) so both expose the same rich view.
+/// `app_context` (apps under data/entities/products/<id>) so both expose the same rich view.
 /// `extra_base` is an optional second base (build/) to merge journal + decisions
 /// from; `domain_label` tags each scanned skill with its owning domain/app id.
 fn context_for_root(root: PathBuf, extra_base: Option<PathBuf>, domain_label: &str) -> Result<DomainContext, String> {
@@ -471,21 +471,13 @@ pub(crate) fn scan_skills(vault: String) -> Result<Vec<SkillEntry>, String> {
         }
     }
 
-    // App-level skills ("the brother level"): apps live under data/apps/<id> as
-    // siblings of domains, each with a skills/ folder (flat <id>.md files or
-    // <id>/SKILL.md subdirs). Surface them in /skills too, tagged by app id, so
-    // an app's skills are reachable from chat like a domain's.
-    let apps_root = crate::paths::data_root(&vault).join("apps");
-    if let Ok(apps) = fs::read_dir(&apps_root) {
-        for app in apps.flatten() {
-            let app_dir = app.path();
-            if !app_dir.is_dir() {
-                continue;
-            }
-            let app_id = app.file_name().to_string_lossy().to_string();
-            if app_id.starts_with('.') {
-                continue;
-            }
+    // App-level skills ("the brother level"): apps are products with a
+    // connector under data/entities/products/<id>, each with a skills/ folder
+    // (flat <id>.md files or <id>/SKILL.md subdirs). Surface them in /skills
+    // too, tagged by app id, so an app's skills are reachable from chat like a
+    // domain's.
+    {
+        for (app_id, app_dir) in crate::paths::app_dirs(&vault) {
             let skills_dir = app_dir.join("skills");
             let Ok(entries) = fs::read_dir(&skills_dir) else { continue };
             for entry in entries.flatten() {

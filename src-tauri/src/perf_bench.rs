@@ -83,7 +83,7 @@ fn build_vault(root: &Path) {
     }
     w(&root.join("build/_meta/prompts/foo-tool.foo-host.jsonl"), &stream);
     for e in 0..ENTITIES {
-        let (dir, kind) = if e % 3 == 0 { ("orgs", "org") } else { ("people", "person") };
+        let (dir, kind) = if e % 3 == 0 { ("products", "product") } else { ("people", "person") };
         w(
             &data.join(format!("entities/{dir}/foo-{e:03}/entity.md")),
             &format!("---\nname: Foo {e}\nkind: {kind}\naliases: []\nsaved: true\ncreated: x\nupdated: x\nmention_count: {e}\n---\n\n## Your notes\n\nfoo\n"),

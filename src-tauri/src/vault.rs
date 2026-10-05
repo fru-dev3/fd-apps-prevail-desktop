@@ -199,15 +199,16 @@ fn remove_if_empty(dir: &Path) {
 ///   * idempotent: a vault already canonical is effectively a no-op.
 ///
 /// Convergence steps (STRICT — the root ends up holding ONLY build/ + data/):
-///   1. scaffold data/domains, data/apps, data/domains/general, build/, and the
+///   1. scaffold data/domains, data/domains/general, build/, and the
 ///      `data/.prevail-data-layout` marker (so an empty vault starts canonical),
 ///   2. legacy root domains (a dir with soul.md / _state.md / state.md) -> data/domains/<name>,
 ///      MERGING into an existing canonical domain (conflicts -> build/_archive) so
 ///      the root dir always goes away and no file is ever lost,
-///   3. v3 containers root/domains + root/apps -> their children into data/ (merge),
+///   3. v3 containers root/domains + root/apps -> their children into data/ (apps
+///      into the products store data/entities/products) (merge),
 ///      then drop the emptied container,
 ///   4. root apps: a `_app-<id>` dir (or a `_`-prefixed dir that is clearly an app:
-///      has manifest.json or a skills/ subdir) -> data/apps/<id> (merge),
+///      has manifest.json or a skills/ subdir) -> data/entities/products/<id> (merge),
 ///   5. global build-support + config files/dirs -> build/ (merge on conflict),
 ///   6. General-bucket loose content -> data/domains/general/ (merge on conflict),
 ///   7. catch-all: any remaining loose ROOT *file* (non-hidden, unhandled) -> build/.
@@ -221,18 +222,18 @@ pub(crate) fn vault_migrate_layout(path: String) -> Result<u64, String> {
     if !root.is_dir() {
         return Err(format!("vault path does not exist: {}", path));
     }
-    // (1) Canonical scaffold: apps + domains live ONLY under data/; build/ holds
+    // (1) Canonical scaffold: domains live ONLY under data/; build/ holds
     // support + config. Create them (not root-level) so loading never re-seeds a
-    // stray root domains/ + apps/, and an empty/new vault still starts canonical.
+    // stray root domains/, and an empty/new vault still starts canonical. Apps
+    // are products (data/entities/products), created only when one is added.
     let data = root.join("data");
     let domains_root = data.join("domains");
-    let apps_root = data.join("apps");
+    let apps_root = data.join("entities").join("products");
     let build_dir = root.join("build");
     let general_dir = domains_root.join("general");
     // Conflicts are preserved here (never deleted, never overwriting canonical).
     let archive_dir = build_dir.join("_archive");
     std::fs::create_dir_all(&domains_root).map_err(|e| format!("mkdir data/domains: {e}"))?;
-    std::fs::create_dir_all(&apps_root).map_err(|e| format!("mkdir data/apps: {e}"))?;
     std::fs::create_dir_all(&general_dir).map_err(|e| format!("mkdir data/domains/general: {e}"))?;
     std::fs::create_dir_all(&build_dir).map_err(|e| format!("mkdir build: {e}"))?;
     // Marker so a brand-new vault is recognizably canonical even with nothing to
@@ -293,7 +294,7 @@ pub(crate) fn vault_migrate_layout(path: String) -> Result<u64, String> {
     }
 
     // (3) v3 containers: move each child dir of root/domains, root/apps and
-    // root/entities (people/, places/, orgs/, things/) into the canonical data/
+    // root/entities (people/, places/, things/ ...) into the canonical data/
     // home (skip-conflict), then remove the container if emptied.
     let entities_root = data.join("entities");
     for (container_name, dest_parent) in [("domains", &domains_root), ("apps", &apps_root), ("entities", &entities_root)] {
@@ -340,7 +341,7 @@ pub(crate) fn vault_migrate_layout(path: String) -> Result<u64, String> {
     }
 
     // (4) Root apps: a `_app-<id>` dir (or any `_`-prefixed root dir that is
-    // clearly an app: has manifest.json or a skills/ subdir) -> data/apps/<id>.
+    // clearly an app: has manifest.json or a skills/ subdir) -> data/entities/products/<id>.
     // The id is derived by stripping a leading `_app-`, else the leading `_`.
     // MERGE on conflict (conflicts -> _archive), then drop the emptied root dir,
     // so a stray `_app-google` never survives at the root.
@@ -374,9 +375,10 @@ pub(crate) fn vault_migrate_layout(path: String) -> Result<u64, String> {
             }
             let dest = apps_root.join(&id);
             if !dest.exists() {
+                std::fs::create_dir_all(&apps_root).map_err(|e| format!("mkdir data/entities/products: {e}"))?;
                 match std::fs::rename(&src, &dest) {
                     Ok(()) => moved += 1,
-                    Err(e) => return Err(format!("move {name} into data/apps/: {e}")),
+                    Err(e) => return Err(format!("move {name} into data/entities/products/: {e}")),
                 }
             } else {
                 merge_dir_into(&src, &dest, &archive_dir.join("apps").join(&id), &mut moved)?;
@@ -708,8 +710,9 @@ mod tests {
         // the conflicting _state.md was preserved under build/_archive (not lost).
         let archived = vault.join("build").join("_archive").join("domains").join("wealth").join("_state.md");
         assert_eq!(fs::read_to_string(&archived).unwrap(), "legacy", "conflict preserved in archive");
-        // apps/ + domains/ now exist under data/ (not the root).
-        assert!(vault.join("data").join("apps").is_dir());
+        // domains/ now exists under data/ (not the root); a fresh layout makes
+        // no apps container (apps are products, created when one is added).
+        assert!(!vault.join("data").join("apps").exists());
         assert!(vault.join("data").join("domains").is_dir());
         // root holds ONLY build + data (+ the intentional non-domain 'random').
         // 'random' has no state markers so it is left in place by design.
@@ -777,8 +780,9 @@ mod tests {
         // (b) unique files landed canonical.
         assert!(v4_health.join("_intents.jsonl").exists(), "unique root-domain file merged");
         assert_eq!(fs::read_to_string(v4_health.join("_state.md")).unwrap(), "CANON", "canonical domain state untouched");
-        assert!(vault.join("data").join("apps").join("google").join("manifest.json").exists(), "app moved to data/apps/google");
-        assert!(vault.join("data").join("apps").join("google").join("skills").join("gmail.md").exists());
+        let google = vault.join("data").join("entities").join("products").join("google");
+        assert!(google.join("manifest.json").exists(), "app moved to the products store");
+        assert!(google.join("skills").join("gmail.md").exists());
         assert_eq!(fs::read_to_string(build_meta.join("usage.jsonl")).unwrap(), "CANON\n", "canonical _meta untouched");
         assert!(build_meta.join("extra.jsonl").exists(), "unique _meta file merged");
 

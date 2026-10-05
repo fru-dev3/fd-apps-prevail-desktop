@@ -1353,6 +1353,23 @@ pub fn engine_app_set_enabled(id: String, enabled: bool) -> Result<serde_json::V
     ])
 }
 
+/// One store for companies: on open, when old trees (data/apps, the old company
+/// page folder) are still on disk, ask the engine to fold them into the products
+/// store. The engine decides whether this Mac may run it (`--auto`: the hub goes
+/// first, a client waits for its record) and never overwrites. Without old trees
+/// the engine is not called at all.
+fn products_migrate_with(vault: &str, run: impl Fn(&[&str]) -> Result<serde_json::Value, String>) -> Result<serde_json::Value, String> {
+    if !crate::paths::needs_products_migration(vault) {
+        return Ok(serde_json::json!({ "ok": true, "dryRun": false, "ran": false, "skipped": "nothing-to-do", "errors": [] }));
+    }
+    run(&["migrate", "products", "--auto", "--json", "--vault", vault])
+}
+
+#[tauri::command(async)]
+pub fn engine_products_migrate(vault: String) -> Result<serde_json::Value, String> {
+    products_migrate_with(&vault, run_engine_json)
+}
+
 /// Sync one app on demand ("Sync now"). Returns { ok, artifacts, error? }.
 #[tauri::command(async)]
 pub fn engine_app_sync(id: String, vault: String) -> Result<serde_json::Value, String> {
@@ -1360,7 +1377,7 @@ pub fn engine_app_sync(id: String, vault: String) -> Result<serde_json::Value, S
 }
 
 /// List the data files a connector has actually loaded (apps redesign: "showcase
-/// what data has been loaded in the app's folder"). Reads <vault>/data/apps/<id>/
+/// what data has been loaded in the app's folder"). Reads the product folder <vault>/data/entities/products/<id>/
 /// data/** recursively → [{ path, name, bytes, mtime }], newest first. Empty when
 /// nothing's been synced yet.
 #[tauri::command(async)]
@@ -1371,7 +1388,7 @@ pub fn app_data_files(vault: String, app_id: String) -> Result<Vec<serde_json::V
     if !is_safe_app_id(&app_id) {
         return Err(format!("invalid app id: {app_id}"));
     }
-    let base = crate::paths::data_root(&vault).join("apps").join(&app_id).join("data");
+    let base = crate::paths::product_dir(&vault, &app_id).join("data");
     fn walk(dir: &std::path::Path, base: &std::path::Path, out: &mut Vec<serde_json::Value>) {
         let Ok(rd) = std::fs::read_dir(dir) else { return };
         for e in rd.flatten() {
@@ -1706,6 +1723,33 @@ pub(crate) fn config_vault_write(cfg: &serde_json::Value, path: &str, main: bool
         return ConfigVaultWrite::UiOnly;
     }
     ConfigVaultWrite::Write
+}
+
+#[cfg(test)]
+mod products_migrate_tests {
+    use super::products_migrate_with;
+    use std::cell::RefCell;
+
+    #[test]
+    fn calls_the_engine_only_when_old_trees_exist() {
+        let root = std::env::temp_dir().join(format!("prevail-prodmig-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("data").join("domains")).unwrap();
+        let vault = root.to_string_lossy().to_string();
+        let calls: RefCell<Vec<Vec<String>>> = RefCell::new(Vec::new());
+        let run = |a: &[&str]| {
+            calls.borrow_mut().push(a.iter().map(|s| s.to_string()).collect());
+            Ok(serde_json::json!({ "ok": true, "ran": true }))
+        };
+        let v = products_migrate_with(&vault, run).unwrap();
+        assert_eq!(v["skipped"], "nothing-to-do");
+        assert!(calls.borrow().is_empty(), "no old trees: the engine is never called");
+        std::fs::create_dir_all(root.join("data").join("apps").join("foo-mail")).unwrap();
+        let v = products_migrate_with(&vault, run).unwrap();
+        assert_eq!(v["ran"], true);
+        assert_eq!(calls.borrow()[0], ["migrate", "products", "--auto", "--json", "--vault", vault.as_str()]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
 
 #[cfg(test)]

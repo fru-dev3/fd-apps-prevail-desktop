@@ -128,7 +128,7 @@ pub async fn engine_knowledge_use(vault: String, id: String, briefings: Option<b
     engine_json(use_args(&vault, &id, briefings, general, domains, projects)?).await
 }
 
-/// Archive a source (its folder moves to data/apps/_archive; never deleted).
+/// Archive a source (its folder moves to data/entities/products/_archive; never deleted).
 #[tauri::command]
 pub async fn engine_knowledge_remove(vault: String, id: String) -> Result<Value, String> {
     let mut a = base(&vault, "remove");

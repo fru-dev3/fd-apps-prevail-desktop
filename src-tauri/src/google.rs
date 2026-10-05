@@ -499,14 +499,15 @@ pub(crate) fn ensure_google_refresh_skill(dir: &Path, managed_bin: &Path) -> Res
     Ok(changed)
 }
 
-/// Scaffold the Google connector as a first-class vault app (data/apps/google)
+/// Scaffold the Google connector as a first-class product with a connector
+/// (data/entities/products/google)
 /// with a SKILL.md that teaches the agent the multi-profile fan-out: it lists the
 /// live profiles (config dir + account) and the `gws` calling pattern, so chat
 /// and the Inbox-Zero loop can pull / summarize / respond across all profiles.
 /// Idempotent: rewrites the SKILL from the current profiles each call.
 #[tauri::command(async)]
 pub fn google_scaffold(vault: String) -> Result<serde_json::Value, String> {
-    let dir = crate::paths::data_root(&vault).join("apps").join("google");
+    let dir = crate::paths::products_container(&vault).join("google");
     std::fs::create_dir_all(dir.join("data")).map_err(|e| format!("mkdir: {e}"))?;
     // Manifest: a Direct app connected via the gws CLI. Marked google_workspace
     // so the desktop renders the multi-profile panel for it.
@@ -1090,7 +1091,7 @@ mod refresh_skill_tests {
     #[test]
     fn scaffold_writes_refresh_skill_and_manifest_field_idempotently() {
         let vault = temp_vault("scaffold");
-        let dir = vault.join("data").join("apps").join("google");
+        let dir = vault.join("data").join("entities").join("products").join("google");
         google_scaffold(vault.to_string_lossy().to_string()).unwrap();
         let skill = dir.join("skills").join("sync-google.md");
         assert!(skill.is_file(), "skills/sync-google.md must be scaffolded");
@@ -1115,7 +1116,7 @@ mod refresh_skill_tests {
     #[test]
     fn upgrades_legacy_manifest_and_respects_user_edits() {
         let vault = temp_vault("upgrade");
-        let dir = vault.join("data").join("apps").join("google");
+        let dir = vault.join("data").join("entities").join("products").join("google");
         fs::create_dir_all(&dir).unwrap();
         // A manifest from before the refresh skill existed: every, no skill.
         fs::write(dir.join("manifest.json"), r#"{"id":"google","title":"Google","refresh":{"every":"weekly","at":"07:00"}}"#).unwrap();
@@ -1132,7 +1133,7 @@ mod refresh_skill_tests {
         assert!(fs::read_to_string(dir.join("skills").join("sync-google.md")).unwrap().contains("echo mine"));
         // A manifest naming a different refresh skill keeps it, and we do not
         // plant our file next to it.
-        let other = temp_vault("other").join("data").join("apps").join("google");
+        let other = temp_vault("other").join("data").join("entities").join("products").join("google");
         fs::create_dir_all(&other).unwrap();
         fs::write(other.join("manifest.json"), r#"{"id":"google","refresh":{"every":"daily","skill":"my-sync"}}"#).unwrap();
         assert!(!ensure_google_refresh_skill(&other, Path::new("/nowhere/bin")).unwrap());

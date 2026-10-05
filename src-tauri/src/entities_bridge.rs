@@ -40,7 +40,7 @@ fn opt(args: &mut Vec<String>, flag: &str, v: Option<&str>) {
 
 // Projects are entities too (project/<slug>), with their own folder and chat.
 // Events (event/<slug>) are the Activities kind kept as entity pages.
-const KINDS: &[&str] = &["person", "place", "org", "thing", "project", "event"];
+const KINDS: &[&str] = &["person", "place", "product", "thing", "project", "event"];
 
 // An entity id is <kind>/<name or slug>. Anything else never reaches the
 // engine, so a crafted id cannot smuggle a flag into the argument list.
@@ -355,7 +355,7 @@ pub async fn engine_entity_picture(vault: String, path: String) -> Result<String
 // talking. Every id is checked before it reaches the engine.
 
 const FIELDS: &[&str] = &["date", "end", "time", "people", "project", "calendar", "purchased", "warranty", "value", "maker", "place"];
-const DRAFT_KINDS: &[&str] = &["person", "place", "org", "thing", "event"];
+const DRAFT_KINDS: &[&str] = &["person", "place", "product", "thing", "event"];
 
 fn plain(v: &str, max: usize) -> Result<String, String> {
     let v = v.trim();
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn ids_must_name_a_kind() {
         assert!(valid_id("person/Sam Rivera"));
-        assert!(valid_id("org/acme"));
+        assert!(valid_id("product/acme"));
         assert!(!valid_id("sam"));
         assert!(valid_id("mission/paint-the-shed"));
         assert!(!valid_id("planet/mars"));

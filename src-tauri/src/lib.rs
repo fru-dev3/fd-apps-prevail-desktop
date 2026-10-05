@@ -94,9 +94,9 @@ use std::path::Path;
 
 pub(crate) const NON_DOMAIN_DIRS: &[&str] = &[
     "domains", // v3 container — its children are scanned separately, not it
-    "entities", // people, places, orgs and things (data/entities), never a domain
+    "entities", // people, places, products and things (data/entities), never a domain
     "benchmark",
-    "apps",
+    "apps", // legacy root apps container (now data/entities/products), never a domain
     ".git",
     ".DS_Store",
     "node_modules",
@@ -601,6 +601,7 @@ pub fn run() {
             engine::engine_run_playbook_stream,
             engine::engine_app_set_enabled,
             engine::engine_app_sync,
+            engine::engine_products_migrate,
             google::google_cli_status,
             google::google_profiles,
             retrospect::retrospect_rollup,

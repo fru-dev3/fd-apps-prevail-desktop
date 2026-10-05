@@ -1202,11 +1202,11 @@ mod tests {
     #[test]
     fn app_tag_round_trips_in_app_scope() {
         let v = fresh_vault("appscope");
-        fs::create_dir_all(PathBuf::from(&v).join("data/apps")).unwrap();
+        fs::create_dir_all(PathBuf::from(&v).join("data/entities/products")).unwrap();
         fs::create_dir_all(PathBuf::from(&v).join("data/domains")).unwrap();
         let dom = Some("_app-foo-mail".to_string());
         let p = save_thread(v.clone(), dom.clone(), None, "Foo".into(), vec![user("any news?"), asst("two")], None, None, None, Some("foo-mail".into()), None, None).unwrap();
-        assert!(p.contains("/data/apps/foo-mail/_scope/"), "app threads live with the app: {p}");
+        assert!(p.contains("/data/entities/products/foo-mail/_scope/"), "app threads live with the product: {p}");
         assert!(fs::read_to_string(&p).unwrap().contains("\napp: foo-mail\n"));
         let slug = Path::new(&p).file_stem().unwrap().to_string_lossy().to_string();
         let p2 = save_thread(v.clone(), dom.clone(), Some(slug), "Foo".into(), vec![user("any news?"), asst("two"), user("more")], None, None, None, None, None, None).unwrap();

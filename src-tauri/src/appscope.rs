@@ -78,7 +78,7 @@ pub async fn engine_apps_accounts(vault: String, id: String) -> Result<Value, St
 // added through `sources add` (knowledge.rs), never here.
 const SOURCE_KINDS: &[&str] = &["mcp-remote", "web", "links", "folder", "database"];
 
-// Archive a trusted source: its folder moves to data/apps/_archive, never
+// Archive a trusted source: its folder moves to data/entities/products/_archive, never
 // deleted. -> { ok, archived: { id, from, to } }.
 #[tauri::command]
 pub async fn engine_apps_remove_source(vault: String, id: String) -> Result<Value, String> {
@@ -98,12 +98,10 @@ pub(crate) fn untrusted_sources(vault: &str) -> Vec<Value> {
         .and_then(|t| serde_json::from_str::<Value>(&t).ok())
         .and_then(|v| v.as_object().cloned())
         .unwrap_or_default();
-    let Ok(rd) = std::fs::read_dir(crate::paths::data_root(vault).join("apps")) else { return Vec::new() };
     let mut out: Vec<Value> = Vec::new();
-    for e in rd.flatten() {
-        let id = e.file_name().to_string_lossy().to_string();
+    for (id, dir) in crate::paths::app_dirs(vault) {
         if !valid_app_id(&id) || allow.contains_key(&id) { continue; }
-        let Some(m) = std::fs::read_to_string(e.path().join("manifest.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else { continue };
+        let Some(m) = std::fs::read_to_string(dir.join("manifest.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else { continue };
         let kind = m.get("integration").and_then(|k| k.as_str()).unwrap_or("");
         if m.get("trusted").and_then(|t| t.as_bool()) != Some(true) || !SOURCE_KINDS.contains(&kind) { continue; }
         let urls: Vec<String> = m.get("urls").and_then(|u| u.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
@@ -152,11 +150,11 @@ mod tests {
         let a = crate::engine::chat_ref_args(
             Some("person/foo".into()),
             Some(vec!["gmail".into(), "gmail".into()]),
-            Some(vec!["person/foo".into(), "org/bar".into()]),
+            Some(vec!["person/foo".into(), "product/bar".into()]),
             Some(vec!["Health".into()]),
             Some("foo-mail".into()),
         ).unwrap();
-        assert_eq!(a, ["--scope-app", "foo-mail", "--app", "gmail", "--entity", "person/foo", "--entity", "org/bar", "--ref-domain", "health"]);
+        assert_eq!(a, ["--scope-app", "foo-mail", "--app", "gmail", "--entity", "person/foo", "--entity", "product/bar", "--ref-domain", "health"]);
         assert!(crate::engine::chat_ref_args(None, Some(vec!["--x".into()]), None, None, None).is_err());
         assert!(crate::engine::chat_ref_args(None, None, Some(vec!["nope".into()]), None, None).is_err());
         assert!(crate::engine::chat_ref_args(None, None, None, Some(vec!["../x".into()]), None).is_err());
@@ -167,7 +165,7 @@ mod tests {
     fn untrusted_sources_are_the_synced_ones_this_mac_lacks() {
         let v = std::env::temp_dir().join(format!("prevail-untrusted-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&v);
-        let apps = v.join("data/apps");
+        let apps = v.join("data/entities/products");
         for (id, man) in [
             ("foo-src", r#"{"name":"Foo","integration":"mcp-remote","urls":["https://foo.example/mcp"],"trusted":true}"#),
             ("bar-src", r#"{"name":"Bar","integration":"web","urls":["https://bar.example"],"trusted":true}"#),
