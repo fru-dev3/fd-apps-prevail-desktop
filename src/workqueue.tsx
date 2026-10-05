@@ -522,8 +522,8 @@ function CardLine({ t, machines, chiefName, queuedAt, checked }: { t: WorkTask; 
   const working = t.status === "running";
   return (
     <>
-      <span className={`min-w-[8.5rem] shrink truncate text-[15px] font-semibold leading-snug ${checked ? "text-text-muted line-through decoration-text-muted/40" : "text-text-primary"}`}>{taskTitle(t)}</span>
-      <span data-testid="work-row-meta" className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-[12.5px] text-text-muted">
+      <span data-testid="work-row-title" className={`min-w-0 flex-1 truncate text-[15px] font-semibold leading-snug ${checked ? "text-text-muted line-through decoration-text-muted/40" : "text-text-primary"}`}>{taskTitle(t)}</span>
+      <span data-testid="work-row-meta" className="flex min-w-0 shrink-[4] items-center gap-3 overflow-hidden text-[12.5px] text-text-muted">
         <span className="inline-flex min-w-0 shrink items-center gap-1.5 @max-[22rem]:hidden" title={t.dest ? `${t.dest.label} (${destKindLabel(t.dest)})` : "General"}>
           <TintIcon icon={DestIcon} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={13} /><span className="truncate">{t.dest?.label ?? "General"}</span>
         </span>
@@ -613,7 +613,7 @@ function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, on
                   onMove(t.id, e.key === "ArrowUp" ? i - 1 : i + 2);
                 }}
                 title={t.text}
-                className="flex h-full min-w-0 flex-1 items-center gap-3 text-left">
+                className="flex h-full min-w-0 flex-1 items-center gap-3 overflow-hidden text-left">
                 <CardLine t={t} machines={machines} chiefName={chiefName} queuedAt={t.status === "queued" ? tasks.filter((x) => x.status === "queued").findIndex((x) => x.id === t.id) + 1 : 0} checked={checked} />
               </button>
               {checked && (
@@ -626,10 +626,10 @@ function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, on
                 onPointerDown={(e) => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dragging.current = true; setDrag({ id: t.id, at: i }); }}
                 onPointerMove={(e) => { if (drag?.id === t.id) setDrag({ id: t.id, at: atFor(e.clientY) }); }}
                 onPointerUp={() => end(true)} onPointerCancel={() => end(false)}
-                className={`flex h-7 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded text-text-muted active:cursor-grabbing ${REVEAL}`}>
+                className={`flex h-7 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded text-text-muted active:cursor-grabbing @max-[22rem]:hidden ${REVEAL}`}>
                 <GripVertical className="h-3.5 w-3.5" />
               </button>
-              <span data-rail-skip className="shrink-0"><RowMenu items={items} reveal testId="work-row-menu" /></span>
+              <span data-rail-skip className={`shrink-0 ${checked ? "@max-[22rem]:hidden" : ""}`}><RowMenu items={items} reveal testId="work-row-menu" /></span>
             </div>
           </div>
         );
@@ -924,7 +924,11 @@ function Updates({ t, chiefName, pending, onSend, onRetry, related = [], onOpen 
         <li key={i} data-testid="work-update" data-from="task" className="flex items-start gap-2">
           {avatar(t.status === "running" && i === mine.length - 1)}
           <span className="min-w-0 pt-px">
-            <span className={`block break-words text-[14px] leading-snug text-text-primary ${t.status === "needs-you" && i === mine.length - 1 ? "font-medium" : ""}`}>{u.text}</span>
+            <span className={`block break-words text-[14px] leading-snug ${u.learned ? "text-text-secondary" : "text-text-primary"} ${t.status === "needs-you" && i === mine.length - 1 ? "font-medium" : ""}`}>{u.text}</span>
+            {u.learned && !pending && (t.learned?.length || t.recurringOf?.length) ? (
+              <button type="button" data-testid="work-forget" onClick={() => onSend("Forget that")}
+                className="mt-0.5 text-[13px] text-text-muted underline-offset-2 transition-colors hover:text-text-primary hover:underline">Forget that</button>
+            ) : null}
             {u.link && (() => { const c = related.find((x) => x.id === u.link); return (
               <button type="button" data-testid="work-subtask-chip" data-id={u.link} onClick={() => onOpen?.(u.link!)}
                 className="mt-2 flex w-full max-w-sm items-center gap-2.5 rounded-xl border border-border-subtle bg-background px-3 py-2 text-left shadow-sm transition-[box-shadow,border-color] hover:border-border hover:shadow-md">

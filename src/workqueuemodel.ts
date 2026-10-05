@@ -53,8 +53,17 @@ export interface WorkTask extends RoutedTask {
   apps?: string[];
   /** The light back-and-forth: the task's short plain lines and the user's replies, oldest first. */
   updates?: TaskUpdate[];
+  /** Lessons this task used, and the earlier tasks it was recognised from; both gone once the owner says "forget that". */
+  learned?: string[];
+  recurringOf?: string[];
 }
-export interface TaskUpdate { ts: number; from: "task" | "you"; text: string; /** A plan's questions, answered in one reply. */ questions?: string[]; /** A subtask this line handed work to. */ link?: string }
+export interface TaskUpdate {
+  ts: number; from: "task" | "you"; text: string;
+  /** A plan's questions, answered in one reply. */ questions?: string[];
+  /** A subtask this line handed work to. */ link?: string;
+  /** The line saying what was learned and used; "Forget that" takes it back. */ learned?: boolean;
+  /** A milestone reached mid-run. */ milestone?: boolean;
+}
 export interface LogEntry { ts: number; ev: string; detail?: string; more?: string }
 
 /** A task's title: its short name, else its words. */

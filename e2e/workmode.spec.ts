@@ -711,6 +711,49 @@ test("the panel: pills in two rows at most, then a light back-and-forth that ask
   expect(await nothingWide(page)).toEqual([]);
 });
 
+const T9 = { ...T6, id: "t9", name: "Weekly Priorities", text: "Set my weekly foo priorities", status: "running", dest: dest("domain", "career", "Career"),
+  learned: [], recurringOf: ["w1-1", "w2-1"],
+  updates: [
+    { ts: NOW - 400_000, from: "task", text: "From what I learned: this comes up regularly (2 times before, usually on Mondays), so it is set up like last time.", learned: true },
+    { ts: NOW - 390_000, from: "task", text: "Working on it, nothing needed from you." },
+    { ts: NOW - 60_000, from: "task", text: "I found three foo priorities from last week still open.", milestone: true },
+  ] };
+
+test("what was learned shows as one quieter line with Forget that, which goes as a reply; a milestone is just a line", async ({ page }) => {
+  await openWork(page, { engine_work_list: { ...QUEUE, tasks: [...QUEUE.tasks, T9] } });
+  await page.evaluate((t9) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t9] }; }, T9);
+  await openRow(page, "t9");
+  const d = detail(page);
+  await expect(d.getByTestId("work-update")).toHaveText([/^From what I learned: this comes up regularly/, "Working on it, nothing needed from you.", "I found three foo priorities from last week still open."]);
+  await expect(d.getByTestId("work-forget")).toHaveCount(1);
+  await d.getByTestId("work-forget").click();
+  await expect.poll(async () => (await calls(page, "engine_work_followup"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t9", text: "Forget that" });
+  expect(await nothingWide(page)).toEqual([]);
+});
+
+test("a narrow done card on hover: the title never sits under a control, and only the dismiss shows", async ({ page }) => {
+  const done = { ...T6, id: "t7", name: "Book Europe Trip", text: "Book a trip to Europe", status: "done", cleared: false, outcome: "Three foo options ready." };
+  await openWork(page, { engine_work_list: { ...QUEUE, tasks: [...QUEUE.tasks, done] } });
+  await page.evaluate((t) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t] }; }, done);
+  await page.getByTestId("work-queue-list").evaluate((el) => { (el as HTMLElement).style.width = "300px"; });
+  for (const id of ["t7", "t1"]) {
+    const r = row(page, id);
+    await r.hover();
+    const hits = await r.evaluate((el) => {
+      const title = el.querySelector("[data-testid=work-row-title]")!.getBoundingClientRect();
+      const controls = [...el.querySelectorAll("[data-rail-skip]")].filter((c) => { const b = c.getBoundingClientRect(); return b.width > 0 && getComputedStyle(c).display !== "none"; });
+      return controls.filter((c) => { const b = c.getBoundingClientRect(); return b.left < title.right && b.right > title.left && b.top < title.bottom && b.bottom > title.top; }).map((c) => c.getAttribute("data-testid") ?? c.tagName);
+    });
+    expect(hits).toEqual([]);
+  }
+  const d = row(page, "t7");
+  await expect(d.getByTestId("work-dismiss")).toBeVisible();
+  await expect(d.getByTestId("work-drag")).toBeHidden();
+  await expect(d.getByTestId("work-row-menu")).toBeHidden();
+  await expect(row(page, "t1").getByTestId("work-row-menu")).toBeVisible();
+  await expect(row(page, "t1").getByTestId("work-drag")).toBeHidden();
+});
+
 test("a narrow column keeps each card on one line: the name stays readable, metadata drops first, nothing overflows", async ({ page }) => {
   await openWork(page);
   await expect.poll(() => rowIds(page)).toEqual(["t1", "t2", "t3", "t5", "t4", "t6"]);
