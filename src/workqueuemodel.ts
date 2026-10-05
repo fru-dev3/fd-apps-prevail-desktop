@@ -45,7 +45,13 @@ export interface WorkTask extends RoutedTask {
   context?: { label: string; text: string }[];
   /** The question the agent waits on (status needs-you), one plain sentence. */
   waiting?: string;
+  /** Every domain the work touches, the owner first; and the apps it involves. */
+  domains?: string[];
+  apps?: string[];
+  /** The light back-and-forth: the task's short plain lines and the user's replies, oldest first. */
+  updates?: TaskUpdate[];
 }
+export interface TaskUpdate { ts: number; from: "task" | "you"; text: string }
 export interface LogEntry { ts: number; ev: string; detail?: string; more?: string }
 
 /** A task's title: its short name, else its words. */

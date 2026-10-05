@@ -62,6 +62,7 @@ const FIX = {
   engine_work_add: { ok: true, prompt: { id: "p9", ts: NOW, text: "Renew the foo passport", surface: "desktop", machine: "foo-laptop", tasks: [] } },
   engine_work_machine_add: { ok: true, output: "saved" }, engine_work_machine_approve: { ok: true, command: [] },
   engine_work_route: { ok: true }, engine_work_action: { ok: true }, engine_work_answer: { ok: true }, engine_work_reorder: { ok: true, order: [] }, engine_work_followup: { ok: true },
+  chief_of_staff_read: "---\nname: Ben\n---\n",
   scan_vault: ["career", "health"].map((name) => ({ name, path: `/tmp/smoke-vault/data/domains/${name}`, has_state: true, state_preview: null })),
 };
 
@@ -117,6 +118,8 @@ test("the Council toggle in the composer switches the conversation to the counci
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await mockTauri(page, FIX);
   await page.goto("/");
+  // The app opens on Work; Chat is one click away.
+  await page.getByTestId("top-tab-chat").click({ timeout: 15_000 });
   // The council stays mounted (hidden) once opened, so the toggle that counts is the visible one.
   const toggle = page.locator("[data-testid=council-toggle]:visible");
   await expect(toggle).toHaveAttribute("aria-pressed", "false", { timeout: 15_000 });
@@ -137,14 +140,15 @@ test("the Council toggle in the composer switches the conversation to the counci
   expect(await page.evaluate(() => localStorage.getItem("prevail.chat.council"))).toBe("0");
 });
 
-test("Work keeps the main sidebar and hides only the thread rail, with no extra collapse control; Chat brings the rail back", async ({ page }) => {
+test("the app opens on Work, which keeps the main sidebar and hides only the thread rail, with no extra collapse control; Chat brings the rail back", async ({ page }) => {
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await mockTauri(page, FIX);
   await serveViews(page);
   await page.goto("/");
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("threads-list")).toBeVisible();
-  await page.getByTestId("top-tab-queue").click();
+  // Work is the default screen, not Chat.
+  await expect(page.getByTestId("work-queue")).toBeVisible();
+  await expect(page.getByTestId("top-tab-queue")).toHaveClass(/bg-accent/);
   await expect(page.getByTestId("work-queue")).toBeVisible();
   await expect(page.getByTestId("app-sidebar")).toBeVisible();
   await expect(page.getByTestId("threads-list")).toHaveCount(0);
@@ -155,13 +159,15 @@ test("Work keeps the main sidebar and hides only the thread rail, with no extra 
   await page.getByTestId("top-tab-chat").click();
   await expect(page.getByTestId("app-sidebar")).toBeVisible();
   await expect(page.getByTestId("threads-list")).toBeVisible();
+  // The explicit switch holds: Chat stays until Work is picked again.
+  await expect(page.getByTestId("work-queue")).toHaveCount(0);
 });
 
 test("the queue fills the screen: check box, short name, one meta line with icons, a spinner while worked; the panel is collapsed", async ({ page }) => {
   await openWork(page);
   await expect.poll(() => rowIds(page)).toEqual(["t1", "t2", "t3", "t5", "t4", "t6"]);
   await expect(row(page, "t1")).toContainText("Hike Permit");
-  await expect(row(page, "t1").getByTestId("work-row-meta")).toHaveText(/Health\s*claude\s*foo-laptop/);
+  await expect(row(page, "t1").getByTestId("work-row-meta")).toHaveText(/Health.*claude.*foo-laptop/);
   await expect(row(page, "t4").getByTestId("work-row-meta")).toHaveText(/Career\s*claude\s*mini-foo/);
   await expect(row(page, "t1").getByTestId("work-spinner")).toBeVisible();
   await expect(row(page, "t3").getByTestId("work-spinner")).toBeVisible();
@@ -250,10 +256,14 @@ test("the item panel: status, where it went with its icon, who is on it, what it
   await expect(d.getByTestId("work-status")).toHaveText("Working on it");
   await expect(d.getByTestId("work-task-title")).toHaveText("Hike Permit");
   await expect(d).toContainText("Book the foo hike permit for Saturday");
+  // One block of pills at the top, no headings: Ben first, then the specialists; where it went; the agent and the machine.
   await expect(d.getByTestId("work-destination")).toContainText("Health");
-  await expect(d.getByTestId("work-destination")).toContainText("Domain");
-  await expect(d.getByTestId("work-team")).toContainText("Chief of staff");
+  await expect(d.getByTestId("work-team")).toContainText("Ben");
+  await expect(d.getByTestId("work-team")).toHaveAttribute("title", "Ben, with Planner and Scout");
+  await expect(d.getByTestId("work-team")).not.toContainText("Chief of staff");
   await expect(d.getByTestId("work-specialist")).toHaveText([/Planner/, /Scout/]);
+  await expect(d.locator("h3", { hasText: /Where it went|Who is on it/ })).toHaveCount(0);
+  await expect(d.getByTestId("work-updates")).toHaveText("Working on it, nothing needed from you.");
   // The steps stay hidden until Details is opened: the panel shows the ask and its result.
   await expect(d.getByTestId("work-activity")).toBeHidden();
   await d.getByTestId("work-details").locator("summary").first().click();
@@ -293,7 +303,7 @@ test("nothing asks: no Start, Not now, Keep, Close or Create questions; a waitin
     await expect(panel(page).getByRole("button", { name: /^(Start|Not now|Keep|Close|Create it|Create one)$/ })).toHaveCount(0);
   }
   await openRow(page, "t2");
-  await expect(detail(page).getByTestId("work-waiting")).toContainText("Which trailhead, north or south?");
+  await expect(detail(page).getByTestId("work-updates")).toContainText("Which trailhead, north or south?");
   const box = detail(page).getByTestId("work-followup-input");
   await expect(box).toHaveAttribute("placeholder", "Answer it");
   await box.fill("North, the foo trailhead");
@@ -321,7 +331,7 @@ test("a Herdr task never shows the agent's output: its workspace and own tab, pl
   await openWork(page);
   await openRow(page, "t3");
   await expect(detail(page)).toHaveAttribute("data-executor", "herdr");
-  await expect(detail(page).getByTestId("work-herdr-link")).toContainText("Bar app, own tab");
+  await expect(detail(page).getByTestId("work-herdr-link")).toContainText("Bar app");
   await expect(panel(page)).not.toContainText("Drafted the bar report.");
   await expect(panel(page)).not.toContainText("Nothing from the Herdr tab yet");
   await expect(page.getByTestId("work-herdr-output")).toHaveCount(0);
@@ -337,7 +347,8 @@ test("a Herdr task never shows the agent's output: its workspace and own tab, pl
 test("the check box marks a task done in the engine and the row leaves; a finished task shows its outcome until cleared", async ({ page }) => {
   await openWork(page);
   await openRow(page, "t6");
-  await expect(detail(page).getByTestId("work-outcome")).toHaveText("Drafted the bar report email to Sam Foo; it is in your drafts, nothing was sent.");
+  // It never closes itself: it says what came of it and asks.
+  await expect(detail(page).getByTestId("work-update")).toHaveText(["Done: Drafted the bar report email to Sam Foo; it is in your drafts, nothing was sent.", "Can I close this task?"]);
   await expect(detail(page).getByTestId("work-status")).toHaveText("Done");
   await row(page, "t1").getByTestId("work-check").click();
   await expect(row(page, "t1").getByTestId("work-check")).toHaveAttribute("aria-checked", "true");
@@ -450,7 +461,7 @@ test("Settings > Work sets how many tasks run at once (1 to 10, default 3)", asy
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await mockTauri(page, FIX);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await page.getByTestId("work-queue").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "general" })));
   await page.getByTestId("hub-row-work").click();
   const pick = page.getByTestId("settings-work-max-running");
@@ -636,3 +647,33 @@ for (const theme of ["light", "dark"]) {
     await page.screenshot({ path: `${SHOTS}/work-backlog-${theme}-1440.png` });
   });
 }
+
+// A finished task with its back-and-forth: the task's own lines and the owner's replies, newest at the bottom.
+const T8 = { ...T6, id: "t8", name: "Foo Trip Notes", text: "Summarize the foo trip notes", specialists: ["planner", "scout", "writer", "analyst", "researcher"],
+  dest: dest("domain", "travel", "Travel"), domains: ["travel", "money", "health", "career"], apps: ["foo-maps"], agentKind: "claude", machine: "mini-foo",
+  updates: [
+    { ts: NOW - 300_000, from: "task", text: "Working on it, nothing needed from you." },
+    { ts: NOW - 200_000, from: "task", text: "Which notes, the spring or the autumn foo trip?" },
+    { ts: NOW - 190_000, from: "you", text: "The autumn one" },
+    { ts: NOW - 60_000, from: "task", text: "Done: Three pages of autumn foo trip notes, summarized in five lines." },
+    { ts: NOW - 59_000, from: "task", text: "Can I close this task?" },
+  ] };
+
+test("the panel: pills in two rows at most, then a light back-and-forth that asks to close; a quick yes goes as a reply", async ({ page }) => {
+  await openWork(page, { engine_work_list: { ...QUEUE, tasks: [...QUEUE.tasks, T8] } });
+  await page.evaluate((t8) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t8] }; }, T8);
+  await openRow(page, "t8");
+  const d = detail(page);
+  await expect(d.getByTestId("work-domain")).toHaveText([/Money/, /Health/]);
+  await expect(d.getByTestId("work-team")).toContainText("+2");
+  // Context takes two rows at most, even with many domains and specialists.
+  const h = await d.getByTestId("work-facts").evaluate((el) => el.getBoundingClientRect().height);
+  expect(h).toBeLessThanOrEqual(64);
+  expect(await d.getByTestId("work-facts").evaluate((el) => [...el.querySelectorAll("*")].filter((c) => c.getBoundingClientRect().right > el.getBoundingClientRect().right + 1).length)).toBe(0);
+  await expect(d.getByTestId("work-update")).toHaveText(["Working on it, nothing needed from you.", "Which notes, the spring or the autumn foo trip?", "The autumn one", "Done: Three pages of autumn foo trip notes, summarized in five lines.", "Can I close this task?"]);
+  await expect(d.locator("[data-testid=work-update][data-from=you]")).toHaveText(["The autumn one"]);
+  await expect(d.getByTestId("work-followup-input")).toHaveAttribute("placeholder", "Reply, or say close it");
+  await d.getByTestId("work-quick-reply").filter({ hasText: "Go ahead and close it" }).click();
+  await expect.poll(async () => (await calls(page, "engine_work_followup"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t8", text: "Go ahead and close it" });
+  expect(await nothingWide(page)).toEqual([]);
+});

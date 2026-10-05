@@ -14,12 +14,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertCircle, ArrowDown, ArrowRight, ArrowDownToLine, ArrowLeft, ArrowUp, ArrowUpRight, ArrowUpToLine, BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronsLeft, ChevronsRight,
+  AlertCircle, ArrowDown, ArrowDownToLine, ArrowLeft, ArrowUp, ArrowUpRight, ArrowUpToLine, BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronsLeft, ChevronsRight,
   Circle, Clock, CornerDownRight, FileText, Folder, FolderKanban, Globe, GripVertical, Hand, Laptop, Layers, Lightbulb, ListChecks, ListPlus, ListTodo, Loader2, Mail,
   MessageSquareText, Mic, Pause, PenLine, Play, Plug, Plus, RotateCcw, Search, Send, Server, ShieldCheck, SlidersHorizontal, Sparkles, Split, Square, TerminalSquare, User, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
+import { useChiefOfStaff } from "./chiefofstaff";
 import { titleCase } from "./format";
 import { openMission } from "./missions";
 import { requestEntity, type EntityKindName } from "./entitystore";
@@ -28,6 +29,7 @@ import { getSpeechRecognition, type SpeechRecognitionLike } from "./quickcapture
 import { SpineTabs } from "./sidespine";
 import { SpecialistAvatar } from "./specialistavatar";
 import { TintIcon } from "./tint";
+import { AppRowLogo } from "./panels3";
 import { RowMenu, REVEAL, type RowMenuItem } from "./ui";
 import { ResizeHandle } from "./widgets";
 import type { EngineApp } from "./types";
@@ -35,7 +37,7 @@ import { lsGet, lsSet } from "./storage";
 import {
   ACTION_LABEL, actionsFor, activityLines, asMachines, asPrompts, asQueue, asSettings, backlog, canDispatchTo, engineLacksWork, HERDR_STATE_LABEL,
   leaseElsewhere, machineLabel, moveInQueue, needsApproval, plainError, queueSummary, STATUS_LABEL, STATUS_TONE, statusLine, taskTitle,
-  type ActivityIcon, type BacklogFilter, type DestKind, type Destination, type Machine, type QueueTask, type WorkAction, type WorkPrompt, type WorkSettings, type WorkStatus, type WorkTask,
+  type ActivityIcon, type BacklogFilter, type DestKind, type Destination, type Machine, type QueueTask, type TaskUpdate, type WorkAction, type WorkPrompt, type WorkSettings, type WorkStatus, type WorkTask,
 } from "./workqueuemodel";
 
 const POLL_MS = 3_000;
@@ -44,12 +46,13 @@ const MACHINE_KEY = "prevail.work.machine";
 // Queue or Backlog, remembered on this device: what the list shows and what Send does.
 const MODE_KEY = "prevail.work.mode";
 const KIND_ICON: Record<DestKind, LucideIcon> = { domain: Layers, project: FolderKanban, entity: User, event: CalendarDays, app: Plug, folder: Folder };
-const chip = "inline-flex max-w-[16rem] items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
 const textBtn = "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-warm hover:text-accent disabled:opacity-40";
 const primaryBtn = "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-background transition-opacity disabled:opacity-40";
 const ACTION_ICON: Partial<Record<WorkAction, LucideIcon>> = { pause: Pause, continue: Play, start: Play, stop: Square, reopen: RotateCcw };
-const pill = "inline-flex max-w-[16rem] items-center gap-1.5 rounded-full border border-border-subtle bg-background px-2.5 py-1 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
+// A fact pill in the panel's top rows: it shrinks (its label truncates) before a row would wrap.
+const factPill = "inline-flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full border border-border-subtle bg-background px-2.5 text-[12.5px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
+const andList = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 const outlineBtn = "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-accent disabled:opacity-40";
 
 type Pending = WorkPrompt & { pending: true; error?: unknown; hold?: boolean };
@@ -469,17 +472,29 @@ function ModeSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
 }
 
 /** The one quiet meta line: where it went (its own icon), the agent, the machine. */
+// The card's people and places as pills: where it went (in its own colour), who is on it, the agent and the machine.
+const PILL_SM = "inline-flex min-w-0 items-center gap-1 rounded-full border border-border-subtle bg-background px-2 py-0.5 text-[12px] text-text-secondary";
 function TaskMeta({ t, machines }: { t: WorkTask; machines: Machine[] }) {
   const DestIcon = t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers;
   const look = machineLook(machines.find((m) => m.label === t.machine) ?? { label: t.machine });
+  const team = (t.specialists ?? []).slice(0, 4);
   return (
-    <span data-testid="work-row-meta" className="mt-1 flex min-w-0 items-center gap-3 text-[12px] text-text-muted">
-      <span className="inline-flex min-w-0 items-center gap-1"><TintIcon icon={DestIcon} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={13} /><span className="truncate">{t.dest?.label ?? "General"}</span></span>
-      <span className="inline-flex shrink-0 items-center gap-1"><Bot className="h-3.5 w-3.5" />{t.agentKind}</span>
-      <span className="inline-flex min-w-0 items-center gap-1"><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} /><span className="truncate">{machineLabel(machines, t.machine)}</span></span>
+    <span data-testid="work-row-meta" className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+      <span className={PILL_SM}><TintIcon icon={DestIcon} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={13} /><span className="truncate">{t.dest?.label ?? "General"}</span></span>
+      {team.length > 0 && (
+        <span className={`${PILL_SM} pl-1`} title={team.map((x) => titleCase(x)).join(", ")}>
+          <span className="flex -space-x-1.5">{team.map((x) => <SpecialistAvatar key={x} id={x} size={16} label={titleCase(x)} />)}</span>
+          <span className="truncate">{team.length === 1 ? titleCase(team[0]!) : `${team.length} specialists`}</span>
+        </span>
+      )}
+      <span className={PILL_SM}><Bot className="h-3.5 w-3.5 shrink-0" />{t.agentKind}</span>
+      <span className={PILL_SM}><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} /><span className="truncate">{machineLabel(machines, t.machine)}</span></span>
     </span>
   );
 }
+
+// A colour stripe down a card's left edge says its state at a glance.
+const STATE_STRIPE: Partial<Record<WorkStatus, string>> = { running: "before:bg-accent", "needs-you": "before:bg-warn", done: "before:bg-ok", failed: "before:bg-err" };
 
 /** The round check box: ticking it marks the task done (a finished task is already ticked; ticking it again clears it). */
 function CheckBox({ t, ticked, onTick }: { t: WorkTask; ticked: boolean; onTick: (id: string) => void }) {
@@ -546,7 +561,7 @@ function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, on
           <div key={t.id}>
             {line(i)}
             <div data-queue-row data-testid="work-queue-row" data-id={t.id} data-status={t.status} data-checked={checked ? "true" : "false"}
-              className={`group relative flex items-center gap-2 rounded-xl py-2.5 pl-1 pr-2 transition-[background-color,opacity] ${on ? "bg-surface-warm" : "hover:bg-surface-warm/60"} ${drag?.id === t.id ? "opacity-50" : ""} ${ticked.has(t.id) ? "opacity-60" : ""}`}>
+              className={`group relative mb-2.5 flex items-center gap-2 overflow-hidden rounded-2xl border bg-surface py-3 pl-2 pr-2.5 shadow-sm transition-[box-shadow,border-color,transform,opacity] before:absolute before:inset-y-0 before:left-0 before:w-1 ${STATE_STRIPE[t.status] ?? "before:bg-border"} ${on ? "border-accent-border shadow-md" : "border-border-subtle hover:-translate-y-px hover:border-border hover:shadow-md"} ${drag?.id === t.id ? "opacity-50" : ""} ${ticked.has(t.id) ? "opacity-60" : ""}`}>
               <button type="button" data-rail-skip data-testid="work-drag" aria-label={`Drag to reorder: ${taskTitle(t)}`} title="Drag to reorder"
                 onPointerDown={(e) => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dragging.current = true; setDrag({ id: t.id, at: i }); }}
                 onPointerMove={(e) => { if (drag?.id === t.id) setDrag({ id: t.id, at: atFor(e.clientY) }); }}
@@ -569,6 +584,12 @@ function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, on
                 </span>
                 <RowState t={t} />
               </button>
+              {checked && (
+                <button type="button" data-rail-skip data-testid="work-dismiss" onClick={() => onTick(t.id)} title="Dismiss" aria-label={`Dismiss: ${taskTitle(t)}`}
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-surface-warm hover:text-text-primary ${REVEAL}`}>
+                  <X className="h-4 w-4" />
+                </button>
+              )}
               <span data-rail-skip className="shrink-0"><RowMenu items={items} reveal testId="work-row-menu" /></span>
             </div>
           </div>
@@ -633,7 +654,11 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
     ...(t.status === "running" || t.status === "paused" || t.status === "needs-you" ? [{ kind: "separator" as const }, { icon: Square, label: "Stop", danger: true, onClick: () => void act("stop") }] : []),
   ];
   const lines = activityLines(t);
+  const chiefName = useChiefOfStaff(vault || null) ?? "Chief of staff";
   const team = t.specialists;
+  // Every domain it touches besides the destination itself (the owner when the destination is a project or app), and its apps.
+  const otherDomains = (t.domains ?? (t.dest && t.dest.kind !== "domain" && /^[a-z0-9-]+$/.test(t.dest.owner) ? [t.dest.owner] : [])).filter((d) => !(t.dest?.kind === "domain" && t.dest.id === d));
+  const otherApps = (t.apps ?? []).filter((a) => !(t.dest?.kind === "app" && t.dest.id === a));
   return (
     <div data-testid="work-task" data-status={t.status} data-executor={t.executor} className="min-w-0 px-5 pt-4">
       <div className="flex items-center gap-2">
@@ -650,56 +675,41 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
       <h2 data-testid="work-task-title" className="mt-2 break-words text-[20px] font-semibold leading-tight tracking-[-0.01em] text-text-primary">{taskTitle(t)}</h2>
       {t.name && t.name !== t.text && <p className="mt-1.5 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-secondary">{t.text}</p>}
 
-      {t.status === "needs-you" && (
-        <div data-testid="work-waiting" className="mt-4 flex gap-2.5 rounded-xl bg-warn/10 px-3.5 py-3 text-[14px] leading-snug text-text-primary">
-          <Hand className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
-          <span className="min-w-0"><span className="block">{t.waiting || "It is waiting for you."}</span><span className="mt-0.5 block text-[13px] text-text-muted">Answer below and it goes on.</span></span>
-        </div>
-      )}
-      {t.outcome && (t.status === "done" || t.status === "failed" || t.status === "paused") && (
-        <div data-testid="work-outcome" className={`mt-4 flex gap-2.5 rounded-xl px-3.5 py-3 text-[14px] leading-snug ${t.status === "done" ? "bg-ok/10" : t.status === "failed" ? "bg-err/10" : "bg-surface-warm"}`}>
-          {t.status === "done" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : t.status === "failed" ? <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-err" /> : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />}
-          <span className="min-w-0 text-text-primary">{t.outcome}</span>
-        </div>
-      )}
-
-      <Section title="Where it went" testId="work-destination">
-        <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-background px-3 py-2.5">
-          <TintIcon icon={t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} lg />
-          <button type="button" onClick={() => t.dest && openDestination(t.dest)} className="min-w-0 flex-1 text-left">
-            <span className="block truncate text-[15px] font-medium text-text-primary">{t.dest?.label ?? "General"}</span>
-            <span className="block text-[12px] text-text-muted">{t.dest ? destKindLabel(t.dest) : "Domain"}</span>
-          </button>
-          <RowMenu items={destItems.length ? destItems : [{ kind: "heading", label: "No other places yet" }]} label="Route it elsewhere" testId="work-route"
-            trigger={<><span className="hidden sm:inline">Change</span><ChevronDown className="h-3.5 w-3.5" /></>} triggerClass={chip} />
-        </div>
-      </Section>
-
-      <Section title="Who is on it" testId="work-team">
-        {/* One row: the chief of staff, then everyone it brought in. */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-          <span className="inline-flex items-center gap-1.5" title="Chief of staff: routed it and brought the team in">
-            <SpecialistAvatar id="chief" size={22} state={t.status === "running" ? "working" : "idle"} label="Chief of staff" />
-            <span className="text-[14px] font-medium text-text-primary">Chief of staff</span>
-          </span>
-          {team.length > 0 && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-hidden />}
-          {team.map((s) => (
-            <span key={s} data-testid="work-specialist" className="inline-flex items-center gap-1.5" title={`${titleCase(s)} joined the work`}>
-              <SpecialistAvatar id={s} size={22} state={t.status === "running" ? "working" : "idle"} label={titleCase(s)} />
-              <span className="text-[14px] text-text-primary">{titleCase(s)}</span>
-            </span>
+      {/* The facts that do not change as it goes, as pills in two rows at most, no headings:
+          who is on it (Ben first, then the specialists), then where it went and what it runs on. */}
+      <div data-testid="work-facts" className="mt-4 space-y-1.5">
+        <div data-testid="work-team" className="flex min-w-0 items-center gap-1.5"
+          title={team.length ? `${chiefName}, with ${andList(team.map((x) => titleCase(x)))}` : `${chiefName} leads it`}>
+          <span className={`${factPill} pl-0.5 font-medium text-text-primary`}><SpecialistAvatar id="chief" size={20} state={t.status === "running" ? "working" : "idle"} label={chiefName} /><span className="truncate">{chiefName}</span></span>
+          {team.slice(0, 3).map((x) => (
+            <span key={x} data-testid="work-specialist" className={`${factPill} pl-0.5`}><SpecialistAvatar id={x} size={20} state={t.status === "running" ? "working" : "idle"} label={titleCase(x)} /><span className="truncate">{titleCase(x)}</span></span>
           ))}
+          {team.length > 3 && <span className={factPill} title={team.slice(3).map((x) => titleCase(x)).join(", ")}>+{team.length - 3}</span>}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5" />{t.agentKind}</>} triggerClass={pill} />
-          <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><look.Icon className="h-3.5 w-3.5" style={{ color: look.color }} />{machineLabel(machines, t.machine)}</>} triggerClass={pill} />
-          {t.executor === "herdr" && (
-            <span data-testid="work-herdr-link" className={`${pill} cursor-default hover:bg-surface-warm`} title={t.herdr?.workspaceLabel ? `Herdr workspace ${t.herdr.workspaceLabel}` : "Herdr"}>
-              <img src="/herdr.png" alt="" className="h-3.5 w-3.5 rounded-[3px]" />{t.herdr?.workspaceLabel ? `${t.herdr.workspaceLabel}, own tab` : "Herdr"}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span data-testid="work-destination" className="flex min-w-0 shrink">
+            <RowMenu items={destItems.length ? destItems : [{ kind: "heading", label: "No other places yet" }]} label={`${t.dest?.label ?? "General"} (${t.dest ? destKindLabel(t.dest) : "Domain"}): open or route it elsewhere`} testId="work-route"
+              trigger={<>{t.dest?.kind === "app" ? <AppRowLogo app={{ id: t.dest.id, title: t.dest.label }} size={14} fallback="letter" /> : <TintIcon icon={t.dest ? KIND_ICON[t.dest.kind] ?? Layers : Layers} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={14} />}<span className="truncate">{t.dest?.label ?? "General"}</span><ChevronDown className="h-3 w-3 shrink-0 text-text-muted" /></>}
+              triggerClass={`${factPill} text-text-primary`} />
+          </span>
+          {otherDomains.slice(0, 2).map((d) => (
+            <span key={d} data-testid="work-domain" className={factPill} title={`${titleCase(d)} domain`}><TintIcon icon={Layers} tint={d} square={false} size={14} /><span className="truncate">{titleCase(d)}</span></span>
+          ))}
+          {otherApps.slice(0, 2).map((a) => (
+            <span key={a} data-testid="work-app" className={factPill} title={`${titleCase(a)} app`}><AppRowLogo app={{ id: a, title: titleCase(a) }} size={14} fallback="letter" /><span className="truncate">{titleCase(a)}</span></span>
+          ))}
+          {otherDomains.length + otherApps.length > 4 && <span className={factPill}>+{otherDomains.length + otherApps.length - 4}</span>}
+          <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5 shrink-0 text-text-muted" /><span className="truncate">{t.agentKind}</span></>} triggerClass={factPill} />
+          <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} /><span className="truncate">{machineLabel(machines, t.machine)}</span></>} triggerClass={factPill} />
+          {t.executor === "herdr" && t.herdr?.workspaceLabel && (
+            <span data-testid="work-herdr-link" title={`Its own tab in the Herdr workspace ${t.herdr.workspaceLabel}`} className={factPill}>
+              <img src="/herdr.png" alt="" className="h-3.5 w-3.5 shrink-0 rounded-[3px]" /><span className="truncate">{t.herdr.workspaceLabel}</span>
             </span>
           )}
         </div>
-      </Section>
+      </div>
+
+      <Updates t={t} chiefName={chiefName} busy={mine} reply={(text) => void run(`${t.id}:followup`, "engine_work_followup", { id: t.id, text })} />
 
       {/* The work itself (what it knew, each step, the Herdr tab) stays out of the way: the panel shows
           what was asked and what came of it, and the steps sit behind one closed Details link. */}
@@ -769,6 +779,57 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
   );
 }
 
+/** The task's updates, or what its state says when an older engine kept none. */
+function updatesOf(t: WorkTask): TaskUpdate[] {
+  if (t.updates?.length) return t.updates;
+  const ts = t.log[t.log.length - 1]?.ts ?? 0;
+  const say = (text: string): TaskUpdate => ({ ts, from: "task", text });
+  switch (t.status) {
+    case "running": return [say("Working on it, nothing needed from you.")];
+    case "needs-you": return [say(t.waiting || "I need something from you.")];
+    case "done": return [say(t.outcome ? `Done: ${t.outcome.replace(/^done[:.]?\s*/i, "")}` : "Done."), say(CLOSE_QUESTION)];
+    case "failed": return [say(t.outcome || "I could not finish it."), say(CLOSE_QUESTION)];
+    case "paused": return t.outcome ? [say(t.outcome)] : [];
+    default: return [];
+  }
+}
+const CLOSE_QUESTION = "Can I close this task?";
+
+/**
+ * The light back-and-forth: short plain lines from the task in its own voice
+ * (led by the chief of staff's avatar) and the user's replies on the right,
+ * newest at the bottom. Never the agent's output. A finished task asks to
+ * close and waits; the yes closes it, anything else goes on with the work.
+ */
+function Updates({ t, chiefName, busy, reply }: { t: WorkTask; chiefName: string; busy: boolean; reply: (text: string) => void }) {
+  const ups = updatesOf(t);
+  if (!ups.length) return null;
+  const last = ups[ups.length - 1]!;
+  const asking = last.from === "task" && last.text === CLOSE_QUESTION && (t.status === "done" || t.status === "failed") && !t.cleared;
+  return (
+    <ol data-testid="work-updates" className="mt-5 space-y-2.5">
+      {ups.map((u, i) => (u.from === "you" ? (
+        <li key={i} data-testid="work-update" data-from="you" className="flex justify-end">
+          <span className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-surface-warm px-3 py-1.5 text-[14px] leading-snug text-text-primary">{u.text}</span>
+        </li>
+      ) : (
+        <li key={i} data-testid="work-update" data-from="task" className="flex items-start gap-2">
+          <span className="mt-px shrink-0" title={chiefName}><SpecialistAvatar id="chief" size={20} state={t.status === "running" && i === ups.length - 1 ? "working" : "idle"} label={chiefName} /></span>
+          <span className={`min-w-0 break-words pt-px text-[14px] leading-snug ${t.status === "needs-you" && i === ups.length - 1 ? "font-medium text-text-primary" : "text-text-primary"}`}>{u.text}</span>
+        </li>
+      )))}
+      {asking && (
+        <li className="flex flex-wrap justify-end gap-1.5">
+          {["Continue", "Go ahead and close it"].map((r) => (
+            <button key={r} type="button" data-testid="work-quick-reply" disabled={busy} onClick={() => reply(r)}
+              className="rounded-full border border-border-subtle px-3 py-1 text-[13px] text-text-secondary transition-colors hover:border-border hover:bg-surface-warm hover:text-text-primary disabled:opacity-40">{r}</button>
+          ))}
+        </li>
+      )}
+    </ol>
+  );
+}
+
 /** "Follow up or clarify": appended to the task (to its agent, or it runs again); or added as a new task in the same work. */
 function FollowUp({ t, run, busy }: { t: WorkTask; vault: string; run: (key: string, cmd: string, args: Record<string, unknown>) => Promise<boolean>; busy: boolean }) {
   const [text, setText] = useState("");
@@ -782,7 +843,7 @@ function FollowUp({ t, run, busy }: { t: WorkTask; vault: string; run: (key: str
     <div data-testid="work-followup" className="rounded-xl border border-border bg-background p-1.5 transition-colors focus-within:border-accent-border">
       <textarea data-testid="work-followup-input" value={text} rows={Math.min(5, Math.max(2, text.split("\n").length))} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
-        placeholder={t.status === "needs-you" ? "Answer it" : "Follow up or clarify"} aria-label="Follow up or clarify"
+        placeholder={t.status === "needs-you" ? "Answer it" : (t.status === "done" || t.status === "failed") && !t.cleared ? "Reply, or say close it" : "Follow up or clarify"} aria-label="Follow up or clarify"
         className="block w-full resize-none bg-transparent px-2 py-1.5 text-[14px] leading-6 text-text-primary outline-none placeholder:text-text-muted" />
       <div className="flex items-center justify-end gap-1">
         <button type="button" data-testid="work-followup-new" disabled={!text.trim() || busy} onClick={() => send(true)} title="Add it as a new task in the same work" className={textBtn}>
