@@ -531,9 +531,9 @@ function CardLine({ t, machines, chiefName, queuedAt, checked }: { t: WorkTask; 
           {team.map((x) => <SpecialistAvatar key={x} id={x} size={18} state={working ? "working" : "idle"} label={x === "chief" ? chiefName : titleCase(x)} />)}
         </span>
       </span>
-      <span className={`inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-medium ${STATUS_TEXT[t.status] ?? "text-text-muted"}`}>
+      <span title={st.time ? `${st.text} · ${st.time}` : st.text} className={`inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-medium ${STATUS_TEXT[t.status] ?? "text-text-muted"}`}>
         {working ? <Loader2 data-testid="work-spinner" className="h-3.5 w-3.5 animate-spin" aria-label="Working on it" /> : t.status === "needs-you" ? <Hand className="h-3.5 w-3.5" /> : t.status === "queued" ? <Clock className="h-3.5 w-3.5" /> : t.status === "failed" ? <AlertCircle className="h-3.5 w-3.5" /> : null}
-        <span data-testid="work-row-status" className="@max-[22rem]:sr-only">{st.text}</span>
+        <span data-testid="work-row-status" className={t.status === "needs-you" ? "@max-[22rem]:sr-only" : "sr-only"}>{st.text}</span>
         {st.time && <span className="font-normal text-text-muted @max-[34rem]:hidden">· {st.time}</span>}
       </span>
       <span className="flex shrink-0 items-center gap-1 text-text-muted">
