@@ -6,6 +6,8 @@ Bundled fonts and their licenses (self-hosted for local-first / offline use):
   https://github.com/undercasetype/Fraunces
 - JetBrains Mono — SIL Open Font License 1.1 — Copyright (c) JetBrains
   https://github.com/JetBrains/JetBrainsMono
+- Geist: SIL Open Font License 1.1, Copyright 2024 The Geist Project Authors
+  https://github.com/vercel/geist-font (full text in Geist-OFL.txt)
 
 Full OFL 1.1 text: https://openfontlicense.org/open-font-license-official-text/
 The SIL OFL permits bundling and redistribution with attribution; these notices

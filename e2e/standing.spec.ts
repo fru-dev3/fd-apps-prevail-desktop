@@ -4,6 +4,7 @@
 // on a clock or a radar event. Invented data only.
 // With PLANS_SHOTS=<dir>, the screens are captured at 390, 768, 1280, 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const JOB = {
@@ -48,7 +49,7 @@ async function setup(page: Page, width: number) {
   await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
   await mockTauri(page, FIX);
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
 }
 async function noOverflow(page: Page) {
   const over = await page.evaluate(() => {

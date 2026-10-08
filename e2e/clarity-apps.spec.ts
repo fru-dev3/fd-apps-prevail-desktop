@@ -5,6 +5,7 @@
 // toggle, and adding a trusted source (the MCP mocked).
 // With APP_SHOTS set, each view is captured at 1440 and 390. Invented names.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const GMAIL = {
@@ -57,7 +58,7 @@ const calls = (page: Page, cmd: string) => page.evaluate((c) =>
 
 async function home(page: Page) {
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 }
 async function openApps(page: Page) {
   await home(page);

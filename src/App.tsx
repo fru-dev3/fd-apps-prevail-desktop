@@ -4,7 +4,7 @@ import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode
 import { invokeCached } from "./query";
 import { answerWithCouncil, councilToggleOn, setCouncilToggle } from "./councilmode";
 import { lazyPanel, loadBenchmarkPanel, loadChatPanel, loadCouncilPanel, loadSettingsPanel, loadWorkPanel, loadWorkQueue, prefetchPanelsWhenIdle } from "./prefetch";
-import { useIsPhone, useVisualViewportHeight } from "./useisphone";
+import { isPhoneNow, useIsPhone, useVisualViewportHeight } from "./useisphone";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { USE_COUNCIL_EVENT } from "./council";
@@ -1028,9 +1028,10 @@ export default function App() {
   const [noModelDismissed, setNoModelDismissed] = useState(false);
   const noModelConfigured = clisDetected && clis.length > 0 && !clis.some((c) => c.available);
   // The conversation opens the way the composer's Council toggle was left.
-  const [tab, setTab] = useState<TabId>(() => (answerWithCouncil({ toggle: councilToggleOn() }) ? "council" : "chat"));
+  // Work is where the day is spent: the desktop opens on it; Chat is one click away. The phone
+  // frame keeps its own bottom tabs (its Chat screen is this conversation), so it opens on chat.
+  const [tab, setTab] = useState<TabId>(() => (isPhoneNow() ? "chat" : "queue"));
   // Work mode is focused: no sidebar, no thread rail. One quiet control shows the sidebar there for a while.
-  const [workSidebar, setWorkSidebar] = useState(false);
   // Anything that opens the plain chat (a thread pick, New chat) leaves the Council toggle off, so it always says what is showing.
   useEffect(() => { if (tab === "chat") setCouncilToggle(false); }, [tab]);
   // T18: record which primary surface is in use (inert until keys exist;
@@ -1671,7 +1672,6 @@ export default function App() {
   // the lazy panels) - the cause of the "mode switch feels slow" report. Now the
   // shell + sidebar stay mounted and only the CENTER region swaps by tab.
   const isMainMode = tab !== "settings" && tab !== "work";
-  const workFocus = tab === "queue" && !workSidebar;
   const editorCenter = (
     <PanelBoundary resetKey={tab}>
     <Suspense fallback={<PanelLoading />}>
@@ -1923,10 +1923,10 @@ export default function App() {
         </Suspense>
       ) : (
       <div className="flex min-h-0 flex-1">
-        {!workFocus && sidebarEl}
+        {sidebarEl}
         {/* Center region swaps by mode; the sidebar above stays mounted. */}
         {!isMainMode ? (tab === "settings" ? editorCenter : workCenter) : (<>
-        {!phone && !sidebarCollapsed && !workFocus && (
+        {!phone && !sidebarCollapsed && (
           <ResizeHandle
             ariaLabel="Resize domain rail"
             onChange={(dx) => setDomainRailWidth((w) => Math.max(180, Math.min(420, w + dx)))}
@@ -1967,20 +1967,8 @@ export default function App() {
             {/* Quick visual cue: are we in an APP or a DOMAIN? An icon (no text)
                 at the far left, so the two contexts are instantly distinguishable.
                 App = plug, domain/general = layers. */}
-            {tab === "queue" ? (
-              // Work is focused: the sidebar steps aside; this shows it (and hides it again).
-              <button
-                type="button"
-                data-testid="work-sidebar-toggle"
-                onClick={() => setWorkSidebar((v) => !v)}
-                title={workSidebar ? "Hide the sidebar" : "Show the sidebar"}
-                aria-label={workSidebar ? "Hide the sidebar" : "Show the sidebar"}
-                aria-pressed={workSidebar}
-                className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-warm hover:text-accent"
-              >
-                {workSidebar ? <ChevronsLeft className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
-              </button>
-            ) : (
+            {/* Work is focused: no sidebar and no context marker; Chat brings both back. */}
+            {tab !== "queue" && (
             <span
               title={onApp ? `App: ${selectedApp?.title ?? ""}` : `Domain: ${titleCase(selectedDomain || "general")}`}
               className={`mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${onApp ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-secondary"}`}

@@ -3,6 +3,7 @@
 // draft; run history) and Save as playbook on a finished job. Invented data only.
 // With PLANS_SHOTS=<dir>, the page is captured at 390, 768, 1280, 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const ROWS = [
@@ -51,7 +52,7 @@ async function setup(page: Page, width: number, extra: Record<string, unknown> =
   await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
   await mockTauri(page, { ...FIX, ...extra });
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
 }
 async function noOverflow(page: Page) {
   const over = await page.evaluate(() => {

@@ -4,6 +4,7 @@
 // proposals, and @ handing a message to a specialist. Invented data only.
 // With PLANS_SHOTS=<dir>, each surface is captured at 390, 768, 1280, 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 /** Today and the weekly review live in the Inbox's Briefing tab (Home is the chat). */
@@ -141,7 +142,7 @@ test("Home is Today: three things with their thread, taps go to the engine; the 
 
 test("without a Today card, Home keeps its greeting", async ({ page }) => {
   await setup(page, 1280, { engine_today: null, engine_review: null });
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
 });
 
 test("a job in chat: the card shows the team, then the result, Open page, and Undo on each filed line", async ({ page }) => {

@@ -4,11 +4,21 @@ import { motion, useSpring, useTransform } from "framer-motion";
 import { Lightbulb, LucideIcon, MessagesSquare, Monitor, Sparkles } from "lucide-react";
 import { invoke, isBrowser } from "./bridge";
 
-export function ResizeHandle({ onChange, ariaLabel }: { onChange: (deltaPx: number) => void; ariaLabel?: string }) {
+/**
+ * A vertical divider to drag. With `value` it is also a keyboard control
+ * (focusable separator; Left and Right arrows resize by 16px) and a
+ * double-click calls `onReset`.
+ */
+export function ResizeHandle({ onChange, ariaLabel, value, min, max, onReset, testId }: {
+  onChange: (deltaPx: number) => void; ariaLabel?: string;
+  value?: number; min?: number; max?: number; onReset?: () => void; testId?: string;
+}) {
   const lastX = useRef(0);
+  const [active, setActive] = useState(false);
   const onDown = (e: React.MouseEvent) => {
     e.preventDefault();
     lastX.current = e.clientX;
+    setActive(true);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     const onMove = (ev: MouseEvent) => {
@@ -21,17 +31,28 @@ export function ResizeHandle({ onChange, ariaLabel }: { onChange: (deltaPx: numb
       window.removeEventListener("mouseup", onUp);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      setActive(false);
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
   };
+  const keys = value !== undefined;
   return (
     <div
       onMouseDown={onDown}
+      onDoubleClick={onReset}
       role="separator"
       aria-orientation="vertical"
       aria-label={ariaLabel}
-      className="group relative w-1 cursor-col-resize bg-transparent hover:bg-accent-border"
+      tabIndex={keys ? 0 : undefined}
+      aria-valuenow={keys ? Math.round(value) : undefined}
+      aria-valuemin={keys ? min : undefined}
+      aria-valuemax={keys && max !== undefined ? Math.round(max) : undefined}
+      onKeyDown={keys ? (e) => {
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); onChange(e.key === "ArrowLeft" ? -16 : 16); }
+      } : undefined}
+      data-testid={testId}
+      className={`group relative w-1 shrink-0 cursor-col-resize ${active ? "bg-accent-border" : "bg-transparent hover:bg-accent-border"}`}
     >
       <div className="absolute inset-y-0 -left-1 -right-1 group-hover:bg-accent-border/40" />
     </div>

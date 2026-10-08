@@ -5,6 +5,7 @@ import {
   Snowflake, Sparkles, Target, Trash2, Users, Workflow, Newspaper, type LucideIcon,
 } from "lucide-react";
 import { TintIcon } from "./tint";
+import { ResizeHandle } from "./widgets";
 
 // THE secondary column. Every screen that lists things on the left and shows
 // the picked one on the right uses this (Intent's Noticed, History and
@@ -58,8 +59,26 @@ type ColumnProps = {
   footer?: ReactNode;
   // A wider column, for a screen whose list is the main view (the Work queue).
   wide?: boolean;
+  // Drag the column's right edge to resize it (opt-in; the Work queue).
+  resizable?: boolean;
   children: ReactNode;
 };
+
+const SPINE_MIN = 260;
+// At most 60% of the window, and always leaving the detail pane room (360px) in the space the spine has.
+const spineMax = (room?: number) => {
+  const win = typeof window === "undefined" ? 1440 : window.innerWidth;
+  return Math.max(SPINE_MIN, Math.round(Math.min(win * 0.6, (room ?? win) - 360)));
+};
+/** A resizable column's width in px, remembered per view (null: the default width). */
+export function useSpineWidth(storageKey: string): [number | null, (dx: number, from: number, max: number) => void, () => void] {
+  const key = `${storageKey}.width`;
+  const [w, setW] = useState<number | null>(() => { try { const n = Number(localStorage.getItem(key)); return n > 0 ? n : null; } catch { return null; } });
+  const save = (n: number | null) => { try { if (n === null) localStorage.removeItem(key); else localStorage.setItem(key, String(n)); } catch { /* storage unavailable */ } };
+  const nudge = (dx: number, from: number, max: number) => setW((cur) => { const n = Math.round(Math.max(SPINE_MIN, Math.min(max, Math.min(cur ?? from, max) + dx))); save(n); return n; });
+  const reset = () => { setW(null); save(null); };
+  return [w, nudge, reset];
+}
 
 // The one panel toggle: a small muted double arrow in a 28px hit area (owner, 2026-10-02).
 const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted/70 transition-colors hover:bg-surface-warm hover:text-text-primary";
@@ -86,7 +105,8 @@ function RailTitles({ children }: { children: ReactNode }) {
   return <div ref={ref} className="flex min-h-0 w-full flex-1 flex-col">{children}</div>;
 }
 
-export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, actions, toolbar, footer, wide = false, children }: Omit<ColumnProps, "storageKey"> & { collapsed: boolean; onToggle: () => void }) {
+export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, actions, toolbar, footer, wide = false, width, resizable: _r, children }: Omit<ColumnProps, "storageKey"> & { collapsed: boolean; onToggle: () => void; width?: number | null }) {
+  // `width`: a resizable column's width in px (already clamped by SideSpine); null is the default width.
   if (collapsed) {
     return (
       <div data-testid="spine-collapsed" className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-surface/40 py-2">
@@ -100,7 +120,8 @@ export function SpineColumn({ collapsed, onToggle, title, label, testId, meta, a
     );
   }
   return (
-    <div data-testid={testId} data-spine-column data-shell="column" className={`flex ${wide ? "w-[26rem]" : "w-72"} shrink-0 flex-col border-r border-border bg-surface/40`}>
+    <div data-testid={testId} data-spine-column data-shell="column" style={width ? { width } : undefined}
+      className={`flex ${width ? "" : wide ? "w-[26rem]" : "w-72"} shrink-0 flex-col ${width === undefined ? "border-r border-border" : ""} bg-surface/40`}>
       <div className="flex shrink-0 items-center justify-between gap-2 pl-4 pr-2 pt-2">
         <span className="min-w-0">
           <span className="block truncate text-[13px] font-semibold text-text-secondary">{title}</span>
@@ -131,6 +152,10 @@ export function SideSpine({ storageKey, detail, phone = false, phoneDetail = fal
   backLabel?: string;
 }) {
   const [collapsed, toggle] = useSpineCollapsed(storageKey);
+  const [width, nudge, resetWidth] = useSpineWidth(storageKey);
+  const colRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const max = spineMax(rootRef.current?.clientWidth);
   if (phone) {
     return (
       <div data-testid="spine-phone" className="flex min-h-0 flex-1 flex-col">
@@ -160,8 +185,14 @@ export function SideSpine({ storageKey, detail, phone = false, phoneDetail = fal
     );
   }
   return (
-    <div className="flex h-full min-h-0 flex-1">
-      <SpineColumn {...col} collapsed={collapsed} onToggle={toggle} />
+    <div ref={rootRef} className="flex h-full min-h-0 min-w-0 flex-1">
+      {col.resizable && !collapsed ? (
+        <div ref={colRef} className="flex min-h-0 shrink-0 border-r border-border">
+          <SpineColumn {...col} collapsed={collapsed} onToggle={toggle} width={width === null ? null : Math.min(width, max)} />
+          <ResizeHandle ariaLabel={`Resize ${col.label}`} testId="spine-resize" value={width === null ? (col.wide ? 416 : 288) : Math.min(width, max)} min={SPINE_MIN} max={max}
+            onChange={(dx) => nudge(dx, colRef.current?.firstElementChild?.getBoundingClientRect().width ?? (col.wide ? 416 : 288), spineMax(rootRef.current?.clientWidth))} onReset={resetWidth} />
+        </div>
+      ) : <SpineColumn {...col} collapsed={collapsed} onToggle={toggle} />}
       <div data-testid="spine-detail" data-shell="detail" data-spine={collapsed ? "collapsed" : "open"} className="min-w-0 flex-1 overflow-y-auto">{detail}</div>
     </div>
   );

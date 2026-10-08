@@ -3535,7 +3535,7 @@ export function ChatPanel({
         <div className={`relative rounded-2xl border bg-surface p-3 transition-shadow ${
           (incognito || globalIncognito)
             ? "border-dashed border-accent-border shadow-sm"
-            : "border-border shadow-sm"
+            : "border-border shadow-sm focus-within:border-accent-border"
         }`}>
           {/* Incognito affordance: a ghost badge over the top-left edge + the glow
               above, so it's unmistakable the turn sends none of your context. */}

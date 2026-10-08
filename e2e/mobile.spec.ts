@@ -5,6 +5,7 @@
 // horizontally (the classic sign of a desktop layout leaking off a phone).
 // Screenshots land in MOBILE_SHOTS_DIR for review.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const SHOTS = process.env.MOBILE_SHOTS_DIR || "/tmp";
@@ -19,7 +20,7 @@ test.beforeEach(async ({ page }) => {
   });
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
 });
 
 // A native app does not scroll as a whole: the shell is exactly the screen,
@@ -181,7 +182,7 @@ test("hold the mic, release, the transcript lands in the composer; Save as note 
     voice_note_capture: "n_voice_1",
   });
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
   await goTab(page, "Domains");
   await page.locator("[data-domain=career]").click();
   await expect(page.locator("[data-tour=composer] textarea")).toBeVisible();

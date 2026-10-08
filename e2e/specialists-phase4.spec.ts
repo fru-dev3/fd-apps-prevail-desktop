@@ -3,6 +3,7 @@
 // made by talking (fields optional, nothing made until go). Invented data
 // only. With SPEC_SHOTS=<dir>, each screen is captured at 390, 768, 1280, 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const spec = (id: string, name: string, family: string, returns: string, extra: Record<string, unknown> = {}) => ({
@@ -33,7 +34,7 @@ async function open(page: Page, width: number) {
   await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
   await mockTauri(page, FIX);
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
   await fire(page, "prevail:work-section", "specialists");
   await expect(page.getByTestId("specialists-page")).toBeVisible({ timeout: 10_000 });
 }

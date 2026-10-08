@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 // Owner, 2026-10-02: every section starts collapsed for a new user; the
@@ -11,7 +12,7 @@ for (const width of [390, 768, 1280, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     await mockTauri(page, { __fresh_sidebar: true });
     await page.goto("/");
-    await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+    await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
     const side = page.getByTestId("app-sidebar");
     if (!(await side.isVisible())) return; // the phone shell has no rail
     for (const k of ["work", "entities", "activities", "domains"]) await expect(page.getByTestId(`sidebar-head-${k}`).locator("button[aria-expanded]")).toHaveAttribute("aria-expanded", "false");

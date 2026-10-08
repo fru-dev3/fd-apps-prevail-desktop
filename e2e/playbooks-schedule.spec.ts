@@ -5,6 +5,7 @@
 // schedule off and back on. Invented data only.
 // With PLANS_SHOTS=<dir>, the page is captured at 390, 768, 1280, 1920.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const DAY = 86_400_000;
@@ -37,7 +38,7 @@ async function open(page: Page, width: number) {
   await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
   await mockTauri(page, FIX);
   await page.goto("/");
-  await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+  await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => {
     localStorage.setItem("prevail.playbooks.focus", "foo-watch");
     window.dispatchEvent(new CustomEvent("prevail:work-section", { detail: "playbooks" }));

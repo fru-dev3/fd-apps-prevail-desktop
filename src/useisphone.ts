@@ -7,6 +7,11 @@ import { useEffect, useState } from "react";
 export const PHONE_MAX_PX = 767;
 const QUERY = `(max-width: ${PHONE_MAX_PX}px)`;
 
+/** Whether the window is phone sized right now (for an initial state, before the hook runs). */
+export function isPhoneNow(): boolean {
+  try { return typeof window !== "undefined" && window.matchMedia(QUERY).matches; } catch { return false; }
+}
+
 export function useIsPhone(): boolean {
   const [phone, setPhone] = useState<boolean>(() => {
     try { return typeof window !== "undefined" && window.matchMedia(QUERY).matches; } catch { return false; }

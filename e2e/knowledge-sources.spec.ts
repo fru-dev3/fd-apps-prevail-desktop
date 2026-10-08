@@ -3,6 +3,7 @@
 // engine call is mocked; invented sources only. 390 to 1920 wide, no
 // sideways scroll. With APP_SHOTS set, each view is captured.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const now = Date.now();
@@ -26,7 +27,7 @@ const calls = (page: Page, cmd: string) => page.evaluate((c) =>
 
 async function openKnowledge(page: Page, width: number) {
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("prevail:open-settings", { detail: "knowledge-sources" })));
   if (width < 500) {
     // On a phone the hub opens on its list; the row opens the section.

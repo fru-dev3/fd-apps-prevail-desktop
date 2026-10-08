@@ -1,7 +1,7 @@
 // The Settings page shell, extracted from App.tsx. Owns the section router /
 // left-nav and composes every Settings section from its own module.
 import { useEffect, useState } from "react";
-import { BarChart3, Bot, Database, EyeOff, Github, Keyboard, Library, ListChecks, Lock, MessagesSquare, Network, Palette, Send, Settings as SettingsIcon, Shield, ShieldCheck, SlidersHorizontal, Smartphone, UserRound, Webhook, Wrench } from "lucide-react";
+import { BarChart3, Bot, Database, EyeOff, Github, Keyboard, Library, ListChecks, ListTodo, Lock, MessagesSquare, Network, Palette, Send, Settings as SettingsIcon, Shield, ShieldCheck, SlidersHorizontal, Smartphone, UserRound, Webhook, Wrench } from "lucide-react";
 import { useInvokeQuery } from "./query";
 import { useAppearance } from "./hooks";
 import { SettingsHub, type HubGroup } from "./settingshub";
@@ -23,6 +23,7 @@ import { CouncilSettingsSection } from "./councils";
 import { track } from "./telemetry";
 import { ModelsSection } from "./settings7";
 import { WorkspaceSection } from "./settings8";
+import { WorkSettingsSection } from "./worksettings";
 import { BenchmarkPanel } from "./benchpanel";
 import { HooksSection } from "./hookssection";
 import { ProfilesSection } from "./profilessection";
@@ -133,6 +134,9 @@ export function SettingsPanel({
       { id: "appearance", label: "Appearance", icon: Palette, render: () => <GeneralSection appearance={appearance} part="appearance" /> },
       { id: "shortcuts", label: "Shortcuts", icon: Keyboard, render: () => <ShortcutsSection /> },
     ]},
+    { heading: "Work", items: [
+      { id: "work", label: "Work", icon: ListTodo, tint: "tasks", render: () => <WorkSettingsSection vaultPath={vaultPath} /> },
+    ]},
     { heading: "Vault", items: [
       { id: "vault", label: "Vault", icon: Database, render: () => <WorkspaceSection vaultPath={vaultPath} onSetupDomains={onSetupDomains} onVaultMoved={onVaultMoved} /> },
       { id: "profiles", label: "Profiles", icon: UserRound, render: () => <ProfilesSection /> },
@@ -165,7 +169,7 @@ export function SettingsPanel({
           {section === "privacy-safety" && <SettingsHub id="privacy-safety" title="Privacy & Safety" icon={ShieldCheck}
             subtitle="Where your data can go and what agents may do." groups={privacySafety} sel={row} onSelect={setRow} />}
           {section === "settings" && <SettingsHub id="settings" title="Settings" icon={SettingsIcon}
-            subtitle="Behavior, look, your vault and profiles, and the background workers." groups={settings} sel={row} onSelect={setRow} />}
+            subtitle="Behavior, look, Work, your vault and profiles, and the background workers." groups={settings} sel={row} onSelect={setRow} />}
     </ScrollPage>
   );
 }

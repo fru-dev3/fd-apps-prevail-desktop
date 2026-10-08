@@ -2,6 +2,7 @@
 // own). Invented data only.
 // M6_SHOTS=<dir> captures the screens.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const REVIEW = { week: "2026-10-05", through: "2026-10-08", due: true, checkin: null, calmNormal: null, lines: { moved: [], drifted: [], conflict: "" }, glance: [
@@ -24,7 +25,7 @@ test.describe("the phone glance", () => {
   test("heads the Work tab: numbers against the normal, the 1-5, the next thing", async ({ page }) => {
     await mockTauri(page, FIX);
     await page.goto("/");
-    await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
+    await openChatTab(page); await expect(page.getByText("What should we work on?")).toBeVisible({ timeout: 15_000 });
     const handle = page.getByTestId("phone-nav-handle");
     if (await handle.count()) await handle.click();
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Work" }).click();

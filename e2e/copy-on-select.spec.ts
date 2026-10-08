@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 test.beforeEach(async ({ page }) => {
@@ -11,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   });
   await mockTauri(page);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 });
 
 const copied = (page: import("@playwright/test").Page) => page.evaluate(() => (window as unknown as { __copied: string[] }).__copied);

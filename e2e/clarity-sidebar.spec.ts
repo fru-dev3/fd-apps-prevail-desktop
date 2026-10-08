@@ -1,13 +1,14 @@
 // The sidebar top: one way into Settings (a quiet gear), one way out (the
 // back row), and a Settings search that filters the Settings nav.
 import { test, expect } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 test.beforeEach(async ({ page }) => {
   await mockTauri(page);
   page.on("pageerror", (err) => { throw new Error(`frontend crashed: ${err.message}`); });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 });
 
 test("sidebar · the gear opens Settings; one back control, no X, and it returns Home", async ({ page }) => {
@@ -63,7 +64,7 @@ test.describe("sidebar · sticky section headers", () => {
     await page.setViewportSize({ width: 1440, height: 700 });
     await mockTauri(page, { scan_vault: many });
     await page.goto("/");
-    await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+    await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   });
 
   test("sidebar · the Domains header stays pinned while its long list scrolls", async ({ page }) => {

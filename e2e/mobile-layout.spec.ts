@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 const SHOTS = process.env.MOBILE_SHOTS_DIR || "/tmp";
 // Both ends of the range people actually carry: a current iPhone, and the
@@ -36,7 +37,7 @@ test(`${size.name}: chat fits, one model control, mic in the composer, nav colla
   });
   page.on("pageerror", (e) => { throw new Error(`crash: ${e.message}`); });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15000 });
   await measure(page, `${size.name} empty-chat`);
   await page.screenshot({ path: `${SHOTS}/m1-empty-${size.name}.png` });
 
@@ -75,7 +76,7 @@ test("a sent prompt leaves the layout intact", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTauri(page, { detect_clis: [{ id: "claude", label: "Claude Code", available: true, versions: [] }] });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15000 });
   // Inject a streaming assistant turn shaped like the real one.
   await page.evaluate(() => {
     const ta = document.querySelector("[data-tour=composer] textarea") as HTMLTextAreaElement;

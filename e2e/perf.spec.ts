@@ -9,6 +9,7 @@
 // (long-task observer). PERF_REPORT=1 prints the measured table. Runs in the
 // "perf" project, against a production build (playwright.config.ts).
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const LATENCY = 150;
@@ -74,7 +75,7 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockTauri(page, BIG, { latencyMs: LATENCY });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   // Measure a settled app: the idle-time chunk prefetch has had its moment,
   // as it has by the time a person reaches for the sidebar.
   await page.waitForTimeout(2500);

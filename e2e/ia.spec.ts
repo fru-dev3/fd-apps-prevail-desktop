@@ -5,6 +5,7 @@
 // @ picker and search. At 390, 768, 1280 and 1920 nothing scrolls sideways.
 // With IA_SHOTS=<dir> each step is captured. Invented names only.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { openSidebar } from "./sidebar-open";
 import { mockTauri } from "./tauri-mock";
 
@@ -57,7 +58,7 @@ async function open(page: Page, width: number) {
   await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
   await mockTauri(page, { ...FIX, __fresh_sidebar: false });
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
   await openSidebar(page, ["entities", "activities"], ["people", "events", "projects"]);
   // One detail per id: what each object's page says about itself.
   await page.evaluate(() => {

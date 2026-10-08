@@ -5,6 +5,7 @@
 // (it used to reach the model as text). Invented data only. With
 // GROUP_SHOTS=<dir>, the thread is captured at 390 and 1280.
 import { test, expect, type Page } from "@playwright/test";
+import { openChatTab } from "./open-chat";
 import { mockTauri } from "./tauri-mock";
 
 const spec = (id: string, name: string, family: string) => ({
@@ -50,7 +51,7 @@ async function home(page: Page, width: number) {
   await page.addInitScript(() => localStorage.setItem("prevail.desktop.defaultChatCli", "claude"));
   await mockTauri(page, FIX);
   await page.goto("/");
-  await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
+  await openChatTab(page); await page.getByText("What should we work on?").waitFor({ timeout: 15_000 });
 }
 async function pick(page: Page, typed: string, id: string) {
   await composer(page).pressSequentially(typed);

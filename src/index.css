@@ -3,6 +3,8 @@
 @theme {
   --font-sans: "Inter", "Segoe UI", -apple-system, sans-serif;
   --font-display: "Instrument Serif", Georgia, serif;
+  /* Geist (bundled, public/fonts): the Work bar's calm text face. */
+  --font-geist: "Geist", "Inter", -apple-system, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", "Menlo", monospace;
 
   /* Default tokens — overridden by data-theme + data-palette below.
@@ -385,6 +387,11 @@
   /* A text box whose rounded container carries the focus (its border turns
      accent on focus-within), so the field itself draws no second ring. */
   .ring-in-box:focus-visible { outline: none !important; }
+  /* The same for any text field drawn without a box of its own (bg-transparent):
+     it sits inside a container that shows focus (focus-within), so it never
+     draws a ring inside that container's edge. Buttons and other controls keep
+     the keyboard ring above. */
+  :is(textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"])).bg-transparent:focus-visible { outline: none !important; }
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -560,6 +567,25 @@
   .sa *, .sa[data-state] * { animation: none !important; }
 }
 
+/* WORK READY FACE (workqueue.tsx ReadyFace): a soft green character that
+   bobs, blinks every few seconds and glances aside now and then, with a
+   shadow that breathes with the bob. Nothing moves under reduced motion. */
+.work-face svg { display: block; overflow: visible; }
+.work-face .wf-body, .work-face .wf-eyes, .work-face .wf-look, .work-face .wf-shadow, .work-face .wf-cheeks { transform-box: fill-box; transform-origin: center; }
+.work-face .wf-body { animation: wf-bob 3.6s ease-in-out infinite; }
+.work-face .wf-shadow { animation: wf-shadow 3.6s ease-in-out infinite; }
+.work-face .wf-eyes { animation: wf-blink 4.8s 1.2s infinite; }
+.work-face .wf-look { animation: wf-glance 11s 2s ease-in-out infinite; }
+.work-face .wf-cheeks { animation: wf-glow 3.6s ease-in-out infinite; }
+@keyframes wf-bob { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-7px) rotate(1.5deg); } }
+@keyframes wf-shadow { 0%, 100% { transform: scaleX(1); opacity: 0.32; } 50% { transform: scaleX(0.8); opacity: 0.18; } }
+@keyframes wf-blink { 0%, 90%, 100% { transform: scaleY(1); } 93% { transform: scaleY(0.08); } 96% { transform: scaleY(1); } }
+@keyframes wf-glance { 0%, 34%, 100% { transform: translate(0, 0); } 38%, 50% { transform: translate(4px, -1px); } 54%, 66% { transform: translate(-4px, 1px); } 70% { transform: translate(0, 0); } }
+@keyframes wf-glow { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .work-face * { animation: none !important; }
+}
+
 /* SideSpine collapsed into an icon rail: rows keep only their icon. */
 [data-rail] nav { padding: 0.25rem; }
 [data-rail] button { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; width: 100%; }
@@ -585,3 +611,8 @@
 :root[data-theme="dark"] .tint-ic { color: color-mix(in oklab, var(--tint) 70%, white); }
 /* A row's own controls (a drag grip, a menu) stay out of the icon rail. */
 [data-rail] [data-rail-skip] { display: none; }
+
+/* Work mode: the item panel slides in from the right. */
+.work-panel-in { animation: work-panel-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes work-panel-in { from { opacity: 0; clip-path: inset(0 0 0 18%); } to { opacity: 1; clip-path: inset(0); } }
+@media (prefers-reduced-motion: reduce) { .work-panel-in { animation: none; } }
