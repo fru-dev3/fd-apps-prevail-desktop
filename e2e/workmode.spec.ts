@@ -128,7 +128,7 @@ test("the Council toggle in the composer switches the conversation to the counci
   await expect(page.getByTestId("council-picker")).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
   // Chat stays the highlighted tab: the council is a way of answering it.
-  await expect(page.getByTestId("top-tab-chat")).toHaveClass(/bg-accent/);
+  await expect(page.getByTestId("top-tab-chat")).toHaveClass(/shadow-sm/);
   expect(await page.evaluate(() => localStorage.getItem("prevail.chat.council"))).toBe("1");
   // Leaving for Work and coming back keeps the council on.
   await page.getByTestId("top-tab-queue").click();
@@ -148,7 +148,7 @@ test("the app opens on Work, which keeps the main sidebar and hides only the thr
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 15_000 });
   // Work is the default screen, not Chat.
   await expect(page.getByTestId("work-queue")).toBeVisible();
-  await expect(page.getByTestId("top-tab-queue")).toHaveClass(/bg-accent/);
+  await expect(page.getByTestId("top-tab-queue")).toHaveClass(/shadow-sm/);
   await expect(page.getByTestId("work-queue")).toBeVisible();
   await expect(page.getByTestId("app-sidebar")).toBeVisible();
   await expect(page.getByTestId("threads-list")).toHaveCount(0);
