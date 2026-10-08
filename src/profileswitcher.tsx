@@ -5,7 +5,33 @@
 // Gated profiles require their passcode inline before switching.
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Lock, Plus, Settings2 } from "lucide-react";
-import { getActiveId, initials, offeredProfiles, setActiveId, setDefaultId, verifyPasscode, type Profile } from "./profiles";
+import { getActiveId, getActiveProfile, initials, offeredProfiles, setActiveId, setDefaultId, verifyPasscode, type Profile } from "./profiles";
+
+/** A profile's picture, else its initial on its colour (the switcher's look). */
+export function ProfileAvatar({ p, size, quiet = false }: { p: Profile | null; size: number; quiet?: boolean }) {
+  return p?.image ? (
+    <img src={p.image} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+  ) : (
+    // Quiet draws the initial with CSS, so it never joins the words beside it.
+    <span
+      className="flex shrink-0 items-center justify-center rounded-full font-semibold text-on-accent"
+      style={{ width: size, height: size, fontSize: size * 0.42, background: p?.color || "var(--color-accent)" }}
+    >
+      {quiet ? <span aria-hidden className="before:content-[attr(data-initial)]" data-initial={p ? initials(p) : "P"} /> : p ? initials(p) : "P"}
+    </span>
+  );
+}
+
+/** The owner's own avatar: the active profile, as the sidebar shows it. */
+export function OwnerAvatar({ size }: { size: number }) {
+  const [p, setP] = useState<Profile | null>(() => getActiveProfile());
+  useEffect(() => {
+    const f = () => setP(getActiveProfile());
+    window.addEventListener("prevail:profiles-changed", f);
+    return () => window.removeEventListener("prevail:profiles-changed", f);
+  }, []);
+  return <ProfileAvatar p={p} size={size} quiet />;
+}
 
 // The sidebar header: avatar with a presence dot, the profile name, a second
 // line naming the workspace (with the switcher chevron), and a `trailing` slot
@@ -60,17 +86,7 @@ export function ProfileSwitcher({ collapsed, trailing }: { collapsed: boolean; t
     else void doSwitch(p);
   };
 
-  const avatar = (p: Profile | null, size: number) =>
-    p?.image ? (
-      <img src={p.image} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
-    ) : (
-      <span
-        className="flex shrink-0 items-center justify-center rounded-full font-semibold text-on-accent"
-        style={{ width: size, height: size, fontSize: size * 0.42, background: p?.color || "var(--color-accent)" }}
-      >
-        {p ? initials(p) : "P"}
-      </span>
-    );
+  const avatar = (p: Profile | null, size: number) => <ProfileAvatar p={p} size={size} />;
   // The dot says this profile is the one open on this machine.
   const withPresence = (p: Profile | null, size: number) => (
     <span className="relative shrink-0">

@@ -128,7 +128,7 @@ test("the Council toggle in the composer switches the conversation to the counci
   await expect(page.getByTestId("council-picker")).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
   // Chat stays the highlighted tab: the council is a way of answering it.
-  await expect(page.getByTestId("top-tab-chat")).toHaveClass(/bg-accent/);
+  await expect(page.getByTestId("top-tab-chat")).toHaveClass(/shadow-sm/);
   expect(await page.evaluate(() => localStorage.getItem("prevail.chat.council"))).toBe("1");
   // Leaving for Work and coming back keeps the council on.
   await page.getByTestId("top-tab-queue").click();
@@ -148,7 +148,7 @@ test("the app opens on Work, which keeps the main sidebar and hides only the thr
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 15_000 });
   // Work is the default screen, not Chat.
   await expect(page.getByTestId("work-queue")).toBeVisible();
-  await expect(page.getByTestId("top-tab-queue")).toHaveClass(/bg-accent/);
+  await expect(page.getByTestId("top-tab-queue")).toHaveClass(/shadow-sm/);
   await expect(page.getByTestId("work-queue")).toBeVisible();
   await expect(page.getByTestId("app-sidebar")).toBeVisible();
   await expect(page.getByTestId("threads-list")).toHaveCount(0);
@@ -269,8 +269,12 @@ test("the item panel: status, where it went with its icon, who is on it, what it
   // One block of pills at the top, no headings: Ben first, then the specialists; where it went; the agent and the machine.
   await expect(d.getByTestId("work-destination")).toContainText("Health");
   await expect(d.getByTestId("work-team")).toContainText("Ben");
-  await expect(d.getByTestId("work-team")).toHaveAttribute("title", "Ben, with Planner and Scout");
+  // Each agent by name, Ben first, with its role on hover; no overlapping stack, no "Ben + 2".
+  await expect(d.getByTestId("work-team").locator("li")).toHaveText(["Ben", "Planner", "Scout"]);
+  await expect(d.getByTestId("work-chief")).toHaveAttribute("title", "Ben, chief of staff, leads it");
+  await expect(d.getByTestId("work-specialist").first()).toHaveAttribute("title", /^Planner, /);
   await expect(d.getByTestId("work-team")).not.toContainText("Chief of staff");
+  await expect(d.getByTestId("work-team")).not.toContainText("+");
   await expect(d.getByTestId("work-specialist")).toHaveCount(2);
   await expect(d.locator("h3", { hasText: /Where it went|Who is on it/ })).toHaveCount(0);
   // A balanced header: the status (with its time) and the people sit at the top right, not an empty corner.
@@ -364,10 +368,9 @@ test("a Herdr task never shows the agent's output: its workspace and own tab, pl
 test("the check box marks a task done in the engine and the row leaves; a finished task shows its outcome until cleared", async ({ page }) => {
   await openWork(page);
   await openRow(page, "t6");
-  // It never closes itself: it says what came of it and asks.
-  await expect(detail(page).getByTestId("work-update")).toHaveText(["Done: Drafted the bar report email to Sam Foo; it is in your drafts, nothing was sent.", /^Can I close this task\?/]);
-  // The quick replies sit right under the question they answer.
-  await expect(detail(page).getByTestId("work-update").last().getByTestId("work-quick-reply")).toHaveText(["Go ahead and close it", "Continue"]);
+  // It never closes itself and never asks to: it says what came of it and stays.
+  await expect(detail(page).getByTestId("work-update")).toHaveText(["Done: Drafted the bar report email to Sam Foo; it is in your drafts, nothing was sent."]);
+  await expect(detail(page).getByTestId("work-quick-reply")).toHaveCount(0);
   await expect(detail(page).getByTestId("work-status")).toHaveText("Done");
   await row(page, "t1").getByTestId("work-check").click();
   await expect(row(page, "t1").getByTestId("work-check")).toHaveAttribute("aria-checked", "true");
@@ -660,10 +663,10 @@ for (const theme of ["light", "dark"]) {
     await openRow(page, "t2");
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${SHOTS}/work-panel-waiting-${theme}-1440.png` });
-    // The pills and the back-and-forth that asks to close.
+    // The pills, the agents by name, and the back-and-forth with each speaker.
     await openRow(page, "t8");
     await page.waitForTimeout(300);
-    await page.screenshot({ path: `${SHOTS}/work-panel-close-${theme}-1440.png` });
+    await page.screenshot({ path: `${SHOTS}/work-panel-talk-${theme}-1440.png` });
     await page.getByTestId("work-panel-close").click();
     await page.getByTestId("work-queue-list").evaluate((el) => { (el as HTMLElement).style.width = "300px"; });
     await page.waitForTimeout(200);
@@ -686,16 +689,20 @@ const T8 = { ...T6, id: "t8", name: "Foo Trip Notes", text: "Summarize the foo t
     { ts: NOW - 200_000, from: "task", text: "Which notes, the spring or the autumn foo trip?" },
     { ts: NOW - 190_000, from: "you", text: "The autumn one" },
     { ts: NOW - 60_000, from: "task", text: "Done: Three pages of autumn foo trip notes, summarized in five lines." },
-    { ts: NOW - 59_000, from: "task", text: "Can I close this task?" },
   ] };
 
-test("the panel: pills in two rows at most, then a light back-and-forth that asks to close; a quick yes goes as a reply", async ({ page }) => {
-  await openWork(page, { engine_work_list: { ...QUEUE, tasks: [...QUEUE.tasks, T8] } });
+test("the panel: pills in two rows at most, then a light back-and-forth that never asks to close; saying close goes as a reply", async ({ page }) => {
+  await openWork(page, { engine_work_list: { ...QUEUE, tasks: [...QUEUE.tasks, T8] }, engine_specialists: [{ id: "scout", name: "Scout", mandate: "Looks around for options: places, prices and times." }] });
   await page.evaluate((t8) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t8] }; }, T8);
   await openRow(page, "t8");
   const d = detail(page);
   await expect(d.getByTestId("work-domain")).toHaveText([/Money/, /Health/, /Career/]);
-  await expect(d.getByTestId("work-team")).toHaveAttribute("title", "Ben, with Planner, Scout, Writer, Analyst and Researcher");
+  await expect(d.getByTestId("work-team").locator("li")).toHaveText(["Ben", "Planner", "Scout", "Writer", "Analyst", "Researcher"]);
+  await expect(d.getByTestId("work-specialist").nth(1)).toHaveAttribute("title", "Scout, looks around for options");
+  // Many agents wrap inside the header; none spills past the panel.
+  const tb = await d.getByTestId("work-team").boundingBox();
+  const pb = await panel(page).boundingBox();
+  expect(tb!.x + tb!.width).toBeLessThanOrEqual(pb!.x + pb!.width);
   // What does not fit folds into a "+N" pill that names the rest; pills never squash or wrap.
   await expect(d.getByTestId("work-facts-more").first()).toBeVisible();
   expect(await d.locator("[data-pill]:visible").evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().width < 40).length)).toBe(0);
@@ -703,11 +710,19 @@ test("the panel: pills in two rows at most, then a light back-and-forth that ask
   const h = await d.getByTestId("work-facts").evaluate((el) => el.getBoundingClientRect().height);
   expect(h).toBeLessThanOrEqual(64);
   expect(await d.getByTestId("work-facts").evaluate((el) => [...el.querySelectorAll("*")].filter((c) => { const b = c.getBoundingClientRect(); return b.width > 0 && b.right > el.getBoundingClientRect().right + 1; }).length)).toBe(0);
-  await expect(d.getByTestId("work-update")).toHaveText(["Working on it, nothing needed from you.", "Which notes, the spring or the autumn foo trip?", "The autumn one", "Done: Three pages of autumn foo trip notes, summarized in five lines.", /^Can I close this task\?/]);
+  await expect(d.getByTestId("work-update")).toHaveText(["Working on it, nothing needed from you.", "Which notes, the spring or the autumn foo trip?", "The autumn one", "Done: Three pages of autumn foo trip notes, summarized in five lines."]);
+  await expect(d.getByTestId("work-quick-reply")).toHaveCount(0);
   await expect(d.locator("[data-testid=work-update][data-from=you]")).toHaveText(["The autumn one"]);
+  // Who speaks is plain: every line names its speaker, the owner as "You", the task by its agent.
+  for (const r of await d.getByTestId("work-update").all()) {
+    const who = await r.getAttribute("data-from");
+    await expect(r.getByTestId("work-speaker")).toHaveAccessibleName(who === "you" ? "You" : "Ben");
+    await expect(r.getByTestId("work-speaker")).toHaveAttribute("title", who === "you" ? "You" : "Ben, chief of staff, leads it");
+  }
   await expect(d.getByTestId("work-followup-input")).toHaveAttribute("placeholder", "Reply, or say close it");
-  await d.getByTestId("work-quick-reply").filter({ hasText: "Go ahead and close it" }).click();
-  await expect.poll(async () => (await calls(page, "engine_work_followup"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t8", text: "Go ahead and close it" });
+  await d.getByTestId("work-followup-input").fill("close it");
+  await d.getByTestId("work-followup-input").press("Enter");
+  await expect.poll(async () => (await calls(page, "engine_work_followup"))[0]).toEqual({ vault: "/tmp/smoke-vault", id: "t8", text: "close it" });
   expect(await nothingWide(page)).toEqual([]);
 });
 
@@ -833,4 +848,29 @@ test("a follow-up split into a subtask: the parent stays open, the reply links t
   await expect(row(page, "t1")).toHaveAttribute("data-status", "running");
   await detail(page).getByTestId("work-parent-link").click();
   await expect(detail(page).getByTestId("work-task-title")).toHaveText("Hike Permit");
+});
+
+// Every icon-only control or mark in Work mode names itself: an accessible name for screen readers and a tooltip on hover.
+test("every icon-only button in the Work tab has an accessible name and a tooltip", async ({ page }) => {
+  await openWork(page, { engine_work_list: { ...QUEUE, tasks: [...QUEUE.tasks, T8] } });
+  await page.evaluate((t8) => { const fx = (window as unknown as { __fixtures: { __queue: { tasks: unknown[] } } }).__fixtures; fx.__queue = { ...fx.__queue, tasks: [...fx.__queue.tasks, t8] }; }, T8);
+  await openRow(page, "t8");
+  await page.getByTestId("work-options").click();
+  const bare = () => page.getByTestId("work-queue").evaluate((root) => [...root.querySelectorAll<HTMLElement>("button, [role=button], [role=checkbox], summary, a")]
+    .filter((b) => b.checkVisibility() && !(b.innerText ?? "").replace(/[+\d\s]/g, "").trim())
+    .filter((b) => !(b.getAttribute("aria-label") || b.getAttribute("aria-labelledby")) || !(b.title || b.closest("[title]")))
+    .map((b) => b.dataset.testid ?? b.outerHTML.slice(0, 120)));
+  expect(await bare()).toEqual([]);
+  // The rows' own controls show on hover; they name themselves too.
+  await row(page, "t6").hover();
+  expect(await bare()).toEqual([]);
+  // Icon-only marks (agent, machine, status, the speaker of each line, each agent on it) carry a tooltip.
+  const untitled = () => page.getByTestId("work-queue").evaluate((root) => [...root.querySelectorAll<HTMLElement>("[data-testid=work-row-agent], [data-testid=work-row-machine], [data-testid=work-row-team], [data-testid=work-speaker], [data-testid=work-chief], [data-testid=work-specialist], svg")]
+    .filter((m) => m.checkVisibility() && !m.closest("button, [role=button], summary, label, [data-pill]") && !m.closest("[title]") && !(m.parentElement?.innerText ?? "").trim())
+    .map((m) => (m as HTMLElement).dataset?.testid ?? m.outerHTML.slice(0, 120)));
+  expect(await untitled()).toEqual([]);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("work-mode-backlog").click();
+  expect(await bare()).toEqual([]);
+  expect(await untitled()).toEqual([]);
 });

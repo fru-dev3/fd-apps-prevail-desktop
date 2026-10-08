@@ -1,5 +1,6 @@
 import { PhoneGlance, isGlanceView } from "./metricsfamily";
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { TintIcon } from "./tint";
 import { invoke, listen, isBrowser, getWebToken, pendingPairCode, redeemPairCode, type UnlistenFn } from "./bridge";
 import { invokeCached } from "./query";
 import { answerWithCouncil, councilToggleOn, setCouncilToggle } from "./councilmode";
@@ -140,6 +141,7 @@ import {
   
   
   Layers,
+  MessagesSquare,
 
   Inbox,
   Plug,
@@ -190,10 +192,11 @@ function notifyWeb(title: string, body: string) {
 // in the composer (councilmode.tsx), and the "council" TabId is the
 // conversation answered by the council. Tools is a section inside Settings.
 // Benchmark and the rest live in the smaller, de-emphasized right cluster.
-const TABS: { id: TabId; label: string; icon: typeof MessageSquare }[] = [
+// Two modes, each with its own colour (owner, 2026-10-08: colourful icons, just Work and Chat).
+const TABS: { id: TabId; label: string; icon: typeof MessageSquare; color: string }[] = [
   // Work mode: fire prompts into one ordered queue; the chief of staff routes and runs them.
-  { id: "queue", label: "Work", icon: ListTodo },
-  { id: "chat", label: "Chat", icon: MessageSquare },
+  { id: "queue", label: "Work", icon: ListTodo, color: "#16a34a" },
+  { id: "chat", label: "Chat", icon: MessagesSquare, color: "#7c3aed" },
 ];
 
 // Keep nav badges to a single digit: anything over 9 shows "9+" so the top bar
@@ -1964,18 +1967,6 @@ export default function App() {
             {import.meta.env.DEV && (
               <span className="pointer-events-none absolute bottom-0.5 right-1.5 z-10 rounded bg-err px-1 py-0 text-[11px] font-bold tracking-wide text-background opacity-70">DEV</span>
             )}
-            {/* Quick visual cue: are we in an APP or a DOMAIN? An icon (no text)
-                at the far left, so the two contexts are instantly distinguishable.
-                App = plug, domain/general = layers. */}
-            {/* Work is focused: no sidebar and no context marker; Chat brings both back. */}
-            {tab !== "queue" && (
-            <span
-              title={onApp ? `App: ${selectedApp?.title ?? ""}` : `Domain: ${titleCase(selectedDomain || "general")}`}
-              className={`mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${onApp ? "bg-accent-soft text-accent" : "bg-surface-warm text-text-secondary"}`}
-            >
-              {onApp ? <Plug className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
-            </span>
-            )}
             {/* Chat + Council sit on the LEFT for BOTH apps and domains, so the
                 conversation is always in the same place. The app's / domain's
                 OTHER views (Runs / Settings / Domains, or Insights / Preferences)
@@ -1996,13 +1987,13 @@ export default function App() {
                     // or domain Insights/Preferences) to the conversation.
                     if (t.id === "chat" && !onApp) setDomainTab("chat");
                   }}
-                  className={`my-1.5 flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                  className={`my-1.5 flex items-center gap-2 rounded-lg py-1 pl-1.5 pr-3 text-sm font-medium transition-colors ${
                     active
-                      ? "bg-accent text-background shadow-sm"
-                      : "text-text-muted hover:bg-surface-warm hover:text-text-secondary"
+                      ? "bg-surface-warm text-text-primary shadow-sm"
+                      : "text-text-muted hover:bg-surface-warm/60 hover:text-text-secondary"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <TintIcon icon={Icon} color={t.color} />
                   {t.label}
                 </button>
               );
