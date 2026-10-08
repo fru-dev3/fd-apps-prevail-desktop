@@ -28,6 +28,9 @@ import { transcribe } from "./phonevoice";
 import { getSpeechRecognition, type SpeechRecognitionLike } from "./quickcapture";
 import { SpineTabs } from "./sidespine";
 import { SpecialistAvatar } from "./specialistavatar";
+import { OwnerAvatar } from "./profileswitcher";
+import { useInvokeQuery } from "./query";
+import type { Specialist } from "./plansmodel";
 import { TintIcon } from "./tint";
 import { AppRowLogo } from "./panels3";
 import { RowMenu, REVEAL, type RowMenuItem } from "./ui";
@@ -320,7 +323,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
           </button>
         )}
         <button type="button" data-testid="work-send" onClick={send} disabled={!text.trim()} title={mode === "backlog" ? "Park in the backlog (Enter)" : "Send (Enter)"} aria-label={mode === "backlog" ? "Park in the backlog" : "Send"}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-background transition-opacity disabled:opacity-30">
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-background transition-[opacity,box-shadow] hover:shadow-md hover:brightness-110 disabled:opacity-30 disabled:hover:shadow-none">
           {mode === "backlog" ? <Lightbulb className="h-4 w-4" /> : <Send className="h-4 w-4" />}
         </button>
       </div>
@@ -340,7 +343,7 @@ export function WorkQueue({ vaultPath, active = true, domains = [], phone = fals
         <div key={t.id} data-testid="work-backlog-row" data-id={t.id} data-status={t.status}
           className={`group flex items-center gap-1 rounded-xl pr-1.5 transition-colors ${showPanel && shownId === t.id ? "bg-surface-warm" : "hover:bg-surface-warm/60"}`}>
           <button type="button" onClick={() => openItem(t.id)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left">
-            {(() => { const I = STATUS_ICON[t.status]; return <I className={`h-4 w-4 shrink-0 ${TONE_TEXT[STATUS_TONE[t.status]]}`} aria-label={STATUS_LABEL[t.status]} />; })()}
+            {(() => { const I = STATUS_ICON[t.status]; return <span title={STATUS_LABEL[t.status]} className="flex shrink-0"><I className={`h-4 w-4 shrink-0 ${TONE_TEXT[STATUS_TONE[t.status]]}`} aria-label={STATUS_LABEL[t.status]} /></span>; })()}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[15px] font-medium leading-snug text-text-primary" title={t.text}>{taskTitle(t)}</span>
               <TaskMeta t={t} machines={machines} />
@@ -527,7 +530,7 @@ function CardLine({ t, machines, chiefName, queuedAt, checked }: { t: WorkTask; 
         <span className="inline-flex min-w-0 shrink items-center gap-1.5 @max-[22rem]:hidden" title={t.dest ? `${t.dest.label} (${destKindLabel(t.dest)})` : "General"}>
           <TintIcon icon={DestIcon} tint={t.dest?.kind === "domain" ? t.dest.id : t.dest?.kind ?? "general"} square={false} size={13} /><span className="truncate">{t.dest?.label ?? "General"}</span>
         </span>
-        <span data-testid="work-row-team" className="flex shrink-0 -space-x-1.5 @max-[30rem]:hidden" title={t.specialists.length ? `${chiefName}, with ${andList(t.specialists.map((x) => titleCase(x)))}` : chiefName}>
+        <span data-testid="work-row-team" className="flex shrink-0 -space-x-1.5 rounded-full transition-opacity hover:opacity-80 @max-[30rem]:hidden" title={t.specialists.length ? `${chiefName}, with ${andList(t.specialists.map((x) => titleCase(x)))}` : chiefName}>
           {team.map((x) => <SpecialistAvatar key={x} id={x} size={18} state={working ? "working" : "idle"} label={x === "chief" ? chiefName : titleCase(x)} />)}
         </span>
       </span>
@@ -537,8 +540,8 @@ function CardLine({ t, machines, chiefName, queuedAt, checked }: { t: WorkTask; 
         {st.time && <span className="font-normal text-text-muted @max-[34rem]:hidden">· {st.time}</span>}
       </span>
       <span className="flex shrink-0 items-center gap-1 text-text-muted">
-        <span data-testid="work-row-agent" title={`Agent: ${t.agentKind}`} className="@max-[38rem]:hidden"><Bot className="h-3.5 w-3.5" /><span className="sr-only">{t.agentKind}</span></span>
-        <span data-testid="work-row-machine" title={`Machine: ${machineLabel(machines, t.machine)}`} className="@max-[42rem]:hidden"><look.Icon className="h-3.5 w-3.5" style={{ color: look.color }} /><span className="sr-only">{machineLabel(machines, t.machine)}</span></span>
+        <span data-testid="work-row-agent" title={`Agent: ${t.agentKind}`} className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-surface-strong hover:text-text-primary @max-[38rem]:hidden"><Bot className="h-3.5 w-3.5" /><span className="sr-only">{t.agentKind}</span></span>
+        <span data-testid="work-row-machine" title={`Machine: ${machineLabel(machines, t.machine)}`} className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-surface-strong @max-[42rem]:hidden"><look.Icon className="h-3.5 w-3.5" style={{ color: look.color }} /><span className="sr-only">{machineLabel(machines, t.machine)}</span></span>
       </span>
     </>
   );
@@ -626,7 +629,7 @@ function QueueList({ tasks, pending, sel, machines, ticked, onSelect, onMove, on
                 onPointerDown={(e) => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dragging.current = true; setDrag({ id: t.id, at: i }); }}
                 onPointerMove={(e) => { if (drag?.id === t.id) setDrag({ id: t.id, at: atFor(e.clientY) }); }}
                 onPointerUp={() => end(true)} onPointerCancel={() => end(false)}
-                className={`flex h-7 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded text-text-muted active:cursor-grabbing @max-[22rem]:hidden ${REVEAL}`}>
+                className={`flex h-7 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-warm hover:text-text-primary active:cursor-grabbing @max-[22rem]:hidden ${REVEAL}`}>
                 <GripVertical className="h-3.5 w-3.5" />
               </button>
               <span data-rail-skip className={`shrink-0 ${checked ? "@max-[22rem]:hidden" : ""}`}><RowMenu items={items} reveal testId="work-row-menu" /></span>
@@ -714,6 +717,14 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
   }, [pending, answeredAt]);
   useEffect(() => { setPending(null); }, [t.id]);
   const team = t.specialists;
+  const specs = useInvokeQuery<Specialist[]>("engine_specialists", vault ? { vault } : null, { staleMs: 60_000 }).data ?? [];
+  const specName = (id: string) => specs.find((x) => x.id === id)?.name ?? titleCase(id);
+  const chiefRole = `${chiefName}, chief of staff, leads it`;
+  // The role in a few words: the first clause of its mandate ("Clerk, files and organizes").
+  const roleOf = (id: string) => {
+    const m = (specs.find((x) => x.id === id)?.mandate ?? "").split(/[:.;]/)[0]!.trim();
+    return `${specName(id)}, ${m ? m.charAt(0).toLowerCase() + m.slice(1) : "helps with this task"}`;
+  };
   // Every domain it touches besides the destination itself (the owner when the destination is a project or app), and its apps.
   const otherDomains = (t.domains ?? (t.dest && t.dest.kind !== "domain" && /^[a-z0-9-]+$/.test(t.dest.owner) ? [t.dest.owner] : [])).filter((d) => !(t.dest?.kind === "domain" && t.dest.id === d));
   const otherApps = (t.apps ?? []).filter((a) => !(t.dest?.kind === "app" && t.dest.id === a));
@@ -721,7 +732,7 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
     <div data-testid="work-task" data-status={t.status} data-executor={t.executor} className="min-w-0 px-5 pt-4">
       {/* A balanced header: the ask on the left; its status (with time) and the people on it on the right. */}
       <div className="flex items-start gap-4">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[10rem] flex-1">
           <h2 data-testid="work-task-title" className="break-words text-[20px] font-semibold leading-tight tracking-[-0.01em] text-text-primary">{taskTitle(t)}</h2>
           {t.name && t.name !== t.text && <p className="mt-1.5 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-secondary">{t.text}</p>}
           {t.parentId && (() => { const parent = related.find((x) => x.id === t.parentId); return (
@@ -729,24 +740,27 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
               <CornerDownRight className="h-3.5 w-3.5" />From {parent ? taskTitle(parent) : "the task it came from"}
             </button>); })()}
         </div>
-        <div data-testid="work-head-right" className="flex shrink-0 flex-col items-end gap-2">
+        <div data-testid="work-head-right" className="flex min-w-0 max-w-[55%] shrink-0 flex-col items-end gap-2">
           <div className="flex items-center gap-0.5">
             <span className={`mr-1 inline-flex items-center gap-1.5 text-[13px] font-medium ${TONE_TEXT[tone]}`}>
               <I className={`h-3.5 w-3.5 shrink-0 ${t.status === "running" ? "animate-spin" : ""}`} />
               <span data-testid="work-status">{t.status === "needs-you" ? "Needs you" : statusLine(t)}</span>
               {cardStatus(t, 0).time && <span className="font-normal text-text-muted">· {cardStatus(t, 0).time}</span>}
             </span>
-            {mine && <Loader2 className="mx-1 h-3.5 w-3.5 animate-spin text-text-muted" />}
+            {mine && <span title="Working on that" className="flex"><Loader2 className="mx-1 h-3.5 w-3.5 animate-spin text-text-muted" aria-label="Working on that" /></span>}
             {more.length > 0 && <RowMenu items={more} testId="work-task-menu" />}
             {onClose && <PanelClose onClose={onClose} />}
           </div>
-          <div data-testid="work-team" className="flex items-center gap-2" title={team.length ? `${chiefName}, with ${andList(team.map((x) => titleCase(x)))}` : `${chiefName} leads it`}>
-            <span className="flex -space-x-1.5">
-              <SpecialistAvatar id="chief" size={22} state={t.status === "running" ? "working" : "idle"} label={chiefName} />
-              {team.slice(0, 4).map((x) => <span key={x} data-testid="work-specialist" className="flex"><SpecialistAvatar id={x} size={22} state={t.status === "running" ? "working" : "idle"} label={titleCase(x)} /></span>)}
-            </span>
-            <span className="text-[13px] font-medium text-text-primary">{chiefName}{team.length > 0 && <span className="font-normal text-text-muted">{` + ${team.length}`}</span>}</span>
-          </div>
+          {/* Who is on it: each agent by name, Ben first, its role in the tooltip. */}
+          <ul data-testid="work-team" aria-label="Who is on it" className="flex flex-wrap justify-end gap-x-1 gap-y-0.5">
+            {["chief", ...team].map((x) => (
+              <li key={x} data-testid={x === "chief" ? "work-chief" : "work-specialist"} title={x === "chief" ? chiefRole : roleOf(x)}
+                className="flex cursor-default items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2 text-[13px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary">
+                <SpecialistAvatar id={x} size={18} state={t.status === "running" ? "working" : "idle"} />
+                <span className={x === "chief" ? "font-medium text-text-primary" : ""}>{x === "chief" ? chiefName : specName(x)}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
@@ -775,7 +789,7 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
         ]} />
       </div>
 
-      <Updates related={related} onOpen={onOpen} t={t} chiefName={chiefName} pending={pending} onSend={(x) => send(x)} onRetry={() => pending && send(pending.text, pending.asTask)} />
+      <Updates related={related} onOpen={onOpen} t={t} chiefName={chiefName} chiefRole={chiefRole} pending={pending} onSend={(x) => send(x)} onRetry={() => pending && send(pending.text, pending.asTask)} />
 
       {/* The work itself (what it knew, each step, the Herdr tab) stays out of the way: the panel shows
           what was asked and what came of it, and the steps sit behind one closed Details link. */}
@@ -892,38 +906,38 @@ function updatesOf(t: WorkTask): TaskUpdate[] {
   switch (t.status) {
     case "running": return [say("Working on it, nothing needed from you.")];
     case "needs-you": return [say(t.waiting || "I need something from you.")];
-    case "done": return [say(t.outcome ? `Done: ${t.outcome.replace(/^done[:.]?\s*/i, "")}` : "Done."), say(CLOSE_QUESTION)];
-    case "failed": return [say(t.outcome || "I could not finish it."), say(CLOSE_QUESTION)];
+    case "done": return [say(t.outcome ? `Done: ${t.outcome.replace(/^done[:.]?\s*/i, "")}` : "Done.")];
+    case "failed": return [say(t.outcome || "I could not finish it.")];
     case "paused": return t.outcome ? [say(t.outcome)] : [];
     default: return [];
   }
 }
-const CLOSE_QUESTION = "Can I close this task?";
 
 /**
  * The light back-and-forth: short plain lines from the task in its own voice
  * (led by the chief of staff's avatar) and the user's replies on the right,
- * newest at the bottom. Never the agent's output. A finished task asks to
- * close and waits; the yes closes it, anything else goes on with the work.
+ * newest at the bottom. Never the agent's output. A finished task never asks
+ * to close: it stays until the owner ticks it or says done or close.
+ * Who speaks is plain at a glance: the agent's avatar on the left with its
+ * lines on a soft tinted card, the owner's avatar on the right of a warm bubble.
  */
-function Updates({ t, chiefName, pending, onSend, onRetry, related = [], onOpen }: { related?: WorkTask[]; onOpen?: (id: string) => void; t: WorkTask; chiefName: string; pending: SendState | null; onSend: (text: string) => void; onRetry: () => void }) {
+function Updates({ t, chiefName, chiefRole, pending, onSend, onRetry, related = [], onOpen }: { related?: WorkTask[]; onOpen?: (id: string) => void; t: WorkTask; chiefName: string; chiefRole: string; pending: SendState | null; onSend: (text: string) => void; onRetry: () => void }) {
   const ups = updatesOf(t);
   // The owner's message shows at once; it stays until the engine has recorded it.
   const mine = pending && !ups.some((u) => u.from === "you" && u.text === pending.text && u.ts >= pending.at - 60_000) ? [...ups, { ts: pending.at, from: "you" as const, text: pending.text }] : ups;
   if (!mine.length && !pending) return null;
-  const lastTask = [...mine].reverse().find((u) => u.from === "task");
-  const asking = !pending && lastTask === mine[mine.length - 1] && lastTask?.text === CLOSE_QUESTION && (t.status === "done" || t.status === "failed") && !t.cleared;
-  const avatar = (on: boolean) => <span className="mt-px shrink-0" title={chiefName}><SpecialistAvatar id="chief" size={20} state={on ? "working" : "idle"} label={chiefName} /></span>;
+  const avatar = (on: boolean) => <span data-testid="work-speaker" role="img" aria-label={chiefName} className="mt-1 shrink-0 cursor-default rounded-full transition-shadow hover:ring-2 hover:ring-accent-border" title={chiefRole}><SpecialistAvatar id="chief" size={20} state={on ? "working" : "idle"} /></span>;
   return (
     <ol data-testid="work-updates" className="mt-5 space-y-2.5">
       {mine.map((u, i) => (u.from === "you" ? (
-        <li key={i} data-testid="work-update" data-from="you" className="flex justify-end">
-          <span className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-surface-warm px-3 py-1.5 text-[14px] leading-snug text-text-primary">{u.text}</span>
+        <li key={i} data-testid="work-update" data-from="you" className="flex items-end justify-end gap-2">
+          <span className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-surface-warm px-3 py-1.5 text-[14px] leading-snug text-text-primary">{u.text}</span>
+          <span data-testid="work-speaker" role="img" aria-label="You" title="You" className="shrink-0 cursor-default rounded-full transition-shadow hover:ring-2 hover:ring-border"><OwnerAvatar size={20} /></span>
         </li>
       ) : (
         <li key={i} data-testid="work-update" data-from="task" className="flex items-start gap-2">
           {avatar(t.status === "running" && i === mine.length - 1)}
-          <span className="min-w-0 pt-px">
+          <span className="min-w-0 rounded-xl rounded-tl-md bg-accent-soft px-3 py-1.5">
             <span className={`block break-words text-[14px] leading-snug ${u.learned ? "text-text-secondary" : "text-text-primary"} ${t.status === "needs-you" && i === mine.length - 1 ? "font-medium" : ""}`}>{u.text}</span>
             {u.learned && !pending && (t.learned?.length || t.recurringOf?.length) ? (
               <button type="button" data-testid="work-forget" onClick={() => onSend("Forget that")}
@@ -943,14 +957,6 @@ function Updates({ t, chiefName, pending, onSend, onRetry, related = [], onOpen 
               <ol data-testid="work-plan-questions" className="mt-1.5 list-decimal space-y-1 pl-5 text-[14px] leading-snug text-text-secondary marker:text-text-muted">
                 {u.questions.map((q) => <li key={q}>{q}</li>)}
               </ol>
-            )}
-            {asking && u === lastTask && (
-              <span className="mt-2 flex flex-wrap gap-1.5">
-                {["Go ahead and close it", "Continue"].map((r) => (
-                  <button key={r} type="button" data-testid="work-quick-reply" onClick={() => onSend(r)}
-                    className="rounded-full border border-border-subtle px-3 py-1 text-[13px] text-text-secondary transition-colors hover:border-border hover:bg-surface-warm hover:text-text-primary">{r}</button>
-                ))}
-              </span>
             )}
           </span>
         </li>
@@ -995,7 +1001,7 @@ function FollowUp({ t, onSend, busy }: { t: WorkTask; onSend: (text: string, asT
           <ListPlus className="h-3.5 w-3.5" />New task
         </button>
         <button type="button" data-testid="work-followup-send" disabled={!text.trim() || busy} onClick={() => send()} title="Send (Enter)" aria-label="Send the follow-up"
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-background transition-opacity disabled:opacity-30"><Send className="h-3.5 w-3.5" /></button>
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-background transition-[opacity,box-shadow] hover:shadow-md hover:brightness-110 disabled:opacity-30 disabled:hover:shadow-none"><Send className="h-3.5 w-3.5" /></button>
       </div>
     </div>
   );
