@@ -70,7 +70,7 @@ pub(crate) async fn engine_work_show(vault: String, id: String) -> Result<serde_
 
 /// Re-route a task: a new destination (`kind:id`), machine or agent kind, or Undo the route.
 #[tauri::command]
-pub(crate) async fn engine_work_route(vault: String, id: String, dest: Option<String>, machine: Option<String>, agent_kind: Option<String>, undo: Option<bool>) -> Result<serde_json::Value, String> {
+pub(crate) async fn engine_work_route(vault: String, id: String, dest: Option<String>, machine: Option<String>, agent_kind: Option<String>, undo: Option<bool>, crew: Option<String>) -> Result<serde_json::Value, String> {
     let mut a = v(&["--vault", &vault, "work", "route", ok_id(&id)?]);
     if undo == Some(true) {
         a.push("--undo".into());
@@ -78,6 +78,8 @@ pub(crate) async fn engine_work_route(vault: String, id: String, dest: Option<St
         if let Some(t) = dest.filter(|t| !t.is_empty()) { a.push("--dest".into()); a.push(ok_id(&t)?.to_string()); }
         if let Some(m) = machine.filter(|m| !m.is_empty()) { a.push("--machine".into()); a.push(ok_id(&m)?.to_string()); }
         if let Some(k) = agent_kind.filter(|k| !k.is_empty()) { a.push("--agent".into()); a.push(ok_id(&k)?.to_string()); }
+        // Scout (find out and report) or ship (make the change).
+        if let Some(c) = crew.filter(|c| !c.is_empty()) { a.push("--crew".into()); a.push(one_of(&c, &["scout", "ship"])?.to_string()); }
         if a.len() == 5 { return Err("nothing to change".into()); }
     }
     blocking(a).await
