@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   actionsFor, activityLines, asMachines, asPrompts, asSettings, asWorkspaces, backlog, engineLacksWork, FALLBACK_AGENT_KINDS, groupByGoal, leaseElsewhere,
-  needsApproval, plainError, moveInQueue, asQueue, queueSummary, statusLine, taskTitle, type WorkPrompt, type WorkTask,
+  needsApproval, plainError, moveInQueue, asQueue, queueSummary, SHIP_MODE_LABEL, statusLine, taskTitle, type WorkPrompt, type WorkTask,
 } from "./workqueuemodel";
 
 const task = (over: Partial<WorkTask> = {}): WorkTask => ({
@@ -132,5 +132,12 @@ describe("work queue model", () => {
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 2000 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: true });
     expect(leaseElsewhere(task({ lease: { host: "mini-foo", until: 500 } }), "foo-laptop", 1000)).toEqual({ elsewhere: true, live: false });
     expect(leaseElsewhere(task({ lease: { host: "foo-laptop", until: 2000 } }), "foo-laptop", 1000).elsewhere).toBe(false);
+  });
+});
+
+describe("scout, ship and how a ship task finishes", () => {
+  test("says every ship mode in plain words, no em dashes", () => {
+    expect(Object.keys(SHIP_MODE_LABEL).sort()).toEqual(["local-only", "pr", "ship-script"]);
+    for (const l of Object.values(SHIP_MODE_LABEL)) expect(l).not.toMatch(/[—–]/);
   });
 });

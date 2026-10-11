@@ -22,7 +22,13 @@ export interface RoutedTask {
   text: string; goal: string; dest: Destination | null; alternatives: Destination[]; specialists: string[];
   shape: Shape; flags: { open_ended?: boolean; decision?: boolean; money?: boolean; numbers?: boolean };
   effort: Effort; agentKind: string; machine: string; suggestions: Suggestion[];
+  /** Scout (find out and report, change nothing) or ship (make the change). Older records have none. */
+  crew?: CrewShape;
 }
+export type CrewShape = "scout" | "ship";
+export type ShipMode = "ship-script" | "pr" | "local-only";
+/** How a ship task on a repo finishes, in plain words. */
+export const SHIP_MODE_LABEL: Record<ShipMode, string> = { "ship-script": "ships with its ship script", pr: "opens a pull request", "local-only": "commits on its branch for you to merge" };
 export interface RouterPlan { goals: { text: string; tasks: RoutedTask[] }[]; source: "model" | "code" }
 // "queued": may start, waiting for a free slot (the engine runs up to maxRunning at once, in queue order).
 // "backlog": parked as an idea (routed, never started, not in the queue); Move to queue (`work start`) puts it at the end.
@@ -56,6 +62,11 @@ export interface WorkTask extends RoutedTask {
   /** Lessons this task used, and the earlier tasks it was recognised from; both gone once the owner says "forget that". */
   learned?: string[];
   recurringOf?: string[];
+  /** A ship task's own git worktree (its home is a repo), and how it ships. */
+  worktree?: { path: string; branch: string; repo: string; base: string; cwd: string; machine?: string };
+  shipMode?: ShipMode;
+  /** A scout's report, relative to the vault, once done. */
+  report?: string;
 }
 export interface TaskUpdate {
   ts: number; from: "task" | "you"; text: string;

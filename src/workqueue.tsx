@@ -15,8 +15,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import {
   AlertCircle, ArrowDown, ArrowDownToLine, ArrowLeft, ArrowUp, ArrowUpRight, ArrowUpToLine, BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronsLeft, ChevronsRight,
-  Circle, Clock, CornerDownRight, FileText, Folder, FolderKanban, Globe, GripVertical, Hand, Laptop, Layers, Lightbulb, ListChecks, ListPlus, ListTodo, Loader2, Mail,
-  MessageSquareText, Mic, Pause, PenLine, Play, Plug, Plus, RotateCcw, Search, Send, Server, ShieldCheck, SlidersHorizontal, Sparkles, Split, Square, TerminalSquare, User, Users, X,
+  Circle, Clock, CornerDownRight, FileText, Folder, FolderKanban, GitBranch, Globe, GripVertical, Hammer, Hand, Laptop, Layers, Lightbulb, ListChecks, ListPlus, ListTodo, Loader2, Mail,
+  MessageSquareText, Mic, Pause, PenLine, Play, Plug, Plus, RotateCcw, Search, Send, Server, ShieldCheck, SlidersHorizontal, Sparkles, Split, Square, Telescope, TerminalSquare, User, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { invoke } from "./bridge";
@@ -39,8 +39,8 @@ import type { EngineApp } from "./types";
 import { lsGet, lsSet } from "./storage";
 import {
   ACTION_LABEL, actionsFor, activityLines, asMachines, asPrompts, asQueue, asSettings, backlog, canDispatchTo, engineLacksWork, HERDR_STATE_LABEL,
-  leaseElsewhere, machineLabel, moveInQueue, needsApproval, plainError, queueSummary, STATUS_LABEL, STATUS_TONE, statusLine, taskTitle,
-  type ActivityIcon, type BacklogFilter, type DestKind, type Destination, type Machine, type QueueTask, type TaskUpdate, type WorkAction, type WorkPrompt, type WorkSettings, type WorkStatus, type WorkTask,
+  leaseElsewhere, machineLabel, moveInQueue, needsApproval, plainError, queueSummary, SHIP_MODE_LABEL, STATUS_LABEL, STATUS_TONE, statusLine, taskTitle,
+  type ActivityIcon, type CrewShape, type BacklogFilter, type DestKind, type Destination, type Machine, type QueueTask, type TaskUpdate, type WorkAction, type WorkPrompt, type WorkSettings, type WorkStatus, type WorkTask,
 } from "./workqueuemodel";
 
 const POLL_MS = 3_000;
@@ -54,6 +54,8 @@ const iconBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md te
 const primaryBtn = "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-background transition-opacity disabled:opacity-40";
 const ACTION_ICON: Partial<Record<WorkAction, LucideIcon>> = { pause: Pause, continue: Play, start: Play, stop: Square, reopen: RotateCcw };
 // A fact pill in the panel's top rows: it shrinks (its label truncates) before a row would wrap.
+const CREW_LABEL: Record<CrewShape, string> = { scout: "Scout", ship: "Ship" };
+const CREW_HINT: Record<CrewShape, string> = { scout: "finds out and reports, changes nothing", ship: "makes the change" };
 const factPill = "inline-flex h-7 shrink-0 items-center whitespace-nowrap gap-1.5 rounded-full border border-border-subtle bg-background px-2.5 text-[12.5px] text-text-secondary transition-colors hover:bg-surface-warm hover:text-text-primary";
 const andList = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 const outlineBtn = "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent-border hover:text-accent disabled:opacity-40";
@@ -690,6 +692,8 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
     ? { icon: tinted(machineLook(m).Icon, machineLook(m).color), label: m.label, hint: HERDR_STATE_LABEL[m.herdr], checked: m.label === t.machine, onClick: () => { if (m.label !== t.machine) void route({ machine: m.label }); } }
     : { icon: tinted(machineLook(m).Icon, machineLook(m).color), label: `Connect ${m.label}`, hint: HERDR_STATE_LABEL[m.herdr], onClick: () => onAddMachine(m) });
   const kindItems: RowMenuItem[] = agentKinds.map((k) => ({ icon: Bot, label: k, checked: k === t.agentKind, onClick: () => { if (k !== t.agentKind) void route({ agentKind: k }); } }));
+  // Scout or ship, changed like a re-route (a record from before shapes shows neither).
+  const crewItems: RowMenuItem[] = (["scout", "ship"] as const).map((c) => ({ icon: c === "scout" ? Telescope : Hammer, label: CREW_LABEL[c], hint: CREW_HINT[c], checked: c === t.crew, onClick: () => { if (c !== t.crew) void route({ crew: c }); } }));
   const more: RowMenuItem[] = [
     ...actionsFor(t).map((a): RowMenuItem => ({ icon: ACTION_ICON[a] ?? Play, label: actionLabel(a, t), onClick: () => void act(a) })),
     ...(t.status !== "done" && t.status !== "backlog" ? [{ icon: CheckCircle2, label: "Mark done", onClick: () => onTick(t.id) }] : t.status === "done" ? [{ icon: CheckCircle2, label: "Clear from the queue", onClick: () => onTick(t.id) }] : []),
@@ -776,6 +780,11 @@ function TaskPanel({ t, machines, agentKinds, domains, host, busy, vault, run, o
             </span>) },
           ...otherDomains.map((d) => ({ key: `d:${d}`, label: titleCase(d), node: <span data-testid="work-domain" className={factPill} title={`${titleCase(d)} domain`}><TintIcon icon={Layers} tint={d} square={false} size={14} />{titleCase(d)}</span> })),
           ...otherApps.map((a) => ({ key: `a:${a}`, label: titleCase(a), node: <span data-testid="work-app" className={factPill} title={`${titleCase(a)} app`}><AppRowLogo app={{ id: a, title: titleCase(a) }} size={14} fallback="letter" />{titleCase(a)}</span> })),
+          ...(t.crew ? [{ key: "crew", label: `${CREW_LABEL[t.crew]}: ${CREW_HINT[t.crew]}`, node: <RowMenu items={crewItems} label="Scout or ship" testId="work-crew" trigger={<>{t.crew === "scout" ? <Telescope className="h-3.5 w-3.5 shrink-0 text-text-muted" /> : <Hammer className="h-3.5 w-3.5 shrink-0 text-text-muted" />}{CREW_LABEL[t.crew]}</>} triggerClass={factPill} /> }] : []),
+          ...(t.worktree ? [{ key: "worktree", label: `Branch: ${t.worktree.branch}`, node: (
+            <span data-testid="work-worktree" title={`Its own worktree: ${t.worktree.path}${t.shipMode ? `. When done it ${SHIP_MODE_LABEL[t.shipMode]}.` : ""}`} className={factPill}>
+              <GitBranch className="h-3.5 w-3.5 shrink-0 text-text-muted" /><span className="truncate">{t.worktree.branch}</span>
+            </span>) }] : []),
           { key: "agent", label: `Agent: ${t.agentKind}`, node: <RowMenu items={kindItems} label="Agent" testId="work-agent" trigger={<><Bot className="h-3.5 w-3.5 shrink-0 text-text-muted" />{t.agentKind}</>} triggerClass={factPill} /> },
           { key: "machine", label: `Machine: ${machineLabel(machines, t.machine)}`, node: <RowMenu items={machineItems} label="Machine" testId="work-task-machine" trigger={<><look.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: look.color }} />{machineLabel(machines, t.machine)}</>} triggerClass={factPill} /> },
           ...(t.children?.length ? [{ key: "subtasks", label: `Subtasks: ${t.children.length}`, node: (
